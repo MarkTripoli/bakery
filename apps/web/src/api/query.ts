@@ -62,6 +62,7 @@ import type {
   PluginInstallListResponse,
   PluginPackageListResponse,
   PluginVersionListResponse,
+  PreviewAvailabilityResponse,
   PullRequestListResponse,
   QuestionListResponse,
   RepositoryEffectiveRulesResponse,
@@ -75,6 +76,7 @@ import type {
   RoleBindingListResponse,
   RunControlCapabilities,
   RunListResponse,
+  RunPreviewResponse,
   RunResponse,
   RunStepListResponse,
   SavedDataPage,
@@ -463,6 +465,56 @@ export function pluginSavedDataQueryOptions(
           signal,
         }),
       );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+  });
+}
+
+/** Whether this deployment can serve running-app previews. */
+export function previewAvailabilityQueryOptions(
+  client: Pick<BakeryApiClient, "previews">,
+  scope: ApiScope,
+) {
+  return queryOptions<PreviewAvailabilityResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "previews.availability", {}),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.previews.availability({
+          organizationId: scope.organizationId,
+          signal,
+        }),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+  });
+}
+
+/** The newest preview of a run: the only one the card ever offers. */
+export function runPreviewQueryOptions(
+  client: Pick<BakeryApiClient, "previews">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<RunPreviewResponse | null, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "previews.list", { runId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const page = unwrap(
+        await client.previews.list({
+          organizationId: scope.organizationId,
+          runId,
+          limit: 1,
+          signal,
+        }),
+      );
+      return page.items[0] ?? null;
     },
     enabled: Boolean(scope.organizationId),
     retry: false,

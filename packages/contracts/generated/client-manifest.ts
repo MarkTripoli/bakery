@@ -5744,7 +5744,7 @@ export const clientManifest = {
       "permission": "preview:access",
       "input": "IdPath",
       "output": "Preview",
-      "event": "",
+      "event": "preview.stopped",
       "mcp": "",
       "idempotency": "Idempotency-Key required",
       "errors": [

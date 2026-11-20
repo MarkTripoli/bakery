@@ -5975,7 +5975,7 @@
       "permission": "preview:access",
       "input": "IdPath",
       "output": "Preview",
-      "event": "",
+      "event": "preview.stopped",
       "mcp": "",
       "idempotency": "Idempotency-Key required",
       "errors": [
@@ -240300,7 +240300,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:74e07a44116c12c0ce11da1ed60adb6072990b820690e45099bca5a17789b645",
+  "compatibilityDigest": "sha256:6a9c8ce4a46797f2b5d71f03a4d0b0fec7bdfdc5fbf77ae450ce78a30c0e51ff",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

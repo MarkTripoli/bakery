@@ -2,6 +2,7 @@ import type {
   PgDatabase,
   PgTransactionClient,
 } from "../../../platform/database.ts";
+import { appendDomainEvent } from "@bakery/persistence/event-audit";
 import { sha256Hex } from "../../../platform/canonical-json.ts";
 import {
   type CursorBinding,
@@ -153,6 +154,40 @@ export async function readPreview(
   return result.rows[0] ? toPreview(result.rows[0]) : null;
 }
 
+/**
+ * Tells everyone watching the run's task that a preview changed, so an open
+ * task page re-reads it. The event carries no state: the page fetches the
+ * preview through its own authorized read. Only changes a writer makes send
+ * one; a preview that ends by itself is derived when it is read.
+ */
+async function announcePreview(
+  transaction: PgTransactionClient,
+  input: {
+    organizationId: string;
+    previewId: string;
+    runId: string;
+    version: number;
+    eventType: "preview.ready" | "preview.stopped";
+  },
+): Promise<void> {
+  const run = await transaction.query<{ task_id: string }>(
+    `select task_id from bakery.workflow_runs
+      where organization_id = $1 and id = $2`,
+    [input.organizationId, input.runId],
+  );
+  const taskId = run.rows[0]?.task_id;
+  if (taskId === undefined) return;
+  await appendDomainEvent(transaction, {
+    organizationId: input.organizationId,
+    taskId,
+    eventType: input.eventType,
+    aggregateId: input.previewId,
+    aggregateVersion: input.version,
+    payload: { resourceId: input.previewId, resourceVersion: input.version },
+    traceId: crypto.randomUUID(),
+  });
+}
+
 export type RegisterPreviewInput = {
   organizationId: string;
   attemptId: string;
@@ -251,7 +286,15 @@ export async function registerPreview(
     input.organizationId,
     inserted.rows[0].id,
   );
-  return preview ? { kind: "created", preview } : { kind: "conflict" };
+  if (!preview) return { kind: "conflict" };
+  await announcePreview(transaction, {
+    organizationId: input.organizationId,
+    previewId: preview.id,
+    runId: found.run_id,
+    version: preview.version,
+    eventType: "preview.ready",
+  });
+  return { kind: "created", preview };
 }
 
 const PREVIEWS_ORDERING = "createdAt:desc,id:desc";
@@ -353,7 +396,15 @@ export async function stopPreview(
   );
   await revokePreviewAccess(transaction, organizationId, previewId);
   const after = await readPreview(transaction, organizationId, previewId);
-  return after ? { kind: "stopped", preview: after } : { kind: "missing" };
+  if (!after) return { kind: "missing" };
+  await announcePreview(transaction, {
+    organizationId,
+    previewId,
+    runId: after.runId,
+    version: after.version,
+    eventType: "preview.stopped",
+  });
+  return { kind: "stopped", preview: after };
 }
 
 /** Ends every grant and session of one preview. Safe to repeat. */

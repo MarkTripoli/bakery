@@ -32451,7 +32451,7 @@ const transportSchemas = {
         "resourceVersion": "integer"
       },
       "inngestTrigger": null,
-      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+      "description": "Authorized invalidation notification: a running-app preview was registered by its attempt's worker. Scoped to the run's task. Fetch the authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "principal.created": {
       "schemaVersion": 1,
@@ -33394,6 +33394,15 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification for a skill use grant its owner revoked; consumers re-read the skill use grants list."
+    },
+    "preview.stopped": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification: a running-app preview was stopped by a person. Fetch the authoritative current preview through its REST operation. Previews that end by themselves (time limit, run cancelled or ended, lost machine) send nothing: the readers derive that state when they read."
     }
   },
   "workerActions": {

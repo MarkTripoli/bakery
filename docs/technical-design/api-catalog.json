@@ -5752,7 +5752,7 @@
     {
       "group": "Workers",
       "access": "Developer",
-      "event": "",
+      "event": "preview.stopped",
       "mcp": null,
       "method": "POST",
       "path": "/v1/previews/{id}/stop",

@@ -130,6 +130,12 @@ function fakeApi(
       update: rejecting,
       savedData: rejecting,
     },
+    previews: {
+      availability: rejecting,
+      list: rejecting,
+      access: rejecting,
+      stop: rejecting,
+    },
     tickets: {
       get: rejecting,
       check: rejecting,

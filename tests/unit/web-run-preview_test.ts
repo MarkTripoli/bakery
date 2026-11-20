@@ -1,0 +1,110 @@
+import { assertEquals } from "@std/assert";
+import {
+  minutesLeft,
+  previewCardState,
+  sessionLength,
+  shortSha,
+} from "../../apps/web/src/app/run-preview.ts";
+import type { RunPreviewResponse } from "../../apps/web/src/api/client.ts";
+
+const base: RunPreviewResponse = {
+  id: "11111111-1111-4111-8111-111111111111",
+  runId: "22222222-2222-4222-8222-222222222222",
+  attemptId: "33333333-3333-4333-8333-333333333333",
+  headSha: "a".repeat(40),
+  status: "ready",
+  stopReason: null,
+  stoppedBy: null,
+  stoppedAt: null,
+  expiresAt: "2026-11-20T12:00:00.000Z",
+  createdAt: "2026-11-20T10:00:00.000Z",
+  updatedAt: "2026-11-20T10:00:00.000Z",
+  version: 1,
+};
+const at = "2026-11-20T11:00:00.000Z";
+
+Deno.test("the card is absent without a preview and otherwise says exactly what the server read", () => {
+  assertEquals(previewCardState(null, true), null);
+  assertEquals(previewCardState(undefined, true), null);
+  assertEquals(previewCardState(base, true), {
+    kind: "running",
+    expiresAt: base.expiresAt,
+  });
+  assertEquals(previewCardState({ ...base, status: "starting" }, true), {
+    kind: "starting",
+  });
+  const stopped = (
+    status: RunPreviewResponse["status"],
+    stopReason: RunPreviewResponse["stopReason"],
+    stoppedBy: string | null = null,
+  ) =>
+    previewCardState({
+      ...base,
+      status,
+      stopReason,
+      stoppedBy,
+      stoppedAt: at,
+    }, true);
+  assertEquals(stopped("stopped", "person", "someone"), {
+    kind: "stopped",
+    reason: "person",
+    at,
+    by: "someone",
+  });
+  assertEquals(stopped("stopped", "run_cancelled"), {
+    kind: "stopped",
+    reason: "run_cancelled",
+    at,
+    by: null,
+  });
+  assertEquals(stopped("stopped", "replaced"), {
+    kind: "stopped",
+    reason: "replaced",
+    at,
+    by: null,
+  });
+  assertEquals(stopped("stopped", "machine_lost"), { kind: "lost", at });
+  assertEquals(stopped("expired", "time_limit"), {
+    kind: "ended",
+    reason: "time_limit",
+    at,
+  });
+  assertEquals(stopped("stopped", "run_ended"), {
+    kind: "ended",
+    reason: "run_ended",
+    at,
+  });
+  // An expired preview with no reason is its time limit, never a person's stop.
+  assertEquals(stopped("expired", null), {
+    kind: "ended",
+    reason: "time_limit",
+    at,
+  });
+});
+
+Deno.test("a deployment with no preview address shows Not set up, whatever the preview was", () => {
+  assertEquals(previewCardState(base, false), { kind: "unavailable" });
+  assertEquals(
+    previewCardState(
+      { ...base, status: "stopped", stopReason: "person" },
+      false,
+    ),
+    { kind: "unavailable" },
+  );
+  // Unknown availability (still loading) does not hide a running preview.
+  assertEquals(previewCardState(base, undefined)?.kind, "running");
+});
+
+Deno.test("time left, commit and session length are plain", () => {
+  const now = new Date("2026-11-20T11:30:00.000Z");
+  assertEquals(minutesLeft(base.expiresAt, now), 30);
+  assertEquals(minutesLeft("2026-11-20T11:30:01.000Z", now), 1);
+  assertEquals(minutesLeft("2026-11-20T11:00:00.000Z", now), 0);
+  assertEquals(minutesLeft("not a time", now), 0);
+  assertEquals(shortSha(base.headSha), "aaaaaaaa");
+  assertEquals(sessionLength(3600), { unit: "hour", count: 1 });
+  assertEquals(sessionLength(7200), { unit: "hour", count: 2 });
+  assertEquals(sessionLength(86_400), { unit: "hour", count: 24 });
+  assertEquals(sessionLength(90), { unit: "minute", count: 2 });
+  assertEquals(sessionLength(60), { unit: "minute", count: 1 });
+});
