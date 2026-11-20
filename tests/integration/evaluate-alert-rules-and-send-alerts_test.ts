@@ -23,10 +23,11 @@ function receiver(status: () => number) {
   const server = Deno.serve(
     { hostname: "127.0.0.1", port: 0, onListen: () => {} },
     async (request) => {
-      seen.push({
-        headers: Object.fromEntries(request.headers),
-        body: await request.text(),
-      });
+      // Only a signed alert is the test's traffic: a POST with a body. A host
+      // that probes new localhost ports sends empty GETs, which must not count.
+      const body = request.method === "POST" ? await request.text() : "";
+      if (body === "") return new Response("not found", { status: 404 });
+      seen.push({ headers: Object.fromEntries(request.headers), body });
       return new Response("received", { status: status() });
     },
   );
