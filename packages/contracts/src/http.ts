@@ -367,6 +367,8 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "agent_file_principal_cannot_read",
       "agent_file_principal_cannot_write",
       "agent_file_grant_requires_person",
+      "agent_file_area_not_declared",
+      "agent_file_connection_not_bound",
     ]),
   } as const,
 );
