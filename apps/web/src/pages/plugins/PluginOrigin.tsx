@@ -34,15 +34,15 @@ function StatedRow({ row }: { readonly row: EvidenceRow }) {
     : row.value;
   return (
     <UI.Stack gap="compact" data-testid="stated-row">
-      <UI.Inline variant="between">
+      <UI.Stack gap="none">
         <UI.Text variant="muted">{row.name}</UI.Text>
         <UI.DataText>{shown}</UI.DataText>
-      </UI.Inline>
+      </UI.Stack>
       {long
         ? (
           <UI.Inline gap="compact">
             <UI.Button
-              variant="quiet"
+              variant="text"
               onClick={() => setAll((previous) => !previous)}
             >
               {all

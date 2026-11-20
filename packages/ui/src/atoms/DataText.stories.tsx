@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { DataText, Stack } from "@bakery/ui";
+import { Button, DataText, Inline, Stack } from "@bakery/ui";
 
 const meta = {
   title: "Bakery/Atoms/DataText",
@@ -26,6 +26,15 @@ const BaseContract: StoryObj = {
   ),
 };
 
+const FitStory: StoryObj = {
+  render: () => (
+    <Inline gap="compact">
+      <DataText fit>abababab…abab</DataText>
+      <Button variant="outline">Copy</Button>
+    </Inline>
+  ),
+};
+
 const CodeStory: StoryObj = {
   render: () => <DataText variant="code">webhook-schema</DataText>,
 };
@@ -35,6 +44,7 @@ export const Contract: StoryObj = {
     <>
       {BaseContract.render?.(args, context)}
       {CodeStory.render?.(args, context)}
+      {FitStory.render?.(args, context)}
     </>
   ),
 };

@@ -450,7 +450,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                         </UI.HelpTip>
                       </UI.Inline>
                       <UI.Inline gap="compact">
-                        <UI.DataText>
+                        <UI.DataText fit>
                           {shortFingerprint(current.bundleDigest)}
                         </UI.DataText>
                         <CopyValueButton
