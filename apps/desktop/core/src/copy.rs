@@ -6,9 +6,9 @@
 //! holds it to that.
 
 use crate::session::{Event, Refusal, Window};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ButtonId {
     SignIn,
@@ -514,6 +514,22 @@ mod tests {
         ] {
             assert_eq!(press(b), Press::Shell(b));
         }
+    }
+
+    #[test]
+    fn the_id_the_page_sends_back_is_the_id_the_core_sent() {
+        for window in every_window() {
+            for b in panel_for(&window, &ctx()).unwrap().buttons {
+                let sent = serde_json::to_string(&b.id).unwrap();
+                let back: ButtonId = serde_json::from_str(&sent).unwrap();
+                assert_eq!(back, b.id, "{sent}");
+            }
+        }
+        assert_eq!(
+            serde_json::from_str::<ButtonId>("\"copy_address\"").unwrap(),
+            ButtonId::CopyAddress
+        );
+        assert!(serde_json::from_str::<ButtonId>("\"nonsense\"").is_err());
     }
 
     #[test]
