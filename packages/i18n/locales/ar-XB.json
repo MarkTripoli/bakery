@@ -4919,7 +4919,6 @@
   "files.library.name": "⟪Library⟫",
   "files.library.readOnly": "⟪Read only⟫",
   "files.library.notice.title": "⟪This folder is a copy of the Library.⟫",
-  "files.library.notice.body": "⟪You can open and search what is here. To change {what}, open it in the Library.⟫",
   "files.library.open": "⟪Open the Library⟫",
   "files.library.what.workflow": "⟪a workflow⟫",
   "files.library.what.agent": "⟪an agent⟫",
@@ -4933,5 +4932,9 @@
   "files.library.kind.agent": "⟪Agent⟫",
   "files.library.kind.workflow": "⟪Workflow⟫",
   "files.library.kind.kind": "⟪Kind⟫",
-  "files.library.kind.package": "⟪Package⟫"
+  "files.library.kind.package": "⟪Package⟫",
+  "files.library.notice.open": "⟪Open {what} to see or change it in the Library.⟫",
+  "files.library.notice.other": "⟪To change anything here, open the Library.⟫",
+  "files.library.added": "⟪Added⟫",
+  "files.library.addedOn": "⟪Added {date}⟫"
 }

@@ -432,7 +432,10 @@ Deno.test("AC: the /library folder lists only sections that have a published ite
     const empty = await withPgTransaction(
       fixture.pgDatabase,
       (transaction) =>
-        listLibraryFolder(transaction, { organizationId: seed.organizationId }),
+        listLibraryFolder(transaction, {
+          organizationId: seed.organizationId,
+          principalId: seed.principalId,
+        }),
     );
     // A new organization may already hold built-in library items, so every
     // count below is relative to this baseline.
@@ -442,6 +445,7 @@ Deno.test("AC: the /library folder lists only sections that have a published ite
         (transaction) =>
           listLibraryFolder(transaction, {
             organizationId: seed.organizationId,
+            principalId: seed.principalId,
             section,
           }),
       ))?.length ?? 0;
@@ -460,6 +464,7 @@ Deno.test("AC: the /library folder lists only sections that have a published ite
         (transaction) =>
           listLibraryFolder(transaction, {
             organizationId: seed.organizationId,
+            principalId: seed.principalId,
             ...(section === undefined ? {} : { section }),
           }),
       );
@@ -496,6 +501,7 @@ Deno.test("AC: the /library folder lists only sections that have a published ite
       (transaction) =>
         listLibraryFolder(transaction, {
           organizationId: other.organizationId,
+          principalId: other.principalId,
           section: "workflows",
         }),
     );
@@ -586,6 +592,7 @@ Deno.test("AC: the /library section list never shows another organization's sect
         (transaction) =>
           listLibraryFolder(transaction, {
             organizationId: seed.organizationId,
+            principalId: seed.principalId,
           }),
       ))?.map((child) => child.name) ?? [];
 
@@ -740,4 +747,79 @@ Deno.test("AC: /v1/files/library needs library:read, and an agent session the li
     await assertRejects(() => call(["artifacts.read"]));
     assert((await call(["library.read"])).items.length > 0);
     assert((await call(undefined)).items.length > 0);
+  }));
+
+Deno.test("AC: a library entry carries its catalog item's id, and a personal skill is listed to its owner only", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "library-personal");
+    const colleague = await addMember(fixture, seed, "library-personal-b");
+    const org = seed.organizationId;
+    const mine = crypto.randomUUID();
+    const theirs = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.skills
+         (id, organization_id, slug, name, enabled, scope, owner_principal_id)
+       values ($1, $2, 'lp-mine', 'LP Mine', true, 'personal', $3),
+              ($4, $2, 'lp-theirs', 'LP Theirs', true, 'personal', $5),
+              ($6, $2, 'lp-shared', 'LP Shared', true, 'organization', null)`,
+      [
+        mine,
+        org,
+        seed.principalId,
+        theirs,
+        colleague.principalId,
+        crypto.randomUUID(),
+      ],
+    );
+    const list = (principalId: string) =>
+      withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          listLibraryFolder(transaction, {
+            organizationId: org,
+            principalId,
+            section: "skills",
+          }),
+      );
+    const asOwner = await list(seed.principalId);
+    const asColleague = await list(colleague.principalId);
+    const slugs = (entries: typeof asOwner) =>
+      (entries ?? []).map((entry) => entry.path.split("/").at(-1));
+    assert(slugs(asOwner).includes("lp-mine"), "the owner sees their own");
+    assert(slugs(asOwner).includes("lp-shared"));
+    assert(
+      !slugs(asOwner).includes("lp-theirs"),
+      "a colleague's personal skill is not listed",
+    );
+    assert(slugs(asColleague).includes("lp-theirs"));
+    assert(
+      !slugs(asColleague).includes("lp-mine"),
+      "the owner's personal skill is not listed to a colleague",
+    );
+    // Each item carries the id of the catalog row it mirrors; a folder has none.
+    const ownMirror = (asOwner ?? []).find((entry) =>
+      entry.path.endsWith("/lp-mine")
+    );
+    assertEquals(ownMirror?.id, mine);
+    const sections = await withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        listLibraryFolder(transaction, {
+          organizationId: org,
+          principalId: seed.principalId,
+        }),
+    );
+    assert(
+      sections?.every((entry) => entry.type === "folder" && entry.id === null),
+    );
+    // A search through the mirror hides it too.
+    const found = await search(
+      fixture,
+      { ...seed, principalId: colleague.principalId } as Seed,
+      { query: "lp " },
+    );
+    const foundNames = found.items.map((hit) => hit.name);
+    assert(foundNames.includes("LP Theirs"));
+    assert(!foundNames.includes("LP Mine"), "search does not reveal it either");
+    assert(foundNames.includes("LP Shared"));
   }));

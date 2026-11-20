@@ -383,8 +383,10 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
         slug: string,
         name: string,
         kind: string,
+        id: number,
       ) => ({
         type: "item",
+        id: uuid(id),
         path: `/library/${section}/${slug}`,
         name,
         kind,
@@ -392,16 +394,17 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
       });
       const sections: Record<string, unknown[]> = {
         "/library/kinds": [
-          item("kinds", "plan", "Plan", "kind"),
-          item("kinds", "review", "Review", "kind"),
+          item("kinds", "plan", "Plan", "kind", 7004),
+          item("kinds", "review", "Review", "kind", 7005),
         ],
         "/library/workflows": [
-          item("workflows", "ship", "Ship a change", "workflow"),
-          item("workflows", "triage", "Triage issues", "workflow"),
+          item("workflows", "ship", "Ship a change", "workflow", 7001),
+          item("workflows", "triage", "Triage issues", "workflow", 7002),
         ],
-        "/library/agents": [item("agents", "coder", "Coder", "agent")],
+        "/library/agents": [item("agents", "coder", "Coder", "agent", 7003)],
         "/library": ["workflows", "agents"].map((slug) => ({
           type: "folder",
+          id: null,
           path: `/library/${slug}`,
           name: slug,
           kind: null,
@@ -470,6 +473,38 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           : type.startsWith("text/")
           ? "text"
           : "other";
+      if (
+        under !== null &&
+        (under === "/library" || under.startsWith("/library/"))
+      ) {
+        const libraryHits = [
+          ["workflows", "ship", "Ship a change", "workflow"],
+          ["workflows", "triage", "Triage issues", "workflow"],
+          ["agents", "coder", "Coder", "agent"],
+        ]
+          .map(([section, slug, name, kind]) => ({
+            source: "library",
+            entryId: null,
+            path: `/library/${section}/${slug}`,
+            name: name!,
+            kind: kind!,
+            mediaType: null,
+            mediaGroup: null,
+            sizeBytes: null,
+            versionId: null,
+            producerId: null,
+            producerKind: null,
+            producerName: null,
+            producerTaskId: null,
+            producerTaskTitle: null,
+            nameMatchStart: null,
+            nameMatchLength: null,
+            createdAt: STAMP,
+          }))
+          .filter((hit) => hit.path.startsWith(`${under}/`))
+          .filter((hit) => hit.name.toLowerCase().includes(query));
+        return json(route, page_(libraryHits));
+      }
       const hits = tree
         .filter((entry) => entry.kind === "file")
         .filter((entry) => entry.name.toLowerCase().includes(query))

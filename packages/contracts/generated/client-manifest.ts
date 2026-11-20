@@ -89284,6 +89284,21 @@ export const clientManifest = {
                 ],
                 "description": "folder for a section, item for a published catalog item."
               },
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Id of the catalog item the entry mirrors, the same id its Library page and its catalog reads use; null for a folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "LibraryEntry.id may be null in this transport value."
+              },
               "path": {
                 "type": "string",
                 "maxLength": 65536,
@@ -89326,6 +89341,7 @@ export const clientManifest = {
             },
             "required": [
               "type",
+              "id",
               "path",
               "name",
               "kind",

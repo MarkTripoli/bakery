@@ -330,7 +330,7 @@ for (
       await expect(page.getByText("Read only", { exact: true })).toBeVisible();
       await expect(page.getByText("This folder is a copy of the Library."))
         .toBeVisible();
-      await expect(page.getByText(/To change an item, open it in the Library/))
+      await expect(page.getByText("To change anything here, open the Library."))
         .toBeVisible();
       await page.getByTestId("files-page").getByRole("link", {
         name: "Workflows",
@@ -338,19 +338,55 @@ for (
       }).click();
       await expect(page).toHaveURL(/\/files\/library\/workflows$/);
       await expect(
-        page.getByText(/To change a workflow, open it in the Library/),
-      )
-        .toBeVisible();
-      await expect(page.getByText("Ship a change")).toBeVisible();
+        page.getByText("Open a workflow to see or change it in the Library."),
+      ).toBeVisible();
+      // A workflow's name opens its Library page by id; the date says Added.
+      await expect(page.getByRole("link", { name: "Ship a change" }))
+        .toHaveAttribute("href", `/library/workflows/${uuid(7001)}`);
       await expect(page.getByText(/^Workflow( ·|$)/).first()).toBeVisible();
+      if (viewport.name === "desktop") {
+        await expect(page.getByRole("columnheader", { name: "Added" }))
+          .toBeVisible();
+      } else {
+        await expect(page.getByText(/Added Dec 31, 2025/).first())
+          .toBeVisible();
+      }
       // Nothing under /library can be changed: no rename, move, upload or delete.
       await expect(
         page.getByRole("button", { name: /Rename|Move|Upload|Delete/ }),
       ).toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "files-library");
+      // The search field is on the page and searches this folder.
+      await page.getByRole("searchbox", { name: "Search files by name" })
+        .fill("ship");
+      const results = page.getByTestId("files-results");
+      await expect(results.getByRole("link", { name: "Ship a change" }))
+        .toBeVisible();
+      await expect(results.getByRole("link", { name: "Coder" })).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "files-library-search");
+      await page.getByRole("button", { name: "Clear search" }).click();
       await page.getByRole("button", { name: "Open the Library" }).click();
       await expect(page).toHaveURL(/\/library$/);
+    });
+
+    test("an agent's Library folder links its agents, and the Kinds folder stays plain text", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto("/files/library/agents");
+      await expect(
+        page.getByText("Open an agent to see or change it in the Library."),
+      ).toBeVisible();
+      await expect(page.getByRole("link", { name: "Coder" }))
+        .toHaveAttribute("href", `/library/agents/${uuid(7003)}`);
+      await page.goto("/files/library/kinds");
+      await expect(
+        page.locator("td, [role=listitem]").filter({ hasText: "Plan" }).first(),
+      ).toBeVisible();
+      await expect(page.getByRole("link", { name: "Plan", exact: true }))
+        .toHaveCount(0);
+      await expect(page.getByText("To change anything here, open the Library."))
+        .toBeVisible();
     });
 
     test("a Library folder that does not exist says so", async ({ page }) => {

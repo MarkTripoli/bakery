@@ -4919,7 +4919,6 @@
   "files.library.name": "⟦Ļïƀŕàŕÿ…⟧",
   "files.library.readOnly": "⟦Ŕëàð ôñļÿ ŧ⟧",
   "files.library.notice.title": "⟦Ŧĥïš ƒôļðëŕ ïš à çôþÿ ôƒ ŧĥë Ļïƀŕàŕÿ. ŧëšŧ çôþÿŧ⟧",
-  "files.library.notice.body": "⟦Ÿôû çàñ ôþëñ àñð šëàŕçĥ ŵĥàŧ ïš ĥëŕë. Ŧô çĥàñĝë {what}, ôþëñ ïŧ ïñ ŧĥë Ļïƀŕàŕÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "files.library.open": "⟦Ôþëñ ŧĥë Ļïƀŕàŕÿ ŧëš⟧",
   "files.library.what.workflow": "⟦à ŵôŕķƒļôŵ ŧ⟧",
   "files.library.what.agent": "⟦àñ àĝëñŧ…⟧",
@@ -4933,5 +4932,9 @@
   "files.library.kind.agent": "⟦Àĝëñŧ⟧",
   "files.library.kind.workflow": "⟦Ŵôŕķƒļôŵ…⟧",
   "files.library.kind.kind": "⟦Ķïñð⟧",
-  "files.library.kind.package": "⟦Þàçķàĝë…⟧"
+  "files.library.kind.package": "⟦Þàçķàĝë…⟧",
+  "files.library.notice.open": "⟦Ôþëñ {what} ŧô šëë ôŕ çĥàñĝë ïŧ ïñ ŧĥë Ļïƀŕàŕÿ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "files.library.notice.other": "⟦Ŧô çĥàñĝë àñÿŧĥïñĝ ĥëŕë, ôþëñ ŧĥë Ļïƀŕàŕÿ. ŧëšŧ çôþÿ ŧë⟧",
+  "files.library.added": "⟦Àððëð⟧",
+  "files.library.addedOn": "⟦Àððëð {date} ŧë⟧"
 }

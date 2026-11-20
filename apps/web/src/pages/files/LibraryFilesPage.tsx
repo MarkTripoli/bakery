@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { formatDate } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import type { LibraryEntry } from "../../api/client.ts";
@@ -9,6 +9,14 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation } from "../../shell/shell-slots.tsx";
+import {
+  FileSearchControls,
+  FileSearchResults,
+  isSearching,
+  MEDIA_GROUPS,
+  type MediaGroup,
+  type SearchState,
+} from "./FileSearch.tsx";
 import { filesHref } from "./files-state.ts";
 
 /** Whether a folder path is the read-only mirror of the Library, or inside it. */
@@ -37,6 +45,44 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
   const list = useInfiniteQuery(
     fileLibraryEntriesQueryOptions(api, scope, path),
   );
+  const search = useSearch({ strict: false }) as {
+    q?: string;
+    type?: MediaGroup;
+    kind?: string;
+    by?: string;
+    in?: "all";
+  };
+  const searchState: SearchState = {
+    q: search.q ?? "",
+    type: search.type !== undefined &&
+        (MEDIA_GROUPS as readonly string[]).includes(search.type)
+      ? search.type
+      : undefined,
+    kind: search.kind,
+    by: search.by,
+    everywhere: search.in === "all",
+  };
+  const searching = isSearching(searchState);
+  const setSearch = (next: SearchState) => {
+    const query: {
+      q?: string;
+      type?: MediaGroup;
+      kind?: string;
+      by?: string;
+      in?: "all";
+    } = {};
+    if (next.q !== "") query.q = next.q;
+    if (next.type !== undefined) query.type = next.type;
+    if (next.kind !== undefined) query.kind = next.kind;
+    if (next.by !== undefined) query.by = next.by;
+    if (next.everywhere) query.in = "all";
+    void navigate({
+      to: "/files/$",
+      params: { _splat: path.slice(1) },
+      search: query,
+      replace: true,
+    });
+  };
   const rows: readonly LibraryEntry[] =
     list.data?.pages.flatMap((page) => page.items) ?? [];
   const section = path.split("/")[2];
@@ -64,7 +110,7 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
       : isSection(`${entry.kind}s`)
       ? translate(`files.library.kind.${entry.kind}` as never)
       : entry.kind;
-  const changed = (entry: LibraryEntry) =>
+  const added = (entry: LibraryEntry) =>
     entry.createdAt === null
       ? translate("files.size.none")
       : formatDate(new Date(entry.createdAt), locale, {
@@ -89,6 +135,40 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
           {sectionName(entry.path.split("/").at(-1) ?? entry.name)}
         </UI.Link>
       )
+      : entry.id !== null && entry.kind === "workflow"
+      ? (
+        <UI.Link
+          href={`/library/workflows/${entry.id}`}
+          variant="quiet"
+          data-name="true"
+          onClick={(event) => {
+            event.preventDefault();
+            void navigate({
+              to: "/library/workflows/$workflowId",
+              params: { workflowId: entry.id! },
+            });
+          }}
+        >
+          {entry.name}
+        </UI.Link>
+      )
+      : entry.id !== null && entry.kind === "agent"
+      ? (
+        <UI.Link
+          href={`/library/agents/${entry.id}`}
+          variant="quiet"
+          data-name="true"
+          onClick={(event) => {
+            event.preventDefault();
+            void navigate({
+              to: "/library/agents/$agentId",
+              params: { agentId: entry.id! },
+            });
+          }}
+        >
+          {entry.name}
+        </UI.Link>
+      )
       : <UI.Text variant="body">{entry.name}</UI.Text>;
   const missing = list.isError && list.error.kind === "problem" &&
     list.error.problem.status === 404;
@@ -103,6 +183,11 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
           title={translate("files.title")}
           subtitle={translate("files.description")}
         />
+        <FileSearchControls
+          state={searchState}
+          atTop={false}
+          onChange={setSearch}
+        />
         <UI.Inline gap="compact">
           <UI.Breadcrumbs
             aria-label={translate("files.breadcrumb")}
@@ -116,7 +201,9 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
           <UI.Stack gap="compact">
             <UI.Text variant="body">
               <strong>{translate("files.library.notice.title")}</strong>{" "}
-              {translate("files.library.notice.body", { what })}
+              {section === "workflows" || section === "agents"
+                ? translate("files.library.notice.open", { what })
+                : translate("files.library.notice.other")}
             </UI.Text>
             <UI.Inline gap="compact">
               <UI.Button
@@ -128,7 +215,21 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
             </UI.Inline>
           </UI.Stack>
         </UI.InlineNotice>
-        {missing
+        {searching
+          ? (
+            <FileSearchResults
+              state={searchState}
+              folderPath={path}
+              onOpen={(hit) => {
+                const parent = hit.path.slice(0, hit.path.lastIndexOf("/"));
+                void navigate({
+                  to: "/files/$",
+                  params: { _splat: parent.slice(1) },
+                });
+              }}
+            />
+          )
+          : missing
           ? (
             <UI.EmptyState
               title={translate("files.notFound.title")}
@@ -177,7 +278,14 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
                       <div key={entry.path} role="listitem">
                         <UI.StackedRow title={name(entry)}>
                           <UI.Text variant="caption">
-                            {[kindName(entry), changed(entry)].join(" · ")}
+                            {[
+                              kindName(entry),
+                              entry.createdAt === null
+                                ? ""
+                                : translate("files.library.addedOn", {
+                                  date: added(entry),
+                                }),
+                            ].filter((part) => part !== "").join(" · ")}
                           </UI.Text>
                         </UI.StackedRow>
                       </div>
@@ -207,8 +315,8 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
                       },
                       {
                         id: "changed",
-                        header: translate("files.table.changed"),
-                        cell: changed,
+                        header: translate("files.library.added"),
+                        cell: added,
                       },
                     ]}
                   />

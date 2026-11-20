@@ -142,12 +142,28 @@ export const LIBRARY_SOURCES = Object.freeze(
   ] as const,
 );
 
+/**
+ * What of a section the caller may see beyond `where`: a personal skill belongs
+ * to one person and is listed to that person only, never to a colleague, so the
+ * mirror (and a search through it) cannot reveal that somebody holds one.
+ */
+export function visibleToCaller(
+  source: { readonly kind: string },
+  principalRef: string,
+): string {
+  return source.kind === "skill"
+    ? ` and (x.scope <> 'personal' or x.owner_principal_id = ${principalRef})`
+    : "";
+}
+
 export const LIBRARY_SECTIONS = Object.freeze(
   LIBRARY_SOURCES.map((source) => source.section),
 );
 
 export type LibraryChild = Readonly<{
   type: "folder" | "item";
+  /** The catalog item's id; null for a section folder. */
+  id: string | null;
   name: string;
   path: string;
   kind: string | null;
@@ -170,6 +186,8 @@ export async function listLibraryFolder(
   transaction: PgTransactionClient,
   input: {
     organizationId: string;
+    /** Who is asking: a personal skill is listed to its owner only. */
+    principalId: string;
     section?: string;
     /** Items to return, oldest first; sections are a short fixed list and ignore it. */
     limit?: number;
@@ -182,12 +200,14 @@ export async function listLibraryFolder(
     for (const source of LIBRARY_SOURCES) {
       const found = await transaction.query<{ present: boolean }>(
         `select exists (select 1 from ${source.table} x
-                         where x.organization_id = $1 ${source.where}) as present`,
-        [input.organizationId],
+                         where x.organization_id = $1 ${source.where}
+                         ${visibleToCaller(source, "$2::uuid")}) as present`,
+        [input.organizationId, input.principalId],
       );
       if (found.rows[0]?.present) {
         children.push({
           type: "folder",
+          id: null,
           name: source.section,
           path: `/library/${source.section}`,
           kind: null,
@@ -215,6 +235,7 @@ export async function listLibraryFolder(
                     'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at
        from ${source.table} x
       where x.organization_id = $1 ${source.where}
+        ${visibleToCaller(source, "$5::uuid")}
         and ($2::timestamptz is null or (x.created_at, x.id) > ($2::timestamptz, $3::uuid))
       order by x.created_at, x.id
       limit $4`,
@@ -223,10 +244,12 @@ export async function listLibraryFolder(
       input.after?.createdAt ?? null,
       input.after?.id ?? null,
       input.limit ?? LIBRARY_PAGE_DEFAULT,
+      input.principalId,
     ],
   );
   return items.rows.map((row) => ({
     type: "item" as const,
+    id: row.id,
     name: row.name,
     path: `/library/${source.section}/${row.slug}`,
     kind: source.kind,
@@ -269,6 +292,7 @@ export function createLibraryFolderHandler(secret: string) {
     const limit = input.limit ?? 25;
     const children = await listLibraryFolder(transaction, {
       organizationId,
+      principalId,
       ...(section === undefined ? {} : { section }),
       limit: limit + 1,
       after: position?.createdAt === undefined
@@ -461,6 +485,7 @@ export function createFileSearchHandler(
                   x.created_at
              from ${source.table} x
             where x.organization_id = ${org} ${source.where}
+              ${visibleToCaller(source, `${p(principalId)}::uuid`)}
               and (${needleParam}::text is null
                    or strpos(lower(x.${source.name}), ${needleParam}) > 0)
               and (${kindParam}::text is null or ${kindParam} = '${source.kind}')`,

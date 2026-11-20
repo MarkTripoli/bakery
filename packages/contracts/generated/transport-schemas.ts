@@ -30600,6 +30600,7 @@ const transportSchemas = {
     "LibraryEntry": {
       "fields": [
         "type",
+        "id",
         "path",
         "name",
         "kind",
@@ -30607,18 +30608,21 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "type": "enum(folder|item)",
+        "id": "uuid|null",
         "path": "string",
         "name": "string",
         "kind": "string|null",
         "createdAt": "timestamp|null"
       },
       "nullableFields": [
+        "id",
         "kind",
         "createdAt"
       ],
       "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path.",
       "fieldDescriptions": {
         "type": "folder for a section, item for a published catalog item.",
+        "id": "Id of the catalog item the entry mirrors, the same id its Library page and its catalog reads use; null for a folder.",
         "path": "Absolute path: /library/<section> or /library/<section>/<slug>.",
         "name": "Display name of the section or item.",
         "kind": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder.",
