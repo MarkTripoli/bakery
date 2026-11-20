@@ -154,6 +154,8 @@ export async function openAuthFixture(options: {
   telemetryDestinations?: Parameters<
     typeof createApp
   >[0]["telemetryDestinations"];
+  /** Alert channel dependencies; tests share a fetch and an address policy. */
+  alertChannels?: Parameters<typeof createApp>[0]["alertChannels"];
   /** Extra runtime environment, such as the server budget policy. */
   env?: Record<string, string>;
 } = {}) {
@@ -268,6 +270,7 @@ export async function openAuthFixture(options: {
       skillStorageProbe: options.skillStorageProbe,
       emailSend: options.emailSend,
       telemetryDestinations: options.telemetryDestinations,
+      alertChannels: options.alertChannels,
     });
     const originalFetch = app.fetch.bind(app);
     app.fetch = (

@@ -126,6 +126,15 @@ function telemetryDestinationBody() {
   };
 }
 
+/** An alert channel pointed at a closed local port, so a test send reaches nothing. */
+function alertChannelBody() {
+  return {
+    kind: "webhook",
+    name: `Audit matrix ${crypto.randomUUID()}`,
+    values: { address: "http://127.0.0.1:1" },
+  };
+}
+
 export async function runAuditMatrix(
   f: InstallationFixture,
   matrixActions: readonly string[] = AUDIT_MATRIX_ACTIONS,
@@ -134,6 +143,7 @@ export async function runAuditMatrix(
   const org = orgHeader(f.organizationId);
   const developer = f.developerCookie;
   let telemetryDestination: { id: string; version: number } | undefined;
+  let alertChannel: { id: string; version: number } | undefined;
   const suffix = crypto.randomUUID().slice(0, 8);
   const state: Record<string, string> = {};
   const rowsFor = async (operation: string) =>
@@ -861,6 +871,157 @@ export async function runAuditMatrix(
             headers: {
               "Idempotency-Key": key(),
               "If-Match": `"${telemetryDestination!.version}"`,
+            },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "alertChannels.create",
+      failure: () =>
+        call(f, "POST", "/v1/installation/alert-channels", developer, {
+          body: alertChannelBody(),
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => {
+        const response = await call(
+          f,
+          "POST",
+          "/v1/installation/alert-channels",
+          f.adminCookie,
+          {
+            body: alertChannelBody(),
+            headers: { "Idempotency-Key": key() },
+          },
+        );
+        if (response.status === 201) {
+          alertChannel = (await response.clone().json() as {
+            channel: { id: string; version: number };
+          }).channel;
+        }
+        return { response, organizationId: null };
+      },
+    },
+    {
+      operation: "alertChannels.update",
+      failure: () =>
+        call(
+          f,
+          "PATCH",
+          `/v1/installation/alert-channels/${
+            alertChannel?.id ?? crypto.randomUUID()
+          }`,
+          developer,
+          {
+            body: { enabled: false },
+            headers: { "Idempotency-Key": key(), "If-Match": '"1"' },
+          },
+        ),
+      success: async () => {
+        const response = await call(
+          f,
+          "PATCH",
+          `/v1/installation/alert-channels/${alertChannel!.id}`,
+          f.adminCookie,
+          {
+            body: { enabled: false },
+            headers: {
+              "Idempotency-Key": key(),
+              "If-Match": `"${alertChannel!.version}"`,
+            },
+          },
+        );
+        if (response.status === 200) {
+          alertChannel = await response.clone().json() as {
+            id: string;
+            version: number;
+          };
+        }
+        return { response, organizationId: null };
+      },
+    },
+    {
+      // Points at a closed local port, so it answers not accepted and reaches nothing.
+      operation: "alertChannels.test",
+      failure: () =>
+        call(
+          f,
+          "POST",
+          `/v1/installation/alert-channels/${
+            alertChannel?.id ?? crypto.randomUUID()
+          }/tests`,
+          developer,
+          { headers: { "Idempotency-Key": key() } },
+        ),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          `/v1/installation/alert-channels/${alertChannel!.id}/tests`,
+          f.adminCookie,
+          { headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "alertChannels.rotateSecret",
+      failure: () =>
+        call(
+          f,
+          "POST",
+          `/v1/installation/alert-channels/${
+            alertChannel?.id ?? crypto.randomUUID()
+          }/secret-rotations`,
+          developer,
+          { headers: { "Idempotency-Key": key(), "If-Match": '"1"' } },
+        ),
+      success: async () => {
+        const response = await call(
+          f,
+          "POST",
+          `/v1/installation/alert-channels/${
+            alertChannel!.id
+          }/secret-rotations`,
+          f.adminCookie,
+          {
+            headers: {
+              "Idempotency-Key": key(),
+              "If-Match": `"${alertChannel!.version}"`,
+            },
+          },
+        );
+        if (response.status === 200) {
+          alertChannel = (await response.clone().json() as {
+            channel: { id: string; version: number };
+          }).channel;
+        }
+        return { response, organizationId: null };
+      },
+    },
+    {
+      operation: "alertChannels.delete",
+      failure: () =>
+        call(
+          f,
+          "DELETE",
+          `/v1/installation/alert-channels/${
+            alertChannel?.id ?? crypto.randomUUID()
+          }`,
+          developer,
+          { headers: { "Idempotency-Key": key(), "If-Match": '"1"' } },
+        ),
+      success: async () => ({
+        response: await call(
+          f,
+          "DELETE",
+          `/v1/installation/alert-channels/${alertChannel!.id}`,
+          f.adminCookie,
+          {
+            headers: {
+              "Idempotency-Key": key(),
+              "If-Match": `"${alertChannel!.version}"`,
             },
           },
         ),
