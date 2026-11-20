@@ -424,6 +424,8 @@ export function createApp(options: {
       normalizeSourceLocator: options.skillSourceLocatorNormalizer,
       // A draft is started from a published version's files, read from here.
       skillFileStore,
+      // A source is looked at again from here to see whether it has an update.
+      sourceAdapter: skillSourceAdapter,
     }),
     {
       authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
