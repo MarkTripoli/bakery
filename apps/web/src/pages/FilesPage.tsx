@@ -79,7 +79,9 @@ function StorageFilesPage({ path }: { readonly path: string }) {
     q: search.q ?? "",
     kind: search.kind,
     by: search.by,
-    fact: search.fact,
+    // A fact belongs to a kind: without one the control is disabled and empty,
+    // so a fact left in the address must not narrow a search the page does not show.
+    fact: search.kind === undefined ? undefined : search.fact,
     type: search.type !== undefined &&
         (MEDIA_GROUPS as readonly string[]).includes(search.type)
       ? search.type
@@ -133,7 +135,9 @@ function StorageFilesPage({ path }: { readonly path: string }) {
     if (merged.type !== undefined) query.type = merged.type;
     if (merged.kind !== undefined) query.kind = merged.kind;
     if (merged.by !== undefined) query.by = merged.by;
-    if (merged.fact !== undefined) query.fact = merged.fact;
+    if (merged.fact !== undefined && merged.kind !== undefined) {
+      query.fact = merged.fact;
+    }
     if (merged.view !== undefined) query.view = merged.view;
     if (merged.in !== undefined) query.in = merged.in;
     if (merged.file !== undefined) query.file = merged.file;

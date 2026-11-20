@@ -512,6 +512,16 @@ for (
       await expect(page).not.toHaveURL(/kind=|q=/);
     });
 
+    test("a fact in the address without a kind narrows nothing", async ({ page }) => {
+      const { seen } = await filesFixture(page);
+      await page.goto("/files/projects/web-app?fact=risk:high");
+      // Nothing is searching: the folder shows as it is, and no search was asked.
+      await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "demo.webm" })).toBeVisible();
+      expect(seen.searches.every((search) => !search.includes("factKey")))
+        .toBe(true);
+    });
+
     test("the Fact filter waits for a kind, lists that kind's facts, lives in the address, and goes when the kind changes", async ({ page }) => {
       const { seen } = await filesFixture(page);
       await page.goto("/files/projects/web-app");
