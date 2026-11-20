@@ -12351,42 +12351,6 @@
       ],
       "description": "Lists batches newest first, optionally for one repository."
     },
-    "SkillCopy": {
-      "fields": [
-        {
-          "name": "id",
-          "type": "uuid",
-          "required": true,
-          "location": "path",
-          "description": "Identifies the skill to copy; supplied via the request's {id} path segment. The copy starts from its active version, and the copy records this skill and that version as where it came from."
-        },
-        {
-          "name": "name",
-          "type": "string",
-          "required": true,
-          "bounds": {
-            "maxLength": 200
-          },
-          "description": "Display name of the new skill, shown wherever skills are listed or picked; independent of the name of the skill it was copied from."
-        },
-        {
-          "name": "scope",
-          "type": "enum(organization|personal)",
-          "required": true,
-          "description": "Who the copy is for: organization (visible to everyone in the organization, and copying into it needs the Admin role) or personal (shown as Private, belongs to the calling person alone). A skill that comes with Bakery can be copied into either, and the original is never changed."
-        },
-        {
-          "name": "slug",
-          "type": "slug",
-          "required": false,
-          "bounds": {
-            "maxLength": 100
-          },
-          "description": "URL-safe identity of the new skill, unique within the organization for an organization copy and within the caller's own skills for a personal one; when omitted it is made from the name."
-        }
-      ],
-      "description": "Copies a skill the caller can see into a new organization or personal skill with its own identity, carrying the source's active version (every file and the manifest) as version 1 and recording the source skill and version it was copied from."
-    },
     "AgentFileGrantCreate": {
       "fields": [
         {
