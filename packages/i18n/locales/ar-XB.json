@@ -4980,7 +4980,10 @@
   "files.madeBy.agentUnnamed": "⟪An agent working for {person}⟫",
   "files.madeBy.agentAccess": "⟪Written with {person}'s access to this folder.⟫",
   "files.version.agentBadge": "⟪Agent⟫",
-  "files.version.agentHelp": "⟪An agent wrote this version. Open it to see which session, and whose access it used.⟫",
   "files.version.agentHelpLabel": "⟪About agent versions⟫",
-  "files.version.chooseAgent": "⟪Show version {number}, written by an agent⟫"
+  "files.version.chooseAgent": "⟪Show version {number}, written by an agent⟫",
+  "files.madeBy.agentAccessUnknown": "⟪Whose access it used was not recorded.⟫",
+  "files.madeBy.agentOnly": "⟪{agent}, an agent⟫",
+  "files.madeBy.agentAlone": "⟪An agent⟫",
+  "files.version.agentHelp": "⟪An agent wrote this version. The line below names the agent and whose access it used.⟫"
 }

@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { filesFixture, TREE } from "./helpers/files-fixture.ts";
+import {
+  AGENT_NO_PERSON_VERSIONS,
+  filesFixture,
+  TREE,
+} from "./helpers/files-fixture.ts";
 import { uuid } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
@@ -467,6 +471,49 @@ for (
       await expect(panel.getByText("Agent", { exact: true })).toHaveCount(1);
       await expect(panel).toContainText(
         "Reviewer, an agent working for Ana Reyes",
+      );
+    });
+
+    test("an agent version with no person recorded never names one", async ({ page }) => {
+      await filesFixture(page, { versions: AGENT_NO_PERSON_VERSIONS });
+      await page.goto(`/files/projects/web-app?file=${uuid(40)}`);
+      const panel = page.getByTestId("file-details");
+      await expect(panel).toContainText("Reviewer, an agent");
+      await expect(panel).toContainText(
+        "Whose access it used was not recorded.",
+      );
+      await expect(panel).not.toContainText("Not recorded");
+      await expect(panel).not.toContainText("working for");
+      await page.getByRole("tab", { name: "Versions" }).click();
+      await expect(panel).toContainText("An agent");
+      await expect(panel.getByText("Agent", { exact: true })).toHaveCount(2);
+    });
+
+    test("a version a step wrote carries the Agent badge, a person's does not", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(
+        `/files/projects/web-app?file=${uuid(40)}&tab=versions`,
+      );
+      const panel = page.getByTestId("file-details");
+      await expect(
+        panel.getByRole("button", {
+          name: "Show version 2, written by an agent",
+        }),
+      ).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Show version 1" }))
+        .toBeVisible();
+      await expect(panel.getByText("Agent", { exact: true })).toHaveCount(1);
+    });
+
+    test("the agent help tip explains the line below without a session", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(
+        `/files/projects/web-app?file=${uuid(40)}&tab=versions`,
+      );
+      const panel = page.getByTestId("file-details");
+      await panel.getByRole("button", { name: "About agent versions" }).click();
+      await expect(page.getByRole("tooltip")).toHaveText(
+        "An agent wrote this version. The line below names the agent and whose access it used.",
       );
     });
 
