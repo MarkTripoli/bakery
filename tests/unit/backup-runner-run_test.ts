@@ -295,6 +295,31 @@ Deno.test("an incomplete backup set fails the run as incomplete_set, uploads not
   assert(!JSON.stringify(last).includes(LEASE));
 });
 
+Deno.test("an incomplete set kept for a missing manifest builder is reported failed with that cause and is not uploaded", async () => {
+  const h = harness({
+    settings: withOffsite,
+    backup: () =>
+      Promise.reject(
+        new StepError(
+          "incomplete_set",
+          "BACKUP_INCOMPLETE manifest_builder_missing: deno is not installed (set kept; it is not the latest backup)",
+        ),
+      ),
+  });
+  const outcome = await runOnce(h.deps);
+  assertEquals(outcome, {
+    kind: "failed",
+    runId: RUN,
+    code: "incomplete_set",
+  });
+  // The incomplete set is not copied off-site and nothing reports completed.
+  assert(!h.events.includes("upload"));
+  assert(!h.reports.some((r) => r.body.status === "completed"));
+  const last = h.reports.at(-1)!.body;
+  assertEquals(last.failureCode, "incomplete_set");
+  assertStringIncludes(last.failureDetail!, "manifest_builder_missing");
+});
+
 Deno.test("a refused destination completes the run on the host as 'not copied off-site', after the backup was taken", async () => {
   const h = harness({
     settings: withOffsite,

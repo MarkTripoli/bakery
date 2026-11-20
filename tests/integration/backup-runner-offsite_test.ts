@@ -409,6 +409,65 @@ Deno.test("local retention removes expired set directories only", async () => {
   });
 });
 
+Deno.test("local retention reads the marker: an incomplete newest directory shields nothing and old ones are pruned", async () => {
+  await withTemp(async (root) => {
+    const backups = `${root}/backups`;
+    await Deno.mkdir(backups);
+    const completeOld = set("20261001T030000Z", 11);
+    const completeNewest = set("20261101T030000Z", 12);
+    const incompleteOld = set("20261015T030000Z", 13);
+    const incompleteRecent = set("20261119T030000Z", 14);
+    for (
+      const [name, marked] of [
+        [completeOld, false],
+        [completeNewest, false],
+        [incompleteOld, true],
+        [incompleteRecent, true],
+      ] as const
+    ) {
+      await Deno.mkdir(`${backups}/${name}`);
+      await Deno.writeTextFile(`${backups}/${name}/SHA256SUMS`, "x");
+      if (marked) {
+        await Deno.writeTextFile(
+          `${backups}/${name}/INCOMPLETE.json`,
+          JSON.stringify({
+            format: 1,
+            complete: false,
+            cause: "manifest_builder_missing",
+            detail: "deno is not installed",
+            failedStores: [],
+          }),
+        );
+      }
+    }
+    await Deno.writeTextFile(
+      `${backups}/latest`,
+      `${backups}/${completeNewest}\n`,
+    );
+    const removed = await pruneLocal({
+      root: backups,
+      // Nothing named: no set is protected as "just taken".
+      artifactName: set("20990101T000000Z", 99),
+      daysToKeep: 7,
+      now: new Date("2026-11-20T12:00:00Z"),
+    });
+    // The old complete set and the old incomplete set go; the newest COMPLETE
+    // set stays, as does the incomplete one that is not yet old enough.
+    assertEquals(removed.sort(), [completeOld, incompleteOld].sort());
+    const left = [];
+    for await (const entry of Deno.readDir(backups)) left.push(entry.name);
+    assertEquals(
+      left.sort(),
+      [completeNewest, incompleteRecent, "latest"].sort(),
+    );
+    // `latest` is never touched by retention.
+    assertEquals(
+      (await Deno.readTextFile(`${backups}/latest`)).trim(),
+      `${backups}/${completeNewest}`,
+    );
+  });
+});
+
 Deno.test("settings become an off-site target, or a named failure", () => {
   const allow = { allowLoopbackEndpoint: false };
   assertEquals(

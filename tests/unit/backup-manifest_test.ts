@@ -4,7 +4,11 @@ import {
   CHECKSUMS_FILE,
   describeProblems,
   hashFile,
+  INCOMPLETE_FILE,
   IncompleteBackup,
+  isDeclaredIncomplete,
+  KEY_FINGERPRINT_DOMAIN,
+  keyFingerprint,
   type Manifest,
   MANIFEST_FILE,
   STORES,
@@ -21,6 +25,7 @@ import {
 const started = new Date("2026-11-20T03:00:00.000Z");
 const finished = new Date("2026-11-20T03:04:00.000Z");
 const SHA = "a".repeat(40);
+const KEY_BYTES = "unit-test-secret-key-bytes-0123456789";
 
 async function makeSet(
   skip: readonly string[] = [],
@@ -40,7 +45,11 @@ const baseInput = (directory: string) => ({
   directory,
   startedAt: started,
   finishedAt: finished,
-  key: { state: "configured" as const, id: "key-2026" },
+  key: {
+    state: "configured" as const,
+    id: "key-2026",
+    fingerprint: keyFingerprint(new TextEncoder().encode(KEY_BYTES)),
+  },
   references: { skillFiles: 12, blobs: 3 },
 });
 
@@ -192,7 +201,11 @@ Deno.test("no configured secrets key is an explicit exclusion, an invalid key id
       () =>
         writeBackupManifest({
           ...baseInput(directory),
-          key: { state: "configured", id: "has spaces" },
+          key: {
+            state: "configured",
+            id: "has spaces",
+            fingerprint: keyFingerprint(new TextEncoder().encode(KEY_BYTES)),
+          },
         }),
       IncompleteBackup,
     );
@@ -309,6 +322,158 @@ Deno.test("a set from before manifests is legacy and never complete", async () =
     // Allowing legacy sets changes the message, never the verdict.
     assertEquals(allowed.complete, false);
     assertEquals(allowed.legacy, true);
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("the key fingerprint is domain-separated, stable and changes with the key", async () => {
+  const key = new TextEncoder().encode(KEY_BYTES);
+  const fingerprint = keyFingerprint(key);
+  // 16 hex characters of SHA-256(domain || key): first 64 bits.
+  assertEquals(fingerprint.length, 16);
+  assert(/^[0-9a-f]{16}$/.test(fingerprint));
+  assertEquals(keyFingerprint(key), fingerprint);
+  const expected = [
+    ...new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(KEY_FINGERPRINT_DOMAIN + KEY_BYTES),
+      ),
+    ),
+  ].map((byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 16);
+  assertEquals(fingerprint, expected);
+  assertEquals(KEY_FINGERPRINT_DOMAIN, "bakery-backup-key-fingerprint-v1\n");
+  // A different key, and one flipped byte, give a different fingerprint.
+  assert(
+    keyFingerprint(new TextEncoder().encode("another key")) !== fingerprint,
+  );
+  const flipped = new Uint8Array(key);
+  flipped[0] ^= 1;
+  assert(keyFingerprint(flipped) !== fingerprint);
+  // It is not the plain SHA-256 of the key: the domain separates it.
+  const plain = [
+    ...new Uint8Array(await crypto.subtle.digest("SHA-256", key)),
+  ].map((byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 16);
+  assert(plain !== fingerprint);
+});
+
+Deno.test("the manifest records the key id and fingerprint and no key bytes", async () => {
+  const directory = await makeSet();
+  try {
+    const manifest = await writeBackupManifest(baseInput(directory));
+    const key = manifest.stores.find((s) => s.id === "secrets-key-identity")!;
+    assertEquals(key.keyId, "key-2026");
+    assertEquals(
+      key.keyFingerprint,
+      keyFingerprint(new TextEncoder().encode(KEY_BYTES)),
+    );
+    assertEquals(key.keyFingerprintFormat, "sha256-16hex-v1");
+    // The key's bytes, in any common encoding, are in no file of the set.
+    const raw = new TextEncoder().encode(KEY_BYTES);
+    const needles = [
+      KEY_BYTES,
+      btoa(KEY_BYTES),
+      [...raw].map((b) => b.toString(16).padStart(2, "0")).join(""),
+    ];
+    for await (const entry of Deno.readDir(directory)) {
+      const text = await Deno.readTextFile(join(directory, entry.name));
+      for (const needle of needles) {
+        assert(!text.includes(needle), `${entry.name} holds the key`);
+      }
+    }
+    // An invalid fingerprint is a failure, not a quiet pass.
+    await assertRejects(
+      () =>
+        writeBackupManifest({
+          ...baseInput(directory),
+          key: { state: "configured", id: "key-2026", fingerprint: "nothex" },
+        }),
+      IncompleteBackup,
+    );
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("a key file is checked against the recorded fingerprint, and read only for that", async () => {
+  const directory = await makeSet();
+  try {
+    await writeBackupManifest(baseInput(directory));
+    const keyFile = join(directory, "..", `key-${crypto.randomUUID()}`);
+    await Deno.writeTextFile(keyFile, KEY_BYTES);
+    try {
+      const good = await verifyBackupDirectory(directory, { keyFile });
+      assertEquals(good.complete, true);
+      // The wrong key, an unreadable file and a manifest with no key all fail.
+      await Deno.writeTextFile(keyFile, "a different key entirely");
+      const wrong = await verifyBackupDirectory(directory, { keyFile });
+      assertEquals(wrong.problems.map((p) => p.kind), ["key_mismatch"]);
+      assert(wrong.problems[0].detail.includes("fingerprint differs"));
+      assert(!JSON.stringify(wrong).includes("a different key entirely"));
+      const missing = await verifyBackupDirectory(directory, {
+        keyFile: `${keyFile}.nope`,
+      });
+      assertEquals(missing.problems.map((p) => p.kind), ["key_mismatch"]);
+    } finally {
+      await Deno.remove(keyFile);
+    }
+    const none = await makeSet();
+    try {
+      await writeBackupManifest({
+        ...baseInput(none),
+        key: { state: "unconfigured" },
+      });
+      const result = await verifyBackupDirectory(none, {
+        keyFile: "/nonexistent",
+      });
+      assertEquals(result.problems.map((p) => p.kind), ["key_mismatch"]);
+    } finally {
+      await Deno.remove(none, { recursive: true });
+    }
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("a set that declares itself incomplete is refused first, and no flag excuses it", async () => {
+  const directory = await makeSet();
+  try {
+    // backup.sh writes this marker (and no manifest) when it cannot build one.
+    await Deno.writeTextFile(
+      join(directory, INCOMPLETE_FILE),
+      JSON.stringify({
+        format: 1,
+        complete: false,
+        cause: "manifest_builder_missing",
+        detail: "deno is not installed",
+        failedStores: [],
+      }),
+    );
+    assertEquals(await isDeclaredIncomplete(directory), true);
+    for (const allowLegacy of [false, true]) {
+      const result = await verifyBackupDirectory(directory, { allowLegacy });
+      assertEquals(result.complete, false);
+      // Not legacy: a missing manifest is not what is wrong with it.
+      assertEquals(result.legacy, false);
+      assertEquals(result.problems.map((p) => p.kind), ["declared_incomplete"]);
+      assert(result.problems[0].detail.includes("manifest_builder_missing"));
+    }
+    // Even a set that otherwise has a valid manifest is refused if it carries the marker.
+    await writeBackupManifest(baseInput(directory));
+    assertEquals(
+      (await verifyBackupDirectory(directory, { allowLegacy: true })).problems
+        .map((p) => p.kind),
+      ["declared_incomplete"],
+    );
+    // An unreadable marker still marks the set.
+    await Deno.writeTextFile(join(directory, INCOMPLETE_FILE), "{broken");
+    const broken = await verifyBackupDirectory(directory);
+    assertEquals(broken.problems.map((p) => p.kind), ["declared_incomplete"]);
+    assertEquals(
+      await isDeclaredIncomplete(await Deno.makeTempDir()),
+      false,
+    );
   } finally {
     await Deno.remove(directory, { recursive: true });
   }

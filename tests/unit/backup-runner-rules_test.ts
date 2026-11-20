@@ -201,3 +201,54 @@ Deno.test("a secret that contains another is removed whole", () => {
     "key=[redacted] end",
   );
 });
+
+Deno.test("an incomplete set is never the newest: it shields no complete set and is pruned by age", () => {
+  const completeOld = set("2026-10-01T03:00:00Z", 1);
+  const completeNewest = set("2026-11-01T03:00:00Z", 2);
+  const incompleteRecent = set("2026-11-19T03:00:00Z", 3);
+  const incompleteOld = set("2026-10-15T03:00:00Z", 4);
+  const names = [completeOld, completeNewest, incompleteRecent, incompleteOld];
+  const incomplete = new Set([incompleteRecent, incompleteOld]);
+  // The newest COMPLETE set is the one that is never pruned, however old; the
+  // newest directory (incomplete) does not take that protection away from it.
+  assertEquals(
+    selectExpired({
+      names,
+      now: NOW,
+      daysToKeep: 7,
+      protect: noProtect,
+      incomplete,
+    }),
+    [completeOld, incompleteOld].sort(),
+  );
+  // Without the marker knowledge, the newest directory would have been
+  // "the newest" and the newest complete set would have been pruned.
+  assertEquals(
+    selectExpired({ names, now: NOW, daysToKeep: 7, protect: noProtect }),
+    [completeOld, completeNewest, incompleteOld].sort(),
+  );
+  // An incomplete set is prunable by age whatever its position, and a recent
+  // one is kept until it is old enough.
+  assertEquals(
+    selectExpired({
+      names: [incompleteRecent, incompleteOld],
+      now: NOW,
+      daysToKeep: 7,
+      protect: noProtect,
+      incomplete,
+    }),
+    [incompleteOld],
+  );
+  // The set just taken stays protected, and a complete set is never protected
+  // by an incomplete one that is newer.
+  assertEquals(
+    selectExpired({
+      names,
+      now: NOW,
+      daysToKeep: 7,
+      protect: new Set([completeOld]),
+      incomplete,
+    }),
+    [incompleteOld],
+  );
+});

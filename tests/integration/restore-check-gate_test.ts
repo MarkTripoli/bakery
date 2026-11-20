@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { join } from "node:path";
 import {
+  INCOMPLETE_FILE,
   STORES,
   writeBackupManifest,
 } from "../../scripts/deploy/backup-runner/manifest.ts";
@@ -34,7 +35,11 @@ async function writeSet(
       directory,
       startedAt: new Date("2026-11-20T03:00:00.000Z"),
       finishedAt: new Date("2026-11-20T03:01:00.000Z"),
-      key: { state: "configured", id: "key-2026" },
+      key: {
+        state: "configured",
+        id: "key-2026",
+        fingerprint: "0123456789abcdef",
+      },
       references: { skillFiles: 0, blobs: 0 },
     });
   } else {
@@ -48,6 +53,11 @@ async function withCheck(
     readonly set: string;
     readonly dockerCalls: () => Promise<number>;
     readonly run: (
+      ...extra: string[]
+    ) => Promise<{ code: number; stderr: string }>;
+    /** Like run, with BAKERY_ENV set to `env` (null removes it). */
+    readonly runWithEnv: (
+      env: string | null,
       ...extra: string[]
     ) => Promise<{ code: number; stderr: string }>;
   }) => Promise<void>,
@@ -70,6 +80,31 @@ async function withCheck(
     const identity = join(dir, "identity.txt");
     await Deno.writeTextFile(identity, "AGE-SECRET-KEY-FAKE\n");
     const set = join(dir, "set");
+    const launch = async (env: string | null, extra: string[]) => {
+      const variables: Record<string, string> = {
+        PATH: `${bin}:/usr/bin:/bin`,
+        HOME: dir,
+        BAKERY_BACKUP_SANDBOX: dir,
+        TMPDIR: dir,
+      };
+      if (env !== null) variables.BAKERY_ENV = env;
+      const output = await new Deno.Command("bash", {
+        args: [
+          join(REPO, "scripts/deploy/restore-check.sh"),
+          set,
+          identity,
+          ...extra,
+        ],
+        clearEnv: true,
+        env: variables,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      return {
+        code: output.code,
+        stderr: new TextDecoder().decode(output.stderr),
+      };
+    };
     await run({
       dir,
       set,
@@ -80,29 +115,8 @@ async function withCheck(
           return 0;
         }
       },
-      run: async (...extra) => {
-        const output = await new Deno.Command("bash", {
-          args: [
-            join(REPO, "scripts/deploy/restore-check.sh"),
-            set,
-            identity,
-            ...extra,
-          ],
-          clearEnv: true,
-          env: {
-            PATH: `${bin}:/usr/bin:/bin`,
-            HOME: dir,
-            BAKERY_BACKUP_SANDBOX: dir,
-            TMPDIR: dir,
-          },
-          stdout: "piped",
-          stderr: "piped",
-        }).output();
-        return {
-          code: output.code,
-          stderr: new TextDecoder().decode(output.stderr),
-        };
-      },
+      run: (...extra) => launch("test", extra),
+      runWithEnv: (env, ...extra) => launch(env, extra),
     });
   } finally {
     await Deno.remove(dir, { recursive: true });
@@ -172,5 +186,48 @@ Deno.test("an unknown third argument is refused", async () => {
     const result = await check.run("--whatever");
     assertEquals(result.code, 64);
     assertEquals(await check.dockerCalls(), 0);
+  });
+});
+
+Deno.test("the sandbox is honoured only when BAKERY_ENV=test, and refused before anything runs", async () => {
+  await withCheck(async (check) => {
+    await writeSet(check.set);
+    for (const env of [null, "", "production"]) {
+      const result = await check.runWithEnv(env);
+      assertEquals(result.code, 64, `BAKERY_ENV=${env}: ${result.stderr}`);
+      assert(
+        result.stderr.includes("only honoured when BAKERY_ENV=test"),
+        result.stderr,
+      );
+      assertEquals(await check.dockerCalls(), 0);
+    }
+    // Under BAKERY_ENV=test it is honoured: the gate passes and the restore starts.
+    const honoured = await check.runWithEnv("test");
+    assert(!honoured.stderr.includes("only honoured"), honoured.stderr);
+    assert((await check.dockerCalls()) >= 1);
+  });
+});
+
+Deno.test("a set that declares itself incomplete is refused with its cause, even with --allow-legacy", async () => {
+  await withCheck(async (check) => {
+    await writeSet(check.set, { manifest: false });
+    await Deno.writeTextFile(
+      join(check.set, INCOMPLETE_FILE),
+      JSON.stringify({
+        format: 1,
+        complete: false,
+        cause: "manifest_builder_missing",
+        detail: "deno is not installed",
+        failedStores: [],
+      }),
+    );
+    for (const extra of [[], ["--allow-legacy"]]) {
+      const result = await check.run(...extra);
+      assertEquals(result.code, 70, result.stderr);
+      assert(result.stderr.includes("declared_incomplete"), result.stderr);
+      assert(result.stderr.includes("manifest_builder_missing"), result.stderr);
+      assert(!result.stderr.includes("BACKUP_LEGACY_SET"));
+      assertEquals(await check.dockerCalls(), 0);
+    }
   });
 });

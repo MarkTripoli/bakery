@@ -1,9 +1,12 @@
 import { assert, assertEquals } from "@std/assert";
 import { join } from "node:path";
 import {
+  INCOMPLETE_FILE,
+  keyFingerprint,
   type Manifest,
   verifyBackupDirectory,
 } from "../../scripts/deploy/backup-runner/manifest.ts";
+import { isBackupName } from "../../scripts/deploy/backup-runner/retention.ts";
 
 /**
  * #64 slice A: the real scripts/deploy/backup.sh against shim docker, age and
@@ -57,9 +60,12 @@ cat
 
 type Sandbox = {
   readonly dir: string;
+  readonly bin: string;
+  readonly opt: string;
   readonly backups: string;
+  /** A null value removes that variable from the script's environment. */
   readonly run: (
-    env?: Record<string, string>,
+    env?: Record<string, string | null>,
   ) => Promise<{ code: number; stdout: string; stderr: string }>;
 };
 
@@ -116,17 +122,25 @@ async function withSandbox(
     await Deno.symlink(Deno.execPath(), join(bin, "deno"));
     const sandbox: Sandbox = {
       dir,
+      bin,
+      opt,
       backups: join(state, "backups"),
       run: async (env = {}) => {
+        const merged: Record<string, string | null> = {
+          PATH: `${bin}:/usr/bin:/bin`,
+          HOME: dir,
+          BAKERY_BACKUP_SANDBOX: dir,
+          BAKERY_ENV: "test",
+          ...env,
+        };
         const output = await new Deno.Command("bash", {
           args: [join(REPO, "scripts/deploy/backup.sh")],
           clearEnv: true,
-          env: {
-            PATH: `${bin}:/usr/bin:/bin`,
-            HOME: dir,
-            BAKERY_BACKUP_SANDBOX: dir,
-            ...env,
-          },
+          env: Object.fromEntries(
+            Object.entries(merged).filter(
+              (entry): entry is [string, string] => entry[1] !== null,
+            ),
+          ),
           stdout: "piped",
           stderr: "piped",
         }).output();
@@ -189,10 +203,29 @@ Deno.test("a complete set holds every declared store, a manifest and verifies", 
     const key = manifest.stores.find((s) => s.id === "secrets-key-identity");
     assertEquals(key?.status, "captured");
     assertEquals(key?.keyId, "key-2026");
-    // The secrets key itself is nowhere in the set.
+    // The manifest records the key's fingerprint, never the key.
+    assertEquals(
+      key?.keyFingerprint,
+      keyFingerprint(new TextEncoder().encode(KEY_MATERIAL)),
+    );
+    // The secrets key is in no file of the set, in any common encoding, and not
+    // in what the script printed either.
+    const raw = new TextEncoder().encode(KEY_MATERIAL);
+    const needles = [
+      KEY_MATERIAL,
+      btoa(KEY_MATERIAL),
+      [...raw].map((b) => b.toString(16).padStart(2, "0")).join(""),
+    ];
     for (const file of await entries(set)) {
       const text = await Deno.readTextFile(join(set, file));
-      assert(!text.includes(KEY_MATERIAL), `${file} holds the key`);
+      for (const needle of needles) {
+        assert(!text.includes(needle), `${file} holds the key`);
+      }
+    }
+    for (const needle of needles) {
+      assert(
+        !result.stdout.includes(needle) && !result.stderr.includes(needle),
+      );
     }
     // The set also passes the checksum tool the restore check uses.
     const check = await new Deno.Command("sha256sum", {
@@ -309,5 +342,173 @@ Deno.test("the verify command accepts a finished set and refuses a tampered one"
     assert(
       new TextDecoder().decode(allowed.stderr).includes("BACKUP_LEGACY_SET"),
     );
+  });
+});
+
+Deno.test("the sandbox is honoured only when BAKERY_ENV=test, and refused before anything is touched", async () => {
+  await withSandbox({}, async (box) => {
+    for (const env of [null, "", "production", "staging"]) {
+      const result = await box.run({ BAKERY_ENV: env });
+      assertEquals(result.code, 64, `BAKERY_ENV=${env}: ${result.stderr}`);
+      assert(
+        result.stderr.includes("only honoured when BAKERY_ENV=test"),
+        result.stderr,
+      );
+      // Nothing was created: no backups directory, no pending directory.
+      assertEquals(await entries(box.backups), []);
+      assertEquals(result.stdout, "");
+    }
+    // And under BAKERY_ENV=test it is honoured.
+    assertEquals((await box.run()).code, 0);
+  });
+});
+
+const KEPT_NAME =
+  /^\d{8}T\d{6}Z-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+async function assertKeptIncomplete(
+  box: Sandbox,
+  result: { code: number; stdout: string; stderr: string },
+  previousLatest: string | null,
+): Promise<string> {
+  assertEquals(result.code, 70, result.stderr);
+  assert(result.stderr.includes("BACKUP_INCOMPLETE"), result.stderr);
+  assert(result.stderr.includes("manifest_builder_missing"), result.stderr);
+  assert(!result.stdout.includes("BACKUP_COMPLETED"));
+  // Exactly one kept set, under a normal name, and `latest` is untouched.
+  const names = (await entries(box.backups)).filter((n) => n !== "latest");
+  assertEquals(names.length, 1, names.join(","));
+  const name = names[0];
+  assert(KEPT_NAME.test(name), name);
+  assert(isBackupName(name));
+  if (previousLatest === null) {
+    assert(!(await entries(box.backups)).includes("latest"));
+  } else {
+    assertEquals(
+      (await Deno.readTextFile(join(box.backups, "latest"))).trim(),
+      previousLatest,
+    );
+  }
+  const set = join(box.backups, name);
+  // The dumps are there, encrypted exactly as a normal run writes them.
+  assertEquals(
+    await Deno.readTextFile(join(set, "bakery.dump.age")),
+    "AGE-FAKE-ENCRYPTED\ndump of bakery\n",
+  );
+  assertEquals(
+    await Deno.readTextFile(join(set, "inngest.dump.age")),
+    "AGE-FAKE-ENCRYPTED\ndump of inngest\n",
+  );
+  const files = await entries(set);
+  for (
+    const file of [
+      "SHA256SUMS",
+      "files.tar.gz.age",
+      "redis.rdb.age",
+      "references.json.age",
+      "release.json",
+      INCOMPLETE_FILE,
+    ]
+  ) assert(files.includes(file), `${file} is missing: ${files.join(",")}`);
+  assert(!files.includes("manifest.json"));
+  // The marker says it is incomplete and why, and holds no secret.
+  const marker = JSON.parse(
+    await Deno.readTextFile(join(set, INCOMPLETE_FILE)),
+  ) as { complete: boolean; cause: string; detail: string };
+  assertEquals(marker.complete, false);
+  assertEquals(marker.cause, "manifest_builder_missing");
+  assert(marker.detail.includes("take another backup"));
+  for (const file of files) {
+    assert(
+      !(await Deno.readTextFile(join(set, file))).includes(KEY_MATERIAL),
+      `${file} holds the key`,
+    );
+  }
+  // SHA256SUMS still checks out, and the verifier refuses the set with the cause.
+  const check = await new Deno.Command("sha256sum", {
+    args: ["--check", "--status", "SHA256SUMS"],
+    cwd: set,
+  }).output();
+  assertEquals(check.code, 0);
+  const verified = await verifyBackupDirectory(set, { allowLegacy: true });
+  assertEquals(verified.complete, false);
+  assertEquals(verified.problems.map((p) => p.kind), ["declared_incomplete"]);
+  assert(verified.problems[0].detail.includes("manifest_builder_missing"));
+  return name;
+}
+
+Deno.test("with the release checkout missing the dumps are still taken, kept as an incomplete set, never latest", async () => {
+  await withSandbox({}, async (box) => {
+    await Deno.mkdir(box.backups, { recursive: true });
+    await Deno.writeTextFile(
+      join(box.backups, "latest"),
+      "/previous-good-set\n",
+    );
+    await Deno.remove(join(box.opt, "background"));
+    const result = await box.run();
+    await assertKeptIncomplete(box, result, "/previous-good-set");
+  });
+});
+
+Deno.test("with Deno missing the dumps are still taken, kept as an incomplete set, never latest", async () => {
+  await withSandbox({}, async (box) => {
+    // Neither the shim dir nor /usr/bin:/bin has a deno.
+    await Deno.remove(join(box.bin, "deno"));
+    const result = await box.run();
+    await assertKeptIncomplete(box, result, null);
+  });
+});
+
+Deno.test("an incomplete set names the stores that also failed", async () => {
+  await withSandbox({}, async (box) => {
+    await Deno.remove(join(box.opt, "background"));
+    const result = await box.run({ FAKE_REDIS_SAVE: "ERR" });
+    assertEquals(result.code, 70, result.stderr);
+    const name = (await entries(box.backups)).find((n) => n !== "latest")!;
+    const marker = JSON.parse(
+      await Deno.readTextFile(join(box.backups, name, INCOMPLETE_FILE)),
+    ) as { failedStores: string[] };
+    assertEquals(marker.failedStores, ["redis"]);
+    assert(!(await entries(join(box.backups, name))).includes("redis.rdb.age"));
+  });
+});
+
+Deno.test("the verify command can check a key file against the recorded fingerprint", async () => {
+  await withSandbox({}, async (box) => {
+    const done = await box.run();
+    assertEquals(done.code, 0, done.stderr);
+    const name = /BACKUP_COMPLETED (\S+)/.exec(done.stdout)![1];
+    const set = join(box.backups, name);
+    const keyFile = join(box.dir, "etc/bakery/secrets.key");
+    const verify = async (file: string) => {
+      const output = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "--no-prompt",
+          `--allow-read=${set},${file}`,
+          join(REPO, "scripts/deploy/backup-manifest.ts"),
+          "verify",
+          set,
+          "--key-file",
+          file,
+        ],
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      return {
+        code: output.code,
+        text: new TextDecoder().decode(output.stdout) +
+          new TextDecoder().decode(output.stderr),
+      };
+    };
+    assertEquals((await verify(keyFile)).code, 0);
+    const other = join(box.dir, "other.key");
+    await Deno.writeTextFile(other, "a different key");
+    const wrong = await verify(other);
+    assertEquals(wrong.code, 70);
+    assert(wrong.text.includes("key_mismatch"), wrong.text);
+    // Neither key's bytes are printed.
+    assert(!wrong.text.includes("a different key"));
+    assert(!wrong.text.includes(KEY_MATERIAL));
   });
 });

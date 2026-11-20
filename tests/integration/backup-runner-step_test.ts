@@ -58,7 +58,11 @@ async function writeCompleteSet(
       directory,
       startedAt: new Date("2026-11-20T03:00:00.000Z"),
       finishedAt: new Date("2026-11-20T03:01:00.000Z"),
-      key: { state: "configured", id: "key-2026" },
+      key: {
+        state: "configured",
+        id: "key-2026",
+        fingerprint: "0123456789abcdef",
+      },
       references: { skillFiles: 1, blobs: 0 },
     });
   }
@@ -158,6 +162,21 @@ Deno.test("a script that reports BACKUP_INCOMPLETE is incomplete_set, and specif
       StepError,
     );
     assertEquals(missing.code, "key_missing");
+  });
+});
+
+Deno.test("a script that kept an incomplete set because the manifest builder is missing is incomplete_set with that cause", async () => {
+  await withRoot(async (root, script) => {
+    const path = await script(
+      `echo "BACKUP_INCOMPLETE manifest_builder_missing: deno or /opt/bakery/background/scripts/deploy/backup-manifest.ts is not available (set kept as ${NAME}; it is not the latest backup)" >&2; exit 70`,
+    );
+    const error = await assertRejects(
+      () => runBackupScript({ script: path, root, secrets: secrets() }),
+      StepError,
+    );
+    assertEquals(error.code, "incomplete_set");
+    assert(error.detail.includes("manifest_builder_missing"), error.detail);
+    assert(error.detail.includes("not the latest backup"), error.detail);
   });
 });
 
