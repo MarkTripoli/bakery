@@ -49,31 +49,53 @@ export function readerMayReadArtifactVersions(context: ActionContext): boolean {
 }
 
 /**
- * Resolve the state of every cited version in one query, so a page of
+ * What a reader may see of the artifact version a revision cites: its state and,
+ * when the reader may read it, the document's name and the version's number, so
+ * a list shows "Source: {document}, version {n}" without a read per row.
+ * `name` and `revision` are null unless the state is available or deleted.
+ */
+export type MemorySource = {
+  readonly state: MemorySourceState;
+  readonly name: string | null;
+  readonly revision: number | null;
+};
+
+const NO_SOURCE: MemorySource = {
+  state: "unknown",
+  name: null,
+  revision: null,
+};
+
+/**
+ * Resolve the source of every cited version in one query, so a page of
  * revisions or entries costs one lookup rather than one per row.
  */
-export async function resolveMemorySourceStates(
+export async function resolveMemorySources(
   transaction: PgTransactionClient,
   input: {
     organizationId: string;
     readerMayRead: boolean;
     versionIds: readonly (string | null)[];
   },
-): Promise<Map<string, MemorySourceState>> {
+): Promise<Map<string, MemorySource>> {
   const ids = [
     ...new Set(input.versionIds.filter((id): id is string => id !== null)),
   ];
-  const states = new Map<string, MemorySourceState>();
+  const sources = new Map<string, MemorySource>();
   if (!input.readerMayRead) {
-    for (const id of ids) states.set(id, "no_access");
-    return states;
+    for (const id of ids) {
+      sources.set(id, { state: "no_access", name: null, revision: null });
+    }
+    return sources;
   }
-  if (ids.length === 0) return states;
+  if (ids.length === 0) return sources;
   const rows = await transaction.query<{
     id: string;
     purged: boolean;
     present: boolean;
     reachable: boolean;
+    artifact_name: string | null;
+    revision: number;
   }>(
     // Reachability mirrors artifactVersions.list: the version's artifact and
     // task are this organization's, and a version written by a run step belongs
@@ -101,25 +123,35 @@ export async function resolveMemorySourceStates(
                     and rs.id = v.run_step_id
                     and wr.task_id = v.task_id
                )
-             )) as reachable
+             )) as reachable,
+            (select a.name from bakery.artifacts a
+              where a.organization_id = v.organization_id
+                and a.id = v.artifact_id) as artifact_name,
+            v.revision
        from bakery.artifact_versions v
       where v.organization_id = $1 and v.id = any($2::uuid[])`,
     [input.organizationId, ids],
   );
-  for (const id of ids) states.set(id, "unknown");
+  for (const id of ids) sources.set(id, NO_SOURCE);
   for (const row of rows.rows) {
-    states.set(
-      row.id,
-      !row.reachable
-        ? "no_access"
-        : row.purged
-        ? "deleted"
-        : row.present
-        ? "available"
-        : "unknown",
-    );
+    const state: MemorySourceState = !row.reachable
+      ? "no_access"
+      : row.purged
+      ? "deleted"
+      : row.present
+      ? "available"
+      : "unknown";
+    // A name is only given for a version the reader can reach and that exists
+    // as a document: never for no_access, never for a row nothing true can be
+    // said about.
+    const named = state === "available" || state === "deleted";
+    sources.set(row.id, {
+      state,
+      name: named ? row.artifact_name : null,
+      revision: named ? row.revision : null,
+    });
   }
-  return states;
+  return sources;
 }
 
 /**
