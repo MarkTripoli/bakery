@@ -45092,6 +45092,20 @@ export const clientManifest = {
                 ],
                 "description": "Preview.stoppedBy may be null in the safe projection."
               },
+              "stoppedByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stoppedByName may be null in the safe projection."
+              },
               "stoppedAt": {
                 "anyOf": [
                   {
@@ -45140,6 +45154,7 @@ export const clientManifest = {
               "status",
               "stopReason",
               "stoppedBy",
+              "stoppedByName",
               "stoppedAt",
               "expiresAt",
               "createdAt",
@@ -63312,6 +63327,20 @@ export const clientManifest = {
           ],
           "description": "Preview.stoppedBy may be null in the safe projection."
         },
+        "stoppedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stoppedByName may be null in the safe projection."
+        },
         "stoppedAt": {
           "anyOf": [
             {
@@ -63360,6 +63389,7 @@ export const clientManifest = {
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",

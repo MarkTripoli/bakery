@@ -15726,6 +15726,7 @@ const transportSchemas = {
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -15744,11 +15745,13 @@ const transportSchemas = {
         "attemptId": "uuid",
         "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
         "stoppedBy": "uuid",
+        "stoppedByName": "string",
         "stoppedAt": "timestamp"
       },
       "nullableFields": [
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt"
       ],
       "sourceColumns": {
@@ -15759,6 +15762,7 @@ const transportSchemas = {
         "status": "status",
         "stopReason": "stop_reason",
         "stoppedBy": "stopped_by",
+        "stoppedByName": "stopped_by_name",
         "stoppedAt": "stopped_at",
         "expiresAt": "expires_at",
         "createdAt": "created_at",
@@ -15778,6 +15782,7 @@ const transportSchemas = {
         "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
         "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
         "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved.",
         "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
@@ -22473,6 +22478,7 @@ const transportSchemas = {
         "status",
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt",
         "expiresAt",
         "createdAt",
@@ -22491,11 +22497,13 @@ const transportSchemas = {
         "attemptId": "uuid",
         "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
         "stoppedBy": "uuid",
+        "stoppedByName": "string",
         "stoppedAt": "timestamp"
       },
       "nullableFields": [
         "stopReason",
         "stoppedBy",
+        "stoppedByName",
         "stoppedAt"
       ],
       "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned.",
@@ -22511,6 +22519,7 @@ const transportSchemas = {
         "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
         "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
         "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedByName": "That principal's display name as the organization knows it now; null when no stopper is named or the name cannot be resolved.",
         "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },

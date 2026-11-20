@@ -10,6 +10,7 @@ export type PreviewCardState =
     readonly reason: "person" | "run_cancelled" | "replaced";
     readonly at: string | null;
     readonly by: string | null;
+    readonly byName: string | null;
   }
   | {
     readonly kind: "ended";
@@ -42,9 +43,21 @@ export function previewCardState(
     case "run_ended":
       return { kind: "ended", reason: "run_ended", at };
     case "run_cancelled":
-      return { kind: "stopped", reason: "run_cancelled", at, by: null };
+      return {
+        kind: "stopped",
+        reason: "run_cancelled",
+        at,
+        by: null,
+        byName: null,
+      };
     case "replaced":
-      return { kind: "stopped", reason: "replaced", at, by: null };
+      return {
+        kind: "stopped",
+        reason: "replaced",
+        at,
+        by: null,
+        byName: null,
+      };
     case "person":
     default:
       // An expired preview with no recorded reason is its time limit.
@@ -55,6 +68,7 @@ export function previewCardState(
           reason: "person",
           at,
           by: preview.stoppedBy ?? null,
+          byName: preview.stoppedByName ?? null,
         };
   }
 }
@@ -65,9 +79,9 @@ export function minutesLeft(expiresAt: string, now: Date): number {
   return Number.isNaN(left) ? 0 : Math.max(0, Math.ceil(left / 60_000));
 }
 
-/** The first eight characters of a commit, as the card names it. */
+/** The first seven characters of a commit, as the card names it. */
 export function shortSha(sha: string): string {
-  return sha.slice(0, 8);
+  return sha.slice(0, 7);
 }
 
 /** "1 hour", "30 minutes": how long a session lasts, for the opened notice. */

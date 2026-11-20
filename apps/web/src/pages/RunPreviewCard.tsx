@@ -104,11 +104,14 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
       case "running":
         return translate("tasks.preview.body.running");
       case "stopped":
-        return state.reason === "person"
+        return state.reason === "person" && state.byName === null &&
+            state.by !== props.currentPrincipalId
+          ? translate("tasks.preview.stopped.unnamed", { time: time(state.at) })
+          : state.reason === "person"
           ? translate("tasks.preview.stopped.person", {
             name: state.by !== null && state.by === props.currentPrincipalId
               ? translate("tasks.preview.name.you")
-              : translate("tasks.preview.name.someone"),
+              : state.byName,
             time: time(state.at),
           })
           : state.reason === "run_cancelled"
@@ -124,7 +127,9 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
           { time: time(state.at) },
         );
       case "lost":
-        return translate("tasks.preview.lost", { time: time(state.at) });
+        return `${
+          translate("tasks.preview.lost.lead", { time: time(state.at) })
+        } ${translate("tasks.preview.lost.rest")}`;
     }
   };
 
@@ -146,11 +151,21 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
     >
       <UI.Stack gap="compact">
         <UI.Text variant="caption" data-testid="run-preview-identity">
-          {translate("tasks.preview.identity", {
-            sha: shortSha(preview.headSha),
-          })}
+          {translate("tasks.preview.identity.commit")}{" "}
+          <UI.DataText fit>{shortSha(preview.headSha)}</UI.DataText>
+          {" · "}
+          {translate("tasks.preview.identity.released")}
         </UI.Text>
-        <UI.Text data-testid="run-preview-body">{sentence()}</UI.Text>
+        {state.kind === "lost"
+          ? (
+            <UI.InlineNotice tone="warning" data-testid="run-preview-body">
+              <UI.Text variant="strong">
+                {translate("tasks.preview.lost.lead", { time: time(state.at) })}
+              </UI.Text>
+              <UI.Text>{translate("tasks.preview.lost.rest")}</UI.Text>
+            </UI.InlineNotice>
+          )
+          : <UI.Text data-testid="run-preview-body">{sentence()}</UI.Text>}
         {state.kind === "unavailable"
           ? (
             <UI.Text variant="hint">
@@ -169,9 +184,13 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
                   </UI.Text>
                 )
                 : null}
-              <UI.Text variant="hint">
-                {translate("tasks.preview.again")}
-              </UI.Text>
+              {state.kind !== "lost"
+                ? (
+                  <UI.Text variant="hint">
+                    {translate("tasks.preview.again")}
+                  </UI.Text>
+                )
+                : null}
             </UI.Stack>
           )
           : null}
@@ -254,7 +273,7 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
                 : (
                   <>
                     <UI.Button
-                      variant="outline"
+                      variant={open.kind === "opened" ? "outline" : "default"}
                       data-testid="run-preview-prepare"
                       disabled={openDisabledReason !== null}
                       aria-describedby={openDisabledReason === null

@@ -35,6 +35,7 @@ export type PreviewView = {
   status: PreviewStatus;
   stopReason: PreviewStopReason | null;
   stoppedBy: string | null;
+  stoppedByName: string | null;
   stoppedAt: string | null;
   expiresAt: string;
   createdAt: string;
@@ -50,6 +51,7 @@ type PreviewRow = {
   status: PreviewStatus;
   stop_reason: PreviewStopReason | null;
   stopped_by: string | null;
+  stopped_by_name: string | null;
   stopped_at: string | null;
   expires_at: string;
   created_at: string;
@@ -109,7 +111,7 @@ const PREVIEW_COLUMNS = `
   p.id, p.run_id, p.attempt_id, p.head_sha,
   ${STATE} as status,
   ${STOP_REASON} as stop_reason,
-  p.stopped_by,
+  p.stopped_by, who.display_name as stopped_by_name,
   ${iso(`(${STOPPED_AT})`)} as stopped_at,
   ${iso("p.expires_at")} as expires_at,
   ${iso("p.created_at")} as created_at,
@@ -121,7 +123,8 @@ export const PREVIEW_FROM = `
   join bakery.job_attempts a
     on a.organization_id = p.organization_id and a.id = p.attempt_id
   join bakery.jobs j
-    on j.organization_id = a.organization_id and j.id = a.job_id`;
+    on j.organization_id = a.organization_id and j.id = a.job_id
+  left join bakery.principals who on who.id = p.stopped_by`;
 
 function toPreview(row: PreviewRow): PreviewView {
   return {
@@ -133,6 +136,7 @@ function toPreview(row: PreviewRow): PreviewView {
     stopReason: row.stop_reason,
     // Only a person's stop names a person.
     stoppedBy: row.stop_reason === "person" ? row.stopped_by : null,
+    stoppedByName: row.stop_reason === "person" ? row.stopped_by_name : null,
     stoppedAt: row.stopped_at,
     expiresAt: row.expires_at,
     createdAt: row.created_at,
