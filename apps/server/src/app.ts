@@ -40,6 +40,7 @@ import { createGateTicketNoteWriter } from "./modules/integrations/ticket-notes.
 import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
+import { createEvaluationRoutes } from "./modules/evaluations/routes.ts";
 import {
   createFetchGitHubAppClient,
   createInstallationTokenBroker,
@@ -398,6 +399,8 @@ export function createApp(options: {
   const catalogRegistry = createCatalogActionRegistry(
     createCatalogHandlers(options.config.auth.secret, {
       normalizeSourceLocator: options.skillSourceLocatorNormalizer,
+      // A draft is started from a published version's files, read from here.
+      skillFileStore,
     }),
     {
       authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
@@ -847,6 +850,15 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
       merge: { github: githubAppClient, broker: installationTokenBroker },
+    }),
+  );
+  app.route(
+    "/",
+    createEvaluationRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
     }),
   );
   app.route(
