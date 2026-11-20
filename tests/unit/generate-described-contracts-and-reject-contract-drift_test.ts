@@ -884,16 +884,15 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "4e1f1fdf68726693d0b8c36cf23a94ac453512c5",
+    "0ab8a30353e2d19599a02affbad1c09f05fcbec6",
   ];
   const approvedDigest =
-    "sha256:af74bd29915588674006ef96811da9402432fedb9dcef667c799dd54df482123";
+    "sha256:8245596f161a86ab236363b8837998152825717ab568ad0db92131209088f602";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #431 re-bind onto main 4e1f1fdf6: main's own #57 merge from Bakery approval (PullRequest gains required
-    // mayMerge and mergeMethod), kept unchanged.
+    // Displaced by the #431 re-bind onto main 0ab8a3035: main's own approval, kept unchanged.
     "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1",
     // The same #57 merge from Bakery change before main moved again (#724): the
     // digest follows the tree, so the earlier one no longer authorises it.
@@ -1013,6 +1012,8 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "sha256:23925a33300c5bace9bf0ea5729725c8779c2e6ac70f0a3290aaf2335daff1f2",
     "sha256:6bda73092281a4782bdf22990a05724cb6689eb6521e6002ce90c8a3649b68f8",
     "sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f",
+    // Displaced by the #431 re-bind onto main 0ab8a3035: the approval in force before it.
+    "sha256:af74bd29915588674006ef96811da9402432fedb9dcef667c799dd54df482123",
     // Displaced by the #431 re-bind onto main 4e1f1fdf6 (#57 and #723 landed): the approval in force before it.
     "sha256:68ac5cc235510ebf89411e981e1797c03b18eb5817a1948fd0d1ac6794122147",
     // Displaced by the #431 re-bind onto main 94e8c0e8c (PR1 opened).
