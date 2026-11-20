@@ -238,7 +238,7 @@ JS
     export HOME=/root DENO_DIR=/var/lib/bakery/backup-runner/deno
     install -d -m 0700 /var/lib/bakery/backup-runner
     cd "$root/background/apps/server"
-    exec deno run --no-prompt --allow-env --allow-net --allow-read=/var/lib/bakery/backups --allow-write=/var/lib/bakery/backups "--allow-run=$root/deploy/backup.sh" ../../scripts/deploy/backup-runner.ts
+    exec deno run --no-prompt --allow-env --allow-net --allow-read=/var/lib/bakery/backups --allow-write=/var/lib/bakery/backups --allow-sys=osRelease "--allow-run=$root/deploy/backup.sh" ../../scripts/deploy/backup-runner.ts
     ;;
   *) echo UNKNOWN_DEPLOY_ACTION >&2; exit 64 ;;
 esac
