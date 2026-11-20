@@ -363,6 +363,7 @@ export function SessionThreadFixture() {
             aria-busy="true"
             aria-label={translate("session.thread.loading")}
             gap="standard"
+            role="status"
           >
             <UI.Skeleton shape="row" />
             <UI.Skeleton shape="row" />

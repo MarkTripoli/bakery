@@ -74,6 +74,20 @@ export const blobReferenceKinds: readonly BlobReferenceKind[] = [
     liveCondition: "true",
   },
   {
+    // A probe row describes bytes; it does not want them. `liveCondition`
+    // "false" says exactly that: a blob whose only remaining row is its probe is
+    // collectable, and the cascade takes the probe with the bytes it described.
+    // Listing it is not optional even so -- the rail asks every foreign key this
+    // question, and "no, this one does not count" is an answer, while silence
+    // would be a table nothing had considered.
+    kind: "blob-probe",
+    table: "blob_probes",
+    constraint: "blob_probes_blob_fk",
+    names: "blob",
+    column: "blob_id",
+    liveCondition: "false",
+  },
+  {
     // An upload in flight holds the bytes it is about to assemble and verify.
     // It knows the digest it was promised, never a blob row.
     kind: "upload-session-pending",

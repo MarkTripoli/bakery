@@ -994,7 +994,7 @@ export type SecretIdentityAdmission = {
   repositoryProfile: unknown;
   requestedBy: string | null;
   runId: string;
-  secretRef: string | null;
+  identityRef: string | null;
 };
 
 /** Durable requester U is the only principal evaluated against secret policy. */
@@ -1007,7 +1007,7 @@ export async function assertSecretIdentityRepositoryAdmission(
     admission.repositoryProfile,
   );
   const input = SecretIdentityReadInputSchema.safeParse({
-    secretRef: admission.secretRef,
+    identityRef: admission.identityRef,
   });
   if (
     admission.executionMode !== "repository" ||
@@ -1044,7 +1044,7 @@ export async function assertSecretIdentityRepositoryAdmission(
         and secret.allowed_actions @> '["identity.read"]'::jsonb`,
     [
       admission.organizationId,
-      input.data.secretRef,
+      input.data.identityRef,
       admission.runId,
       admission.requestedBy,
       admission.applicationId,
@@ -1054,14 +1054,23 @@ export async function assertSecretIdentityRepositoryAdmission(
   if (eligible.rows.length !== 1) secretIdentityAdmissionRequired();
 }
 
-function secretRefFromEffectiveInput(input: unknown): string | null {
+/**
+ * The identity reference a job's stored input carries, or null when the
+ * workflow-owned part of the input is not exactly one reference. The keys the
+ * server adds at admission (the frozen repository profile and the step notes)
+ * are not workflow-owned and never make the strict parse fail.
+ */
+export function identityRefFromEffectiveInput(input: unknown): string | null {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     return null;
   }
-  const { repositoryProfile: _repositoryProfile, ...workflowInput } =
-    input as Record<string, unknown>;
+  const workflowInput = Object.fromEntries(
+    Object.entries(input as Record<string, unknown>).filter(([key]) =>
+      !ADMISSION_ADDED_ROOT_KEYS.includes(key)
+    ),
+  );
   const parsed = SecretIdentityReadInputSchema.safeParse(workflowInput);
-  return parsed.success ? parsed.data.secretRef : null;
+  return parsed.success ? parsed.data.identityRef : null;
 }
 
 /** Shared finite evidence validation for live publication and immutable admission. */
@@ -1476,6 +1485,74 @@ export function repositoryExecutionRequirements(
   });
 }
 
+/** The fields of a billing pin that a route continuation may change. */
+const CONTINUABLE_PIN_FIELDS = [
+  "provider",
+  "model",
+  "billingRoute",
+  "billingAccountId",
+  "pricingMetadataSnapshot",
+] as const;
+
+function withoutPin(config: unknown): string | null {
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return null;
+  }
+  const { billing, ...rest } = config as Record<string, unknown>;
+  if (!billing || typeof billing !== "object" || Array.isArray(billing)) {
+    return null;
+  }
+  const kept = { ...(billing as Record<string, unknown>) };
+  for (const field of CONTINUABLE_PIN_FIELDS) delete kept[field];
+  return canonical({ ...rest, billing: kept });
+}
+
+/**
+ * Whether a job's agent configuration is the one frozen on its run.
+ *
+ * They are equal, with one bounded exception: a route continuation (an
+ * administrator's admitted choice to finish a step on another route during an
+ * incident) re-pins the job's billing while the run's frozen snapshot stays
+ * untouched. That is allowed only when everything but the pin still matches the
+ * frozen configuration and a continuation recorded for this very job names a
+ * target route with the pin's provider and model. Anything else is the mismatch it
+ * always was, and the job stays unclaimable.
+ *
+ * One continuation per step is enough: `jobs` is unique on (run_step_id, action), and
+ * `admitRepositoryExecutionJob` refuses any job whose action is not the one the run's
+ * frozen snapshot authorizes for its step, so a step has at most one claimable job.
+ */
+async function agentConfigMatchesFrozen(
+  transaction: PgTransactionClient,
+  input: {
+    organizationId: string;
+    jobId: string;
+    jobConfig: unknown;
+    frozenConfig: unknown;
+  },
+): Promise<boolean> {
+  if (canonical(input.jobConfig) === canonical(input.frozenConfig)) return true;
+  const job = withoutPin(input.jobConfig);
+  if (job === null || job !== withoutPin(input.frozenConfig)) return false;
+  const billing = (input.jobConfig as { billing: Record<string, unknown> })
+    .billing;
+  if (
+    typeof billing.provider !== "string" || typeof billing.model !== "string"
+  ) return false;
+  const continued = await transaction.query(
+    `select 1
+       from bakery.route_continuations continuation
+       join bakery.provider_routes target
+         on target.organization_id = continuation.organization_id
+        and target.id = continuation.target_route_id
+      where continuation.organization_id = $1 and continuation.job_id = $2
+        and target.provider = $3 and target.model = $4
+      limit 1`,
+    [input.organizationId, input.jobId, billing.provider, billing.model],
+  );
+  return continued.rows.length > 0;
+}
+
 /** Replays and claims must recheck the immutable job tuple, not trust arbitrary job JSON. */
 export async function admitRepositoryExecutionJob(
   transaction: PgTransactionClient,
@@ -1606,7 +1683,12 @@ export async function admitRepositoryExecutionJob(
   }
   if (
     row.agent_version_id !== (frozenAgent?.agentVersionId ?? null) ||
-    canonical(row.agent_config) !== canonical(frozenAgent?.config ?? {}) ||
+    !await agentConfigMatchesFrozen(transaction, {
+      organizationId,
+      jobId,
+      jobConfig: row.agent_config,
+      frozenConfig: frozenAgent?.config ?? {},
+    }) ||
     canonical(row.skill_refs) !== canonical(frozenAgent?.skillRefs ?? []) ||
     (frozenAgent !== null &&
       await digest(frozenAgent.config) !== frozenAgent.digest)
@@ -1679,7 +1761,7 @@ export async function admitRepositoryExecutionJob(
       : (row.input as Record<string, unknown>).repositoryProfile,
     requestedBy: row.requested_by,
     runId: row.run_id,
-    secretRef: secretRefFromEffectiveInput(input),
+    identityRef: identityRefFromEffectiveInput(input),
   });
   const requirements = repositoryExecutionRequirements(
     profile,
