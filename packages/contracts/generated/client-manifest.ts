@@ -21144,7 +21144,7 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version and the answer carries lastUpdateFailure."
+      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
     },
     "PluginStatePut": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

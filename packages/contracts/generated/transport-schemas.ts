@@ -7829,9 +7829,9 @@ const transportSchemas = {
         }
       ],
       "rules": [
-        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version. A version that does not pass its checks (plugin_sdk_incompatible, plugin_manifest_*) is not an error: the install is answered unchanged with lastUpdateFailure set, because an error would discard the record. A missing, draft or withdrawn version is still RESOURCE_NOT_FOUND."
+        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version. A version that does not pass its checks (plugin_sdk_incompatible, plugin_manifest_*) is not an error: the refusal is recorded as lastUpdateFailure and the install is answered, still on its prior version, because an error would discard the record. The other fields in the same request still apply, so a disable sent with a refused version still disables and revokes; a refusal wins over a dismissUpdateFailure in the same request. A missing, draft or withdrawn version is still RESOURCE_NOT_FOUND, and an uninstalled install refuses any change."
       ],
-      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version and the answer carries lastUpdateFailure."
+      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
     },
     "PluginStatePut": {
       "fields": [
