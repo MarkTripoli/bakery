@@ -219,6 +219,33 @@ Deno.test("the redactor is deterministic and names its version", () => {
   assert(CONTEXT_REDACTOR_VERSION.startsWith("bakery.redact@"));
 });
 
+Deno.test("a quoted value the window cut off, or longer than the bound, is redacted to the end of the line", () => {
+  const cases: Array<[string, string]> = [
+    ['config:\npassword: "hunter2hunter2', "hunter2hunter2"],
+    ["db_password='hunter2 hunter2", "hunter2 hunter2"],
+    [
+      'password: "' + "x".repeat(400) + " tail-secret-words",
+      "tail-secret-words",
+    ],
+  ];
+  for (const [line, secret] of cases) {
+    assertFalse(project(line).text!.includes(secret), line.slice(0, 40));
+  }
+  // The text after the line is not swallowed.
+  const after = project('password: "hunter2hunter2\nnext line stays');
+  assert(after.text!.includes("next line stays"));
+});
+
+Deno.test("an escaped quote does not end a quoted value early", () => {
+  const out = project('password: "ab\\"cd efgh ijkl" and more').text!;
+  assertFalse(out.includes("cd efgh ijkl"));
+  assert(out.includes("and more"));
+});
+
+Deno.test("the redactor version is pinned, so a rule change cannot ship without bumping it", () => {
+  assertEquals(CONTEXT_REDACTOR_VERSION, "bakery.redact@3");
+});
+
 Deno.test("a hostile window cannot make a rule run away", () => {
   const hostile = "a".repeat(30_000) + "=".repeat(30_000) + " password" +
     ":".repeat(5_000);

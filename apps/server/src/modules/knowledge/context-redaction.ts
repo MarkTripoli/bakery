@@ -16,7 +16,7 @@
  */
 
 /** Identity of the redaction rules; bumps whenever a rule is added or changed. */
-export const CONTEXT_REDACTOR_VERSION = "bakery.redact@2";
+export const CONTEXT_REDACTOR_VERSION = "bakery.redact@3";
 
 /** What replaces a redacted credential. */
 export const REDACTION_MARKER = "[redacted]";
@@ -92,9 +92,11 @@ const PARTIAL_RULES: readonly { pattern: RegExp; keep: number }[] = [
     pattern: new RegExp(
       "(\\b[A-Za-z0-9_.-]{0,40}" + CREDENTIAL_KEY +
         "[A-Za-z0-9_.-]{0,40}[\"']?[ \\t]*[:=][ \\t]*)" +
-        // A quoted value runs to its closing quote, spaces and all; a bare one
-        // runs to the next separator.
-        "(?:\"[^\"\\n]{1,300}\"|'[^'\\n]{1,300}'|[^\\s\"',;}{]{4,300})",
+        // A quoted value runs to its closing quote, spaces and all, honouring
+        // backslash escapes. The closing quote is optional: a value the window
+        // cut off, or one longer than the bound, is redacted to the end of the
+        // line rather than leaking whole. A bare one runs to the next separator.
+        "(?:\"(?:[^\"\\\\\\n]|\\\\.){1,2000}\"?|'(?:[^'\\\\\\n]|\\\\.){1,2000}'?|[^\\s\"',;}{]{4,300})",
       "gi",
     ),
     keep: 1,
