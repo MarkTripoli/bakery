@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "70f783249d02ba6493a0fc4f413cf3ef34e11392"
+    "5f6bdb2d0c077813be232ed13236cb8fd7dc4933"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:4f91fc238e267da35499c03e1643b8e171e32c04f4431c0ada55078338ca5308",
-  "reason": "#448 S3-S6 write set, limits, undo and read set re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 133085d155d6af34566063e17a68bdd70bbebdbe: the breaking drift is this PR's own, unchanged. Re-bound onto main 70f783249d02ba6493a0fc4f413cf3ef34e11392 after merging it; digest regenerated, drift unchanged.",
+  "targetCompatibilityDigest": "sha256:c9123ac96b5d4ff8dc5b9220ca379530b07964f90d5aaa136c5c0925f646c28e",
+  "reason": "#448 S2-S7 agent files, write and read sets, undo, limits and sealed steps re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 5f6bdb2d0c077813be232ed13236cb8fd7dc4933: the breaking drift is this stack's own, unchanged.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "70f783249d02ba6493a0fc4f413cf3ef34e11392"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:01305743634c3447fe91302c0a64559bbcd7503cb16ec7a76eeb1cff3f878713",
+      "reason": "#44 evaluation batches re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 133085d155d6af34566063e17a68bdd70bbebdbe: the breaking drift is unchanged (WorkerResult fault refineScope and the evaluation batch contracts). Re-bound onto main 70f783249d02ba6493a0fc4f413cf3ef34e11392 after merging it; drift unchanged."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

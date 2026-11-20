@@ -7055,9 +7055,11 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",
@@ -7075,11 +7077,14 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",
@@ -7097,9 +7102,11 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",
@@ -7117,11 +7124,14 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",
@@ -7184,6 +7194,204 @@
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ]
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "POST",
+      "path": "/v1/evaluation-datasets",
+      "action": "evaluationDatasets.create",
+      "access": "Developer",
+      "permission": "evaluationCase:write",
+      "input": "EvaluationDatasetCreate",
+      "output": "EvaluationDataset",
+      "idempotency": "Idempotency-Key required"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-datasets",
+      "action": "evaluationDatasets.list",
+      "access": "Developer",
+      "permission": "evaluationCase:read",
+      "input": "CursorQuery",
+      "output": "Page<EvaluationDataset>",
+      "idempotency": "Read; opaque cursor pagination"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "POST",
+      "path": "/v1/evaluation-batches",
+      "action": "evaluationBatches.create",
+      "access": "Developer",
+      "permission": "evaluationRun:write",
+      "input": "EvaluationBatchCreate",
+      "output": "EvaluationBatch",
+      "idempotency": "Idempotency-Key required"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-batches",
+      "action": "evaluationBatches.list",
+      "access": "Developer",
+      "permission": "evaluationRun:read",
+      "input": "CursorQuery",
+      "output": "Page<EvaluationBatch>",
+      "idempotency": "Read; opaque cursor pagination"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-batches/{id}",
+      "action": "evaluationBatches.get",
+      "access": "Developer",
+      "permission": "evaluationRun:read",
+      "input": "Empty",
+      "output": "EvaluationBatch",
+      "idempotency": "Read"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "POST",
+      "path": "/v1/evaluation-batches/{id}/cancel",
+      "action": "evaluationBatches.cancel",
+      "access": "Developer",
+      "permission": "evaluationRun:write",
+      "input": "EvaluationBatchCancel",
+      "output": "EvaluationBatch",
+      "idempotency": "Idempotency-Key required; If-Match required"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-batches/{id}/compare",
+      "action": "evaluationBatches.compare",
+      "access": "Developer",
+      "permission": "evaluationResult:read",
+      "input": "EvaluationCompareQuery",
+      "output": "EvaluationComparison",
+      "idempotency": "Read"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-batches/{id}/results",
+      "action": "evaluationBatchResults.list",
+      "access": "Developer",
+      "permission": "evaluationResult:read",
+      "input": "EvaluationResultQuery",
+      "output": "Page<EvaluationBatchResult>",
+      "idempotency": "Read; opaque cursor pagination"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-results/{id}/attempts",
+      "action": "evaluationAttempts.list",
+      "access": "Developer",
+      "permission": "evaluationResult:read",
+      "input": "CursorQuery",
+      "output": "Page<EvaluationAttempt>",
+      "idempotency": "Read; opaque cursor pagination"
     },
     {
       "group": "Sync",
