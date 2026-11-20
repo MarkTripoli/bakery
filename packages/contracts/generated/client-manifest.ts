@@ -2774,6 +2774,36 @@ export const clientManifest = {
     },
     {
       "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/copy",
+      "action": "skills.copy",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillCopy",
+      "output": "Skill",
+      "event": "skills.copied",
+      "mcp": "bakery_skills_copy",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "SKILL_CONTENT_INTEGRITY_FAILED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "GET",
       "path": "/v1/skills",
       "action": "skills.list",
@@ -15857,6 +15887,7 @@ export const clientManifest = {
             "skillSources.update",
             "skills.import",
             "skills.create",
+            "skills.copy",
             "skills.list",
             "library.search",
             "skills.get",
@@ -17808,6 +17839,44 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published, as an organization skill or as a personal skill that belongs to the calling person."
+    },
+    "SkillCopy": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill to copy; supplied via the request's {id} path segment. The copy starts from its active version, and the copy records this skill and that version as where it came from."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Display name of the new skill, shown wherever skills are listed or picked; independent of the name of the skill it was copied from. SkillCopy.name must contain at most 200 characters."
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "organization",
+            "personal"
+          ],
+          "description": "Who the copy is for: organization (visible to everyone in the organization, and copying into it needs the Admin role) or personal (shown as Private, belongs to the calling person alone). A skill that comes with Bakery can be copied into either, and the original is never changed."
+        },
+        "slug": {
+          "description": "URL-safe identity of the new skill, unique within the organization for an organization copy and within the caller's own skills for a personal one; when omitted it is made from the name. SkillCopy.slug must contain at most 100 characters.",
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "scope"
+      ],
+      "additionalProperties": false,
+      "description": "Copies a skill the caller can see into a new organization or personal skill with its own identity, carrying the source's active version (every file and the manifest) as version 1 and recording the source skill and version it was copied from."
     },
     "SkillImport": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -37904,6 +37973,36 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "copiedFromSkillId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID of the skill this one was copied from; null when the skill was not made by copying."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.copiedFromSkillId may be null in this transport value."
+              },
+              "copiedFromVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.copiedFromVersionId may be null in this transport value."
               }
             },
             "required": [
@@ -37917,7 +38016,9 @@ export const clientManifest = {
               "ownerPrincipalId",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "copiedFromSkillId",
+              "copiedFromVersionId"
             ],
             "additionalProperties": false,
             "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use."
@@ -39993,6 +40094,7 @@ export const clientManifest = {
                   "skillSources.update",
                   "skills.import",
                   "skills.create",
+                  "skills.copy",
                   "skills.list",
                   "library.search",
                   "skills.get",
@@ -57136,6 +57238,36 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "copiedFromSkillId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the skill this one was copied from; null when the skill was not made by copying."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.copiedFromSkillId may be null in this transport value."
+        },
+        "copiedFromVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.copiedFromVersionId may be null in this transport value."
         }
       },
       "required": [
@@ -57149,7 +57281,9 @@ export const clientManifest = {
         "ownerPrincipalId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "additionalProperties": false,
       "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use."
@@ -59382,6 +59516,7 @@ export const clientManifest = {
             "skillSources.update",
             "skills.import",
             "skills.create",
+            "skills.copy",
             "skills.list",
             "library.search",
             "skills.get",

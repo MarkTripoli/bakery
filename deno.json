@@ -18,6 +18,7 @@
     "@bakery/integration-sdk/testing": "./packages/integration-sdk/testing.ts",
     "@sentry/core": "npm:@sentry/core@11.6.0",
     "@sentry/deno": "npm:@sentry/deno@11.6.0",
+    "@bakery/contracts/artifact-probe": "./packages/contracts/src/artifact-probe.ts",
     "@bakery/contracts/repository-rules": "./packages/contracts/src/repository-rules.ts",
     "@bakery/contracts/repository-inspection": "./packages/contracts/src/repository-inspection.ts",
     "@bakery/contracts/coordinator-turn": "./packages/contracts/src/coordinator-turn.ts",

@@ -4905,5 +4905,7 @@
   "library.memory.action.adminOnly": "⟪Only an administrator can change remembered facts.⟫",
   "files.kind.none": "⟪—⟫",
   "files.file.missing": "⟪That file is not in this folder. It may have been moved or removed, or you may not have access to it.⟫",
-  "files.file.finding": "⟪Finding that file…⟫"
+  "files.file.finding": "⟪Finding that file…⟫",
+  "problems.ARTIFACT_CONTENT_MISMATCH.title": "⟪This file does not match its record⟫",
+  "problems.ARTIFACT_CONTENT_MISMATCH.description": "⟪What is stored is not what was recorded, so Bakery will not show or download it. Ask an organization Admin to check it.⟫"
 }
