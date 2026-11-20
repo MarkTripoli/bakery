@@ -208,6 +208,8 @@ importers:
         specifier: 11.6.0
         version: 11.6.0
 
+  packages/cli: {}
+
   packages/config:
     dependencies:
       '@sentry/core':
