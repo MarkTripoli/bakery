@@ -4,12 +4,16 @@ import type {
   TelemetryDestinationList,
 } from "../../apps/web/src/api/client.ts";
 import {
+  atLimit,
   blankDraft,
   draftOfDestination,
+  failingOf,
+  filterDestinations,
   formProblem,
   issuesByField,
   kindsOf,
   measurementsOf,
+  orderDestinations,
   reenterNeeded,
   unavailableFor,
   valuesToSend,
@@ -169,4 +173,65 @@ Deno.test("a 422's issues are read into messages by field", () => {
       values: { address: "Enter the address." },
     },
   );
+});
+
+const row = (name: string, state: string, kind = "otlp") =>
+  ({
+    ...SAVED,
+    id: name,
+    name,
+    state,
+    kind,
+  }) as unknown as TelemetryDestination;
+
+Deno.test("the list puts failing and dropping first, then every other state by name", () => {
+  const ordered = orderDestinations([
+    row("Zed", "working"),
+    row("Old", "off"),
+    row("Beta", "dropping_data"),
+    row("Alpha", "working"),
+    row("Honey", "failing"),
+  ]);
+  assertEquals(ordered.map((entry) => entry.name), [
+    "Honey",
+    "Beta",
+    "Alpha",
+    "Old",
+    "Zed",
+  ]);
+});
+
+Deno.test("the search matches a name or a kind's label, and the filters narrow it", () => {
+  const all = [
+    row("Grafana Cloud", "working"),
+    row("Honeycomb", "failing"),
+    row("Old collector", "off", "other"),
+  ];
+  const label = (kind: string) => kind === "otlp" ? "OpenTelemetry" : "Other";
+  const none = { q: "", state: "all", kind: null } as const;
+  assertEquals(filterDestinations(all, none, label).length, 3);
+  assertEquals(
+    filterDestinations(all, { ...none, q: " GRAFANA " }, label).map((entry) =>
+      entry.name
+    ),
+    ["Grafana Cloud"],
+  );
+  assertEquals(
+    filterDestinations(all, { ...none, q: "opentelemetry" }, label).length,
+    2,
+  );
+  assertEquals(
+    filterDestinations(all, { ...none, state: "failing" }, label).map((entry) =>
+      entry.name
+    ),
+    ["Honeycomb"],
+  );
+  assertEquals(
+    filterDestinations(all, { ...none, kind: "other" }, label).map((entry) =>
+      entry.name
+    ),
+    ["Old collector"],
+  );
+  assertEquals(failingOf(all).map((entry) => entry.name), ["Honeycomb"]);
+  assertEquals(atLimit(all), false);
 });
