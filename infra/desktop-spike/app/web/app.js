@@ -1,0 +1,82 @@
+// The web view half of the spike: what the shared React UI would do inside the window.
+const { invoke } = globalThis.__TAURI__.core;
+const { listen } = globalThis.__TAURI__.event;
+const log = (m) => {
+  document.getElementById("log").textContent += "\n" + m;
+};
+const report = (event, data = {}) => invoke("report_from_web", { event, data });
+
+let socket = null;
+let attempt = 0;
+
+async function bearerFetch(origin, credential) {
+  // A cross-origin call from the web view's own origin: does the server answer it?
+  try {
+    const r = await fetch(origin + "/v1/me", {
+      headers: { authorization: "Bearer " + credential },
+    });
+    await report("fetch_me", { status: r.status, pageOrigin: location.origin });
+  } catch (e) {
+    await report("fetch_me", { error: String(e), pageOrigin: location.origin });
+  }
+}
+
+async function connect() {
+  const credential = await invoke("socket_credential");
+  const origin = await invoke("server_origin");
+  if (!credential) {
+    await report("no_credential");
+    return;
+  }
+  await bearerFetch(origin, credential);
+  const url = origin.replace(/^http/, "ws") + "/v1/events";
+  attempt += 1;
+  const n = attempt;
+  // A web view cannot set headers on a WebSocket: the credential travels as a subprotocol.
+  socket = new WebSocket(url, [
+    "bakery.desktop",
+    "bakery.credential." + credential,
+  ]);
+  let messages = 0;
+  socket.onopen = () =>
+    report("socket_open", { attempt: n, protocol: socket.protocol });
+  socket.onmessage = (ev) => {
+    messages += 1;
+    if (messages <= 3) {
+      let type = "unparsed";
+      try {
+        type = JSON.parse(ev.data).type ?? "no-type";
+      } catch (_) {
+        // Not JSON: reported as "unparsed".
+      }
+      report("socket_message", {
+        attempt: n,
+        n: messages,
+        type,
+        bytes: String(ev.data).length,
+      });
+    }
+  };
+  socket.onclose = (ev) => {
+    report("socket_close", {
+      attempt: n,
+      code: ev.code,
+      wasClean: ev.wasClean,
+    });
+    // Reconnect with a short backoff, the same way the web app does.
+    const delay = Math.min(1000 * 2 ** Math.min(n - 1, 3), 8000);
+    setTimeout(connect, delay);
+  };
+  socket.onerror = () => report("socket_error", { attempt: n });
+}
+
+report("webview_loaded", {
+  userAgent: navigator.userAgent,
+  origin: location.origin,
+  hasWebSocket: typeof WebSocket !== "undefined",
+  hasFetch: typeof fetch !== "undefined",
+}).then(() => log("loaded"));
+listen("signed-in", () => {
+  log("signed in");
+  connect();
+});
