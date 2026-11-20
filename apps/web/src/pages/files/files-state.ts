@@ -35,6 +35,27 @@ export function rootNoteKey(item: StorageFolderItem) {
   }
 }
 
+/** The designed name of a top-level folder, by where it sits. */
+export function rootNameKey(item: StorageFolderItem) {
+  const top = item.path.split("/").filter((part) => part !== "")[0] ?? "";
+  switch (top) {
+    case "projects":
+      return "files.root.name.projects" as const;
+    case "shared":
+      return "files.root.name.shared" as const;
+    case "library":
+      return "files.root.name.library" as const;
+    case "connections":
+      return "files.root.name.connections" as const;
+    case "trash":
+      return "files.root.name.trash" as const;
+    case "system":
+      return "files.root.name.system" as const;
+    default:
+      return null;
+  }
+}
+
 /** A size as a number and the unit it reads in (1,024 to the step). */
 export function sizeParts(bytes: number): {
   readonly value: number;

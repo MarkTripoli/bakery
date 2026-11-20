@@ -6,6 +6,7 @@ import type { FileSearchHit } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
 import { fileSearchQueryOptions } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
+import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { sizeParts } from "./files-state.ts";
 
@@ -134,6 +135,7 @@ export function FileSearchResults(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const { translate, locale } = useI18n();
+  const phone = useShellViewport() === "phone";
   const search = useInfiniteQuery({
     ...fileSearchQueryOptions(api, scope, {
       ...(state.q.trim() !== "" ? { query: state.q.trim() } : {}),
@@ -173,6 +175,74 @@ export function FileSearchResults(
       }),
     });
   };
+  const where = (hit: FileSearchHit) =>
+    hit.source === "library"
+      ? translate("files.search.library")
+      : hit.path.slice(0, hit.path.lastIndexOf("/")) || "/";
+  const link = (hit: FileSearchHit) => (
+    <UI.Link
+      href={hit.path}
+      variant="quiet"
+      onClick={(event) => {
+        event.preventDefault();
+        onOpen(hit);
+      }}
+    >
+      {hit.name}
+    </UI.Link>
+  );
+  if (phone) {
+    return (
+      <UI.Stack gap="standard" data-testid="files-results">
+        <UI.Stack
+          gap="none"
+          role="list"
+          aria-label={translate("files.search.results")}
+        >
+          {hits.map((hit) => (
+            <div
+              key={`${hit.source}:${hit.path}`}
+              role="listitem"
+              data-hit-path={hit.path}
+            >
+              <UI.StackedRow title={link(hit)}>
+                <UI.Text variant="caption">
+                  {translate("files.search.column.where")}: {where(hit)}
+                </UI.Text>
+                <UI.Text variant="caption">
+                  {translate("files.table.kind")}: {hit.kind}
+                </UI.Text>
+                {hit.producerName === null ? null : (
+                  <UI.Text variant="caption">
+                    {translate("files.search.column.madeBy")}:{" "}
+                    {hit.producerName}
+                  </UI.Text>
+                )}
+                {hit.sizeBytes === null ? null : (
+                  <UI.Text variant="caption">
+                    {translate("files.table.size")}: {size(hit)}
+                  </UI.Text>
+                )}
+              </UI.StackedRow>
+            </div>
+          ))}
+        </UI.Stack>
+        {search.hasNextPage
+          ? (
+            <UI.Button
+              variant="secondary"
+              disabled={search.isFetchingNextPage}
+              onClick={() => void search.fetchNextPage()}
+            >
+              {search.isFetchingNextPage
+                ? translate("files.loadingMore")
+                : translate("files.loadMore")}
+            </UI.Button>
+          )
+          : null}
+      </UI.Stack>
+    );
+  }
   return (
     <UI.Stack gap="standard" data-testid="files-results">
       <UI.DataTable<FileSearchHit>

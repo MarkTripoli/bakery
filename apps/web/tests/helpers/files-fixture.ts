@@ -20,6 +20,8 @@ export type Entry = {
   sizeBytes?: number | null;
   displayName?: string | null;
   updatedAt?: string;
+  artifactId?: number | null;
+  contentRemoved?: boolean;
 };
 
 export type Version = {
@@ -109,6 +111,7 @@ export const TREE: Entry[] = [
     kindName: "Plan",
     mediaType: "text/markdown",
     sizeBytes: 4200,
+    artifactId: 700,
     updatedAt: "2026-01-02T10:00:00.000Z",
   },
   {
@@ -122,6 +125,63 @@ export const TREE: Entry[] = [
     mediaType: "video/mp4",
     sizeBytes: 3_400_000,
     updatedAt: "2026-01-03T10:00:00.000Z",
+  },
+  {
+    id: 31,
+    parent: 20,
+    path: "/projects/web-app/media",
+    name: "media",
+    kind: "folder",
+    policy: "record",
+  },
+  {
+    id: 42,
+    parent: 31,
+    path: "/projects/web-app/media/notes.txt",
+    name: "notes.txt",
+    kind: "file",
+    policy: "record",
+    kindName: "Note",
+    mediaType: "text/plain",
+    sizeBytes: 5_000_000,
+    updatedAt: "2026-01-04T10:00:00.000Z",
+  },
+  {
+    id: 43,
+    parent: 31,
+    path: "/projects/web-app/media/diagram.png",
+    name: "diagram.png",
+    kind: "file",
+    policy: "record",
+    kindName: "Image",
+    mediaType: "image/png",
+    sizeBytes: 90,
+    updatedAt: "2026-01-04T11:00:00.000Z",
+  },
+  {
+    id: 44,
+    parent: 31,
+    path: "/projects/web-app/media/old.md",
+    name: "old.md",
+    kind: "file",
+    policy: "record",
+    kindName: "Note",
+    mediaType: "text/markdown",
+    sizeBytes: 300,
+    contentRemoved: true,
+    updatedAt: "2026-01-04T12:00:00.000Z",
+  },
+  {
+    id: 45,
+    parent: 31,
+    path: "/projects/web-app/media/broken.md",
+    name: "broken.md",
+    kind: "file",
+    policy: "record",
+    kindName: "Note",
+    mediaType: "text/markdown",
+    sizeBytes: 300,
+    updatedAt: "2026-01-04T13:00:00.000Z",
   },
 ];
 
@@ -176,8 +236,10 @@ const item = (entry: Entry) => ({
   kindName: entry.kindName ?? null,
   mediaType: entry.mediaType ?? null,
   sizeBytes: entry.kind === "file" ? entry.sizeBytes ?? 0 : null,
-  artifactId: null,
-  contentRemoved: false,
+  artifactId: entry.artifactId === undefined || entry.artifactId === null
+    ? null
+    : uuid(entry.artifactId),
+  contentRemoved: entry.contentRemoved ?? false,
   updatedAt: entry.updatedAt ?? STAMP,
 });
 
@@ -360,6 +422,39 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
         "revision",
       );
       seen.contents.push(revision);
+      const fileId = new URL(route.request().url()).pathname.split("/")[4]!;
+      if (fileId === uuid(45)) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({
+            type: "about:blank",
+            title: "Internal Server Error",
+            status: 500,
+            code: "INTERNAL",
+            retryable: false,
+            detail: "failed",
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
+      }
+      if (fileId === uuid(43)) {
+        // A 1x1 transparent PNG.
+        const png = Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+          "base64",
+        );
+        return route.fulfill({
+          status: 200,
+          body: png,
+          headers: {
+            "content-type": "image/png",
+            "content-length": String(png.length),
+            etag: `"${createHash("sha256").update(png).digest("hex")}"`,
+          },
+        });
+      }
       const bytes = Buffer.from(
         revision === "1"
           ? "# Plan\n\nThe first draft of the plan."

@@ -9,7 +9,7 @@ registerPageHealth(test);
 /** The files browser (#445): folders, a file's details, its versions and uses. */
 for (
   const viewport of [
-    { name: "desktop", width: 1280, height: 800 },
+    { name: "desktop", width: 1440, height: 900 },
     { name: "phone", width: 390, height: 844 },
   ]
 ) {
@@ -22,7 +22,12 @@ for (
       await expect(page.getByRole("heading", { name: "Files", level: 1 }))
         .toBeVisible();
       const files = page.getByTestId("files-page");
-      await expect(files.getByRole("link", { name: "projects" })).toBeVisible();
+      await expect(files.getByRole("link", { name: "Projects", exact: true }))
+        .toBeVisible();
+      await expect(files.getByRole("link", { name: "Shared", exact: true }))
+        .toBeVisible();
+      await expect(files.getByRole("link", { name: "Library", exact: true }))
+        .toBeVisible();
       await expect(files.getByRole("link", { name: "Your files" }))
         .toBeVisible();
       await expect(page.getByText(
@@ -50,9 +55,15 @@ for (
       await expect(plan).toContainText("4.1 KB");
       await expect(page.locator(`[data-entry-id="${uuid(41)}"]`))
         .toContainText("3.2 MB");
-      await expect(
-        page.getByRole("navigation", { name: "Folder path" }),
-      ).toContainText("web-app");
+      if (viewport.name === "phone") {
+        // A phone has a link back to the parent, not the whole trail.
+        await expect(page.getByRole("link", { name: "Back to Projects" }))
+          .toBeVisible();
+      } else {
+        await expect(
+          page.getByRole("navigation", { name: "Folder path" }),
+        ).toContainText("web-app");
+      }
       await page.mouse.move(700, 700);
       await still(page, "files-folder");
     });
@@ -123,7 +134,9 @@ for (
       await expect(panel).toContainText("Fix the login redirect");
       await expect(panel).toContainText("used version 2");
       expect(seen.uses).toBeGreaterThan(0);
-      await page.getByRole("button", { name: "Close" }).click();
+      await (viewport.name === "phone"
+        ? page.getByRole("link", { name: "Back to web-app" })
+        : page.getByRole("button", { name: "Close" })).click();
       await expect(page).not.toHaveURL(/file=/);
       await expect(page.getByTestId("file-details")).toHaveCount(0);
     });
@@ -247,6 +260,121 @@ for (
       await expect(page.getByText("This version was not found")).toBeVisible();
       await page.getByRole("button", { name: "Go to Files" }).click();
       await expect(page).toHaveURL(/\/files$/);
+    });
+
+    test("each kind of preview has its state", async ({ page }) => {
+      await filesFixture(page);
+      const open = async (id: number) => {
+        await page.goto(`/files/projects/web-app/media?file=${uuid(id)}`);
+        await expect(page.getByTestId("file-details")).toBeVisible();
+      };
+      await open(43);
+      await expect(page.getByRole("img", { name: "Image: diagram.png" }))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-preview-image");
+      await open(42);
+      await expect(page.getByText(/too large to preview \(4\.8 MB\)/))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-preview-too-large");
+      await page.goto(`/files/projects/web-app?file=${uuid(41)}`);
+      await expect(page.getByText("No preview for this kind of file."))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-preview-none");
+      await open(45);
+      await expect(page.getByText("The preview did not load.")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Try again" }))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-preview-failed");
+    });
+
+    test("a file whose contents were removed says so and offers no Download", async ({ page }) => {
+      await filesFixture(page, {
+        versions: [{
+          revision: 1,
+          isCurrent: true,
+          sizeBytes: 300,
+          contentRemoved: true,
+          makerKind: "person",
+          makerName: "Ana Reyes",
+        }],
+      });
+      await page.goto(`/files/projects/web-app/media?file=${uuid(44)}`);
+      await expect(page.getByText(/The contents were removed on/))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: "Download" }))
+        .toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "files-preview-removed");
+    });
+
+    test("a document opens on its artifact page, and its maker links to the work item", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(`/files/projects/web-app?file=${uuid(40)}`);
+      const panel = page.getByTestId("file-details");
+      await expect(
+        panel.getByRole("link", { name: "Open Fix the login redirect" }),
+      )
+        .toHaveAttribute("href", `/tasks/${uuid(602)}`);
+      await panel.getByRole("button", { name: "Open", exact: true }).click();
+      await expect(page).toHaveURL(
+        new RegExp(`/tasks/${uuid(602)}/artifacts/${uuid(700)}`),
+      );
+    });
+
+    test("the version being viewed is marked in the list", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(
+        `/files/projects/web-app?file=${uuid(40)}&tab=versions&version=1`,
+      );
+      await expect(page.getByTestId("file-details").getByText("Viewing"))
+        .toBeVisible();
+    });
+
+    test("on a phone a file is a page of its own, with Copy path under More", async ({ page }) => {
+      test.skip(viewport.name !== "phone");
+      await filesFixture(page);
+      await page.goto(`/files/projects/web-app?file=${uuid(40)}`);
+      await expect(page.getByTestId("file-details")).toBeVisible();
+      await expect(page.getByRole("searchbox")).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "Files", level: 1 }))
+        .toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Close" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Copy path" }))
+        .toHaveCount(0);
+      await page.getByRole("button", { name: "More" }).click();
+      await expect(page.getByRole("navigation", { name: "More actions" }))
+        .toBeVisible();
+      await page.getByRole("link", { name: "Back to web-app" }).click();
+      await expect(page).not.toHaveURL(/file=/);
+      await expect(page.getByRole("searchbox")).toBeVisible();
+    });
+
+    test("on a phone a search hit labels its values", async ({ page }) => {
+      test.skip(viewport.name !== "phone");
+      await filesFixture(page);
+      await page.goto("/files/projects/web-app?q=plan");
+      const hit = page.locator(`[data-hit-path="/projects/web-app/plan.md"]`);
+      await expect(hit).toContainText("Where: /projects/web-app");
+      await expect(hit).toContainText("Kind: Plan");
+      await expect(hit).toContainText("Made by: Ana Reyes");
+      await expect(hit).toContainText("Size: 4.1 KB");
+      await page.mouse.move(700, 700);
+      await still(page, "files-search-rows");
+    });
+
+    test("on a desktop the button says Copy path", async ({ page }) => {
+      test.skip(viewport.name !== "desktop");
+      await filesFixture(page);
+      await page.goto(`/files/projects/web-app?file=${uuid(40)}`);
+      await expect(
+        page.getByTestId("file-details").getByRole("button", {
+          name: /Copy the path of plan\.md/,
+        }),
+      ).toHaveText("Copy path");
     });
 
     test("a file nothing has used says so", async ({ page }) => {

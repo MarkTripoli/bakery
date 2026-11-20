@@ -4789,5 +4789,19 @@
   "files.search.library": "⟦Ļïƀŕàŕÿ…⟧",
   "files.version.finding": "⟦Ƒïñðïñĝ ŧĥàŧ ṽëŕšïôñ… ŧëšŧŧ⟧",
   "files.version.notFound.title": "⟦Ŧĥïš ṽëŕšïôñ ŵàš ñôŧ ƒôûñð ŧëšŧ çô⟧",
-  "files.version.notFound.description": "⟦Ïŧ ɱàÿ ĥàṽë ƀëëñ ŕëɱôṽëð, ôŕ ÿôû ɱàÿ ñôŧ ĥàṽë àççëšš ŧô ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
+  "files.version.notFound.description": "⟦Ïŧ ɱàÿ ĥàṽë ƀëëñ ŕëɱôṽëð, ôŕ ÿôû ɱàÿ ñôŧ ĥàṽë àççëšš ŧô ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "files.root.name.projects": "⟦Þŕôĵëçŧš…⟧",
+  "files.root.name.shared": "⟦Šĥàŕëð…⟧",
+  "files.root.name.library": "⟦Ļïƀŕàŕÿ…⟧",
+  "files.root.name.connections": "⟦Çôññëçŧïôñš ŧ⟧",
+  "files.root.name.trash": "⟦Ŧŕàšĥ⟧",
+  "files.root.name.system": "⟦Šÿšŧëɱ…⟧",
+  "files.action.copied": "⟦Çôþïëð…⟧",
+  "files.action.copyFailed": "⟦Ŧĥë þàŧĥ çôûļð ñôŧ ƀë çôþïëð. Šëļëçŧ ïŧ ïñšŧëàð. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "files.action.more": "⟦Ṁôŕë⟧",
+  "files.action.moreLabel": "⟦Ṁôŕë àçŧïôñš ŧë⟧",
+  "files.action.open": "⟦Ôþëñ⟧",
+  "files.back": "⟦Ɓàçķ ŧô {name} ŧë⟧",
+  "files.version.viewing": "⟦Ṽïëŵïñĝ…⟧",
+  "files.madeBy.openItem": "⟦Ôþëñ {item} ŧ⟧"
 }

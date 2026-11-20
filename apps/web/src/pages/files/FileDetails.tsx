@@ -16,15 +16,17 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { sizeParts } from "./files-state.ts";
 import { FilePreview } from "./FilePreview.tsx";
-import { CopyValueButton } from "../CopyValueButton.tsx";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 export type FileTab = "details" | "versions" | "uses";
 
 /** One file's details: what it is, its versions, and the runs that used it. */
 export function FileDetails(
-  { file, tab, onTab, onClose, revision, onRevision }: {
+  { file, tab, onTab, onClose, revision, onRevision, phone, backLabel }: {
     readonly file: StorageFolderItem;
+    /** On a phone the file is a page of its own, with a back link. */
+    readonly phone: boolean;
+    readonly backLabel: string;
     readonly tab: FileTab;
     readonly onTab: (tab: FileTab) => void;
     readonly onClose: () => void;
@@ -45,7 +47,19 @@ export function FileDetails(
     ...storageFileUsesQueryOptions(api, scope, file.id),
     enabled: ready && tab === "uses",
   });
+  const navigate = useNavigate();
   const [downloadFailed, setDownloadFailed] = useState(false);
+  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const copyPath = async () => {
+    try {
+      await navigator.clipboard.writeText(file.path);
+      setCopy("copied");
+    } catch {
+      setCopy("failed");
+    }
+    setMoreOpen(false);
+  };
   const download = async () => {
     setDownloadFailed(false);
     if (scope.organizationId === null) return;
@@ -95,7 +109,39 @@ export function FileDetails(
       }),
     });
   };
-  const madeBy = (version: StorageFileVersion | null) => {
+  const madeBy = (version: StorageFileVersion | null): ReactNode => {
+    if (version === null) return translate("files.madeBy.unknown");
+    if (version.makerKind === "step" && version.stepName !== null) {
+      const item = version.workItemTitle ?? "";
+      const taskId = version.workItemId;
+      const parts = translate("files.madeBy.step", {
+        step: version.stepName,
+        item: "\u0000",
+      }).split("\u0000");
+      return (
+        <>
+          {parts[0]}
+          {taskId === null ? item : (
+            <UI.Link
+              href={`/tasks/${taskId}`}
+              variant="quiet"
+              aria-label={translate("files.madeBy.openItem", { item })}
+              onClick={(event) => {
+                event.preventDefault();
+                void navigate({ to: "/tasks/$taskId", params: { taskId } });
+              }}
+            >
+              {item}
+            </UI.Link>
+          )}
+          {parts[1] ?? ""}
+        </>
+      );
+    }
+    return version.makerName ?? translate("files.madeBy.unknown");
+  };
+  // The "who or what" line as text, for a row whose description is a string.
+  const madeByText = (version: StorageFileVersion | null): string => {
     if (version === null) return translate("files.madeBy.unknown");
     if (version.makerKind === "step" && version.stepName !== null) {
       return translate("files.madeBy.step", {
@@ -105,6 +151,10 @@ export function FileDetails(
     }
     return version.makerName ?? translate("files.madeBy.unknown");
   };
+  // A work item's document opens on its artifact page, where comments live.
+  const artifactTarget = file.artifactId !== null && current?.workItemId
+    ? { taskId: current.workItemId, artifactId: file.artifactId }
+    : null;
 
   const more = (
     query: {
@@ -202,6 +252,13 @@ export function FileDetails(
                       </UI.Badge>
                     )
                     : null}
+                  {shown?.revision === version.revision
+                    ? (
+                      <UI.Badge tone="neutral">
+                        {translate("files.version.viewing")}
+                      </UI.Badge>
+                    )
+                    : null}
                 </UI.Inline>
               }
               description={version.contentRemoved && version.removedAt !== null
@@ -210,7 +267,7 @@ export function FileDetails(
                 })
                 : translate("files.version.line", {
                   when: when(version.createdAt),
-                  who: madeBy(version),
+                  who: madeByText(version),
                   size: size(version.sizeBytes),
                 })}
             />
@@ -281,6 +338,20 @@ export function FileDetails(
 
   return (
     <UI.Stack gap="standard" data-testid="file-details">
+      {phone
+        ? (
+          <UI.Link
+            href="#back"
+            variant="back"
+            onClick={(event) => {
+              event.preventDefault();
+              onClose();
+            }}
+          >
+            {backLabel}
+          </UI.Link>
+        )
+        : null}
       <UI.Inline variant="between" gap="compact">
         <UI.Stack gap="none">
           <UI.Heading level="section">
@@ -288,9 +359,11 @@ export function FileDetails(
           </UI.Heading>
           <UI.Text variant="caption">{file.path}</UI.Text>
         </UI.Stack>
-        <UI.Button variant="secondary" onClick={onClose}>
-          {translate("files.details.close")}
-        </UI.Button>
+        {phone ? null : (
+          <UI.Button variant="secondary" onClick={onClose}>
+            {translate("files.details.close")}
+          </UI.Button>
+        )}
       </UI.Inline>
       {shown !== null
         ? (
@@ -315,20 +388,78 @@ export function FileDetails(
         : null}
       <FilePreview file={file} version={shown} />
       <UI.Inline gap="compact">
-        {(shown?.contentRemoved ?? file.contentRemoved)
-          ? null
+        {artifactTarget === null ? null : (
+          <UI.Button
+            variant="primary"
+            onClick={() =>
+              void navigate({
+                to: "/tasks/$taskId/artifacts/$artifactId",
+                params: artifactTarget,
+              })}
+          >
+            {translate("files.action.open")}
+          </UI.Button>
+        )}
+        {(shown?.contentRemoved ?? file.contentRemoved) ? null : (
+          <UI.Button
+            variant={artifactTarget === null ? "primary" : "secondary"}
+            onClick={() => void download()}
+          >
+            {shown === null
+              ? translate("files.action.download")
+              : translate("files.action.downloadVersion")}
+          </UI.Button>
+        )}
+        {phone
+          ? (
+            <UI.Button
+              variant="secondary"
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen(!moreOpen)}
+            >
+              {translate("files.action.more")}
+            </UI.Button>
+          )
           : (
-            <UI.Button variant="primary" onClick={() => void download()}>
-              {shown === null
-                ? translate("files.action.download")
-                : translate("files.action.downloadVersion")}
+            <UI.Button
+              variant="secondary"
+              aria-label={translate("files.action.copyPathLabel", {
+                name: file.name,
+              })}
+              onClick={() => void copyPath()}
+            >
+              {copy === "copied"
+                ? translate("files.action.copied")
+                : translate("files.action.copyPath")}
             </UI.Button>
           )}
-        <CopyValueButton
-          label={translate("files.action.copyPathLabel", { name: file.name })}
-          value={file.path}
-        />
       </UI.Inline>
+      {phone && moreOpen
+        ? (
+          <UI.Menu
+            aria-label={translate("files.action.moreLabel")}
+            items={[{
+              id: "copy",
+              label: translate("files.action.copyPath"),
+            }]}
+            onSelect={() => void copyPath()}
+          />
+        )
+        : null}
+      {copy === "failed"
+        ? (
+          <UI.Text variant="muted" role="status">
+            {translate("files.action.copyFailed")}
+          </UI.Text>
+        )
+        : null}
+      {copy === "copied" && phone
+        ? (
+          <UI.Text variant="muted" role="status">
+            {translate("files.action.copied")}
+          </UI.Text>
+        )
+        : null}
       {downloadFailed
         ? (
           <UI.InlineNotice tone="error">

@@ -22,7 +22,12 @@ import {
   type MediaGroup,
   type SearchState,
 } from "./files/FileSearch.tsx";
-import { filesHref, rootNoteKey, sizeParts } from "./files/files-state.ts";
+import {
+  filesHref,
+  rootNameKey,
+  rootNoteKey,
+  sizeParts,
+} from "./files/files-state.ts";
 
 /** The files browser (#445): the top folders, or one folder's entries. */
 export function FilesPage({ path }: { readonly path: string }) {
@@ -117,10 +122,13 @@ export function FilesPage({ path }: { readonly path: string }) {
     void navigate({ to: "/files/$", params: { _splat: target.slice(1) } });
   const goTop = () => void navigate({ to: "/files" });
 
-  const nameOf = (item: StorageFolderItem) =>
-    item.policy === "personal"
-      ? translate("files.root.yoursName")
+  const nameOf = (item: StorageFolderItem) => {
+    if (item.policy === "personal") return translate("files.root.yoursName");
+    const designed = item.parentId === null ? rootNameKey(item) : null;
+    return designed !== null
+      ? translate(designed)
       : item.displayName ?? item.name;
+  };
 
   const name = (item: StorageFolderItem) =>
     item.kind === "folder"
@@ -186,9 +194,15 @@ export function FilesPage({ path }: { readonly path: string }) {
     ? null
     : rows.find((row) => row.id === search.file && row.kind === "file") ??
       null;
+  const filePage = selected !== null && phone && !searching;
   const detailsPanel = selected === null ? null : (
     <FileDetails
       file={selected}
+      phone={phone}
+      backLabel={translate("files.back", {
+        name: (chain.data?.at(-1) ? nameOf(chain.data.at(-1)!) : "") ||
+          translate("files.breadcrumb.root"),
+      })}
       tab={tab}
       revision={search.version}
       onRevision={(next) => setSearch({ version: next })}
@@ -215,31 +229,62 @@ export function FilesPage({ path }: { readonly path: string }) {
         )
         : null}
       <UI.Stack gap="spacious" data-testid="files-page">
-        <UI.PageHeader
-          variant="list"
-          flush
-          title={translate("files.title")}
-          subtitle={translate("files.description")}
-        />
-        {atTop ? null : (
-          <UI.Breadcrumbs
-            aria-label={translate("files.breadcrumb")}
-            items={crumbs}
+        {filePage ? null : (
+          <UI.PageHeader
+            variant="list"
+            flush
+            title={translate("files.title")}
+            subtitle={translate("files.description")}
           />
         )}
-        <FileSearchControls
-          state={searchState}
-          atTop={atTop}
-          onChange={(next) =>
-            setSearch({
-              q: next.q,
-              type: next.type,
-              in: next.everywhere && !atTop ? "all" : undefined,
-              file: undefined,
-              tab: undefined,
-              version: undefined,
-            })}
-        />
+        {atTop || filePage ? null : phone
+          ? (
+            <UI.Link
+              href={crumbs.at(-2)?.href ?? "/files"}
+              variant="back"
+              onClick={(event) => {
+                event.preventDefault();
+                void navigate({
+                  to: crumbs.length > 2 ? "/files/$" : "/files",
+                  ...(crumbs.length > 2
+                    ? {
+                      params: {
+                        _splat: (crumbs.at(-2)?.href ?? "").slice(
+                          "/files/".length,
+                        ),
+                      },
+                    }
+                    : {}),
+                } as never);
+              }}
+            >
+              {translate("files.back", {
+                name: crumbs.at(-2)?.label ??
+                  translate("files.breadcrumb.root"),
+              })}
+            </UI.Link>
+          )
+          : (
+            <UI.Breadcrumbs
+              aria-label={translate("files.breadcrumb")}
+              items={crumbs}
+            />
+          )}
+        {filePage ? null : (
+          <FileSearchControls
+            state={searchState}
+            atTop={atTop}
+            onChange={(next) =>
+              setSearch({
+                q: next.q,
+                type: next.type,
+                in: next.everywhere && !atTop ? "all" : undefined,
+                file: undefined,
+                tab: undefined,
+                version: undefined,
+              })}
+          />
+        )}
         {searching
           ? (
             <FileSearchResults

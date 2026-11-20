@@ -4789,5 +4789,19 @@
   "files.search.library": "⟪Library⟫",
   "files.version.finding": "⟪Finding that version…⟫",
   "files.version.notFound.title": "⟪This version was not found⟫",
-  "files.version.notFound.description": "⟪It may have been removed, or you may not have access to it.⟫"
+  "files.version.notFound.description": "⟪It may have been removed, or you may not have access to it.⟫",
+  "files.root.name.projects": "⟪Projects⟫",
+  "files.root.name.shared": "⟪Shared⟫",
+  "files.root.name.library": "⟪Library⟫",
+  "files.root.name.connections": "⟪Connections⟫",
+  "files.root.name.trash": "⟪Trash⟫",
+  "files.root.name.system": "⟪System⟫",
+  "files.action.copied": "⟪Copied⟫",
+  "files.action.copyFailed": "⟪The path could not be copied. Select it instead.⟫",
+  "files.action.more": "⟪More⟫",
+  "files.action.moreLabel": "⟪More actions⟫",
+  "files.action.open": "⟪Open⟫",
+  "files.back": "⟪Back to {name}⟫",
+  "files.version.viewing": "⟪Viewing⟫",
+  "files.madeBy.openItem": "⟪Open {item}⟫"
 }
