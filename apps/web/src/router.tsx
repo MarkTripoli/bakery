@@ -62,6 +62,7 @@ import {
   InstallationBreadcrumbs,
 } from "./shell/SettingsShellSlots.tsx";
 import { OrganizationSettingsPage } from "./pages/OrganizationSettingsPage.tsx";
+import { OrganizationStoragePage } from "./pages/OrganizationStoragePage.tsx";
 import {
   InstallationIntegrationsPage,
   parseRegistrationOutcome,
@@ -711,6 +712,21 @@ export const routeCoverage = [
       "ready",
       "default",
       "long-copy",
+      "error",
+      "forbidden",
+      "conflict",
+      "offline",
+      "reconnecting",
+    ],
+  },
+  {
+    id: "organization-storage",
+    path: "/organization/storage",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "default",
       "error",
       "forbidden",
       "conflict",
@@ -1563,6 +1579,15 @@ const organizationSettingsRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: OrganizationSettingsPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const organizationStorageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/organization/storage",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: OrganizationStoragePage,
   errorComponent: ProtectedRouteError,
 });
 
@@ -2438,6 +2463,7 @@ const routeTree = rootRoute.addChildren([
   invitationRoute,
   organizationsRoute,
   organizationSettingsRoute,
+  organizationStorageRoute,
   installationSettingsRoute,
   installationAuditRoute,
   installationIntegrationsRoute,
