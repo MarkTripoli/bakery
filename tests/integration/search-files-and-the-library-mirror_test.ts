@@ -333,6 +333,12 @@ Deno.test("AC: the library mirror lists published items at /library/<section>/<s
     ]);
     // A disabled skill and a workflow with no version in use are not published.
     assert(all.items.every((hit) => hit.source === "library"));
+    // A library hit carries the id of the catalog item it mirrors, so a page can
+    // open the item itself; a file hit has none.
+    assert(
+      all.items.every((hit) => typeof hit.itemId === "string"),
+      "every library hit carries its catalog item's id",
+    );
     assert(
       all.items.every((hit) => hit.entryId === null && hit.versionId === null),
     );

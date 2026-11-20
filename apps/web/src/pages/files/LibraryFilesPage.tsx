@@ -13,6 +13,7 @@ import {
   FileSearchControls,
   FileSearchResults,
   isSearching,
+  libraryItemTarget,
   MEDIA_GROUPS,
   type MediaGroup,
   type SearchState,
@@ -102,6 +103,20 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
       : { label: translate("files.library.name"), href: "/files/library" },
     ...(section === undefined ? [] : [{ label: sectionName(section) }]),
   ];
+  // The phone shows one link back instead of the whole path, as a project
+  // folder does: one step up, to Library from a section and to Files from the
+  // Library itself.
+  const back = crumbs.at(-2) ?? crumbs[0]!;
+  const goTo = (href: string) => {
+    if (href === "/files") {
+      void navigate({ to: "/files" });
+      return;
+    }
+    void navigate({
+      to: "/files/$",
+      params: { _splat: href.slice("/files/".length) },
+    });
+  };
   const kindName = (entry: LibraryEntry) =>
     entry.type === "folder"
       ? translate("files.kind.folder")
@@ -183,20 +198,35 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
           title={translate("files.title")}
           subtitle={translate("files.description")}
         />
+        <UI.Inline gap="compact">
+          {phone
+            ? (
+              <UI.Link
+                href={back.href ?? "/files"}
+                variant="back"
+                onClick={(event) => {
+                  event.preventDefault();
+                  goTo(back.href ?? "/files");
+                }}
+              >
+                {translate("files.back", { name: back.label })}
+              </UI.Link>
+            )
+            : (
+              <UI.Breadcrumbs
+                aria-label={translate("files.breadcrumb")}
+                items={crumbs}
+              />
+            )}
+          <UI.Badge tone="neutral">
+            {translate("files.library.readOnly")}
+          </UI.Badge>
+        </UI.Inline>
         <FileSearchControls
           state={searchState}
           atTop={false}
           onChange={setSearch}
         />
-        <UI.Inline gap="compact">
-          <UI.Breadcrumbs
-            aria-label={translate("files.breadcrumb")}
-            items={crumbs}
-          />
-          <UI.Badge tone="neutral">
-            {translate("files.library.readOnly")}
-          </UI.Badge>
-        </UI.Inline>
         <UI.InlineNotice tone="information">
           <UI.Stack gap="compact">
             <UI.Text variant="body">
@@ -221,6 +251,11 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
               state={searchState}
               folderPath={path}
               onOpen={(hit) => {
+                const target = libraryItemTarget(hit);
+                if (target !== null) {
+                  void navigate(target);
+                  return;
+                }
                 const parent = hit.path.slice(0, hit.path.lastIndexOf("/"));
                 void navigate({
                   to: "/files/$",

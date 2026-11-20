@@ -20,6 +20,7 @@ import {
   FileSearchControls,
   FileSearchResults,
   isSearching,
+  libraryItemTarget,
   MEDIA_GROUPS,
   type MediaGroup,
   type SearchState,
@@ -341,6 +342,11 @@ function StorageFilesPage({ path }: { readonly path: string }) {
               state={searchState}
               folderPath={path}
               onOpen={(hit) => {
+                const target = libraryItemTarget(hit);
+                if (target !== null) {
+                  void navigate(target);
+                  return;
+                }
                 const parent = hit.path.slice(0, hit.path.lastIndexOf("/"));
                 void navigate({
                   to: "/files/$",

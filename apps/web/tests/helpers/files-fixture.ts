@@ -478,13 +478,14 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
         (under === "/library" || under.startsWith("/library/"))
       ) {
         const libraryHits = [
-          ["workflows", "ship", "Ship a change", "workflow"],
-          ["workflows", "triage", "Triage issues", "workflow"],
-          ["agents", "coder", "Coder", "agent"],
+          ["workflows", "ship", "Ship a change", "workflow", 7001],
+          ["workflows", "triage", "Triage issues", "workflow", 7002],
+          ["agents", "coder", "Coder", "agent", 7003],
         ]
-          .map(([section, slug, name, kind]) => ({
+          .map(([section, slug, name, kind, id]) => ({
             source: "library",
             entryId: null,
+            itemId: uuid(id as number),
             path: `/library/${section}/${slug}`,
             name: name!,
             kind: kind!,
@@ -517,6 +518,7 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
         .map((entry) => ({
           source: "files",
           entryId: uuid(entry.id),
+          itemId: null,
           path: entry.path,
           name: entry.name,
           kind: entry.kindName ?? "File",

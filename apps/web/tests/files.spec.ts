@@ -420,6 +420,78 @@ for (
       await expect(page).toHaveURL(/q=plan/);
     });
 
+    test("a Library hit uses the Library's words, shows a dash for what it lacks, and opens its page", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto("/files/library?q=ship");
+      const results = page.getByTestId("files-results");
+      const hit = results.getByRole("link", { name: "Ship a change" });
+      await expect(hit).toBeVisible();
+      // The same word the folder table uses, not the catalog's raw "workflow".
+      await expect(results.getByText("Workflow").first()).toBeVisible();
+      await expect(results.getByText("workflow", { exact: true })).toHaveCount(
+        0,
+      );
+      if (viewport.name === "desktop") {
+        // Made by and Size are empty for a Library item: a dash, never a blank.
+        await expect(results.getByRole("cell", { name: "\u2014" }))
+          .toHaveCount(2);
+      }
+      await expect(hit).toHaveAttribute(
+        "href",
+        `/library/workflows/${uuid(7001)}`,
+      );
+      await hit.click();
+      await expect(page).toHaveURL(
+        new RegExp(`/library/workflows/${uuid(7001)}$`),
+      );
+    });
+
+    test("in the Library the path comes before the search, and a phone says Back to Library", async ({ page }) => {
+      await filesFixture(page);
+      const above = async (first: Locator, second: Locator) => {
+        const a = await first.boundingBox();
+        const b = await second.boundingBox();
+        expect(a).not.toBeNull();
+        expect(b).not.toBeNull();
+        expect(a!.y).toBeLessThan(b!.y);
+      };
+      const search = page.getByRole("searchbox", {
+        name: "Search files by name",
+      });
+      await page.goto("/files/library/workflows");
+      if (viewport.name === "phone") {
+        const back = page.getByRole("link", { name: "Back to Library" });
+        await expect(back).toBeVisible();
+        await above(back, search);
+        await expect(page.getByText("Read only", { exact: true }))
+          .toBeVisible();
+        await page.goto("/files/library");
+        await expect(page.getByRole("link", { name: "Back to Files" }))
+          .toBeVisible();
+      } else {
+        const path = page.getByRole("navigation", { name: "Folder path" });
+        await expect(path).toBeVisible();
+        await above(path, search);
+        await expect(page.getByText("Read only", { exact: true }))
+          .toBeVisible();
+      }
+    });
+
+    test("text typed just before a filter is kept with it, not left to a timer that can undo the filter", async ({ page }) => {
+      test.skip(viewport.name !== "desktop");
+      await filesFixture(page);
+      await page.goto("/files/projects/web-app");
+      await page.getByRole("searchbox", { name: "Search files by name" })
+        .fill("plan");
+      await page.getByRole("combobox", { name: "Kind" }).selectOption("plan");
+      await page.waitForURL(/kind=plan/);
+      // Read at once, before any pause could have committed the text: the
+      // filter's own change carries it, so one write holds both.
+      expect(new URL(page.url()).searchParams.get("q")).toBe("plan");
+      await page.getByRole("button", { name: "Clear search" }).click();
+      await expect(page).not.toHaveURL(/kind=|q=/);
+    });
+
     test("the file type filter narrows a search, and Clear search goes back to the folder", async ({ page }) => {
       await filesFixture(page);
       await page.goto("/files/projects/web-app");

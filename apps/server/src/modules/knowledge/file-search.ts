@@ -53,6 +53,7 @@ const MEDIA_GROUP_SQL = `case
 type HitRow = {
   source: "files" | "library";
   entry_id: string | null;
+  item_id: string | null;
   sort_id: string;
   name: string;
   kind: string;
@@ -433,7 +434,8 @@ export function createFileSearchHandler(
     if (wantFiles) {
       const folder = p(folderId);
       branches.push(`
-        select 'files'::text as source, entry.id as entry_id, entry.id as sort_id,
+        select 'files'::text as source, entry.id as entry_id,
+               null::uuid as item_id, entry.id as sort_id,
                entry.name, a.artifact_type as kind, v.media_type,
                v.size_bytes::integer as size_bytes, v.id as version_id,
                v.author_id as producer_id, ${MEDIA_GROUP_SQL} as media_group,
@@ -486,7 +488,8 @@ export function createFileSearchHandler(
       // is not a search result.
       if (input.factKey === undefined) {
         branches.push(`
-        select 'files'::text as source, entry.id as entry_id, entry.id as sort_id,
+        select 'files'::text as source, entry.id as entry_id,
+               null::uuid as item_id, entry.id as sort_id,
                entry.name, 'file'::text as kind, v.media_type,
                v.size_bytes::integer as size_bytes, v.id as version_id,
                v.author_id as producer_id, ${MEDIA_GROUP_SQL} as media_group,
@@ -520,7 +523,8 @@ export function createFileSearchHandler(
     if (wantLibrary) {
       for (const source of LIBRARY_SOURCES) {
         branches.push(
-          `select 'library'::text as source, null::uuid as entry_id, x.id as sort_id,
+          `select 'library'::text as source, null::uuid as entry_id,
+                  x.id as item_id, x.id as sort_id,
                   x.${source.name} as name, '${source.kind}'::text as kind,
                   null::text as media_type, null::integer as size_bytes,
                   null::uuid as version_id, null::uuid as producer_id,
@@ -608,6 +612,7 @@ export function createFileSearchHandler(
         return {
           source: row.source,
           entryId: row.entry_id,
+          itemId: row.item_id,
           path: row.source === "files"
             ? paths.get(row.sort_id) ?? `/${row.name}`
             : row.library_path!,
