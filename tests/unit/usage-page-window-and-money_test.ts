@@ -9,6 +9,9 @@ import {
   addDecimalStrings,
   usd,
 } from "../../apps/web/src/screens/usage/usage-money.ts";
+
+/** The page's wording for an amount under a cent, from the catalogue. */
+const less = (smallest: string) => `Less than ${smallest}`;
 import {
   billingKey,
   confirmedFigure,
@@ -115,15 +118,23 @@ Deno.test("money keeps every digit the server sent", () => {
 });
 
 Deno.test("money is shown with its unit", () => {
-  assertEquals(usd("12.40"), "$12.40");
+  assertEquals(usd("12.40", less), "$12.40");
   // Two places always: "$41.5" beside "$500" makes a reader compare digits
   // that are not in the same column, and "$0" is not a figure anyone quotes.
-  assertEquals(usd("0"), "$0.00");
-  assertEquals(usd("41.5"), "$41.50");
-  assertEquals(usd("500"), "$500.00");
-  assertEquals(usd("1000"), "$1,000.00");
-  assertEquals(usd("12.755"), "$12.75");
-  assertEquals(usd("-3.4"), "-$3.40");
+  assertEquals(usd("0", less), "$0.00");
+  assertEquals(usd("41.5", less), "$41.50");
+  assertEquals(usd("500", less), "$500.00");
+  assertEquals(usd("1000", less), "$1,000.00");
+  assertEquals(usd("12.755", less), "$12.76");
+  assertEquals(usd("12.754999", less), "$12.75");
+  assertEquals(usd("0.999", less), "$1.00");
+  assertEquals(usd("1234.5", less), "$1,234.50");
+  // A cost that is not zero but is under a cent is not shown as free.
+  assertEquals(usd("0.004", less), "Less than $0.01");
+  assertEquals(usd("0.000001", less), "Less than $0.01");
+  assertEquals(usd("0.005", less), "$0.01");
+  assertEquals(usd("0.000000", less), "$0.00");
+  assertEquals(usd("-3.4", less), "-$3.40");
 });
 
 Deno.test("a provider id is not a name, and an unknown id stays itself", () => {

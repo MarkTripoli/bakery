@@ -1810,6 +1810,7 @@
   "installation.usage.unknownCount.detail": "No cost was reported. Unknown is not zero.",
   "installation.usage.unknownCount.help": "These records have no cost at all. They are never counted as zero, which would make the total look lower than it is.",
   "installation.usage.none": "None",
+  "installation.usage.lessThanCent": "Less than {amount}",
   "installation.usage.budgets.scope.installation": "Installation",
   "installation.usage.budgets.scope.run": "Run",
   "installation.usage.records.one": "{count} record",

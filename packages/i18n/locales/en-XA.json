@@ -5199,5 +5199,6 @@
   "delivery.time.unaccounted.name": "⟦Ñôŧ àççôûñŧëð ƒôŕ: ŧëšŧ⟧",
   "delivery.time.unaccounted.text": "⟦ŧïɱë Ɓàķëŕÿ ĥàš ñô ŕëçôŕð ƒôŕ, ïñçļûðïñĝ àñÿ ŧïɱë ƀļôçķëð. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "delivery.time.blockedUnknown.name": "⟦Ɓļôçķëð: Ûñķñôŵñ. ŧëš⟧",
-  "delivery.time.blockedUnknown.text": "⟦Ɓàķëŕÿ ðôëš ñôŧ ŕëçôŕð ŵĥëñ à ŧàšķ ŵàš ƀļôçķëð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "delivery.time.blockedUnknown.text": "⟦Ɓàķëŕÿ ðôëš ñôŧ ŕëçôŕð ŵĥëñ à ŧàšķ ŵàš ƀļôçķëð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "installation.usage.lessThanCent": "⟦Ļëšš ŧĥàñ {amount} ŧëšŧ⟧"
 }

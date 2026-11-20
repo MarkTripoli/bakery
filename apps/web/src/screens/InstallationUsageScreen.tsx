@@ -55,6 +55,7 @@ export function InstallationUsageScreen(
   }: InstallationUsageScreenProps,
 ) {
   const { translate, locale, timeZone } = useI18n();
+  const money = useMoney();
   // Formatted here, so the count is an argument the catalogue can inflect on.
   const records = (count: number) =>
     translate(recordKey(count), { count: String(count) });
@@ -255,7 +256,7 @@ export function InstallationUsageScreen(
                   label={translate("installation.usage.confirmed.label")}
                   value={confirmed.noReceipts || summary === null
                     ? "\u2014"
-                    : usd(confirmed.value)}
+                    : money(confirmed.value)}
                 />
                 <UI.StatTile
                   detail={translate("installation.usage.unverified.detail", {
@@ -266,7 +267,7 @@ export function InstallationUsageScreen(
                     text: translate("installation.usage.unverified.help"),
                   }}
                   label={translate("installation.usage.unverified.label")}
-                  value={summary ? usd(summary.unverifiedCostUsd) : "\u2014"}
+                  value={summary ? money(summary.unverifiedCostUsd) : "\u2014"}
                 />
                 <UI.StatTile
                   detail={translate("installation.usage.unknownCount.detail")}
@@ -306,9 +307,21 @@ export function InstallationUsageScreen(
   );
 }
 
+/** Money in the page's words: an amount under a cent reads "Less than $0.01", never "$0.00". */
+function useMoney(): (amount: string) => string {
+  const { translate } = useI18n();
+  return (amount) =>
+    usd(
+      amount,
+      (smallest) =>
+        translate("installation.usage.lessThanCent", { amount: smallest }),
+    );
+}
+
 /** Provider figures, with the total as the last row. */
 function UsageProviderTable({ rows }: { readonly rows: ProviderRow[] }) {
   const { translate } = useI18n();
+  const money = useMoney();
   // The wire value is a fallback, never a guess: a route this page has no
   // word for prints itself rather than being called one of the five.
   const routeWord = (route: string) => {
@@ -353,14 +366,14 @@ function UsageProviderTable({ rows }: { readonly rows: ProviderRow[] }) {
         // A total that is zero has nothing to add up, and a provider whose
         // confirmed cost is zero has no receipt: both are a dash.
         const figure = moneyOrDash(row.knownCostUsd);
-        return figure === null ? "\u2014" : usd(figure);
+        return figure === null ? "\u2014" : money(figure);
       },
     },
     {
       id: "unverified",
       header: translate("installation.usage.byProvider.unverified"),
       align: "end",
-      cell: (row) => row.subscription ? "\u2014" : usd(row.unverifiedCostUsd),
+      cell: (row) => row.subscription ? "\u2014" : money(row.unverifiedCostUsd),
     },
     {
       id: "unknown",
@@ -403,6 +416,7 @@ function UsageBudgetTable(
   { accounts }: { readonly accounts: UsageSummary["budgetAccounts"] },
 ) {
   const { translate } = useI18n();
+  const money = useMoney();
   const phone = useShellViewport() === "phone";
   const columns: UI.DataTableColumn<BudgetRow>[] = [
     {
@@ -419,13 +433,13 @@ function UsageBudgetTable(
       id: "limit",
       header: translate("installation.usage.budgets.limit"),
       align: "end",
-      cell: (row) => usd(row.limitUsd),
+      cell: (row) => money(row.limitUsd),
     },
     {
       id: "used",
       header: translate("installation.usage.budgets.used"),
       align: "end",
-      cell: (row) => usd(row.settledUsd),
+      cell: (row) => money(row.settledUsd),
     },
     {
       id: "reserved",
@@ -440,7 +454,7 @@ function UsageBudgetTable(
         </UI.Inline>
       ),
       align: "end",
-      cell: (row) => usd(row.reservedUsd),
+      cell: (row) => money(row.reservedUsd),
     },
   ];
   const rows = budgetRows(accounts);

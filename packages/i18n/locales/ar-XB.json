@@ -5199,5 +5199,6 @@
   "delivery.time.unaccounted.name": "⟪Not accounted for:⟫",
   "delivery.time.unaccounted.text": "⟪time Bakery has no record for, including any time blocked.⟫",
   "delivery.time.blockedUnknown.name": "⟪Blocked: Unknown.⟫",
-  "delivery.time.blockedUnknown.text": "⟪Bakery does not record when a task was blocked yet.⟫"
+  "delivery.time.blockedUnknown.text": "⟪Bakery does not record when a task was blocked yet.⟫",
+  "installation.usage.lessThanCent": "⟪Less than {amount}⟫"
 }

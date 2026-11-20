@@ -26,7 +26,9 @@ export const DELIVERY_MAX_PERIOD_DAYS = USAGE_MAX_PERIOD_DAYS;
 export function parseDay(value: string | undefined): Date | null {
   if (value === undefined || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const parsed = new Date(`${value}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  if (Number.isNaN(parsed.getTime())) return null;
+  // A date that does not exist (2026-02-31) rolls into the next month: refuse it.
+  return formatDay(parsed) === value ? parsed : null;
 }
 
 /** A date as `YYYY-MM-DD` in the browser's own calendar, for a date input. */

@@ -34,6 +34,17 @@ const ROWS = [
     outputTokens: "90000",
   },
   {
+    provider: "mistral",
+    billingType: "api",
+    model: null,
+    knownCostUsd: "0.0040",
+    unverifiedCostUsd: "0.0000",
+    unknownCount: 0,
+    unverifiedCount: 0,
+    inputTokens: "1000",
+    outputTokens: "200",
+  },
+  {
     provider: "google",
     billingType: "subscription",
     model: null,

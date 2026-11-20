@@ -30,6 +30,8 @@ for (
       await expect(page.getByText("None").first()).toBeVisible();
       await expect(page.getByText("1 record").first()).toBeVisible();
       await expect(page.getByText("0", { exact: true })).toHaveCount(0);
+      // A cost under a cent is not shown as free.
+      await expect(page.getByText("Less than $0.01").first()).toBeVisible();
       if (viewport.name === "phone") {
         // A phone has stacked rows with every value labelled, not a table that splits words.
         await expect(page.getByRole("table")).toHaveCount(0);

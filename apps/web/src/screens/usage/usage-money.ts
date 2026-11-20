@@ -35,14 +35,33 @@ export function addDecimalStrings(left: string, right: string): string {
  * A cost table that mixes "$41.5" with "$500" makes a reader compare digits
  * that are not in the same place, and "$1000" is easy to misread by a factor
  * of ten. The server's figure is exact; this only puts it in the shape money
- * is read in. Rounding never invents a cent: six places are cut to the two a
- * reader is quoted in, and the cut is a display decision, not a stored one.
+ * is read in. The six places are rounded half up to the cent, in whole
+ * micro-dollars so no float is involved. A cost that is not zero but is under a
+ * cent is not "$0.00": a cell that says so says the work was free, which is a
+ * claim nobody measured. The caller words it ("Less than $0.01") from the
+ * smallest amount, formatted as money, so the sentence lives in the catalogue.
  */
-export function usd(amount: string): string {
+export function usd(
+  amount: string,
+  lessThan: (smallest: string) => string,
+): string {
   const [whole = "0", fraction = ""] = amount.trim().split(".");
   const negative = whole.startsWith("-");
-  const dollars = (negative ? whole.slice(1) : whole) || "0";
-  const cents = fraction.padEnd(2, "0").slice(0, 2);
-  const grouped = dollars.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${negative ? "-" : ""}$${grouped}.${cents}`;
+  const dollars = BigInt((negative ? whole.slice(1) : whole) || "0");
+  const micros = dollars * 1_000_000n +
+    BigInt(fraction.padEnd(6, "0").slice(0, 6) || "0");
+  const cents = (micros + 5_000n) / 10_000n;
+  if (cents === 0n && micros > 0n) {
+    const smallest = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(0.01);
+    return lessThan(negative ? `-${smallest}` : smallest);
+  }
+  const grouped = (cents / 100n).toString().replace(
+    /\B(?=(\d{3})+(?!\d))/g,
+    ",",
+  );
+  const rest = (cents % 100n).toString().padStart(2, "0");
+  return `${negative && cents > 0n ? "-" : ""}$${grouped}.${rest}`;
 }
