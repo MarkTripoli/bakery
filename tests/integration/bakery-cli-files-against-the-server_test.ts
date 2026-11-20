@@ -338,6 +338,27 @@ Deno.test("an access token with the read scope reads the storage tree and nothin
     ) {
       assertEquals(await statusOf(await asToken("GET", path)), 200, path);
     }
+    // Only a GET is open on those paths: a write of any method on each of them
+    // is refused as the browser session middleware refuses one.
+    for (
+      const path of [
+        "/v1/files/search",
+        "/v1/storage/roots",
+        `/v1/storage/folders/${someId}/entries`,
+        `/v1/storage/files/${plan.id}/versions`,
+        `/v1/storage/files/${plan.id}/uses`,
+        `/v1/storage/files/${plan.id}/content`,
+        `/v1/storage/file-versions/${someId}`,
+      ]
+    ) {
+      for (const method of ["PUT", "POST", "PATCH", "DELETE"]) {
+        assertEquals(
+          await statusOf(await asToken(method, path, {})),
+          401,
+          method + " " + path,
+        );
+      }
+    }
     // A token acts in one organization: in another one it reads nothing.
     const foreign = await createWorkerScope(fixture, "cli-445", fixture);
     try {
