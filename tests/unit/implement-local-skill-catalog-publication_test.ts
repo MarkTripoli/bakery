@@ -260,6 +260,7 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0276_skill_drafts",
       "0277_backups",
       "0293_backup_settings",
+      "0294_installation_maintenance",
     ],
   );
 });

@@ -5021,5 +5021,7 @@
   "files.search.none.both.all": "⟪Try fewer letters or another filter.⟫",
   "files.search.by.unknown": "⟪Unknown account⟫",
   "files.search.by.disabled": "⟪{name} (inactive)⟫",
-  "settings.roles.thing.backup": "⟪backups⟫"
+  "settings.roles.thing.backup": "⟪backups⟫",
+  "problems.INSTALLATION_QUIESCED.description": "⟪Bakery is taking a backup and is not accepting new work for a short while. Try again after the time in the Retry-After header.⟫",
+  "problems.INSTALLATION_QUIESCED.title": "⟪Installation paused for a backup⟫"
 }

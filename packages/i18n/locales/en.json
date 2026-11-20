@@ -270,6 +270,8 @@
   "problems.IDEMPOTENCY_IN_FLIGHT.title": "Idempotency request in flight",
   "problems.IDEMPOTENCY_PAYLOAD_MISMATCH.description": "This request does not match an earlier request with the same idempotency key.",
   "problems.IDEMPOTENCY_PAYLOAD_MISMATCH.title": "Idempotency payload mismatch",
+  "problems.INSTALLATION_QUIESCED.description": "Bakery is taking a backup and is not accepting new work for a short while. Try again after the time in the Retry-After header.",
+  "problems.INSTALLATION_QUIESCED.title": "Installation paused for a backup",
   "problems.INSUFFICIENT_SCOPE.description": "This access token's scopes do not cover the action. Mint a token with a broader scope.",
   "problems.INSUFFICIENT_SCOPE.title": "Insufficient scope",
   "problems.INTERNAL.description": "Bakery could not complete this request.",

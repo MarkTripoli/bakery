@@ -226,6 +226,11 @@ const transportSchemas = {
       "retryable": true,
       "slug": "worker-unavailable"
     },
+    "INSTALLATION_QUIESCED": {
+      "status": 503,
+      "retryable": true,
+      "slug": "installation-quiesced"
+    },
     "SNAPSHOT_SCOPE_TOO_LARGE": {
       "status": 413,
       "retryable": false,

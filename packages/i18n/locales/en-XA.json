@@ -5021,5 +5021,7 @@
   "files.search.none.both.all": "⟦Ŧŕÿ ƒëŵëŕ ļëŧŧëŕš ôŕ àñôŧĥëŕ ƒïļŧëŕ. ŧëšŧ çôþÿŧ⟧",
   "files.search.by.unknown": "⟦Ûñķñôŵñ àççôûñŧ ŧëš⟧",
   "files.search.by.disabled": "⟦{name} (ïñàçŧïṽë) ŧëš⟧",
-  "settings.roles.thing.backup": "⟦ƀàçķûþš…⟧"
+  "settings.roles.thing.backup": "⟦ƀàçķûþš…⟧",
+  "problems.INSTALLATION_QUIESCED.description": "⟦Ɓàķëŕÿ ïš ŧàķïñĝ à ƀàçķûþ àñð ïš ñôŧ àççëþŧïñĝ ñëŵ ŵôŕķ ƒôŕ à šĥôŕŧ ŵĥïļë. Ŧŕÿ àĝàïñ àƒŧëŕ ŧĥë ŧïɱë ïñ ŧĥë Ŕëŧŕÿ-Àƒŧëŕ ĥëàðëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "problems.INSTALLATION_QUIESCED.title": "⟦Ïñšŧàļļàŧïôñ þàûšëð ƒôŕ à ƀàçķûþ ŧëšŧ çôþÿ⟧"
 }
