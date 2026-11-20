@@ -6984,8 +6984,35 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
-      ]
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/metrics/sources",
+      "action": "metrics.sources",
+      "access": "Developer",
+      "permission": "metric:read",
+      "input": "MetricSourcesQuery",
+      "output": "Page<MetricSource>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",
