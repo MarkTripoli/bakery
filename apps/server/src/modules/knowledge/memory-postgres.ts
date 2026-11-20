@@ -111,6 +111,7 @@ function decimalString(value: string | number): string {
 function toRevision(
   row: RevisionRow,
   source: MemorySource,
+  createdByName: string | null,
 ): MemoryRevision {
   const sourceState = source.state;
   return {
@@ -135,10 +136,31 @@ function toRevision(
     confidence: decimalString(row.confidence),
     expiresAt: iso(row.expires_at),
     createdBy: row.created_by,
+    createdByName,
     createdAt: iso(row.created_at)!,
     updatedAt: iso(row.updated_at)!,
     version: row.version,
   };
+}
+
+/** Display names of the principals who made these revisions: one query, never one per row. */
+async function creatorNames(
+  transaction: PgTransactionClient,
+  rows: readonly RevisionRow[],
+): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.map((row) => row.created_by))];
+  const names = new Map<string, string>();
+  if (ids.length === 0) return names;
+  const found = await transaction.query<{ id: string; display_name: string }>(
+    `select id, display_name from bakery.principals where id = any($1::uuid[])`,
+    [ids],
+  );
+  for (const principal of found.rows) {
+    if (principal.display_name.trim() !== "") {
+      names.set(principal.id, principal.display_name);
+    }
+  }
+  return names;
 }
 
 /**
@@ -156,11 +178,13 @@ async function revisionsForReader(
     readerMayRead: readerMayReadArtifactVersions(context),
     versionIds: rows.map((row) => row.source_artifact_version_id),
   });
+  const names = await creatorNames(transaction, rows);
   return rows.map((row) =>
     toRevision(
       row,
       sources.get(row.source_artifact_version_id) ??
         { state: "unknown", name: null, revision: null },
+      names.get(row.created_by) ?? null,
     )
   );
 }

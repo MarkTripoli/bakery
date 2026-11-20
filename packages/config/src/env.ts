@@ -245,6 +245,38 @@ export function readSkillFileRootConfig(
   return parsed.data;
 }
 
+export const ProbeSpoolDirConfigSchema = z.object({
+  root: z.string().min(1).max(4096).regex(/^\//).refine(
+    (value) =>
+      Array.from(value).every((character) =>
+        character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127
+      ),
+    "Invalid artifact-probe spool path.",
+  ).describe(
+    "Absolute Linux path where the server writes the one bounded copy of a blob that a sandboxed probe reads.",
+  ),
+}).strict().describe(
+  "Server-only directory the artifact probe spools to when the blob store cannot hand over a path.",
+);
+export type ProbeSpoolDirConfig = z.infer<typeof ProbeSpoolDirConfigSchema>;
+
+/**
+ * The spool directory, which is never created here.
+ *
+ * Whether it exists and is writable is a question about the running host, and
+ * the probe asks it at use time so the answer is `sandbox-unavailable` -- a
+ * version with no preview -- rather than a server that refuses to start because
+ * one optional directory is missing.
+ */
+export function readProbeSpoolDirConfig(
+  value: string | undefined,
+): ProbeSpoolDirConfig | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  const parsed = ProbeSpoolDirConfigSchema.safeParse({ root: value.trim() });
+  if (!parsed.success) throw new Error("PROBE_SPOOL_DIR_INVALID");
+  return parsed.data;
+}
+
 export type BudgetRuntimeConfig = {
   installationMonthlyLimitUsd: string;
   reservationTtlSeconds: number;
@@ -313,6 +345,12 @@ export type RuntimeConfig = {
   secretsKey?: SecretsKeyConfig;
   secretIdentityProviderFixture?: SecretIdentityProviderFixtureConfig;
   skillFileRoot?: SkillFileRootConfig;
+  /**
+   * Where the artifact probe spools bytes the store cannot hand over as a path
+   * (`BAKERY_PROBE_SPOOL_DIR`); server only. Absent means those blobs are
+   * reported `sandbox-unavailable` rather than described by other means.
+   */
+  probeSpoolDir?: ProbeSpoolDirConfig;
   auth?: ServerAuthConfig;
   /**
    * Separate origin that serves artifact previews (`BAKERY_ARTIFACT_PREVIEW_ORIGIN`).
@@ -900,6 +938,14 @@ export function readRuntimeConfig(
       invalidConfig.push("BAKERY_SKILL_FILE_ROOT");
     }
   }
+  let probeSpoolDir: ProbeSpoolDirConfig | undefined;
+  if (kind === "server" && env.BAKERY_PROBE_SPOOL_DIR !== undefined) {
+    try {
+      probeSpoolDir = readProbeSpoolDirConfig(env.BAKERY_PROBE_SPOOL_DIR);
+    } catch {
+      invalidConfig.push("BAKERY_PROBE_SPOOL_DIR");
+    }
+  }
   // An invalid size fails start-up (DRAFT_WORKER_POOL_SIZE_INVALID).
   const draftWorkerPoolSize = kind === "server"
     ? readDraftWorkerPoolSize(env)
@@ -922,6 +968,7 @@ export function readRuntimeConfig(
       ? { secretIdentityProviderFixture: configuredProviderFixture.data }
       : {}),
     ...(skillFileRoot ? { skillFileRoot } : {}),
+    ...(probeSpoolDir ? { probeSpoolDir } : {}),
     ...(artifactPreviewOrigin ? { artifactPreviewOrigin } : {}),
     environment,
     host,

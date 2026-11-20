@@ -112,6 +112,7 @@ async function readRouteCoverage(page: Page): Promise<RouteCoverage> {
 const AUTH_FIXTURE_SCREENS = [
   "setup",
   "login",
+  "forgot",
   "expired",
   "join",
   "register",
@@ -222,6 +223,8 @@ async function expectSelectedParent(page: Page, path: string) {
       ? "/settings/organization/integrations"
       : path.startsWith("/settings/organization/sso")
       ? "/settings/organization/sso"
+      : path.startsWith("/settings/organization/plugins")
+      ? "/settings/organization/plugins"
       : path.startsWith("/settings/audit")
       ? "/settings/audit"
       : path.startsWith("/settings/scim")
@@ -691,6 +694,7 @@ test.describe("settings routes and navigation", () => {
       "Members & access",
       "Service accounts & tokens",
       "Custom roles",
+      "Plugins",
       "Repository rules",
       "Integrations",
       "Audit log",
@@ -724,8 +728,8 @@ test.describe("settings routes and navigation", () => {
     )
       .toHaveCount(0);
     const links = sheet.getByRole("link");
-    await expect(links).toHaveCount(13);
-    for (let index = 0; index < 13; index += 1) {
+    await expect(links).toHaveCount(14);
+    for (let index = 0; index < 14; index += 1) {
       const clipped = await links.nth(index).evaluate((node) =>
         node.scrollWidth > node.clientWidth + 1
       );

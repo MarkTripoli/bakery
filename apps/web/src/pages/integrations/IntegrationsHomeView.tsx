@@ -1,3 +1,4 @@
+import { useId } from "react";
 import * as UI from "@bakery/ui";
 import type { MessageKey } from "@bakery/i18n";
 import { RouterLink } from "../../app/router-link.tsx";
@@ -6,6 +7,7 @@ import type { Health } from "./model.ts";
 import { type ConnectionOutcome, OUTCOME_COPY } from "./outcomes.ts";
 import type { ConnectStatus } from "./connect.ts";
 import { PROVIDER_IDENTITY } from "./providers/index.ts";
+import { WEB_PROVIDERS } from "../../integrations/registry.ts";
 
 export type IntegrationsHomeState = "loading" | "error" | "forbidden" | "ready";
 
@@ -234,6 +236,15 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                     "settings.connections.home.purpose",
                   )}
                 />
+                {WEB_PROVIDERS.filter((module) =>
+                  module.connectAvailable === false
+                ).map((module) => (
+                  <ProviderNotYetConnectable
+                    canManage={canManage}
+                    key={module.manifest.slug}
+                    slug={module.manifest.slug}
+                  />
+                ))}
               </div>
               {canManage && connectStatus !== "unregistered"
                 ? (
@@ -353,4 +364,50 @@ function rowLine(
     case "notChecked":
       return undefined;
   }
+}
+
+/**
+ * A provider this server deploys whose connect flow is not built yet.
+ *
+ * Shown rather than hidden, so nobody wonders where it is: a neutral badge, one
+ * line saying why, and Connect disabled and pointing at that line. It wins over
+ * "Needs setup" because there is nothing for an administrator to do yet. It goes
+ * when the provider's web module stops saying `connectAvailable: false`.
+ */
+function ProviderNotYetConnectable(
+  { slug, canManage }: { slug: string; canManage: boolean },
+) {
+  const { translate } = useI18n();
+  const reason = useId();
+  const name = translate(`integrations.${slug}.name` as MessageKey);
+  return (
+    <UI.ObjectRow
+      aligned
+      actions={canManage
+        ? (
+          <UI.Button
+            aria-describedby={reason}
+            aria-label={translate(`integrations.${slug}.connect` as MessageKey)}
+            disabled
+            type="button"
+            variant="secondary"
+          >
+            {translate("settings.connections.home.connect")}
+          </UI.Button>
+        )
+        : undefined}
+      identity={
+        <UI.Inline gap="compact">
+          <UI.Avatar alt={name} fallback={name.slice(0, 1)} size="small" />
+          <UI.Text variant="strong">{name}</UI.Text>
+        </UI.Inline>
+      }
+      metadata={
+        <span id={reason}>
+          {translate(`integrations.${slug}.soon` as MessageKey)}
+        </span>
+      }
+      status={<UI.Badge>{translate("shell.navigation.comingSoon")}</UI.Badge>}
+    />
+  );
 }

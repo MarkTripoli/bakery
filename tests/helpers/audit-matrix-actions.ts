@@ -28,6 +28,7 @@ export const AUDIT_MATRIX_ACTIONS = [
   "passwordResetLinks.create",
   "integrationAppRegistrations.begin",
   "integrationAppRegistrations.put",
+  "integrationClientCredentials.put",
   "skillStorageSettings.put",
   "skillStorageSettings.verify",
   "telemetryDestinations.create",
