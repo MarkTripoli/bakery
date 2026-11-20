@@ -121,7 +121,7 @@ function telemetryDestinationBody() {
   return {
     kind: "otlp",
     name: `Audit matrix ${crypto.randomUUID()}`,
-    measurements: ["cost"],
+    measurements: ["results"],
     values: { address: "https://collector.example.test" },
   };
 }
