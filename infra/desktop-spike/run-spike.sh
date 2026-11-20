@@ -16,12 +16,32 @@ STACK="bakery-dev-spike77"
 SERVER_PID=""
 mkdir -p "$OUT"; chmod 777 "$OUT"
 
-stop_server() { [ -n "$SERVER_PID" ] && kill -- -"$SERVER_PID" 2>/dev/null; SERVER_PID=""; sleep 1; }
-cleanup() { touch "$OUT/done"; stop_server; docker rm -fv "$STACK-pg" >/dev/null 2>&1; }
+# Nothing this script starts may outlive it or inherit the db-slot lock (fd 9 is the lock, held for
+# the whole run): a leaked copy of that fd kept the lock taken for hours after the run ended.
+stop_server() {
+  [ -n "$SERVER_PID" ] || return 0
+  kill -- -"$SERVER_PID" 2>/dev/null
+  for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 -- -"$SERVER_PID" 2>/dev/null || break; sleep 0.5; done
+  kill -KILL -- -"$SERVER_PID" 2>/dev/null
+  SERVER_PID=""; sleep 1
+}
+WATCH_PID=""
+cleanup() {
+  trap - EXIT INT TERM HUP
+  touch "$OUT/done"
+  [ -n "$WATCH_PID" ] && kill "$WATCH_PID" 2>/dev/null
+  stop_server
+  docker rm -fv "$STACK-pg" >/dev/null 2>&1
+}
 trap cleanup EXIT
+trap 'exit 130' INT TERM HUP
 
 if ! $GATE >/dev/null 2>&1; then echo "blocked: no stack slot"; exit 3; fi
-exec 9>"$LOCK"; flock 9
+# slot-fair: the FIFO ticket queue in front of the db-slot lock (rig rule, orch-pm 2026-11-20).
+# Re-run this script under it once; the lock is held for the whole run and released on exit.
+if [ -z "${SLOT_FAIR_HELD:-}" ]; then
+  exec /home/marktripoli/Development/bakery-wt/_qa/slot-fair env SLOT_FAIR_HELD=1 "$0" "$@"
+fi
 if ! $GATE >/dev/null 2>&1; then echo "blocked: no stack slot"; exit 3; fi
 echo "gate ok, load $(cut -d' ' -f1 /proc/loadavg)"
 
@@ -48,7 +68,7 @@ export BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$PG
 pnpm migrate 2>&1 | tail -1 | cut -c1-80
 
 start_server() {
-  (cd apps/server && exec setsid bash scripts/run-main.sh >> "$OUT/server.log" 2>&1) &
+  (cd apps/server && exec setsid bash scripts/run-main.sh >> "$OUT/server.log" 2>&1 9>&-) &
   SERVER_PID=$!
   for i in $(seq 1 120); do
     curl -fsS "http://127.0.0.1:$SERVER/health/ready" >/dev/null 2>&1 && return 0
@@ -68,7 +88,8 @@ WEB_AUTH_SEED_PASSWORD="$PASSWORD" deno run --allow-env --allow-net --allow-read
       rm -f "$OUT/flag-restart"; stop_server; sleep 3; start_server; touch "$OUT/flag-restarted"
     fi
     sleep 1
-  done ) &
+  done ) 9>&- &
+WATCH_PID=$!
 
 docker run --rm --network host -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
   -v "$HERE:/spike:ro" -v "$OUT:/out" -v "$CACHE/target:/cache/target:ro" \
