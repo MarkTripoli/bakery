@@ -57,7 +57,10 @@ const ARTIFACT_STATES = [
     // A stored video plays, and its facts line names the length it measured.
     id: "artifact-video",
     artifact: "videoArtifactId",
-    says: /0 min 2 s/,
+    // Under a minute there is no zero to state, and the size is the same size the
+    // facts line states (#437, UX review).
+    says: /Video · 2 s · 310\.3 KB/,
+    absent: /0 min 2 s|317705 bytes/,
     views: [[DESKTOP, LIGHT]],
   },
   {
@@ -217,7 +220,12 @@ function seed() {
   const first = Object.values(parsed.files ?? {})[0];
   if (first === undefined) throw new Error("seed wrote no files");
   const folder = first.path.split("/").filter((part) => part !== "")[0];
-  return { ids: byName, folder, task: parsed.task ?? {} };
+  return {
+    ids: byName,
+    folder,
+    task: parsed.task ?? {},
+    pane: parsed.pane ?? {},
+  };
 }
 
 async function signIn(context) {
@@ -366,7 +374,9 @@ for (
   await context.close();
 }
 
-for (const state of ONLY === "pane" ? PANE_STATES : []) {
+for (
+  const state of ONLY === "files" || ONLY === "artifact" ? [] : PANE_STATES
+) {
   const taskId = seeded.pane[state.task];
   if (taskId === undefined) throw new Error(`seed did not name ${state.task}`);
   const context = await browser.newContext({

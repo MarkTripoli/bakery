@@ -1326,7 +1326,6 @@
   "artifact.storage.paused.title": "⟦Þûƀļïšĥïñĝ þàûšëð · šŧôŕàĝë ƒûļļ ŧëšŧ çôþÿ⟧",
   "artifact.storage.unavailable.title": "⟦Þûƀļïšĥïñĝ þàûšëð · šŧôŕàĝë ûñàṽàïļàƀļë ŧëšŧ çôþÿ ŧ⟧",
   "artifact.storage.usage": "⟦Ŕëŧàïñëð: {retained} ƀÿŧëš · Þïññëð: {pinned} ƀÿŧëš ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "artifact.view.description": "⟦Þûƀļïšĥëð ƀÿ {author} · Šŧëþ {step} · {size} ƀÿŧëš ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "artifact.view.evidence": "⟦Ëṽïðëñçë çôñŧëẋŧ ŧëš⟧",
   "artifact.view.context": "⟦Ŧàšķ {task} / Šŧëþ {step} ŧëšŧ ç⟧",
   "artifact.view.openTask": "⟦Ôþëñ ŧàšķ ŧ⟧",
@@ -4989,5 +4988,6 @@
   "files.preview.state.unreadableUnknown": "⟦Ŧĥïš ƒïļë çôûļð ñôŧ ƀë ŕëàð. Ïŧ ɱàÿ ƀë ðàɱàĝëð. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "files.preview.facts.durationSeconds": "⟦{seconds} š ŧ⟧",
   "artifact.retrieval.sizeValue": "⟦{size}…⟧",
-  "artifact.retrieval.versionSummary": "⟦{mediaType} · {size} ŧëšŧ⟧"
+  "artifact.retrieval.versionSummary": "⟦{mediaType} · {size} ŧëšŧ⟧",
+  "artifact.view.description": "⟦Þûƀļïšĥëð ƀÿ {author} · Šŧëþ {step} · {size} ŧëšŧ çôþÿ ŧëš⟧"
 }

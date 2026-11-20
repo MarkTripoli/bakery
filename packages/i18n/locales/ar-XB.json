@@ -1328,7 +1328,6 @@
   "artifact.storage.paused.title": "⟪Publishing paused · storage full⟫",
   "artifact.storage.unavailable.title": "⟪Publishing paused · storage unavailable⟫",
   "artifact.storage.usage": "⟪Retained: {retained} bytes · Pinned: {pinned} bytes⟫",
-  "artifact.view.description": "⟪Published by {author} · Step {step} · {size} bytes⟫",
   "artifact.view.evidence": "⟪Evidence context⟫",
   "artifact.view.context": "⟪Task {task} / Step {step}⟫",
   "artifact.view.openTask": "⟪Open task⟫",
@@ -4989,5 +4988,6 @@
   "files.preview.state.unreadableUnknown": "⟪This file could not be read. It may be damaged.⟫",
   "files.preview.facts.durationSeconds": "⟪{seconds} s⟫",
   "artifact.retrieval.sizeValue": "⟪{size}⟫",
-  "artifact.retrieval.versionSummary": "⟪{mediaType} · {size}⟫"
+  "artifact.retrieval.versionSummary": "⟪{mediaType} · {size}⟫",
+  "artifact.view.description": "⟪Published by {author} · Step {step} · {size}⟫"
 }

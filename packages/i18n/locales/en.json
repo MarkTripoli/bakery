@@ -1634,7 +1634,7 @@
   "artifact.storage.unavailable.title": "Publishing paused · storage unavailable",
   "artifact.storage.unavailable.description": "Storage capacity could not be checked. Existing versions remain readable.",
   "artifact.storage.usage": "Retained: {retained} bytes · Pinned: {pinned} bytes",
-  "artifact.view.description": "Published by {author} · Step {step} · {size} bytes",
+  "artifact.view.description": "Published by {author} · Step {step} · {size}",
   "artifact.view.evidence": "Evidence context",
   "artifact.view.context": "Task {task} / Step {step}",
   "artifact.view.openTask": "Open task",
