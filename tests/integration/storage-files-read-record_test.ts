@@ -450,7 +450,7 @@ Deno.test("PROBE record-area file: versions, uses, bytes and conditional headers
     assertEquals(after.find((v) => v.revision === 3)!.contentRemoved, false);
   }));
 
-Deno.test("PROBE cursor binding: folder, versions, uses; other file, action, principal, organization, tamper, stale", () =>
+Deno.test("cursor binding: folder, versions, uses; other file, action, principal, organization, tamper, stale", () =>
   withWorkerFixture(async (fixture) => {
     const { file, other } = await world(fixture);
     const db = fixture.pgDatabase;

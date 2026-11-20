@@ -144,6 +144,14 @@ Deno.test("the top of the tree lists my own folder, never /users, and /system on
         await ok(await call(fixture, "GET", "/v1/storage/roots")),
       );
       assertEquals(asDeveloper.some((root) => root.path === "/system"), false);
+      // The top-level folders have no parent, so there is no organization
+      // root a caller could list to reach /system or /users another way.
+      assertEquals(
+        roots.filter((root) => root.path !== "/users/" + fixture.principalId)
+          .map((root) => root.parentId),
+        roots.filter((root) => root.path !== "/users/" + fixture.principalId)
+          .map(() => null),
+      );
       const system = roots.find((root) => root.path === "/system")!;
       await status(
         await call(
