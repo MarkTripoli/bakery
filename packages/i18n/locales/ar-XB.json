@@ -4685,6 +4685,7 @@
   "auth.desktopSignIn.signedOut.body": "طلب تطبيق Bakery على هذا الكمبيوتر تسجيل الدخول. سجّل الدخول إلى Bakery في هذا المتصفح أولًا؛ وسيعود السؤال بعد ذلك.",
   "auth.desktopSignIn.confirm.askedAgo": "{minutes, plural, =0 {الآن} one {قبل دقيقة واحدة} two {قبل دقيقتين} few {قبل # دقائق} many {قبل # دقيقة} other {قبل # دقيقة}}",
   "auth.desktopSignIn.used.link": "الحساب والأمان",
+  "settings.roles.verb.author": "⟪Create, change and publish {things}⟫",
   "integrations.linear.purpose": "⟪Let Bakery read and update issues and projects in Linear.⟫",
   "integrations.linear.connect": "⟪Connect Linear⟫",
   "integrations.linear.soon": "⟪Connecting Linear is not available in this version of Bakery yet.⟫",

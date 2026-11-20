@@ -164,6 +164,7 @@ export const PERMISSION_VERBS = [
   "readPinned",
   "preview",
   "share",
+  "author",
 ] as const;
 export type PermissionVerb = (typeof PERMISSION_VERBS)[number];
 

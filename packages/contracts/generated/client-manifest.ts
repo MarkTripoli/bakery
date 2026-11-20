@@ -2727,8 +2727,8 @@ export const clientManifest = {
       "method": "POST",
       "path": "/v1/skills",
       "action": "skills.create",
-      "access": "Admin",
-      "permission": "skill:manage",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "skill:author",
       "input": "SkillCreate",
       "output": "Skill",
       "event": "skills.created",
@@ -2823,8 +2823,8 @@ export const clientManifest = {
       "method": "PATCH",
       "path": "/v1/skills/{id}",
       "action": "skills.update",
-      "access": "Admin",
-      "permission": "skill:manage",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
       "input": "DefinitionUpdate",
       "output": "Skill",
       "event": "skills.updated",
@@ -2848,10 +2848,59 @@ export const clientManifest = {
     },
     {
       "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.list",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "CursorQuery",
+      "output": "Page<SkillUseGrant>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "DELETE",
+      "path": "/v1/skills/{id}/use-grants/{grantId}",
+      "action": "skills.useGrants.delete",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "skillUseGrant.deleted",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "POST",
       "path": "/v1/skills/{id}/versions",
       "action": "skillVersions.create",
-      "access": "Admin",
+      "access": "Owner for personal; Admin for organization",
       "permission": "skillVersion:manage",
       "input": "LocalSkillVersion",
       "output": "SkillVersion",
@@ -15695,6 +15744,8 @@ export const clientManifest = {
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.useGrants.list",
+            "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
             "skillFiles.get",
@@ -17619,6 +17670,15 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 200,
           "description": "Organization-facing display name for the skill created with its private local-bundle source. SkillCreate.name must contain at most 200 characters."
+        },
+        "scope": {
+          "description": "Who the skill belongs to: global (shown as Shared by Bakery, comes with Bakery and is never created through this action), organization (the default, visible to the whole organization) or personal (shown as Private, belongs to the calling person alone, and only that person can list, open, change or publish it). A personal skill reaches other people only through a workflow it is attached to, with its owner confirming the attachment.",
+          "type": "string",
+          "enum": [
+            "global",
+            "organization",
+            "personal"
+          ]
         }
       },
       "required": [
@@ -17626,7 +17686,7 @@ export const clientManifest = {
         "name"
       ],
       "additionalProperties": false,
-      "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published."
+      "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published, as an organization skill or as a personal skill that belongs to the calling person."
     },
     "SkillImport": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -19680,6 +19740,17 @@ export const clientManifest = {
           "description": "Optional author-written source text for the draft; when omitted the server stores the canonical JSON text of `definition`, which is valid YAML 1.2. WorkflowVersionCreate.sourceYaml must contain at most 100000 characters.",
           "type": "string",
           "maxLength": 65536
+        },
+        "confirmPersonalSkillUse": {
+          "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation. WorkflowVersionCreate.confirmPersonalSkillUse must contain at most 32 items.",
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -19873,6 +19944,17 @@ export const clientManifest = {
           "description": "Optional author-written source text; when omitted the server stores the canonical JSON text of `definition`. WorkflowDraftUpdate.sourceYaml must contain at most 100000 characters.",
           "type": "string",
           "maxLength": 65536
+        },
+        "confirmPersonalSkillUse": {
+          "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation. WorkflowDraftUpdate.confirmPersonalSkillUse must contain at most 32 items.",
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -37611,6 +37693,30 @@ export const clientManifest = {
                 "type": "boolean",
                 "description": "Whether the record is enabled."
               },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "organization",
+                  "personal"
+                ],
+                "description": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person."
+              },
+              "ownerPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID of the person who owns a personal skill; null for a global or organization skill."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.ownerPrincipalId may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -37637,12 +37743,14 @@ export const clientManifest = {
               "name",
               "activeVersionId",
               "enabled",
+              "scope",
+              "ownerPrincipalId",
               "createdAt",
               "updatedAt",
               "version"
             ],
             "additionalProperties": false,
-            "description": "Stable identity for one organization skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use."
+            "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use."
           },
           "description": "Skill items in this cursor page. Page<Skill>.items must contain at most 100 items."
         },
@@ -39718,6 +39826,8 @@ export const clientManifest = {
                   "library.search",
                   "skills.get",
                   "skills.update",
+                  "skills.useGrants.list",
+                  "skills.useGrants.delete",
                   "skillVersions.list",
                   "skillVersions.get",
                   "skillFiles.get",
@@ -56595,6 +56705,30 @@ export const clientManifest = {
           "type": "boolean",
           "description": "Whether the record is enabled."
         },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "global",
+            "organization",
+            "personal"
+          ],
+          "description": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person."
+        },
+        "ownerPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the person who owns a personal skill; null for a global or organization skill."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.ownerPrincipalId may be null in this transport value."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -56621,12 +56755,14 @@ export const clientManifest = {
         "name",
         "activeVersionId",
         "enabled",
+        "scope",
+        "ownerPrincipalId",
         "createdAt",
         "updatedAt",
         "version"
       ],
       "additionalProperties": false,
-      "description": "Stable identity for one organization skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use."
+      "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use."
     },
     "SkillVersion": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -58859,6 +58995,8 @@ export const clientManifest = {
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.useGrants.list",
+            "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
             "skillFiles.get",
@@ -66972,6 +67110,7 @@ export const clientManifest = {
               "skillSource:read",
               "skillSource:manage",
               "skill:manage",
+              "skill:author",
               "skill:read",
               "library:read",
               "skillVersion:read",
@@ -89711,6 +89850,137 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
+    },
+    "Page<SkillUseGrant>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the grant."
+              },
+              "skillId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the personal skill the grant is for."
+              },
+              "skillVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
+              },
+              "workflowId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the workflow the skill was attached to."
+              },
+              "workflowName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name of that workflow, so the owner can recognise it."
+              },
+              "stepPath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "JSON Pointer of the step in the workflow definition that uses the skill."
+              },
+              "grantedBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Person who confirmed the grant, always the skill owner."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the grant was made."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version a stop must name in If-Match."
+              }
+            },
+            "required": [
+              "id",
+              "skillId",
+              "skillVersionId",
+              "workflowId",
+              "workflowName",
+              "stepPath",
+              "grantedBy",
+              "createdAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both."
+          },
+          "description": "SkillUseGrant items in this cursor page. Page<SkillUseGrant>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<SkillUseGrant>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillUseGrant>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<SkillUseGrant>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<SkillUseGrant>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of SkillUseGrant."
     },
     "RunRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

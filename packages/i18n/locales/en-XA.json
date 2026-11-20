@@ -4685,6 +4685,7 @@
   "auth.desktopSignIn.signedOut.body": "⟦Ŧĥë Ɓàķëŕÿ àþþ ôñ ŧĥïš çôɱþûŧëŕ àšķëð ŧô šïĝñ ïñ. Šïĝñ ïñ ŧô Ɓàķëŕÿ ïñ ŧĥïš ƀŕôŵšëŕ ƒïŕšŧ; ŧĥë ǫûëšŧïôñ çôɱëš ƀàçķ àƒŧëŕŵàŕðš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "auth.desktopSignIn.confirm.askedAgo": "⟦{minutes, plural, =0 {just now} one {# minute ago} other {# minutes ago}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "auth.desktopSignIn.used.link": "⟦Àççôûñŧ àñð šëçûŕïŧÿ ŧëšŧ⟧",
+  "settings.roles.verb.author": "⟦Çŕëàŧë, çĥàñĝë àñð þûƀļïšĥ {things} ŧëšŧ çôþÿŧ⟧",
   "integrations.linear.purpose": "⟦Ļëŧ Ɓàķëŕÿ ŕëàð àñð ûþðàŧë ïššûëš àñð þŕôĵëçŧš ïñ Ļïñëàŕ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "integrations.linear.connect": "⟦Çôññëçŧ Ļïñëàŕ ŧë⟧",
   "integrations.linear.soon": "⟦Çôññëçŧïñĝ Ļïñëàŕ ïš ñôŧ àṽàïļàƀļë ïñ ŧĥïš ṽëŕšïôñ ôƒ Ɓàķëŕÿ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
