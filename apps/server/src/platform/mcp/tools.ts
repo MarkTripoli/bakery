@@ -3,6 +3,8 @@ import type {
   ActionRegistry,
 } from "@bakery/contracts/action-registry";
 import { AuthImplementedAction } from "@bakery/contracts/implemented-actions";
+import { getTraceId } from "@bakery/contracts/http";
+import { callerTraceparent, type McpCallTrace } from "./trace.ts";
 import type { McpGrant } from "./guard.ts";
 import { McpTool } from "./scopes.ts";
 
@@ -17,7 +19,7 @@ const TOOL_ACTION: Readonly<Record<McpTool, string>> = Object.freeze({
 });
 
 export type McpToolRunner = {
-  run(tool: McpTool, grant: McpGrant): Promise<unknown>;
+  run(tool: McpTool, grant: McpGrant, trace?: McpCallTrace): Promise<unknown>;
 };
 
 /**
@@ -33,19 +35,26 @@ export function createMcpToolRunner(options: {
 }): McpToolRunner {
   const origin = new URL(options.publicOrigin).origin;
   return {
-    async run(tool, grant) {
+    async run(tool, grant, trace) {
       const principal = await options.loadSubject(grant.providerUserId);
       const isOrganization = tool === McpTool.OrganizationGet;
       const path = isOrganization
         ? `/v1/organizations/${grant.organizationId}`
         : "/v1/me";
+      // The call continues its caller's trace: the registry reads the trace id
+      // from this request, so a tool call joins the run it belongs to.
+      const traceparent = callerTraceparent(trace);
+      const request = new Request(`${origin}${path}`, {
+        headers: {
+          [ORGANIZATION_HEADER]: grant.organizationId,
+          ...(traceparent === undefined ? {} : { traceparent }),
+        },
+      });
       const context: ActionContext = {
-        request: new Request(`${origin}${path}`, {
-          headers: { [ORGANIZATION_HEADER]: grant.organizationId },
-        }),
+        request,
         params: isOrganization ? { id: grant.organizationId } : {},
         requestId: crypto.randomUUID(),
-        traceId: crypto.randomUUID(),
+        traceId: getTraceId(request),
         signal: AbortSignal.timeout(TOOL_DEADLINE_MS),
         principal,
       };
