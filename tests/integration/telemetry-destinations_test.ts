@@ -33,6 +33,11 @@ function receiver(status: () => number) {
   const server = Deno.serve(
     { hostname: "127.0.0.1", port: 0, onListen: () => {} },
     async (request) => {
+      // Only POSTs are the test's traffic. A host that probes new localhost ports
+      // (mini1 does) sends empty GETs to "/", which must not count as a delivery.
+      if (request.method !== "POST") {
+        return new Response("not found", { status: 404 });
+      }
       seen.push({
         path: new URL(request.url).pathname,
         authorization: request.headers.get("authorization"),
@@ -175,7 +180,17 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
     );
     assertEquals(tested.status, 200, tested.text);
     assertEquals([tested.json.ok, tested.json.status], [true, 200]);
-    assertEquals(collector.seen[0].path, "/v1/traces");
+    assertEquals(
+      collector.seen[0].path,
+      "/v1/traces",
+      "the collector saw: " + JSON.stringify(
+        collector.seen.map((s) => ({
+          path: s.path,
+          authorization: s.authorization,
+          body: s.body.slice(0, 160),
+        })),
+      ),
+    );
     assertEquals(collector.seen[0].authorization, `Bearer ${TOKEN}`);
     answer = 401;
     const refused = await send(

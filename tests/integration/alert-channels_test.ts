@@ -34,6 +34,11 @@ function receiver(status: () => number) {
   const server = Deno.serve(
     { hostname: "127.0.0.1", port: 0, onListen: () => {} },
     async (request) => {
+      // Only POSTs are the test's traffic. A host that probes new localhost ports
+      // (mini1 does) sends empty requests that must not count as deliveries.
+      if (request.method !== "POST") {
+        return new Response("not found", { status: 404 });
+      }
       seen.push({
         headers: Object.fromEntries(request.headers),
         body: await request.text(),
