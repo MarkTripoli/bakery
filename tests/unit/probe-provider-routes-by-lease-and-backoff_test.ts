@@ -315,10 +315,31 @@ Deno.test("the transport refuses a private literal and a rebinding name without 
     requests += 1;
     throw new Error("a connection must not be attempted");
   }) as never;
-  const literal = httpsProbeTransport({ request: countingRequest });
-  assertEquals(await literal("https://10.0.0.1/v1"), { kind: "refused" });
-  assertEquals(await literal("https://[::1]/v1"), { kind: "refused" });
-  assertEquals(requests, 0);
+  // A short deadline, so a regression that lets a literal through fails fast with a
+  // message instead of leaving the default ten-second timer running; and the call is
+  // caught, so an attempted connection reads as a failed assertion, not a hang.
+  const literal = httpsProbeTransport({
+    request: countingRequest,
+    deadlineMs: 100,
+  });
+  const attempt = async (url: string) => {
+    try {
+      return await literal(url);
+    } catch (error) {
+      return { attempted: String(error) };
+    }
+  };
+  assertEquals(
+    await attempt("https://10.0.0.1/v1"),
+    { kind: "refused" },
+    "a private IPv4 literal must be refused before any request is made",
+  );
+  assertEquals(
+    await attempt("https://[::1]/v1"),
+    { kind: "refused" },
+    "a private IPv6 literal must be refused before any request is made",
+  );
+  assertEquals(requests, 0, "no connection may be attempted for a literal");
 
   // A name whose answer is private goes through the real request path, where the
   // guarded lookup refuses it before a socket is opened.

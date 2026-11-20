@@ -311,6 +311,13 @@ const transportSchemas = {
       "retryable": false,
       "slug": "artifact-content-expired"
     },
+    "ARTIFACT_CONTENT_MISMATCH": {
+      "status": 409,
+      "retryable": false,
+      "slug": "artifact-content-mismatch",
+      "title": "Artifact content does not match its record",
+      "detail": "The stored bytes are not the bytes this version's digest describes."
+    },
     "RANGE_NOT_SATISFIABLE": {
       "status": 416,
       "retryable": false,
@@ -3974,6 +3981,42 @@ const transportSchemas = {
       ],
       "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published, as an organization skill or as a personal skill that belongs to the calling person."
     },
+    "SkillCopy": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill to copy; supplied via the request's {id} path segment. The copy starts from its active version, and the copy records this skill and that version as where it came from."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Display name of the new skill, shown wherever skills are listed or picked; independent of the name of the skill it was copied from."
+        },
+        {
+          "name": "scope",
+          "type": "enum(organization|personal)",
+          "required": true,
+          "description": "Who the copy is for: organization (visible to everyone in the organization, and copying into it needs the Admin role) or personal (shown as Private, belongs to the calling person alone). A skill that comes with Bakery can be copied into either, and the original is never changed."
+        },
+        {
+          "name": "slug",
+          "type": "slug",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "URL-safe identity of the new skill, unique within the organization for an organization copy and within the caller's own skills for a personal one; when omitted it is made from the name."
+        }
+      ],
+      "description": "Copies a skill the caller can see into a new organization or personal skill with its own identity, carrying the source's active version (every file and the manifest) as version 1 and recording the source skill and version it was copied from."
+    },
     "SkillImport": {
       "fields": [
         {
@@ -5773,6 +5816,15 @@ const transportSchemas = {
             "maxItems": 32
           },
           "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation."
+        },
+        {
+          "name": "resolveSkillSlots",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 64
+          },
+          "description": "Steps, by JSON Pointer, whose missing-skill slot the author settled with this save by choosing another skill or removing the step skill. A workflow copied from one that used a personal skill has one open slot per such step, and publishing is refused while any is open. A pointer with no open slot is ignored."
         }
       ],
       "description": "Replaces the content of the definition's shared draft under the draft's optimistic-concurrency version; published versions are immutable and cannot be updated."
@@ -7360,130 +7412,6 @@ const transportSchemas = {
       ],
       "pagination": "pagination",
       "description": "Query parameters for listing this organization's cached external ticket snapshots; results reflect the last synchronized state, not a live provider fetch."
-    },
-    "TicketTaskLinkQuery": {
-      "fields": [
-        {
-          "name": "externalTicketId",
-          "type": "uuid",
-          "required": false,
-          "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404."
-        },
-        {
-          "name": "taskId",
-          "type": "uuid",
-          "required": false,
-          "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404."
-        },
-        {
-          "name": "role",
-          "type": "enum(primary|reference)",
-          "required": false,
-          "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted."
-        }
-      ],
-      "rules": [
-        "Exactly one of externalTicketId and taskId; keyset pages newest link first."
-      ],
-      "pagination": "pagination",
-      "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
-    },
-    "TicketRequestQuery": {
-      "fields": [
-        {
-          "name": "externalTicketId",
-          "type": "uuid",
-          "required": true,
-          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted."
-        }
-      ],
-      "rules": [
-        "Keyset pages newest request first, ordered by createdAt then id."
-      ],
-      "pagination": "pagination",
-      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
-    },
-    "TicketSourceLabelQuery": {
-      "fields": [
-        {
-          "name": "id",
-          "type": "uuid",
-          "required": true,
-          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 100
-          },
-          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer."
-        }
-      ],
-      "rules": [
-        "A live provider read, never cached; a provider failure answers 503 DEPENDENCY_UNAVAILABLE, a provider without labels 422 labels_unsupported."
-      ],
-      "pagination": "pagination",
-      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
-    },
-    "TicketTaskLinkNoteSync": {
-      "fields": [],
-      "rules": [
-        "Idempotency-Key and If-Match on the link version required; refused while a write of the same link is in flight; never refused because the note is already posted."
-      ],
-      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
     },
     "TicketReadinessCreate": {
       "fields": [
@@ -11396,40 +11324,170 @@ const transportSchemas = {
       ],
       "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     },
-    "AgentFileGrantCreate": {
+    "RouteContinuationAdmit": {
       "fields": [
         {
-          "name": "workflowId",
+          "name": "runStepId",
           "type": "uuid",
           "required": true,
-          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
+          "description": "UUID of the stalled run step to continue, as named by the offer."
         },
         {
-          "name": "folderId",
+          "name": "incidentId",
           "type": "uuid",
           "required": true,
-          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
+          "description": "UUID of the incident the offer was made for. If that incident has recovered, been superseded or is not the route's current one, the submission is stale and commits nothing."
         },
         {
-          "name": "access",
-          "type": "enum(read|write)",
+          "name": "incidentGeneration",
+          "type": "integer",
           "required": true,
-          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
+          "bounds": {
+            "min": 1
+          },
+          "description": "The incident generation the offer named. A different generation means the line moved on and the submission is stale."
         },
         {
-          "name": "expiresAt",
-          "type": "timestamp",
+          "name": "targetRouteId",
+          "type": "uuid",
           "required": true,
-          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
+          "description": "UUID of the route to continue on, one the offer marked eligible."
+        },
+        {
+          "name": "runVersion",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The run version the offer named. If the run changed since, the submission is refused as a failed precondition and nothing is committed."
+        }
+      ],
+      "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
+    },
+    "TicketTaskLinkQuery": {
+      "fields": [
+        {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404."
+        },
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404."
+        },
+        {
+          "name": "role",
+          "type": "enum(primary|reference)",
+          "required": false,
+          "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted."
         }
       ],
       "rules": [
-        "A person with a browser session only; an agent is refused with AUTH_FORBIDDEN reason agent_file_grant_requires_person, so an agent never widens its own file scope (O52).",
-        "An unknown or foreign workflow, or a folder that is missing, trashed, foreign or another member's personal folder, answers RESOURCE_NOT_FOUND.",
-        "A folder in the library, a record area, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with the reason the agent would get; an expiry in the past or more than 30 days ahead is 422.",
-        "A grant adds scope, never authority: an agent's write still needs the person it acts for to be able to write the folder themselves."
+        "Exactly one of externalTicketId and taskId; keyset pages newest link first."
       ],
-      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
+      "pagination": "pagination",
+      "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
+    },
+    "TicketRequestQuery": {
+      "fields": [
+        {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": true,
+          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted."
+        }
+      ],
+      "rules": [
+        "Keyset pages newest request first, ordered by createdAt then id."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
+    },
+    "TicketSourceLabelQuery": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 100
+          },
+          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer."
+        }
+      ],
+      "rules": [
+        "A live provider read, never cached; a provider failure answers 503 DEPENDENCY_UNAVAILABLE, a provider without labels 422 labels_unsupported."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
+    },
+    "TicketTaskLinkNoteSync": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match on the link version required; refused while a write of the same link is in flight; never refused because the note is already posted."
+      ],
+      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
     },
     "AgentPowerGrantCreate": {
       "fields": [
@@ -11504,93 +11562,6 @@ const transportSchemas = {
         }
       ],
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
-    },
-    "PasswordResetLinkCreate": {
-      "fields": [
-        {
-          "name": "principalId",
-          "type": "uuid",
-          "required": true,
-          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
-        }
-      ],
-      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
-    },
-    "PasswordResetRedemption": {
-      "fields": [
-        {
-          "name": "token",
-          "type": "secretString",
-          "required": true,
-          "bounds": {
-            "maxLength": 256
-          },
-          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
-        },
-        {
-          "name": "newPassword",
-          "type": "secretString",
-          "required": true,
-          "bounds": {
-            "maxLength": 1024
-          },
-          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
-        }
-      ],
-      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
-    },
-    "McpToolClassificationPut": {
-      "fields": [
-        {
-          "name": "effectClass",
-          "type": "enum",
-          "required": true,
-          "enum": [
-            "read",
-            "write_idempotent",
-            "write_reconcilable",
-            "write_opaque"
-          ],
-          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
-        },
-        {
-          "name": "effectKeyArgument",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "bounds": {
-            "maxLength": 128
-          },
-          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
-        },
-        {
-          "name": "pairedReadTool",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "bounds": {
-            "maxLength": 128
-          },
-          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
-        }
-      ],
-      "rules": [
-        "effectKeyArgument is required for write_idempotent and refused for any other class",
-        "pairedReadTool is required for write_reconcilable and refused for any other class",
-        "the tool must be in the connection's current snapshot"
-      ],
-      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
-    },
-    "McpUseGrantCreate": {
-      "fields": [
-        {
-          "name": "workflowId",
-          "type": "uuid",
-          "required": true,
-          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
-        }
-      ],
-      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
     },
     "GroupCreate": {
       "fields": [
@@ -11838,6 +11809,122 @@ const transportSchemas = {
       ],
       "description": "Removes one person's mention-granted access to one conversation under compare-and-set on the grant version."
     },
+    "PasswordResetLinkCreate": {
+      "fields": [
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
+        }
+      ],
+      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
+    },
+    "PasswordResetRedemption": {
+      "fields": [
+        {
+          "name": "token",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
+        },
+        {
+          "name": "newPassword",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
+        }
+      ],
+      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
+    "MergeAttemptQuery": {
+      "fields": [
+        {
+          "name": "pullRequestId",
+          "type": "uuid",
+          "required": true,
+          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Filters for listing one pull request's merge attempts, newest first."
+    },
+    "MergeEntryQuery": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases."
+        },
+        {
+          "name": "pullRequestId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to this tracked pull request's merge entries."
+        },
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to the merge entries admitted for this run, so a page can read one run's entry without listing a whole repository's queue."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query. Every filter given must match."
+      ],
+      "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
+    },
     "FileSearchQuery": {
       "fields": [
         {
@@ -12001,6 +12088,57 @@ const transportSchemas = {
       ],
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
     },
+    "RunRequestCreate": {
+      "fields": [
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": true,
+          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+        },
+        {
+          "name": "intent",
+          "type": "enum(fyi|review|approve|answer|take_over)",
+          "required": true,
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+        },
+        {
+          "name": "stepKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "The step the request concerns, or omitted for the run as a whole."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 280
+          },
+          "description": "Optional one line shown to the person asked."
+        },
+        {
+          "name": "neededBy",
+          "type": "timestamp",
+          "required": false,
+          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
+        },
+        {
+          "name": "questionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
+        }
+      ],
+      "rules": [
+        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
+      ],
+      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+    },
     "StorageFilePut": {
       "fields": [
         {
@@ -12161,51 +12299,6 @@ const transportSchemas = {
       ],
       "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
     },
-    "RunRequestCreate": {
-      "fields": [
-        {
-          "name": "recipientId",
-          "type": "uuid",
-          "required": true,
-          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
-        },
-        {
-          "name": "intent",
-          "type": "enum(fyi|review|approve|answer|take_over)",
-          "required": true,
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
-        },
-        {
-          "name": "stepKey",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "minLength": 1,
-            "maxLength": 200
-          },
-          "description": "The step the request concerns, or omitted for the run as a whole."
-        },
-        {
-          "name": "note",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxLength": 280
-          },
-          "description": "Optional one line shown to the person asked."
-        },
-        {
-          "name": "neededBy",
-          "type": "timestamp",
-          "required": false,
-          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
-        }
-      ],
-      "rules": [
-        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
-      ],
-      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
-    },
     "StorageFileContentQuery": {
       "fields": [
         {
@@ -12235,87 +12328,93 @@ const transportSchemas = {
       ],
       "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
     },
-    "MergeAttemptQuery": {
+    "McpToolClassificationPut": {
       "fields": [
         {
-          "name": "pullRequestId",
+          "name": "effectClass",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+        },
+        {
+          "name": "effectKeyArgument",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
+        },
+        {
+          "name": "pairedReadTool",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
+        }
+      ],
+      "rules": [
+        "effectKeyArgument is required for write_idempotent and refused for any other class",
+        "pairedReadTool is required for write_reconcilable and refused for any other class",
+        "the tool must be in the connection's current snapshot"
+      ],
+      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "McpUseGrantCreate": {
+      "fields": [
+        {
+          "name": "workflowId",
           "type": "uuid",
           "required": true,
-          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
         }
       ],
-      "pagination": "pagination",
-      "rules": [
-        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
-      ],
-      "description": "Filters for listing one pull request's merge attempts, newest first."
+      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
     },
-    "MergeEntryQuery": {
+    "AgentFileGrantCreate": {
       "fields": [
         {
-          "name": "repositoryId",
+          "name": "workflowId",
           "type": "uuid",
-          "required": false,
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases."
+          "required": true,
+          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
         },
         {
-          "name": "pullRequestId",
+          "name": "folderId",
           "type": "uuid",
-          "required": false,
-          "description": "Restrict results to this tracked pull request's merge entries."
+          "required": true,
+          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
         },
         {
-          "name": "runId",
-          "type": "uuid",
-          "required": false,
-          "description": "Restrict results to the merge entries admitted for this run, so a page can read one run's entry without listing a whole repository's queue."
+          "name": "access",
+          "type": "enum(read|write)",
+          "required": true,
+          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
         },
         {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+          "name": "expiresAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
         }
       ],
-      "pagination": "pagination",
       "rules": [
-        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query. Every filter given must match."
+        "A person with a browser session only; an agent is refused with AUTH_FORBIDDEN reason agent_file_grant_requires_person, so an agent never widens its own file scope (O52).",
+        "An unknown or foreign workflow, or a folder that is missing, trashed, foreign or another member's personal folder, answers RESOURCE_NOT_FOUND.",
+        "A folder in the library, a record area, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with the reason the agent would get; an expiry in the past or more than 30 days ahead is 422.",
+        "A grant adds scope, never authority: an agent's write still needs the person it acts for to be able to write the folder themselves."
       ],
-      "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
+      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
     },
     "DesktopSignInStart": {
       "fields": [
@@ -13966,7 +14065,9 @@ const transportSchemas = {
         "ownerPrincipalId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -13979,12 +14080,16 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "scope": "enum(global|organization|personal)",
-        "ownerPrincipalId": "uuid|null"
+        "ownerPrincipalId": "uuid|null",
+        "copiedFromSkillId": "uuid|null",
+        "copiedFromVersionId": "uuid|null"
       },
       "nullableFields": [
         "sourceId",
         "activeVersionId",
-        "ownerPrincipalId"
+        "ownerPrincipalId",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "sourceColumns": {
         "id": "id",
@@ -13997,7 +14102,9 @@ const transportSchemas = {
         "updatedAt": "updated_at",
         "version": "version",
         "scope": "scope",
-        "ownerPrincipalId": "owner_principal_id"
+        "ownerPrincipalId": "owner_principal_id",
+        "copiedFromSkillId": "copied_from_skill_id",
+        "copiedFromVersionId": "copied_from_version_id"
       },
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
@@ -14011,7 +14118,9 @@ const transportSchemas = {
         "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill.",
         "createdAt": "UTC timestamp when the skill record was created.",
         "updatedAt": "UTC timestamp when the skill record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the skill record."
+        "version": "Optimistic-concurrency version used when updating the skill record.",
+        "copiedFromSkillId": "Stable UUID of the skill this one was copied from; null when the skill was not made by copying.",
+        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying."
       }
     },
     "skill_versions": {
@@ -21246,7 +21355,9 @@ const transportSchemas = {
         "ownerPrincipalId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -21259,12 +21370,16 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "scope": "enum(global|organization|personal)",
-        "ownerPrincipalId": "uuid|null"
+        "ownerPrincipalId": "uuid|null",
+        "copiedFromSkillId": "uuid|null",
+        "copiedFromVersionId": "uuid|null"
       },
       "nullableFields": [
         "sourceId",
         "activeVersionId",
-        "ownerPrincipalId"
+        "ownerPrincipalId",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use.",
       "fieldDescriptions": {
@@ -21278,7 +21393,9 @@ const transportSchemas = {
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
         "scope": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person.",
-        "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill."
+        "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill.",
+        "copiedFromSkillId": "Stable UUID of the skill this one was copied from; null when the skill was not made by copying.",
+        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying."
       }
     },
     "SkillVersion": {
@@ -21848,6 +21965,7 @@ const transportSchemas = {
         "topic",
         "tags",
         "currentRevisionId",
+        "currentRevision",
         "sourceState",
         "status",
         "createdAt",
@@ -21864,10 +21982,12 @@ const transportSchemas = {
         "status": "enum(proposed|active|retired)",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "currentRevision": "MemoryRevision|null"
       },
       "nullableFields": [
-        "currentRevisionId"
+        "currentRevisionId",
+        "currentRevision"
       ],
       "description": "Stable repository-scoped learning topic; its currentRevisionId points at the latest accepted memory_revisions row and advances only through the normal compare-and-swap update path, never by editing content in place.",
       "fieldDescriptions": {
@@ -21880,7 +22000,8 @@ const transportSchemas = {
         "status": "Current lifecycle status of the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "currentRevision": "The revision currentRevisionId points at, as this reader sees it (its sourceState, sourceName and sourceRevision are judged against the reader's live access at read time), so wording, source, confidence and expiry come with the entry. Null while the entry has no current revision."
       }
     },
     "MemoryRevision": {
@@ -21893,6 +22014,8 @@ const transportSchemas = {
         "reason",
         "sourceArtifactVersionId",
         "sourceState",
+        "sourceName",
+        "sourceRevision",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -21915,13 +22038,17 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "reason": "string|null"
+        "reason": "string|null",
+        "sourceName": "string|null",
+        "sourceRevision": "integer|null"
       },
       "nullableFields": [
         "supersedesId",
         "expiresAt",
         "reason",
-        "sourceArtifactVersionId"
+        "sourceArtifactVersionId",
+        "sourceName",
+        "sourceRevision"
       ],
       "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
@@ -21938,7 +22065,9 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "reason": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking."
+        "reason": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking.",
+        "sourceName": "Name of the artifact whose version this revision cites, so a reader sees which document it came from without a second read. Null unless sourceState is available or deleted: a reader who cannot read artifact versions, or a version that cannot be found, is never given a name.",
+        "sourceRevision": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null."
       },
       "optionalFields": [
         "reason"
@@ -26306,132 +26435,6 @@ const transportSchemas = {
     "Page<TicketRequest>": {
       "pageOf": "TicketRequest"
     },
-    "TicketRequestView": {
-      "projection": "ticket_requests",
-      "fields": [
-        "id",
-        "externalTicketId",
-        "ticketTaskLinkId",
-        "intent",
-        "origin",
-        "requestedByPrincipalId",
-        "triggerLabelName",
-        "disposition",
-        "dispositionReasonCode",
-        "pausedAt",
-        "pausedReason",
-        "progress",
-        "workflowRunId",
-        "createdAt",
-        "updatedAt",
-        "version",
-        "targets"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "externalTicketId": "uuid",
-        "ticketTaskLinkId": "uuid",
-        "intent": "enum(plan|start)",
-        "origin": "enum(manual|adoption|webhook|poll)",
-        "requestedByPrincipalId": "uuid|null",
-        "triggerLabelName": "string|null",
-        "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
-        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
-        "pausedAt": "timestamp|null",
-        "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
-        "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
-        "workflowRunId": "uuid|null",
-        "createdAt": "timestamp",
-        "updatedAt": "timestamp",
-        "version": "integer",
-        "targets": "TicketRequestViewTarget[]"
-      },
-      "nullableFields": [
-        "requestedByPrincipalId",
-        "triggerLabelName",
-        "dispositionReasonCode",
-        "pausedAt",
-        "pausedReason",
-        "workflowRunId"
-      ],
-      "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
-      "fieldDescriptions": {
-        "id": "Stable UUID of this ticket request.",
-        "externalTicketId": "External ticket this request admitted.",
-        "ticketTaskLinkId": "Link between the ticket and the task this request owns.",
-        "intent": "Requested scope: plan stops after the plan for review, start plans and then runs.",
-        "origin": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync.",
-        "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
-        "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
-        "disposition": "Stored lifecycle state of the request.",
-        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
-        "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
-        "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
-        "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
-        "workflowRunId": "Workflow run the request owns; null before one starts.",
-        "createdAt": "When the request was admitted.",
-        "updatedAt": "When the request last changed.",
-        "version": "Monotonic revision of the request.",
-        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
-      }
-    },
-    "Page<TicketRequestView>": {
-      "pageOf": "TicketRequestView"
-    },
-    "TicketRequestViewTarget": {
-      "projection": "ticket_request_targets",
-      "fields": [
-        "repositoryId",
-        "role",
-        "routingRuleId",
-        "routingRuleVersion",
-        "childTaskId"
-      ],
-      "fieldTypes": {
-        "repositoryId": "uuid",
-        "role": "string",
-        "routingRuleId": "uuid|null",
-        "routingRuleVersion": "integer|null",
-        "childTaskId": "uuid|null"
-      },
-      "nullableFields": [
-        "routingRuleId",
-        "routingRuleVersion",
-        "childTaskId"
-      ],
-      "description": "One repository a ticket request was routed to, as pinned at admission.",
-      "fieldDescriptions": {
-        "repositoryId": "Repository this target is scoped to.",
-        "role": "Role the repository plays; default for the fallback to the source's own repository.",
-        "routingRuleId": "Rule that routed the ticket here as pinned at admission, or null for the fallback.",
-        "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
-        "childTaskId": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
-      }
-    },
-    "TicketSourceLabel": {
-      "fields": [
-        "id",
-        "name",
-        "color"
-      ],
-      "fieldTypes": {
-        "id": "string",
-        "name": "string",
-        "color": "string|null"
-      },
-      "nullableFields": [
-        "color"
-      ],
-      "description": "One label the ticket source's provider holds, read live (#69).",
-      "fieldDescriptions": {
-        "id": "The provider's stable, opaque label id; the value a routing rule stores, which survives a rename.",
-        "name": "The label's current name.",
-        "color": "The label's colour as six hex digits without a leading #, or null when the provider gives none."
-      }
-    },
-    "Page<TicketSourceLabel>": {
-      "pageOf": "TicketSourceLabel"
-    },
     "PluginPackage": {
       "projection": "plugin_packages",
       "fields": [
@@ -26955,114 +26958,6 @@ const transportSchemas = {
         "reconciliationId": "Stable UUID linking this record to the related reconciliation entity.",
         "effectId": "Stable UUID linking this record to the related effect entity.",
         "status": "Current lifecycle status of the record."
-      }
-    },
-    "TicketPreviewResult": {
-      "fields": [
-        "sourceId",
-        "policyRevision",
-        "draft",
-        "evaluatedAt",
-        "counts",
-        "issues",
-        "skipped"
-      ],
-      "fieldTypes": {
-        "sourceId": "uuid",
-        "policyRevision": "integer",
-        "draft": "boolean",
-        "evaluatedAt": "timestamp",
-        "counts": "TicketPreviewCounts",
-        "issues": "TicketPreviewIssue[]",
-        "skipped": "integer"
-      },
-      "description": "What ticketSources.preview computed for one ticket source: how each evaluated issue would be judged under the saved or draft policy, and the totals. Nothing behind it is stored, so a second preview evaluates again from fresh provider reads.",
-      "fieldDescriptions": {
-        "sourceId": "The ticket source the preview evaluated.",
-        "policyRevision": "The saved policy revision at evaluation time. A draft is judged against the source as it is at this revision and would advance it once saved.",
-        "draft": "True when the request carried a draft policy and the answer describes it; false when it describes the saved policy.",
-        "evaluatedAt": "Server time the evaluation ran; the answer describes the issues as the provider returned them just before it.",
-        "counts": "Totals over issues, one bucket per issue.",
-        "issues": "One entry per evaluated issue in provider list order (or in the order of filters.numbers), at most 25.",
-        "skipped": "Issues that were read but could not be evaluated, for example one whose read failed mid-page; they are in no count."
-      },
-      "fieldBounds": {
-        "issues": {
-          "maxItems": 25
-        },
-        "skipped": {
-          "min": 0
-        }
-      }
-    },
-    "TicketPreviewCounts": {
-      "fields": [
-        "wouldStart",
-        "planOnly",
-        "held",
-        "blocked"
-      ],
-      "fieldTypes": {
-        "wouldStart": "integer",
-        "planOnly": "integer",
-        "held": "integer",
-        "blocked": "integer"
-      },
-      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
-      "fieldDescriptions": {
-        "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
-        "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
-        "held": "Issues carrying the hold label; the hold wins over every other label.",
-        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
-      },
-      "fieldBounds": {
-        "wouldStart": {
-          "min": 0
-        },
-        "planOnly": {
-          "min": 0
-        },
-        "held": {
-          "min": 0
-        },
-        "blocked": {
-          "min": 0
-        }
-      }
-    },
-    "TicketPreviewIssue": {
-      "fields": [
-        "number",
-        "title",
-        "outcome",
-        "verdict",
-        "reasons"
-      ],
-      "fieldTypes": {
-        "number": "integer",
-        "title": "string|null",
-        "outcome": "enum(would_start|plan_only|held|blocked)",
-        "verdict": "enum(ready|waiting|rejected)",
-        "reasons": "string[]"
-      },
-      "nullableFields": [
-        "title"
-      ],
-      "description": "How one issue would be judged by the previewed policy, as a poll would judge it: its bucket, the readiness verdict and the reason codes of every check that did not pass.",
-      "fieldDescriptions": {
-        "number": "The issue number on the provider.",
-        "title": "The issue title as read, or null when the issue could not be read (gone, moved or a pull request).",
-        "outcome": "would_start or plan_only when every check passes (by the label's intent), held when the hold label is present, blocked otherwise.",
-        "verdict": "The readiness verdict the evaluation produced: ready when every check passes, rejected when any check rejects, waiting otherwise.",
-        "reasons": "Distinct TicketReasonCode values of the checks that did not pass, in check order; empty when the verdict is ready."
-      },
-      "fieldBounds": {
-        "number": {
-          "min": 1
-        },
-        "reasons": {
-          "maxItems": 12
-        }
       }
     },
     "TicketOperationReceipt": {
@@ -30264,83 +30159,6 @@ const transportSchemas = {
         "createdAt": "When the note was recorded."
       }
     },
-    "AgentFileGrant": {
-      "fields": [
-        "id",
-        "workflowId",
-        "folderId",
-        "access",
-        "grantedBy",
-        "expiresAt",
-        "revokedAt",
-        "revokedBy",
-        "createdAt",
-        "version"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "workflowId": "uuid",
-        "folderId": "uuid",
-        "access": "enum(read|write)",
-        "grantedBy": "uuid",
-        "expiresAt": "timestamp",
-        "revokedAt": "timestamp|null",
-        "revokedBy": "uuid|null",
-        "createdAt": "timestamp",
-        "version": "integer"
-      },
-      "nullableFields": [
-        "revokedAt",
-        "revokedBy"
-      ],
-      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn.",
-      "fieldDescriptions": {
-        "id": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId.",
-        "workflowId": "Immutable id of the workflow whose agent sessions the grant covers.",
-        "folderId": "The storage folder granted; the grant covers it and everything under it.",
-        "access": "read, or write (which includes the destructive verbs mv and rm).",
-        "grantedBy": "Person who made the grant.",
-        "expiresAt": "When the grant stops working; judged at the time of each write.",
-        "revokedAt": "When a person revoked the grant; null while it stands.",
-        "revokedBy": "Person who revoked the grant; null while it stands.",
-        "createdAt": "When the grant was made.",
-        "version": "Optimistic-concurrency version a revoke must name in If-Match."
-      }
-    },
-    "AgentPowerGrant": {
-      "fields": [
-        "id",
-        "power",
-        "workflowId",
-        "accessTokenId",
-        "grantedBy",
-        "createdAt",
-        "version"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "power": "enum(decide|run_control|run_start|steer|steer_reviewer)",
-        "workflowId": "uuid|null",
-        "accessTokenId": "uuid|null",
-        "grantedBy": "uuid",
-        "createdAt": "timestamp",
-        "version": "integer"
-      },
-      "nullableFields": [
-        "workflowId",
-        "accessTokenId"
-      ],
-      "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
-      "fieldDescriptions": {
-        "id": "Stable UUID identifying the grant.",
-        "power": "The power granted: decide, run_control, run_start, steer or steer_reviewer.",
-        "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
-        "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
-        "grantedBy": "Person who made the grant.",
-        "createdAt": "When the grant was made.",
-        "version": "Optimistic-concurrency version a revoke must name in If-Match."
-      }
-    },
     "RouteContinuationTarget": {
       "fields": [
         "routeId",
@@ -30429,120 +30247,337 @@ const transportSchemas = {
         "offers": "The open choices, empty when no step of the run is stalled behind an incident."
       }
     },
-    "PasswordResetLinkIssued": {
+    "RouteContinuationPin": {
       "fields": [
-        "id",
-        "url",
-        "expiresAt"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "url": "secretString",
-        "expiresAt": "timestamp"
-      },
-      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
-      "fieldDescriptions": {
-        "id": "Stable UUID of the reset link record, as the audit trail names it.",
-        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
-        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
-      }
-    },
-    "McpToolClassification": {
-      "fields": [
-        "toolName",
-        "effectClass",
-        "classified",
-        "effectKeyArgument",
-        "pairedReadTool",
-        "classifiedAgainstCurrentSnapshot",
-        "classifiedAt",
-        "version"
-      ],
-      "nullableFields": [
-        "effectKeyArgument",
-        "pairedReadTool",
-        "classifiedAt"
-      ],
-      "fieldTypes": {
-        "toolName": "string",
-        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
-        "classified": "boolean",
-        "effectKeyArgument": "string",
-        "pairedReadTool": "string",
-        "classifiedAgainstCurrentSnapshot": "boolean",
-        "classifiedAt": "timestamp",
-        "version": "integer"
-      },
-      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it.",
-      "fieldDescriptions": {
-        "toolName": "The tool's name in the pinned snapshot.",
-        "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
-        "classified": "True once an Admin has classified this tool.",
-        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
-        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
-        "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
-        "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
-        "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."
-      }
-    },
-    "McpToolClassificationList": {
-      "fields": [
-        "items"
+        "provider",
+        "model",
+        "billingRoute",
+        "billingAccountId"
       ],
       "nullableFields": [],
       "fieldTypes": {
-        "items": "McpToolClassification[]"
+        "provider": "string",
+        "model": "string",
+        "billingRoute": "enum(api|subscription)",
+        "billingAccountId": "string"
       },
-      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered.",
+      "description": "What a step runs on: the provider, model, billing route and billing account of its pin. A continuation records the pin the step had and the pin it now has.",
       "fieldDescriptions": {
-        "items": "The snapshot's tools with their classifications."
+        "provider": "Provider key the step sends to.",
+        "model": "Model identifier the step runs.",
+        "billingRoute": "Billing route the step's spend follows: api or subscription.",
+        "billingAccountId": "Provider billing account the step's spend is attributed to."
       }
     },
-    "McpUseGrant": {
+    "RouteContinuation": {
       "fields": [
         "id",
-        "connectionId",
+        "runId",
+        "runStepId",
+        "jobId",
+        "incidentId",
+        "incidentGeneration",
+        "sourceRouteId",
+        "targetRouteId",
+        "previousPin",
+        "newPin",
+        "admittedAt"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "runStepId": "uuid",
+        "jobId": "uuid",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "sourceRouteId": "uuid",
+        "targetRouteId": "uuid",
+        "previousPin": "RouteContinuationPin",
+        "newPin": "RouteContinuationPin",
+        "admittedAt": "timestamp"
+      },
+      "description": "The record that a stalled step was continued on another route. The old attempt is fenced, the job is queued again on the new pin, and the step's one budget reservation is re-priced in place, so no second reservation exists and none is left held. Both the pin the step had and the pin it now has are kept.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this continuation.",
+        "runId": "UUID of the run the step belongs to.",
+        "runStepId": "UUID of the step that was continued.",
+        "jobId": "UUID of the step's job that was moved (the earliest, when a step has several live jobs; all were moved).",
+        "incidentId": "UUID of the incident the choice was made against.",
+        "incidentGeneration": "Generation of that incident when the choice was admitted.",
+        "sourceRouteId": "UUID of the route the step was pinned to.",
+        "targetRouteId": "UUID of the route it now runs on.",
+        "previousPin": "The provider, model, billing route and billing account the step had before.",
+        "newPin": "The provider, model, billing route and billing account the step has now.",
+        "admittedAt": "UTC timestamp at which the continuation was admitted."
+      }
+    },
+    "TicketRequestView": {
+      "projection": "ticket_requests",
+      "fields": [
+        "id",
+        "externalTicketId",
+        "ticketTaskLinkId",
+        "intent",
+        "origin",
+        "requestedByPrincipalId",
+        "triggerLabelName",
+        "disposition",
+        "dispositionReasonCode",
+        "pausedAt",
+        "pausedReason",
+        "progress",
+        "workflowRunId",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "targets"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "externalTicketId": "uuid",
+        "ticketTaskLinkId": "uuid",
+        "intent": "enum(plan|start)",
+        "origin": "enum(manual|adoption|webhook|poll)",
+        "requestedByPrincipalId": "uuid|null",
+        "triggerLabelName": "string|null",
+        "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
+        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
+        "pausedAt": "timestamp|null",
+        "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
+        "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
+        "workflowRunId": "uuid|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer",
+        "targets": "TicketRequestViewTarget[]"
+      },
+      "nullableFields": [
+        "requestedByPrincipalId",
+        "triggerLabelName",
+        "dispositionReasonCode",
+        "pausedAt",
+        "pausedReason",
+        "workflowRunId"
+      ],
+      "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this ticket request.",
+        "externalTicketId": "External ticket this request admitted.",
+        "ticketTaskLinkId": "Link between the ticket and the task this request owns.",
+        "intent": "Requested scope: plan stops after the plan for review, start plans and then runs.",
+        "origin": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync.",
+        "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
+        "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
+        "disposition": "Stored lifecycle state of the request.",
+        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
+        "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
+        "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
+        "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
+        "workflowRunId": "Workflow run the request owns; null before one starts.",
+        "createdAt": "When the request was admitted.",
+        "updatedAt": "When the request last changed.",
+        "version": "Monotonic revision of the request.",
+        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
+      }
+    },
+    "Page<TicketRequestView>": {
+      "pageOf": "TicketRequestView"
+    },
+    "TicketRequestViewTarget": {
+      "projection": "ticket_request_targets",
+      "fields": [
+        "repositoryId",
+        "role",
+        "routingRuleId",
+        "routingRuleVersion",
+        "childTaskId"
+      ],
+      "fieldTypes": {
+        "repositoryId": "uuid",
+        "role": "string",
+        "routingRuleId": "uuid|null",
+        "routingRuleVersion": "integer|null",
+        "childTaskId": "uuid|null"
+      },
+      "nullableFields": [
+        "routingRuleId",
+        "routingRuleVersion",
+        "childTaskId"
+      ],
+      "description": "One repository a ticket request was routed to, as pinned at admission.",
+      "fieldDescriptions": {
+        "repositoryId": "Repository this target is scoped to.",
+        "role": "Role the repository plays; default for the fallback to the source's own repository.",
+        "routingRuleId": "Rule that routed the ticket here as pinned at admission, or null for the fallback.",
+        "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
+        "childTaskId": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
+      }
+    },
+    "TicketSourceLabel": {
+      "fields": [
+        "id",
+        "name",
+        "color"
+      ],
+      "fieldTypes": {
+        "id": "string",
+        "name": "string",
+        "color": "string|null"
+      },
+      "nullableFields": [
+        "color"
+      ],
+      "description": "One label the ticket source's provider holds, read live (#69).",
+      "fieldDescriptions": {
+        "id": "The provider's stable, opaque label id; the value a routing rule stores, which survives a rename.",
+        "name": "The label's current name.",
+        "color": "The label's colour as six hex digits without a leading #, or null when the provider gives none."
+      }
+    },
+    "Page<TicketSourceLabel>": {
+      "pageOf": "TicketSourceLabel"
+    },
+    "TicketPreviewResult": {
+      "fields": [
+        "sourceId",
+        "policyRevision",
+        "draft",
+        "evaluatedAt",
+        "counts",
+        "issues",
+        "skipped"
+      ],
+      "fieldTypes": {
+        "sourceId": "uuid",
+        "policyRevision": "integer",
+        "draft": "boolean",
+        "evaluatedAt": "timestamp",
+        "counts": "TicketPreviewCounts",
+        "issues": "TicketPreviewIssue[]",
+        "skipped": "integer"
+      },
+      "description": "What ticketSources.preview computed for one ticket source: how each evaluated issue would be judged under the saved or draft policy, and the totals. Nothing behind it is stored, so a second preview evaluates again from fresh provider reads.",
+      "fieldDescriptions": {
+        "sourceId": "The ticket source the preview evaluated.",
+        "policyRevision": "The saved policy revision at evaluation time. A draft is judged against the source as it is at this revision and would advance it once saved.",
+        "draft": "True when the request carried a draft policy and the answer describes it; false when it describes the saved policy.",
+        "evaluatedAt": "Server time the evaluation ran; the answer describes the issues as the provider returned them just before it.",
+        "counts": "Totals over issues, one bucket per issue.",
+        "issues": "One entry per evaluated issue in provider list order (or in the order of filters.numbers), at most 25.",
+        "skipped": "Issues that were read but could not be evaluated, for example one whose read failed mid-page; they are in no count."
+      },
+      "fieldBounds": {
+        "issues": {
+          "maxItems": 25
+        },
+        "skipped": {
+          "min": 0
+        }
+      }
+    },
+    "TicketPreviewCounts": {
+      "fields": [
+        "wouldStart",
+        "planOnly",
+        "held",
+        "blocked"
+      ],
+      "fieldTypes": {
+        "wouldStart": "integer",
+        "planOnly": "integer",
+        "held": "integer",
+        "blocked": "integer"
+      },
+      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
+      "fieldDescriptions": {
+        "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
+        "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
+        "held": "Issues carrying the hold label; the hold wins over every other label.",
+        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
+      },
+      "fieldBounds": {
+        "wouldStart": {
+          "min": 0
+        },
+        "planOnly": {
+          "min": 0
+        },
+        "held": {
+          "min": 0
+        },
+        "blocked": {
+          "min": 0
+        }
+      }
+    },
+    "TicketPreviewIssue": {
+      "fields": [
+        "number",
+        "title",
+        "outcome",
+        "verdict",
+        "reasons"
+      ],
+      "fieldTypes": {
+        "number": "integer",
+        "title": "string|null",
+        "outcome": "enum(would_start|plan_only|held|blocked)",
+        "verdict": "enum(ready|waiting|rejected)",
+        "reasons": "string[]"
+      },
+      "nullableFields": [
+        "title"
+      ],
+      "description": "How one issue would be judged by the previewed policy, as a poll would judge it: its bucket, the readiness verdict and the reason codes of every check that did not pass.",
+      "fieldDescriptions": {
+        "number": "The issue number on the provider.",
+        "title": "The issue title as read, or null when the issue could not be read (gone, moved or a pull request).",
+        "outcome": "would_start or plan_only when every check passes (by the label's intent), held when the hold label is present, blocked otherwise.",
+        "verdict": "The readiness verdict the evaluation produced: ready when every check passes, rejected when any check rejects, waiting otherwise.",
+        "reasons": "Distinct TicketReasonCode values of the checks that did not pass, in check order; empty when the verdict is ready."
+      },
+      "fieldBounds": {
+        "number": {
+          "min": 1
+        },
+        "reasons": {
+          "maxItems": 12
+        }
+      }
+    },
+    "AgentPowerGrant": {
+      "fields": [
+        "id",
+        "power",
         "workflowId",
+        "accessTokenId",
         "grantedBy",
         "createdAt",
-        "revokedAt",
-        "revokedBy"
-      ],
-      "nullableFields": [
-        "revokedAt",
-        "revokedBy"
+        "version"
       ],
       "fieldTypes": {
         "id": "uuid",
-        "connectionId": "uuid",
-        "workflowId": "uuid",
+        "power": "enum(decide|run_control|run_start|steer|steer_reviewer)",
+        "workflowId": "uuid|null",
+        "accessTokenId": "uuid|null",
         "grantedBy": "uuid",
         "createdAt": "timestamp",
-        "revokedAt": "timestamp",
-        "revokedBy": "uuid"
+        "version": "integer"
       },
-      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record.",
+      "nullableFields": [
+        "workflowId",
+        "accessTokenId"
+      ],
+      "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the grant.",
-        "connectionId": "The personal connection the grant covers.",
-        "workflowId": "The workflow the grant lets use the connection.",
-        "grantedBy": "The owner who granted it.",
-        "createdAt": "UTC timestamp when the grant was made.",
-        "revokedAt": "UTC timestamp when the grant was revoked, or null while it is live.",
-        "revokedBy": "The principal who revoked it, or null while it is live."
-      }
-    },
-    "McpUseGrantList": {
-      "fields": [
-        "items"
-      ],
-      "nullableFields": [],
-      "fieldTypes": {
-        "items": "McpUseGrant[]"
-      },
-      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant.",
-      "fieldDescriptions": {
-        "items": "The connection's grants, newest first."
+        "power": "The power granted: decide, run_control, run_start, steer or steer_reviewer.",
+        "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
+        "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
+        "grantedBy": "Person who made the grant.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
       }
     },
     "GroupMember": {
@@ -30812,6 +30847,28 @@ const transportSchemas = {
       "pageOf": "ConversationAccessGrant",
       "description": "Cursor page of live direct grants on one conversation, oldest first. `nextCursor: null` marks the last page."
     },
+    "PasswordResetLinkIssued": {
+      "fields": [
+        "id",
+        "url",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "url": "secretString",
+        "expiresAt": "timestamp"
+      },
+      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the reset link record, as the audit trail names it.",
+        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
+        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
+      }
+    },
+    "Page<MergeAttempt>": {
+      "pageOf": "MergeAttempt",
+      "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
     "FileSearchHit": {
       "fields": [
         "source",
@@ -30921,6 +30978,107 @@ const transportSchemas = {
     "Page<LibraryEntry>": {
       "pageOf": "LibraryEntry",
       "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "RunRequestPerson": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "nullableFields": [],
+      "description": "A person named on a request: stable identity and saved display name.",
+      "fieldDescriptions": {
+        "principalId": "Stable principal UUID.",
+        "displayName": "The person's saved display name."
+      }
+    },
+    "RunRequest": {
+      "projection": "person_requests",
+      "fields": [
+        "id",
+        "runId",
+        "stepKey",
+        "intent",
+        "recipient",
+        "askedBy",
+        "askedByKind",
+        "note",
+        "neededBy",
+        "status",
+        "expiresAt",
+        "ownerFallback",
+        "fallbackForName",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "questionId"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "stepKey": "string|null",
+        "intent": "enum(fyi|review|approve|answer|take_over)",
+        "recipient": "RunRequestPerson",
+        "askedBy": "RunRequestPerson|null",
+        "askedByKind": "enum(person|agent|workflow)",
+        "note": "string|null",
+        "neededBy": "timestamp|null",
+        "status": "enum(open|answered|handled|expired|withdrawn)",
+        "expiresAt": "timestamp",
+        "ownerFallback": "boolean",
+        "fallbackForName": "string|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer",
+        "questionId": "uuid|null"
+      },
+      "nullableFields": [
+        "stepKey",
+        "askedBy",
+        "note",
+        "neededBy",
+        "fallbackForName",
+        "questionId"
+      ],
+      "description": "A request: one person asked for one thing on one run, with how it stands.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the request.",
+        "runId": "The run the request is on.",
+        "stepKey": "The step it concerns, or null for the run as a whole.",
+        "intent": "What was asked for.",
+        "recipient": "The person asked, frozen when the request was made.",
+        "askedBy": "The person who asked, or null when the asker no longer exists.",
+        "askedByKind": "Whether a person, an agent or a workflow's own step asked.",
+        "note": "The optional one-line note, or null.",
+        "neededBy": "The optional deadline, or null.",
+        "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
+        "expiresAt": "UTC time the request expires; silence never approves.",
+        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
+        "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
+        "createdAt": "UTC time the request was made.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Optimistic-concurrency version used as If-Match.",
+        "questionId": "The approval or question the request asks about, or null when it asks for none."
+      },
+      "optionalFields": [
+        "questionId"
+      ]
+    },
+    "RunRequests": {
+      "fields": [
+        "requests"
+      ],
+      "fieldTypes": {
+        "requests": "RunRequest[]"
+      },
+      "nullableFields": [],
+      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first.",
+      "fieldDescriptions": {
+        "requests": "Requests in newest-first order; bounded to the most recent fifty."
+      }
     },
     "StorageEntry": {
       "fields": [
@@ -31082,141 +31240,6 @@ const transportSchemas = {
         "bytesRemoved": "Bytes of working-area versions deleted. Zero when the purge is queued."
       }
     },
-    "SkillUseGrant": {
-      "fields": [
-        "id",
-        "skillId",
-        "skillVersionId",
-        "workflowId",
-        "workflowName",
-        "stepPath",
-        "grantedBy",
-        "createdAt",
-        "version"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "skillId": "uuid",
-        "skillVersionId": "uuid",
-        "workflowId": "uuid",
-        "workflowName": "string",
-        "stepPath": "string",
-        "grantedBy": "uuid",
-        "createdAt": "timestamp",
-        "version": "integer"
-      },
-      "nullableFields": [],
-      "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
-      "fieldDescriptions": {
-        "id": "Stable UUID identifying the grant.",
-        "skillId": "Stable UUID of the personal skill the grant is for.",
-        "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
-        "workflowId": "Stable UUID of the workflow the skill was attached to.",
-        "workflowName": "Display name of that workflow, so the owner can recognise it.",
-        "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
-        "grantedBy": "Person who confirmed the grant, always the skill owner.",
-        "createdAt": "When the grant was made.",
-        "version": "Optimistic-concurrency version a stop must name in If-Match."
-      }
-    },
-    "Page<SkillUseGrant>": {
-      "pageOf": "SkillUseGrant",
-      "description": "Cursor page of SkillUseGrant rows in the collection's stable sort order. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
-    },
-    "RunRequestPerson": {
-      "fields": [
-        "principalId",
-        "displayName"
-      ],
-      "fieldTypes": {
-        "principalId": "uuid",
-        "displayName": "string"
-      },
-      "nullableFields": [],
-      "description": "A person named on a request: stable identity and saved display name.",
-      "fieldDescriptions": {
-        "principalId": "Stable principal UUID.",
-        "displayName": "The person's saved display name."
-      }
-    },
-    "RunRequest": {
-      "projection": "person_requests",
-      "fields": [
-        "id",
-        "runId",
-        "stepKey",
-        "intent",
-        "recipient",
-        "askedBy",
-        "askedByKind",
-        "note",
-        "neededBy",
-        "status",
-        "expiresAt",
-        "ownerFallback",
-        "fallbackForName",
-        "createdAt",
-        "updatedAt",
-        "version"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "runId": "uuid",
-        "stepKey": "string|null",
-        "intent": "enum(fyi|review|approve|answer|take_over)",
-        "recipient": "RunRequestPerson",
-        "askedBy": "RunRequestPerson|null",
-        "askedByKind": "enum(person|agent|workflow)",
-        "note": "string|null",
-        "neededBy": "timestamp|null",
-        "status": "enum(open|answered|handled|expired|withdrawn)",
-        "expiresAt": "timestamp",
-        "ownerFallback": "boolean",
-        "fallbackForName": "string|null",
-        "createdAt": "timestamp",
-        "updatedAt": "timestamp",
-        "version": "integer"
-      },
-      "nullableFields": [
-        "stepKey",
-        "askedBy",
-        "note",
-        "neededBy",
-        "fallbackForName"
-      ],
-      "description": "A request: one person asked for one thing on one run, with how it stands.",
-      "fieldDescriptions": {
-        "id": "Stable UUID of the request.",
-        "runId": "The run the request is on.",
-        "stepKey": "The step it concerns, or null for the run as a whole.",
-        "intent": "What was asked for.",
-        "recipient": "The person asked, frozen when the request was made.",
-        "askedBy": "The person who asked, or null when the asker no longer exists.",
-        "askedByKind": "Whether a person, an agent or a workflow's own step asked.",
-        "note": "The optional one-line note, or null.",
-        "neededBy": "The optional deadline, or null.",
-        "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
-        "expiresAt": "UTC time the request expires; silence never approves.",
-        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
-        "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
-        "createdAt": "UTC time the request was made.",
-        "updatedAt": "UTC time it last changed.",
-        "version": "Optimistic-concurrency version used as If-Match."
-      }
-    },
-    "RunRequests": {
-      "fields": [
-        "requests"
-      ],
-      "fieldTypes": {
-        "requests": "RunRequest[]"
-      },
-      "nullableFields": [],
-      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first.",
-      "fieldDescriptions": {
-        "requests": "Requests in newest-first order; bounded to the most recent fifty."
-      }
-    },
     "StorageFolderItem": {
       "fields": [
         "id",
@@ -31354,27 +31377,6 @@ const transportSchemas = {
       "pageOf": "StorageFileVersion",
       "description": "Cursor page of a storage-tree file's versions, newest first, removed ones included. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
     },
-    "StorageFileAtVersion": {
-      "fields": [
-        "file",
-        "versionId",
-        "revision",
-        "isCurrent"
-      ],
-      "fieldTypes": {
-        "file": "StorageFolderItem",
-        "versionId": "uuid",
-        "revision": "integer",
-        "isCurrent": "boolean"
-      },
-      "description": "The storage-tree file a version belongs to, found from the version id alone, with that version's number: what a link to one saved version (for example a memory's source) opens.",
-      "fieldDescriptions": {
-        "file": "The file as the files browser lists it, at its current path; open its history with storageFileVersions.list.",
-        "versionId": "The version that was asked for: a working-area version id or a work item document's artifact version id.",
-        "revision": "That version's number, counting from 1; pass it as revision to storageFiles.content to read this version.",
-        "isCurrent": "True when this version is the one the file shows now."
-      }
-    },
     "StorageFileUse": {
       "fields": [
         "id",
@@ -31415,9 +31417,167 @@ const transportSchemas = {
       "pageOf": "StorageFileUse",
       "description": "Cursor page of the runs that used a storage-tree file, newest first, only those whose work item the caller may open. Only a work item's document can be used by a run; a working-area file lists none. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, offsets or totals."
     },
-    "Page<MergeAttempt>": {
-      "pageOf": "MergeAttempt",
-      "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    "McpToolClassification": {
+      "fields": [
+        "toolName",
+        "effectClass",
+        "classified",
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAgainstCurrentSnapshot",
+        "classifiedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAt"
+      ],
+      "fieldTypes": {
+        "toolName": "string",
+        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
+        "classified": "boolean",
+        "effectKeyArgument": "string",
+        "pairedReadTool": "string",
+        "classifiedAgainstCurrentSnapshot": "boolean",
+        "classifiedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it.",
+      "fieldDescriptions": {
+        "toolName": "The tool's name in the pinned snapshot.",
+        "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
+        "classified": "True once an Admin has classified this tool.",
+        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
+        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
+        "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
+        "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
+        "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+      }
+    },
+    "McpToolClassificationList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpToolClassification[]"
+      },
+      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered.",
+      "fieldDescriptions": {
+        "items": "The snapshot's tools with their classifications."
+      }
+    },
+    "McpUseGrant": {
+      "fields": [
+        "id",
+        "connectionId",
+        "workflowId",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "revokedBy"
+      ],
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "connectionId": "uuid",
+        "workflowId": "uuid",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "revokedAt": "timestamp",
+        "revokedBy": "uuid"
+      },
+      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "connectionId": "The personal connection the grant covers.",
+        "workflowId": "The workflow the grant lets use the connection.",
+        "grantedBy": "The owner who granted it.",
+        "createdAt": "UTC timestamp when the grant was made.",
+        "revokedAt": "UTC timestamp when the grant was revoked, or null while it is live.",
+        "revokedBy": "The principal who revoked it, or null while it is live."
+      }
+    },
+    "McpUseGrantList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpUseGrant[]"
+      },
+      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant.",
+      "fieldDescriptions": {
+        "items": "The connection's grants, newest first."
+      }
+    },
+    "AgentFileGrant": {
+      "fields": [
+        "id",
+        "workflowId",
+        "folderId",
+        "access",
+        "grantedBy",
+        "expiresAt",
+        "revokedAt",
+        "revokedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "workflowId": "uuid",
+        "folderId": "uuid",
+        "access": "enum(read|write)",
+        "grantedBy": "uuid",
+        "expiresAt": "timestamp",
+        "revokedAt": "timestamp|null",
+        "revokedBy": "uuid|null",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId.",
+        "workflowId": "Immutable id of the workflow whose agent sessions the grant covers.",
+        "folderId": "The storage folder granted; the grant covers it and everything under it.",
+        "access": "read, or write (which includes the destructive verbs mv and rm).",
+        "grantedBy": "Person who made the grant.",
+        "expiresAt": "When the grant stops working; judged at the time of each write.",
+        "revokedAt": "When a person revoked the grant; null while it stands.",
+        "revokedBy": "Person who revoked the grant; null while it stands.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+      }
+    },
+    "StorageFileAtVersion": {
+      "fields": [
+        "file",
+        "versionId",
+        "revision",
+        "isCurrent"
+      ],
+      "fieldTypes": {
+        "file": "StorageFolderItem",
+        "versionId": "uuid",
+        "revision": "integer",
+        "isCurrent": "boolean"
+      },
+      "description": "The storage-tree file a version belongs to, found from the version id alone, with that version's number: what a link to one saved version (for example a memory's source) opens.",
+      "fieldDescriptions": {
+        "file": "The file as the files browser lists it, at its current path; open its history with storageFileVersions.list.",
+        "versionId": "The version that was asked for: a working-area version id or a work item document's artifact version id.",
+        "revision": "That version's number, counting from 1; pass it as revision to storageFiles.content to read this version.",
+        "isCurrent": "True when this version is the one the file shows now."
+      }
     },
     "DesktopSignInStarted": {
       "fields": [
@@ -31453,6 +31613,105 @@ const transportSchemas = {
         "credential": "Bearer credential starting with bkd_, sent as `Authorization: Bearer <credential>` to the page API and live updates. Returned only here; Bakery cannot show it again.",
         "sessionId": "UUID of the sign-in session it opened; the person sees it as the Bakery app in Active sessions and can revoke it there.",
         "expiresAt": "UTC instant the sign-in ends unless use renews it, as a browser sign-in renews."
+      }
+    },
+    "SkillUseGrant": {
+      "fields": [
+        "id",
+        "skillId",
+        "skillVersionId",
+        "workflowId",
+        "workflowName",
+        "stepPath",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "skillId": "uuid",
+        "skillVersionId": "uuid",
+        "workflowId": "uuid",
+        "workflowName": "string",
+        "stepPath": "string",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [],
+      "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "skillId": "Stable UUID of the personal skill the grant is for.",
+        "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
+        "workflowId": "Stable UUID of the workflow the skill was attached to.",
+        "workflowName": "Display name of that workflow, so the owner can recognise it.",
+        "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
+        "grantedBy": "Person who confirmed the grant, always the skill owner.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a stop must name in If-Match."
+      }
+    },
+    "Page<SkillUseGrant>": {
+      "pageOf": "SkillUseGrant",
+      "description": "Cursor page of SkillUseGrant rows in the collection's stable sort order. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
+    },
+    "WorkflowStepSkill": {
+      "fields": [
+        "stepPath",
+        "skillVersionId",
+        "skillName",
+        "revision",
+        "scope",
+        "ownerDisplayName",
+        "mine",
+        "status",
+        "publishedVersionUsesIt"
+      ],
+      "fieldTypes": {
+        "stepPath": "string",
+        "skillVersionId": "uuid|null",
+        "skillName": "string|null",
+        "revision": "integer|null",
+        "scope": "enum(global|organization|personal)|null",
+        "ownerDisplayName": "string|null",
+        "mine": "boolean",
+        "status": "enum(available|stopped|unavailable|missing)",
+        "publishedVersionUsesIt": "boolean"
+      },
+      "nullableFields": [
+        "skillName",
+        "revision",
+        "scope",
+        "ownerDisplayName",
+        "skillVersionId"
+      ],
+      "description": "One skill version named by one step of a workflow version, as the reader may see it. For a personal skill that is not the reader's own it is a placeholder: its name, its owner's display name and its version, never a link, a file or a description. A copy of a workflow that used a personal skill lists the step with status missing, naming the original skill, until the author chooses another skill or removes it.",
+      "fieldDescriptions": {
+        "stepPath": "JSON Pointer of the step in the workflow definition that names the skill.",
+        "skillVersionId": "Immutable skill version the step names; null for a missing-skill slot, which names no skill.",
+        "skillName": "Display name of the skill, or for a missing-skill slot the name of the skill the original workflow used; null when the version no longer exists.",
+        "revision": "Revision number of the skill version; null when it no longer exists.",
+        "scope": "Whether the skill comes with Bakery (global), belongs to the organization, or is personal to one person; null when the version no longer exists.",
+        "ownerDisplayName": "Display name of the person who owns a personal skill; null for any other skill.",
+        "mine": "True when the reader owns this personal skill.",
+        "status": "available when the skill can be used at this step now; stopped when a personal skill has no live use grant for this step and version; unavailable when it was removed or switched off, or its owner left the organization; missing when the workflow was copied from one that used a personal skill, which did not come with the copy.",
+        "publishedVersionUsesIt": "True when a published version of this workflow still names the skill version; answered only to the skill owner, false for everyone else."
+      }
+    },
+    "WorkflowVersionSkills": {
+      "fields": [
+        "items"
+      ],
+      "fieldTypes": {
+        "items": "WorkflowStepSkill[]"
+      },
+      "bounds": {
+        "itemsMaxItems": 256
+      },
+      "description": "Every skill the steps of one workflow version name, ordered by step then skill version, with whether each can be used now. The same read serves a draft and a published version.",
+      "fieldDescriptions": {
+        "items": "One entry per step and skill version the workflow definition names."
       }
     }
   },
@@ -32157,6 +32416,15 @@ const transportSchemas = {
       "inngestTrigger": null,
       "description": "Authorized invalidation notification for a newly created tenant skill; consumers fetch the authoritative skill through its REST operation."
     },
+    "skills.copied": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification for a skill made by copying another; consumers fetch the authoritative skill through its REST operation."
+    },
     "skills.updated": {
       "schemaVersion": 1,
       "payloadFields": {
@@ -32790,6 +33058,15 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "providerRoutes.updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "routeContinuations.admitted": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",

@@ -294,13 +294,15 @@ export const providerWritesImplementedActions = Object.freeze(
 /**
  * The route continuation offers (#26 slice 6a).
  *
- * A read only: which steps of a run are stalled behind a provider incident and
- * which routes they could continue on. Admission is the next slice, and it is a
- * command of its own, so nothing here decides, pauses or charges anything.
+ * The offers read (which steps of a run are stalled behind a provider incident
+ * and which routes they could continue on) and the admission command that acts on
+ * an offer. The read decides nothing; the command is the one place a continuation
+ * is admitted.
  */
 export const RouteContinuationsImplementedAction = Object.freeze(
   {
     RouteContinuationsList: "routeContinuations.list",
+    RouteContinuationsAdmit: "routeContinuations.admit",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const routeContinuationsImplementedActions = Object.freeze(
@@ -479,6 +481,7 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowsCopy: "workflows.copy",
     WorkflowVersionsList: "workflowVersions.list",
     WorkflowVersionsGet: "workflowVersions.get",
+    WorkflowVersionsSkills: "workflowVersions.skills",
     WorkflowVersionsCreate: "workflowVersions.create",
     WorkflowVersionsUpdate: "workflowVersions.update",
     WorkflowVersionsPublish: "workflowVersions.publish",
@@ -681,6 +684,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsList: "skills.list",
     SkillsGet: "skills.get",
     SkillsCreate: "skills.create",
+    SkillsCopy: "skills.copy",
     SkillsUpdate: "skills.update",
     SkillVersionsCreate: "skillVersions.create",
     SkillUseGrantsList: "skills.useGrants.list",
@@ -693,7 +697,8 @@ export const catalogImplementedActions = Object.freeze(
 );
 export const catalogIdentityImplementedActions = Object.freeze(
   Object.values(CatalogImplementedAction).filter((action) =>
-    action !== CatalogImplementedAction.SkillVersionsCreate
+    action !== CatalogImplementedAction.SkillVersionsCreate &&
+    action !== CatalogImplementedAction.SkillsCopy
   ),
 );
 

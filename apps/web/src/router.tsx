@@ -34,6 +34,9 @@ import { IssuesPage } from "./pages/IssuesPage.tsx";
 import { IssueSettingsListPage } from "./pages/IssueSettingsListPage.tsx";
 import { IssueSettingsPage } from "./pages/IssueSettingsPage.tsx";
 import { LibraryPage } from "./pages/LibraryPage.tsx";
+import { FilesPage } from "./pages/FilesPage.tsx";
+import { FileVersionPage } from "./pages/FileVersionPage.tsx";
+import { folderPathOf } from "./pages/files/files-state.ts";
 import { AgentPage } from "./pages/AgentPage.tsx";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
@@ -203,6 +206,48 @@ export const routeCoverage = [
       "forbidden",
       "conflict",
       "stale",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "files",
+    path: "/files",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "files-version",
+    path: "/files/versions/$versionId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "files-folder",
+    path: "/files/$",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
       "offline",
       "long-copy",
     ],
@@ -1168,12 +1213,84 @@ const issueSettingsDetailRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+/** `?file=<id>&tab=versions|uses`: the file whose details are open, and its tab. */
+function validateFilesSearch(
+  search: Record<string, unknown>,
+): {
+  file?: string;
+  tab?: "versions" | "uses";
+  version?: number;
+  q?: string;
+  type?: "text" | "image" | "video" | "audio" | "data" | "archive" | "other";
+  in?: "all";
+} {
+  return {
+    ...(typeof search.file === "string" && search.file !== ""
+      ? { file: search.file }
+      : {}),
+    ...(search.tab === "versions" || search.tab === "uses"
+      ? { tab: search.tab }
+      : {}),
+    ...(typeof search.q === "string" && search.q !== "" ? { q: search.q } : {}),
+    ...(typeof search.type === "string" &&
+        ["text", "image", "video", "audio", "data", "archive", "other"]
+          .includes(search.type)
+      ? { type: search.type as "text" }
+      : {}),
+    ...(search.in === "all" ? { in: "all" as const } : {}),
+    ...(Number.isInteger(Number(search.version)) && Number(search.version) > 0
+      ? { version: Number(search.version) }
+      : {}),
+  };
+}
+
+const filesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files",
+  validateSearch: validateFilesSearch,
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <FilesPage path="" />,
+  errorComponent: ProtectedRouteError,
+});
+
+const fileVersionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files/versions/$versionId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <FileVersionPage versionId={fileVersionRoute.useParams().versionId} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const filesPathRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files/$",
+  validateSearch: validateFilesSearch,
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <FilesPage path={folderPathOf(filesPathRoute.useParams()._splat)} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const libraryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/library",
   // `?tab=agents` opens the Agents list; Workflows is the page itself.
-  validateSearch: (search: Record<string, unknown>): { tab?: "agents" } =>
-    search.tab === "agents" ? { tab: "agents" } : {},
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { tab?: "agents" | "memory"; fact?: string } => {
+    if (search.tab === "agents") return { tab: "agents" };
+    if (search.tab !== "memory") return {};
+    // An open fact is only meaningful on the Memory tab.
+    return typeof search.fact === "string" && search.fact !== ""
+      ? { tab: "memory", fact: search.fact }
+      : { tab: "memory" };
+  },
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: LibraryPage,
@@ -2283,6 +2400,9 @@ const routeTree = rootRoute.addChildren([
   issueSettingsRoute,
   issueSettingsDetailRoute,
   machinesRoute,
+  filesRoute,
+  fileVersionRoute,
+  filesPathRoute,
   libraryRoute,
   workflowRoute,
   workflowEditorRoute,

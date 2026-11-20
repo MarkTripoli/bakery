@@ -64,6 +64,15 @@ function fakeApi(
       const page: OrganizationAccessPage = { items: [...items], nextCursor };
       return Promise.resolve({ ok: true, data: page });
     },
+    files: {
+      roots: rejecting,
+      entries: rejecting,
+      versions: rejecting,
+      uses: rejecting,
+      atVersion: rejecting,
+      search: rejecting,
+      content: rejecting,
+    },
     invitations: {
       preview: rejecting,
       recipientGet: rejecting,
@@ -286,6 +295,11 @@ function fakeApi(
     getWorkflow: rejecting,
     listWorkflows: rejecting,
     listAgents: rejecting,
+    listMemories: rejecting,
+    getMemory: rejecting,
+    listMemoryRevisions: rejecting,
+    updateMemory: rejecting,
+    createMemoryRevision: rejecting,
     listWorkflowVersions: rejecting,
     activateWorkflowVersion: rejecting,
     updateWorkflow: rejecting,
