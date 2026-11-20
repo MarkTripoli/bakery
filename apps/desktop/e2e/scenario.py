@@ -309,13 +309,16 @@ def phase_ended_sign_in():
     check("[ended] then the server says no and the dialog appears",
           wait_window(p, "sign_in_again", dialog=True, timeout=40) is not None)
     check("[ended] what was saved is cleared", stored() == "")
+    seen = len(views(p))
     press(p, "sign_in")
-    check("[ended] signing in again stays in the dialog", wait_window(p, "waiting", dialog=True) is not None)
+    check("[ended] signing in again stays in the dialog", wait_window(p, "waiting", dialog=True, after=seen) is not None)
     url = (wait_effect(p, "open_browser") or {}).get("url")
     if url:
         cookie = session_cookie()
         deliver(confirm(request_id_of(url), cookie))
-        check("[ended] and returns to the app, out of the dialog", wait_window(p, "app", dialog=False, timeout=40) is not None)
+        # Only a window shown after signing in again counts: the run began on the app window too.
+        check("[ended] and returns to the app, out of the dialog",
+              wait_window(p, "app", dialog=False, after=seen, timeout=40) is not None)
         check("[ended] the new sign-in is stored", stored().startswith("bkd_"))
     stop_app()
 
