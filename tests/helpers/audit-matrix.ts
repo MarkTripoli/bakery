@@ -121,7 +121,7 @@ function telemetryDestinationBody() {
   return {
     kind: "otlp",
     name: `Audit matrix ${crypto.randomUUID()}`,
-    measurements: ["cost"],
+    measurements: ["results"],
     values: { address: "https://collector.example.test" },
   };
 }
@@ -863,6 +863,45 @@ export async function runAuditMatrix(
               "If-Match": `"${telemetryDestination!.version}"`,
             },
           },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "backups.start",
+      failure: () =>
+        call(f, "POST", "/v1/installation/backups", developer, {
+          body: {},
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/installation/backups",
+          f.adminCookie,
+          { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "backupRunnerCredential.issue",
+      failure: () =>
+        call(
+          f,
+          "POST",
+          "/v1/installation/backup-runner/credential",
+          developer,
+          { body: {} },
+        ),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/installation/backup-runner/credential",
+          f.adminCookie,
+          { body: {} },
         ),
         organizationId: null,
       }),

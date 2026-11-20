@@ -16,7 +16,9 @@
  *
  * The port's type is the facade itself (see {@link ExecutionTelemetry}).
  */
-import type { Telemetry } from "@bakery/config/telemetry";
+import type { Telemetry, TelemetryTrace } from "@bakery/config/telemetry";
+import type { PgDatabase } from "../../platform/database.ts";
+import { attemptTelemetryTrace, loadAttemptTrace } from "./attempt-trace.ts";
 
 /**
  * The routes' telemetry port is the server's own facade, not an arbitrary
@@ -48,6 +50,7 @@ export type ExecutionTelemetry = Telemetry;
 
 /** The events the execution routes emit. They must be in the server's allowlist. */
 export const EXECUTION_TELEMETRY_EVENTS = Object.freeze({
+  attemptStarted: "attempt.started",
   leaseRenewed: "lease.renewed",
   jobCompleted: "job.completed",
   usageSettled: "usage.settled",
@@ -70,10 +73,13 @@ export function emitExecutionEvent(
   telemetry: ExecutionTelemetry | undefined,
   name: string,
   attributes: Readonly<Record<string, string | number | boolean>>,
+  trace?: TelemetryTrace,
 ): void {
   if (telemetry === undefined) return;
   try {
-    const returned: unknown = telemetry.event(name, attributes);
+    const returned: unknown = trace === undefined
+      ? telemetry.event(name, attributes)
+      : telemetry.event(name, attributes, trace);
     // The port returns nothing, but a stand-in written as an async function
     // would return a promise, and an unhandled rejection ends a Node or Deno
     // process. Only a genuine Promise gets a handler, through the built-in
@@ -87,4 +93,73 @@ export function emitExecutionEvent(
   } catch {
     // Telemetry never reaches the caller.
   }
+}
+
+/**
+ * Tells telemetry something happened to an attempt, inside the run's trace.
+ *
+ * The attempt's span is read after the commit, with the same rules as the emit:
+ * a failed read costs the trace, never the request, and an attempt claimed
+ * before its span was kept records the event with no trace, as it always did.
+ * `bakery.retry.count` says how many attempts of the step came before this one.
+ */
+export async function emitAttemptEvent(
+  database: Pick<PgDatabase, "query"> | undefined,
+  telemetry: ExecutionTelemetry | undefined,
+  organizationId: string,
+  attemptId: string,
+  name: string,
+  attributes: Readonly<Record<string, string | number | boolean>>,
+): Promise<void> {
+  if (telemetry === undefined) return;
+  let trace: TelemetryTrace | undefined;
+  let retries = 0;
+  try {
+    const found = database === undefined
+      ? undefined
+      : await loadAttemptTrace(database, organizationId, attemptId);
+    if (found !== undefined) {
+      trace = attemptTelemetryTrace(found);
+      retries = Math.max(0, found.attemptNumber - 1);
+    }
+  } catch {
+    // The trace is lost; the event is not.
+  }
+  emitExecutionEvent(
+    telemetry,
+    name,
+    trace === undefined
+      ? attributes
+      : { ...attributes, "bakery.retry.count": retries },
+    trace,
+  );
+}
+
+/**
+ * What a settled usage receipt tells telemetry: token counts, how they were
+ * measured and which billing route paid. The amount in money, the model and the
+ * provider call id stay out: the first is the cost kind's own slice, the others
+ * name things an operator did not ask a trace to carry.
+ */
+export function usageAttributes(
+  usage: Readonly<{
+    inputTokens?: string | null;
+    outputTokens?: string | null;
+    measurement: string;
+    billingRoute: string;
+  }>,
+): Readonly<Record<string, string | number>> {
+  const count = (value: string | null | undefined): number | undefined => {
+    if (value === null || value === undefined) return undefined;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
+  };
+  const input = count(usage.inputTokens);
+  const output = count(usage.outputTokens);
+  return {
+    ...(input === undefined ? {} : { "bakery.usage.input_tokens": input }),
+    ...(output === undefined ? {} : { "bakery.usage.output_tokens": output }),
+    "bakery.usage.measurement": usage.measurement,
+    "bakery.usage.route": usage.billingRoute,
+  };
 }

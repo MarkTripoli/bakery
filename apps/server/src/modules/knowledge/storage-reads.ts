@@ -150,7 +150,7 @@ const UP_FROM = "with recursive up as (" +
  * record-area file an Admin purged stays readable as a tombstone: its versions
  * say their contents were removed.
  */
-async function readableEntry(
+export async function readableEntry(
   context: Pick<ActionContext, "agentSession" | "sessionScopes">,
   tx: PgTransactionClient,
   organizationId: string,
@@ -201,6 +201,7 @@ type ListedRow = EntryRow & {
   size_bytes: string | null;
   media_type: string | null;
   content_removed: boolean;
+  pinned: boolean;
 };
 
 /**
@@ -212,7 +213,8 @@ const LISTED_SELECT = "select " + ENTRY_COLUMNS + "," +
   " task.title as display_name, a.artifact_type as kind_name," +
   " coalesce(wv.size_bytes, av.size_bytes)::text as size_bytes," +
   " coalesce(wv.media_type, av.media_type) as media_type," +
-  " (e.purged_at is not null or av.purged_at is not null) as content_removed" +
+  " (e.purged_at is not null or av.purged_at is not null) as content_removed," +
+  " (a.pinned_at is not null) as pinned" +
   " from bakery.storage_entries e" +
   " left join bakery.storage_file_versions wv" +
   " on wv.organization_id = e.organization_id and wv.id = e.current_version_id" +
@@ -239,6 +241,7 @@ function listed(row: ListedRow, path: string) {
       ? null
       : Number(row.size_bytes),
     artifactId: row.artifact_id,
+    pinned: row.kind === "file" && row.pinned,
     contentRemoved: row.kind === "file" && row.content_removed,
     updatedAt: iso(row.updated_at),
   };

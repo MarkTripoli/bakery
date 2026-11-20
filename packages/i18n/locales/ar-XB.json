@@ -5038,5 +5038,6 @@
   "artifact.retrieval.sizeValue": "⟪{size}⟫",
   "artifact.retrieval.versionSummary": "⟪{mediaType} · {size}⟫",
   "tasks.artifactPane.preview": "⟪Preview⟫",
-  "artifact.view.description": "⟪Published by {author} · Step {step} · {size}⟫"
+  "artifact.view.description": "⟪Published by {author} · Step {step} · {size}⟫",
+  "settings.roles.thing.backup": "⟪backups⟫"
 }

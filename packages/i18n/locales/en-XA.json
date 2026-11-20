@@ -5038,5 +5038,6 @@
   "artifact.retrieval.sizeValue": "⟦{size}…⟧",
   "artifact.retrieval.versionSummary": "⟦{mediaType} · {size} ŧëšŧ⟧",
   "tasks.artifactPane.preview": "⟦Þŕëṽïëŵ…⟧",
-  "artifact.view.description": "⟦Þûƀļïšĥëð ƀÿ {author} · Šŧëþ {step} · {size} ŧëšŧ çôþÿ ŧëš⟧"
+  "artifact.view.description": "⟦Þûƀļïšĥëð ƀÿ {author} · Šŧëþ {step} · {size} ŧëšŧ çôþÿ ŧëš⟧",
+  "settings.roles.thing.backup": "⟦ƀàçķûþš…⟧"
 }

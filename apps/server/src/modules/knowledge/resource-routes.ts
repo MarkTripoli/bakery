@@ -63,6 +63,7 @@ import {
   readStorageFileByVersion,
   type StorageReader,
 } from "./storage-reads.ts";
+import { pinStorageFile } from "./storage-pin.ts";
 import {
   createAgentFileGrant,
   revokeAgentFileGrant,
@@ -974,6 +975,26 @@ function registerStorageActions(
         ),
     })
     .register({
+      // An administrator pin, by the file's own id, so the command line can set
+      // it with a token: the same permission and the same pin as the artifact
+      // PATCH, without an artifact id or its version.
+      name: A.StorageFilesPin,
+      method: HttpMethod.Put,
+      path: "/v1/storage/files/:id/pin",
+      input: contractSchemas.StorageFilePin,
+      output: contractSchemas.ArtifactPinResult,
+      explicitIdempotency: "key",
+      policy: storageAdminPolicy(A.StorageFilesPin),
+      handler: async (context, input) =>
+        contractSchemas.ArtifactPinResult.parse(
+          await pinStorageFile(
+            context,
+            storageReader(context, A.StorageFilesPin),
+            input as { pinned: boolean },
+          ),
+        ),
+    })
+    .register({
       name: A.StorageEntriesTrash,
       method: HttpMethod.Delete,
       path: "/v1/storage/entries/:id",
@@ -1098,12 +1119,17 @@ export function createArtifactResourceRoutes(
     /^\/v1\/storage\/files\/[^/]+\/(?:versions|uses|content)$/,
     /^\/v1\/storage\/file-versions\/[^/]+$/,
   ];
+  // The one write a token may make here: a file's pin (PUT .../pin), which the
+  // action itself keeps to the permission the artifact PATCH checks.
+  const tokenPinPath = /^\/v1\/storage\/files\/[^/]+\/pin$/;
   const readsAcceptTokens: MiddlewareHandler<{ Variables: AuthVariables }> = (
     context,
     next,
   ) =>
-    context.req.method === "GET" && options.tokenSession !== undefined &&
-      tokenReadablePaths.some((path) => path.test(context.req.path))
+    options.tokenSession !== undefined &&
+      ((context.req.method === "GET" &&
+        tokenReadablePaths.some((path) => path.test(context.req.path))) ||
+        (context.req.method === "PUT" && tokenPinPath.test(context.req.path)))
       ? options.tokenSession(context, next)
       : session(context, next);
   app.use("/v1/files/search", readsAcceptTokens);
