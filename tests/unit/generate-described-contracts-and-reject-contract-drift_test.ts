@@ -884,7 +884,7 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "5f6bdb2d0c077813be232ed13236cb8fd7dc4933",
+    "0332eba48dbe6c632a3010184624cd5de7f4765c",
   ];
   const approvedDigest =
     "sha256:c9123ac96b5d4ff8dc5b9220ca379530b07964f90d5aaa136c5c0925f646c28e";
@@ -892,7 +892,7 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #448 S2-S7 re-bind onto main 5f6bdb2d0: main's own approval, kept unchanged.
+    // Displaced by the #448 S3-S6 write set, limits, undo and read set re-bind onto main 0332eba48: main's own approval, kept unchanged.
     "sha256:01305743634c3447fe91302c0a64559bbcd7503cb16ec7a76eeb1cff3f878713",
     // Displaced by the #44 evaluation batches re-bind onto main 133085d15: main's own approval, kept unchanged.
     "sha256:fdb9ae6084d1d4db3514b3596518187e565c6c128e770507f105f676b33e84e4",
