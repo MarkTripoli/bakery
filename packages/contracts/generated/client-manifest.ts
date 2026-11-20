@@ -3012,6 +3012,7 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
         "PRECONDITION_REQUIRED",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
@@ -3037,6 +3038,7 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT"
       ],

@@ -3059,6 +3059,7 @@
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
         "PRECONDITION_REQUIRED",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
@@ -3084,6 +3085,7 @@
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT"
       ],
@@ -241616,7 +241618,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:892341b233c965d1691385178b70f3d6f36118e45f8961f7da38227cd877acc1",
+  "compatibilityDigest": "sha256:9b3a686a787857ce814c033bb6cecb86a4e25f895791ad3d8c7f4f4f6499c597",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
