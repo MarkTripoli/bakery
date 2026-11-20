@@ -8,7 +8,7 @@ import { msUntilNextShown, type Offer, shownOffers } from "./model.ts";
 /**
  * The offers the task page shows for a run: the choices a step waiting on a
  * model has, once each has waited a minute, oldest first. The run's own
- * `waitingOnModel` is the gate: while the run says nothing waits, nothing is
+ * `waitingOnModel` is the gate: unless the run says a step waits, nothing is
  * asked and nothing is shown, so a card goes the moment the incident closes. A
  * Viewer is not served the offers; the refused read shows nothing.
  */
@@ -21,7 +21,7 @@ export function useWaitingOffers(
 ): readonly Offer[] {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const gate = enabled && waitingOnModel !== false;
+  const gate = enabled && waitingOnModel === true;
   const query = useQuery({
     ...routeContinuationsQueryOptions(api, scope, runId),
     enabled: gate && scope.organizationId !== null,
