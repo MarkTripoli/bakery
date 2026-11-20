@@ -152,7 +152,7 @@ Deno.test("an approve power is not an answer power, and cannot undo an approval"
       o.guest.cookie,
       "POST",
       `/v1/approvals/${o.approval}/revoke`,
-      { expectedVersion: 2 },
+      {},
     );
     assertNotEquals(revoke.status, 200);
     assertEquals(
