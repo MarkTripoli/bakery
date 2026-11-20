@@ -2495,6 +2495,50 @@ Deno.test("a person can dismiss a remembered failure, and only one who may chang
     assertEquals(body.status, "enabled");
   }));
 
+Deno.test("a refused update in the same request as a disable still disables and revokes", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    assert(Number(await grantCount(fixture, install.id)) > 0);
+    const tooNew = await publishVersionWith(
+      fixture,
+      store,
+      published.packageId,
+      { sdkRange: "^99.0.0", manifest: VALID_MANIFEST },
+    );
+
+    // The version is refused and noted, and the status in the same request is
+    // still applied: authority stops with the lifecycle change (AC3).
+    const response = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId, status: "disabled" },
+    });
+    assertEquals(response.status, 200, await response.clone().text());
+    const body = await response.json();
+    assertEquals(body.status, "disabled");
+    assertEquals(body.pluginVersionId, published.versionId);
+    assertEquals(body.lastUpdateFailure.versionId, tooNew.versionId);
+    assertEquals(body.lastUpdateFailure.reason, "plugin_sdk_incompatible");
+    assertEquals(await grantCount(fixture, install.id), "0");
+
+    // A dismissal beside a new refusal does not hide the refusal.
+    const both = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId, dismissUpdateFailure: true },
+    });
+    assertEquals(both.status, 200, await both.clone().text());
+    const kept = await both.json();
+    assertEquals(kept.lastUpdateFailure.reason, "plugin_sdk_incompatible");
+    assertEquals(kept.status, "disabled");
+  }));
+
 Deno.test("a removed install does not remember an update, and a draft version is still not found", () =>
   withPluginFixture(async (fixture, store) => {
     const published = await publishInstallable(fixture, store);
