@@ -30,6 +30,8 @@ export const AUDIT_MATRIX_ACTIONS = [
   "integrationAppRegistrations.put",
   "skillStorageSettings.put",
   "skillStorageSettings.verify",
+  "backups.start",
+  "backupRunnerCredential.issue",
   "emailSettings.test",
   "emailSettings.put",
   "emailSettings.delete",
