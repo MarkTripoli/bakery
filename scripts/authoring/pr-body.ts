@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import process from "node:process";
-import { validateDescription } from "./validate.ts";
+import { isPendingVerification, validateDescription } from "./validate.ts";
 
 /**
  * Structured PR descriptions. An author writes a small JSON spec (never raw
@@ -299,8 +299,7 @@ export function renderPrBody(spec: PrBodySpec): string {
   ].join("\n\n") + "\n";
 }
 
-const isPending = (error: string): boolean =>
-  error.startsWith("Verification pending:");
+const isPending = isPendingVerification;
 
 export interface BuildResult {
   body: string;

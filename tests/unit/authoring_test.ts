@@ -2,10 +2,16 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   fields,
   relatedIssue,
+  splitMessages,
   validateDescription,
   validateReview,
 } from "../../scripts/authoring/validate.ts";
-import { checkLive } from "../../scripts/authoring/github.ts";
+import {
+  checkLive,
+  reportVerification,
+  VERIFICATION_CONTEXT,
+  verificationStatus,
+} from "../../scripts/authoring/github.ts";
 
 const work = [
   [
@@ -711,4 +717,112 @@ Deno.test("N/A cannot stand in for work that has not happened yet", () => {
     validateDescription("pr", fine).filter((e) => e.includes("ui verified")),
     [],
   );
+});
+
+/** #780: a verification line nobody has ticked is pending, never a failed check. */
+Deno.test("an unticked verification line passes the check and is reported as pending", async () => {
+  const f = fixture();
+  f.data.pull.body = pr.replace("- [x] UI verified", "- [ ] UI verified");
+  const checked = await checkLive(f.api, "pr", 170);
+  assertEquals(checked.ok, true, checked.errors.join(" "));
+  assertEquals(checked.errors, []);
+  assertEquals(checked.pending.length, 1);
+  assert(checked.pending[0].includes('"ui verified"'));
+  assertEquals(f.writes, [], "the check itself writes nothing");
+
+  const status = await reportVerification(f.api, head, checked.pending, false);
+  assertEquals(status.state, "pending");
+  assert(status.description.includes("ui verified"));
+  assertEquals(f.writes.length, 1);
+  assertEquals(f.writes[0].method, "POST");
+  assertEquals(f.writes[0].path, "/statuses/" + head);
+  assertEquals(f.writes[0].body.context, VERIFICATION_CONTEXT);
+  assertEquals(f.writes[0].body.state, "pending");
+});
+
+Deno.test("every line ticked or N/A at the head makes verification a success, and a new head puts it back to pending with the reason", async () => {
+  const f = fixture();
+  const checked = await checkLive(f.api, "pr", 170);
+  assertEquals([checked.ok, checked.pending], [true, []]);
+  const done = await reportVerification(f.api, head, checked.pending, false);
+  assertEquals(done.state, "success");
+  assertEquals(f.writes.at(-1)?.body.state, "success");
+  // A push moves the head: the ticks name an older one, whatever the body says.
+  const moved = await reportVerification(f.api, head, checked.pending, true);
+  assertEquals(moved.state, "pending");
+  assert(moved.description.includes("New commits"));
+  assertEquals(f.writes.at(-1)?.body.state, "pending");
+});
+
+Deno.test("a broken body still fails the check with the message the validator prints", async () => {
+  const f = fixture();
+  const broken = pr.replace(
+    "- New test `authoring_test.ts`: rejects a PR body over 300 words.",
+    "- `pnpm lint` passed and `pnpm fmt` is clean.",
+  );
+  f.data.pull.body = broken;
+  const checked = await checkLive(f.api, "pr", 170);
+  const direct = splitMessages(validateDescription("pr", broken));
+  assertEquals(checked.ok, false);
+  assert(direct.errors.length > 0, "the body really has a format error");
+  assertEquals(checked.errors, direct.errors, "the same messages as the tool");
+  assertEquals(checked.pending, direct.pending);
+});
+
+Deno.test("a Head: line under the metadata line is not part of the Walkthrough", () => {
+  const withHead = pr.replace(
+    "Walkthrough: not requested\n",
+    "Walkthrough: not requested\nHead: `" + head + "`\n",
+  );
+  assert(withHead !== pr, "the fixture really gained a Head line");
+  assertEquals(
+    validateDescription("pr", withHead),
+    validateDescription("pr", pr),
+  );
+  const bold = pr.replace(
+    "Walkthrough: not requested\n",
+    "Walkthrough: not requested\n**Head:** " + head.slice(0, 8) + "\n",
+  );
+  assertEquals(validateDescription("pr", bold), validateDescription("pr", pr));
+  // Anything else under the metadata line is still the Walkthrough value.
+  const stray = pr.replace(
+    "Walkthrough: not requested\n",
+    "Walkthrough: not requested\nHead: soon\n",
+  );
+  assert(
+    validateDescription("pr", stray).some((e) =>
+      e.startsWith("Walkthrough must")
+    ),
+  );
+});
+
+Deno.test("format errors and pending lines are split by one rule", () => {
+  const split = splitMessages([
+    'Verification pending: "backend verified" is not ticked or marked N/A: <reason>.',
+    "The description is too long.",
+    `Verification pending: "ui verified" says N/A but means not done yet.`,
+  ]);
+  assertEquals(split.errors, ["The description is too long."]);
+  assertEquals(split.pending.length, 2);
+});
+
+Deno.test("the verification status names what is open and stays within a status line", () => {
+  const one = verificationStatus(
+    ['Verification pending: "backend verified" is not ticked.'],
+    false,
+  );
+  assertEquals(one, {
+    state: "pending",
+    description: "1 verification line open: backend verified",
+  });
+  const many = verificationStatus(
+    Array.from(
+      { length: 12 },
+      (_, n) =>
+        `Verification pending: "a very long verification item name number ${n}" is not ticked.`,
+    ),
+    false,
+  );
+  assert(many.description.length <= 140, String(many.description.length));
+  assert(many.description.startsWith("12 verification lines open"));
 });

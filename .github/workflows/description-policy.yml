@@ -71,6 +71,8 @@ jobs:
       contents: read
       issues: read
       pull-requests: read
+      # The `verification` commit status: pending until every box is ticked.
+      statuses: write
     steps:
       - name: Maintainers only
         id: maintainer
@@ -116,4 +118,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: deno run --no-config --allow-read=scripts/authoring --allow-env=GITHUB_REPOSITORY,GITHUB_TOKEN --allow-net=api.github.com scripts/authoring/github.ts check pr "$PR_NUMBER"
+          # A push (synchronize) puts `verification` back to pending: the ticks name an older head.
+          EVENT_ACTION: ${{ github.event.action }}
+        run: deno run --no-config --allow-read=scripts/authoring --allow-env=GITHUB_REPOSITORY,GITHUB_TOKEN,EVENT_ACTION --allow-net=api.github.com scripts/authoring/github.ts check pr "$PR_NUMBER" --report-verification

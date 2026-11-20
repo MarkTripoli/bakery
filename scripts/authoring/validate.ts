@@ -34,6 +34,7 @@ export const fields = {
 export type Kind = keyof typeof fields;
 const key = (text: string) =>
   text.trim().toLowerCase().replace(/:$/, "").replace(/\s+@\s+\S+$/, "");
+const HEAD_LINE = /^\*{0,2}Head:\*{0,2}[ \t]*`?[0-9a-f]{7,40}`?[ \t]*$/i;
 const known = new Set(Object.values(fields).flat().map(key));
 
 export function parseDescription(body: string) {
@@ -129,6 +130,9 @@ export function parseDescription(body: string) {
       current = "walkthrough";
       continue;
     }
+    // An optional `Head: <sha>` line under the metadata line names the commit the
+    // description was written for. It is not part of the Walkthrough value.
+    if (current === "walkthrough" && HEAD_LINE.test(line)) continue;
     const heading = /^ {0,3}#{2,3}[ \t]+(.+?)[ \t]*#*[ \t]*$/.exec(line);
     const inline = /^\*\*([^*\n]+?):\*\*[ \t]*(.*)$/.exec(line) ??
       /^(Ticket|Task|Walkthrough):[ \t]*(.*)$/i.exec(line);
@@ -228,6 +232,23 @@ export function relatedIssue(body: string): number | null {
   if (!match) return null;
   const number = Number(match[1] ?? match[2]);
   return Number.isSafeInteger(number) ? number : null;
+}
+
+/**
+ * A verification line nobody has ticked yet. It is waiting on a person, not a
+ * broken body, so it is reported apart from the format errors.
+ */
+export const isPendingVerification = (message: string): boolean =>
+  message.startsWith("Verification pending:");
+
+/** Splits validator messages into format errors and pending verification lines. */
+export function splitMessages(
+  messages: readonly string[],
+): { errors: string[]; pending: string[] } {
+  return {
+    errors: messages.filter((message) => !isPendingVerification(message)),
+    pending: messages.filter(isPendingVerification),
+  };
 }
 
 export function validateDescription(kind: Kind, body: string): string[] {
@@ -544,9 +565,13 @@ if (import.meta.main) {
   const body = path === "-"
     ? await new Response(Deno.stdin.readable).text()
     : await Deno.readTextFile(path);
-  const errors = kind === "review"
-    ? validateReview(body)
-    : validateDescription(kind as Kind, body);
-  console.log(JSON.stringify({ ok: errors.length === 0, errors }));
+  // Only format errors fail. A verification line nobody has ticked yet is
+  // pending: listed, but the exit code stays 0 (same rule as the CI check).
+  const { errors, pending } = splitMessages(
+    kind === "review"
+      ? validateReview(body)
+      : validateDescription(kind as Kind, body),
+  );
+  console.log(JSON.stringify({ ok: errors.length === 0, errors, pending }));
   if (errors.length) Deno.exit(1);
 }
