@@ -2416,18 +2416,28 @@ const transportSchemas = {
           "description": "MCP server definition this connection instantiates; its transport (stdio or streamable_http) and configSchema govern what this connection's config and worker/integration binding must satisfy."
         },
         {
+          "name": "scope",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "organization",
+            "personal"
+          ],
+          "description": "organization (the default) is registered by an Admin and usable by the organization's work; personal is registered by any member for their own runs, belongs to them alone, and is used on a shared workflow only with their explicit use grant."
+        },
+        {
           "name": "integrationConnectionId",
           "type": "uuid",
           "required": false,
           "nullable": true,
-          "description": "For a streamable_http server whose OAuth authorization flows through an existing integration connection, that integration connection; left null for a stdio connection, which sets workerHostId instead."
+          "description": "Reserved for a streamable_http server whose OAuth authorization flows through an integration connection; not accepted yet, so it must be null."
         },
         {
           "name": "workerHostId",
           "type": "uuid",
           "required": false,
           "nullable": true,
-          "description": "For a stdio server, the specific worker host that launches and owns this server's subprocess; left null for a streamable_http connection, which sets integrationConnectionId instead."
+          "description": "Reserved for a stdio server's worker host; stdio is not accepted yet, so it must be null."
         },
         {
           "name": "label",
@@ -2445,14 +2455,14 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 32000
           },
-          "description": "Per-connection configuration validated against the server's configSchema, including any OAuth issuer, clientId, resource and granted scopes under config.auth; live token bytes are never stored here, only referenced via secretId."
+          "description": "Per-connection configuration validated against the server's configSchema. It carries no credential: a credential is sent as secret and kept sealed."
         },
         {
-          "name": "secretId",
-          "type": "uuid",
+          "name": "secret",
+          "type": "secretString",
           "required": false,
           "nullable": true,
-          "description": "Reference to the encrypted secret version holding this connection's OAuth or credential material; the config object never carries live token bytes directly."
+          "description": "The connection's credential, such as a bearer token or API key. Write-only: it is sealed under the installation key in Postgres, is never returned, audited or logged, and is shown back only as the connection's secretId."
         },
         {
           "name": "enabledCapabilities",
@@ -2461,13 +2471,15 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 100
           },
-          "description": "Subset of the server's discovered tools/resources/prompts this connection actually exposes for capability binding; a newly discovered server capability is never auto-enabled here."
+          "description": "Tools this connection exposes. It starts empty: a tool is enabled only after discovery has pinned a snapshot that lists it, and a newly discovered tool is never enabled automatically."
         }
       ],
       "rules": [
-        "exactly one of integrationConnectionId and workerHostId is required according to the server transport"
+        "a streamable_http connection sets neither integrationConnectionId nor workerHostId; stdio is not accepted yet",
+        "enabledCapabilities starts empty and is changed after discovery",
+        "an organization connection is registered by an Admin; a personal one by its owner"
       ],
-      "description": "Registers a connection between the organization and an MCP server, bound either to a worker host for a local stdio subprocess or to an integration connection carrying OAuth authorization for a remote streamable_http endpoint."
+      "description": "Registers a connection between the organization, or one member, and a remote MCP server definition. The credential is sent once as a write-only secret and sealed in Postgres."
     },
     "McpConnectionUpdate": {
       "fields": [
@@ -2487,11 +2499,11 @@ const transportSchemas = {
           "description": "Replaces this connection's configuration, revalidated against the server's configSchema; changing the OAuth issuer under config.auth requires full reauthorization rather than reusing existing tokens."
         },
         {
-          "name": "secretId",
-          "type": "uuid",
+          "name": "secret",
+          "type": "secretString",
           "required": false,
           "nullable": true,
-          "description": "Replaces the reference to the encrypted secret version holding this connection's credential material, typically set once a corresponding reauthorization has completed."
+          "description": "Replaces the connection's credential with a new sealed revision. Write-only: never returned, audited or logged."
         },
         {
           "name": "enabledCapabilities",
@@ -2500,7 +2512,7 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 100
           },
-          "description": "Replaces the subset of the server's discovered capabilities this connection exposes for capability binding."
+          "description": "Replaces the tools this connection exposes; every name must be a tool in the current pinned snapshot."
         },
         {
           "name": "status",
@@ -2515,7 +2527,7 @@ const transportSchemas = {
           "description": "Sets this connection's lifecycle state: enabled for active use, disabled to block new dispatch while retaining configuration, degraded when connectivity or capability checks are currently failing, or revoked once access has been permanently withdrawn."
         }
       ],
-      "description": "Updates an existing MCP connection's label, config, credential reference, enabled capabilities, or lifecycle status; the server, worker host and integration connection bindings set at creation cannot be changed here."
+      "description": "Updates a connection's label, config, credential, enabled tools or lifecycle status. The server, owner and scope set at creation cannot be changed. An organization connection is changed by an Admin; a personal one only by its owner."
     },
     "McpServerCreate": {
       "fields": [
@@ -11445,6 +11457,93 @@ const transportSchemas = {
       ],
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
     },
+    "PasswordResetLinkCreate": {
+      "fields": [
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
+        }
+      ],
+      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
+    },
+    "PasswordResetRedemption": {
+      "fields": [
+        {
+          "name": "token",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
+        },
+        {
+          "name": "newPassword",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
+        }
+      ],
+      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
+    "McpToolClassificationPut": {
+      "fields": [
+        {
+          "name": "effectClass",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+        },
+        {
+          "name": "effectKeyArgument",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
+        },
+        {
+          "name": "pairedReadTool",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
+        }
+      ],
+      "rules": [
+        "effectKeyArgument is required for write_idempotent and refused for any other class",
+        "pairedReadTool is required for write_reconcilable and refused for any other class",
+        "the tool must be in the connection's current snapshot"
+      ],
+      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "McpUseGrantCreate": {
+      "fields": [
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
+        }
+      ],
+      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
+    },
     "GroupCreate": {
       "fields": [
         {
@@ -11691,122 +11790,6 @@ const transportSchemas = {
       ],
       "description": "Removes one person's mention-granted access to one conversation under compare-and-set on the grant version."
     },
-    "PasswordResetLinkCreate": {
-      "fields": [
-        {
-          "name": "principalId",
-          "type": "uuid",
-          "required": true,
-          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
-        }
-      ],
-      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
-    },
-    "PasswordResetRedemption": {
-      "fields": [
-        {
-          "name": "token",
-          "type": "secretString",
-          "required": true,
-          "bounds": {
-            "maxLength": 256
-          },
-          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
-        },
-        {
-          "name": "newPassword",
-          "type": "secretString",
-          "required": true,
-          "bounds": {
-            "maxLength": 1024
-          },
-          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
-        }
-      ],
-      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
-    },
-    "MergeAttemptQuery": {
-      "fields": [
-        {
-          "name": "pullRequestId",
-          "type": "uuid",
-          "required": true,
-          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
-        }
-      ],
-      "pagination": "pagination",
-      "rules": [
-        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
-      ],
-      "description": "Filters for listing one pull request's merge attempts, newest first."
-    },
-    "MergeEntryQuery": {
-      "fields": [
-        {
-          "name": "repositoryId",
-          "type": "uuid",
-          "required": false,
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases."
-        },
-        {
-          "name": "pullRequestId",
-          "type": "uuid",
-          "required": false,
-          "description": "Restrict results to this tracked pull request's merge entries."
-        },
-        {
-          "name": "runId",
-          "type": "uuid",
-          "required": false,
-          "description": "Restrict results to the merge entries admitted for this run, so a page can read one run's entry without listing a whole repository's queue."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
-        }
-      ],
-      "pagination": "pagination",
-      "rules": [
-        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query. Every filter given must match."
-      ],
-      "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
-    },
     "FileSearchQuery": {
       "fields": [
         {
@@ -11970,51 +11953,6 @@ const transportSchemas = {
       ],
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
     },
-    "RunRequestCreate": {
-      "fields": [
-        {
-          "name": "recipientId",
-          "type": "uuid",
-          "required": true,
-          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
-        },
-        {
-          "name": "intent",
-          "type": "enum(fyi|review|approve|answer|take_over)",
-          "required": true,
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
-        },
-        {
-          "name": "stepKey",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "minLength": 1,
-            "maxLength": 200
-          },
-          "description": "The step the request concerns, or omitted for the run as a whole."
-        },
-        {
-          "name": "note",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxLength": 280
-          },
-          "description": "Optional one line shown to the person asked."
-        },
-        {
-          "name": "neededBy",
-          "type": "timestamp",
-          "required": false,
-          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
-        }
-      ],
-      "rules": [
-        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
-      ],
-      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
-    },
     "StorageFilePut": {
       "fields": [
         {
@@ -12175,6 +12113,51 @@ const transportSchemas = {
       ],
       "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
     },
+    "RunRequestCreate": {
+      "fields": [
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": true,
+          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+        },
+        {
+          "name": "intent",
+          "type": "enum(fyi|review|approve|answer|take_over)",
+          "required": true,
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
+        },
+        {
+          "name": "stepKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "The step the request concerns, or omitted for the run as a whole."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 280
+          },
+          "description": "Optional one line shown to the person asked."
+        },
+        {
+          "name": "neededBy",
+          "type": "timestamp",
+          "required": false,
+          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
+        }
+      ],
+      "rules": [
+        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
+      ],
+      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+    },
     "StorageFileContentQuery": {
       "fields": [
         {
@@ -12203,6 +12186,88 @@ const transportSchemas = {
         "Contents removed by retention or an Admin purge are 410 ARTIFACT_CONTENT_EXPIRED; the version still lists, with contentRemoved."
       ],
       "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
+    },
+    "MergeAttemptQuery": {
+      "fields": [
+        {
+          "name": "pullRequestId",
+          "type": "uuid",
+          "required": true,
+          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Filters for listing one pull request's merge attempts, newest first."
+    },
+    "MergeEntryQuery": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases."
+        },
+        {
+          "name": "pullRequestId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to this tracked pull request's merge entries."
+        },
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to the merge entries admitted for this run, so a page can read one run's entry without listing a whole repository's queue."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query. Every filter given must match."
+      ],
+      "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
     }
   },
   "projections": {
@@ -21254,6 +21319,7 @@ const transportSchemas = {
         "serverId",
         "integrationConnectionId",
         "workerHostId",
+        "ownerPrincipalId",
         "label",
         "config",
         "secretId",
@@ -21277,16 +21343,19 @@ const transportSchemas = {
         "currentSnapshotId": "uuid|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "ownerPrincipalId": "uuid|null"
       },
       "rules": [
-        "stdio connections require a workerHostId; localhost endpoint resolution is host-local"
+        "stdio connections require a workerHostId; localhost endpoint resolution is host-local",
+        "a personal connection is visible only to its owner"
       ],
       "nullableFields": [
         "integrationConnectionId",
         "workerHostId",
         "secretId",
-        "currentSnapshotId"
+        "currentSnapshotId",
+        "ownerPrincipalId"
       ],
       "description": "One organization's configured binding to an external MCP server, scoped to either a linked integration connection or a specific worker host for stdio locality; enabledCapabilities is the admin-approved subset of the server's discovered manifest and is never auto-expanded when new tools appear.",
       "fieldDescriptions": {
@@ -21302,7 +21371,8 @@ const transportSchemas = {
         "currentSnapshotId": "Stable UUID linking this record to the related current snapshot entity.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "ownerPrincipalId": "The member a personal connection belongs to, or null for an organization connection."
       }
     },
     "McpCapabilitySnapshot": {
@@ -29872,6 +29942,122 @@ const transportSchemas = {
         "offers": "The open choices, empty when no step of the run is stalled behind an incident."
       }
     },
+    "PasswordResetLinkIssued": {
+      "fields": [
+        "id",
+        "url",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "url": "secretString",
+        "expiresAt": "timestamp"
+      },
+      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the reset link record, as the audit trail names it.",
+        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
+        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
+      }
+    },
+    "McpToolClassification": {
+      "fields": [
+        "toolName",
+        "effectClass",
+        "classified",
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAgainstCurrentSnapshot",
+        "classifiedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAt"
+      ],
+      "fieldTypes": {
+        "toolName": "string",
+        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
+        "classified": "boolean",
+        "effectKeyArgument": "string",
+        "pairedReadTool": "string",
+        "classifiedAgainstCurrentSnapshot": "boolean",
+        "classifiedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it.",
+      "fieldDescriptions": {
+        "toolName": "The tool's name in the pinned snapshot.",
+        "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
+        "classified": "True once an Admin has classified this tool.",
+        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
+        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
+        "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
+        "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
+        "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+      }
+    },
+    "McpToolClassificationList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpToolClassification[]"
+      },
+      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered.",
+      "fieldDescriptions": {
+        "items": "The snapshot's tools with their classifications."
+      }
+    },
+    "McpUseGrant": {
+      "fields": [
+        "id",
+        "connectionId",
+        "workflowId",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "revokedBy"
+      ],
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "connectionId": "uuid",
+        "workflowId": "uuid",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "revokedAt": "timestamp",
+        "revokedBy": "uuid"
+      },
+      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "connectionId": "The personal connection the grant covers.",
+        "workflowId": "The workflow the grant lets use the connection.",
+        "grantedBy": "The owner who granted it.",
+        "createdAt": "UTC timestamp when the grant was made.",
+        "revokedAt": "UTC timestamp when the grant was revoked, or null while it is live.",
+        "revokedBy": "The principal who revoked it, or null while it is live."
+      }
+    },
+    "McpUseGrantList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpUseGrant[]"
+      },
+      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant.",
+      "fieldDescriptions": {
+        "items": "The connection's grants, newest first."
+      }
+    },
     "GroupMember": {
       "fields": [
         "principalId",
@@ -30139,28 +30325,6 @@ const transportSchemas = {
       "pageOf": "ConversationAccessGrant",
       "description": "Cursor page of live direct grants on one conversation, oldest first. `nextCursor: null` marks the last page."
     },
-    "PasswordResetLinkIssued": {
-      "fields": [
-        "id",
-        "url",
-        "expiresAt"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "url": "secretString",
-        "expiresAt": "timestamp"
-      },
-      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
-      "fieldDescriptions": {
-        "id": "Stable UUID of the reset link record, as the audit trail names it.",
-        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
-        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
-      }
-    },
-    "Page<MergeAttempt>": {
-      "pageOf": "MergeAttempt",
-      "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
-    },
     "FileSearchHit": {
       "fields": [
         "source",
@@ -30270,100 +30434,6 @@ const transportSchemas = {
     "Page<LibraryEntry>": {
       "pageOf": "LibraryEntry",
       "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
-    },
-    "RunRequestPerson": {
-      "fields": [
-        "principalId",
-        "displayName"
-      ],
-      "fieldTypes": {
-        "principalId": "uuid",
-        "displayName": "string"
-      },
-      "nullableFields": [],
-      "description": "A person named on a request: stable identity and saved display name.",
-      "fieldDescriptions": {
-        "principalId": "Stable principal UUID.",
-        "displayName": "The person's saved display name."
-      }
-    },
-    "RunRequest": {
-      "projection": "person_requests",
-      "fields": [
-        "id",
-        "runId",
-        "stepKey",
-        "intent",
-        "recipient",
-        "askedBy",
-        "askedByKind",
-        "note",
-        "neededBy",
-        "status",
-        "expiresAt",
-        "ownerFallback",
-        "fallbackForName",
-        "createdAt",
-        "updatedAt",
-        "version"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "runId": "uuid",
-        "stepKey": "string|null",
-        "intent": "enum(fyi|review|approve|answer|take_over)",
-        "recipient": "RunRequestPerson",
-        "askedBy": "RunRequestPerson|null",
-        "askedByKind": "enum(person|agent|workflow)",
-        "note": "string|null",
-        "neededBy": "timestamp|null",
-        "status": "enum(open|answered|handled|expired|withdrawn)",
-        "expiresAt": "timestamp",
-        "ownerFallback": "boolean",
-        "fallbackForName": "string|null",
-        "createdAt": "timestamp",
-        "updatedAt": "timestamp",
-        "version": "integer"
-      },
-      "nullableFields": [
-        "stepKey",
-        "askedBy",
-        "note",
-        "neededBy",
-        "fallbackForName"
-      ],
-      "description": "A request: one person asked for one thing on one run, with how it stands.",
-      "fieldDescriptions": {
-        "id": "Stable UUID of the request.",
-        "runId": "The run the request is on.",
-        "stepKey": "The step it concerns, or null for the run as a whole.",
-        "intent": "What was asked for.",
-        "recipient": "The person asked, frozen when the request was made.",
-        "askedBy": "The person who asked, or null when the asker no longer exists.",
-        "askedByKind": "Whether a person, an agent or a workflow's own step asked.",
-        "note": "The optional one-line note, or null.",
-        "neededBy": "The optional deadline, or null.",
-        "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
-        "expiresAt": "UTC time the request expires; silence never approves.",
-        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
-        "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
-        "createdAt": "UTC time the request was made.",
-        "updatedAt": "UTC time it last changed.",
-        "version": "Optimistic-concurrency version used as If-Match."
-      }
-    },
-    "RunRequests": {
-      "fields": [
-        "requests"
-      ],
-      "fieldTypes": {
-        "requests": "RunRequest[]"
-      },
-      "nullableFields": [],
-      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first.",
-      "fieldDescriptions": {
-        "requests": "Requests in newest-first order; bounded to the most recent fifty."
-      }
     },
     "StorageEntry": {
       "fields": [
@@ -30566,6 +30636,100 @@ const transportSchemas = {
       "pageOf": "SkillUseGrant",
       "description": "Cursor page of SkillUseGrant rows in the collection's stable sort order. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
     },
+    "RunRequestPerson": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "nullableFields": [],
+      "description": "A person named on a request: stable identity and saved display name.",
+      "fieldDescriptions": {
+        "principalId": "Stable principal UUID.",
+        "displayName": "The person's saved display name."
+      }
+    },
+    "RunRequest": {
+      "projection": "person_requests",
+      "fields": [
+        "id",
+        "runId",
+        "stepKey",
+        "intent",
+        "recipient",
+        "askedBy",
+        "askedByKind",
+        "note",
+        "neededBy",
+        "status",
+        "expiresAt",
+        "ownerFallback",
+        "fallbackForName",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "stepKey": "string|null",
+        "intent": "enum(fyi|review|approve|answer|take_over)",
+        "recipient": "RunRequestPerson",
+        "askedBy": "RunRequestPerson|null",
+        "askedByKind": "enum(person|agent|workflow)",
+        "note": "string|null",
+        "neededBy": "timestamp|null",
+        "status": "enum(open|answered|handled|expired|withdrawn)",
+        "expiresAt": "timestamp",
+        "ownerFallback": "boolean",
+        "fallbackForName": "string|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "stepKey",
+        "askedBy",
+        "note",
+        "neededBy",
+        "fallbackForName"
+      ],
+      "description": "A request: one person asked for one thing on one run, with how it stands.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the request.",
+        "runId": "The run the request is on.",
+        "stepKey": "The step it concerns, or null for the run as a whole.",
+        "intent": "What was asked for.",
+        "recipient": "The person asked, frozen when the request was made.",
+        "askedBy": "The person who asked, or null when the asker no longer exists.",
+        "askedByKind": "Whether a person, an agent or a workflow's own step asked.",
+        "note": "The optional one-line note, or null.",
+        "neededBy": "The optional deadline, or null.",
+        "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
+        "expiresAt": "UTC time the request expires; silence never approves.",
+        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
+        "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
+        "createdAt": "UTC time the request was made.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Optimistic-concurrency version used as If-Match."
+      }
+    },
+    "RunRequests": {
+      "fields": [
+        "requests"
+      ],
+      "fieldTypes": {
+        "requests": "RunRequest[]"
+      },
+      "nullableFields": [],
+      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first.",
+      "fieldDescriptions": {
+        "requests": "Requests in newest-first order; bounded to the most recent fifty."
+      }
+    },
     "StorageFolderItem": {
       "fields": [
         "id",
@@ -30742,6 +30906,10 @@ const transportSchemas = {
     "Page<StorageFileUse>": {
       "pageOf": "StorageFileUse",
       "description": "Cursor page of the runs that used a storage-tree file, newest first, only those whose work item the caller may open. Only a work item's document can be used by a run; a working-area file lists none. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, offsets or totals."
+    },
+    "Page<MergeAttempt>": {
+      "pageOf": "MergeAttempt",
+      "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     }
   },
   "pageEnvelope": {
