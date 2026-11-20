@@ -134,7 +134,28 @@ Deno.test("the probe launcher refuses anything but one UUID", async () => {
   // The worker is pinned by path; no caller chooses what runs.
   assert(commands.includes('"$deno" run --cached-only --no-prompt'));
   assert(commands.includes('"$worker"'));
-  assert(!/--allow-|eval|\$\*/.test(commands), "a permission or eval");
+  // Exactly one permission, chosen by the question in the frame, and never a
+  // blanket one. Two shipped defects came from the other two answers: no
+  // `--allow-read` made the probe answer "unreadable" for a healthy file, and no
+  // `--allow-net`/`--allow-write` made both preflights answer "sealed" on every
+  // host. A permission the worker lacks is not a sandbox, and a permission it
+  // has for everything is not one either.
+  assert(
+    !/--allow-all|\s-A\s|eval|\$\*/.test(commands),
+    "no blanket permission",
+  );
+  assertEquals(
+    commands.split("\n").filter((line) => line.includes("--allow-")).length,
+    3,
+    "one permission per question: read a path, net to the self-test, write the canary",
+  );
+  assert(commands.includes('"--allow-net=$self_test_host:$self_test_port"'));
+  assert(commands.includes('"--allow-write=$2/$self_test_canary"'));
+  assert(commands.includes('"--allow-read=$path"'));
+  // The frame is read by the launcher, because the permission depends on it, and
+  // handed to the unit unchanged.
+  assert(commands.includes("frame=$(cat)"));
+  assert(commands.includes("printf '%s' \"$frame\" |"));
 });
 
 Deno.test("the launcher refuses a spool it cannot honestly grant", async () => {

@@ -90,6 +90,39 @@ Deno.test("an unanswerable filesystem question refuses, six ways", async () => {
   }
 });
 
+Deno.test("a permission error is not a seal, on either question", async () => {
+  // QA's finding on mini1: both self-tests answered false with detail
+  // "NotCapable", which is Deno refusing the call because the worker had no
+  // --allow-net/--allow-write. That answer arrives on every host, sealed or not,
+  // so a preflight that accepted it could never fail. The launcher now grants
+  // exactly one permission per question; this is the server's half of the rule.
+  for (
+    const [filesystem, selfTest] of [
+      [
+        '{"selfTest":"filesystem","writable":false,"detail":"NotCapable"}',
+        SEALED,
+      ],
+      [
+        READ_ONLY,
+        '{"selfTest":"network","reachable":false,"detail":"NotCapable"}',
+      ],
+    ]
+  ) {
+    fresh();
+    const launcher = await writeStub(dir, "notcapable", {
+      selfTest,
+      filesystem,
+      probe: `printf '%s' '${PNG_FRAME}'`,
+    });
+    const result = await probeArtifactBytes(input, { launcherPath: launcher });
+    assertEquals(
+      result.status === "refused" && result.code,
+      "sandbox-unavailable",
+      `answer: ${filesystem} / ${selfTest}`,
+    );
+  }
+});
+
 Deno.test("the network refusal is still checked first, and named the same", async () => {
   // Two seals, one answer: the caller must not be able to tell which one refused,
   // because the remedy is the same and naming it would describe the host.

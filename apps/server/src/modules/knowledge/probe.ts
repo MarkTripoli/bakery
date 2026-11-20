@@ -341,6 +341,8 @@ async function askSandboxHoldsFilesystem(
     );
     if (!parsed.success) return false;
     if (parsed.data.selfTest !== "filesystem") return false;
+    // Same rule as the network: a permission error is not a seal.
+    if (parsed.data.detail === "NotCapable") return false;
     return parsed.data.writable === false;
   } catch {
     return false;
@@ -370,6 +372,10 @@ async function askSandboxHoldsNetwork(
     );
     if (!parsed.success) return false;
     if (parsed.data.selfTest !== "network") return false;
+    // "NotCapable" is Deno's own permission error, not the sandbox: a worker
+    // started without `--allow-net` answers it on every host, so accepting it
+    // would make this preflight unable to fail. QA found exactly that on mini1.
+    if (parsed.data.detail === "NotCapable") return false;
     return parsed.data.reachable === false;
   } catch {
     return false;

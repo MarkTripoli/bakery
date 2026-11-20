@@ -208,6 +208,91 @@ Deno.test("step 5 runs the launcher the server ships, not a copy of it", () => {
   );
 });
 
+Deno.test("the shipped worker can read a real file with the launcher's flags", async () => {
+  // QA's finding: the launcher ran the worker with no `--allow-read`, so the
+  // shipped probe answered "unreadable" for a healthy file, with or without a
+  // sandbox. The probe had never described anything end to end. This runs the
+  // real worker with the flags the launcher derives from a real frame, on a real
+  // file, and requires a description.
+  const launcher = await Deno.readTextFile(
+    new URL("../../infra/server-exec/artifact-probe.sh", import.meta.url),
+  );
+  const block = launcher.slice(
+    launcher.indexOf("# --- worker permissions"),
+    launcher.indexOf("# --- end worker permissions ---"),
+  );
+  const dir = await Deno.makeTempDir({ prefix: "bakery-qa-worker-" });
+  const file = `${dir}/fixture.blob`;
+  await Deno.writeTextFile(file, "probe-fixture-bytes\n");
+  const frame = JSON.stringify({ path: file, sizeBytes: 20 });
+  const driver = await Deno.makeTempFile({ prefix: "bakery-qa-perm-" });
+  await Deno.writeTextFile(
+    driver,
+    `${block}
+worker_permission '${frame}' '${dir}'
+`,
+  );
+  const permission = new TextDecoder().decode(
+    (await new Deno.Command("/bin/sh", { args: [driver] }).output()).stdout,
+  ).trim();
+  assertEquals(permission, `--allow-read=${file}`);
+  const worker = new URL(
+    "../../apps/server/src/modules/knowledge/probe-worker.ts",
+    import.meta.url,
+  ).pathname;
+  const run = async (args: string[]) => {
+    const child = new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--cached-only",
+        "--no-prompt",
+        "--deny-import",
+        "--frozen",
+        ...args,
+        worker,
+      ],
+      stdin: "piped",
+      stdout: "piped",
+    }).spawn();
+    const writer = child.stdin.getWriter();
+    await writer.write(new TextEncoder().encode(frame));
+    await writer.close();
+    const out = await new Response(child.stdout).text();
+    await child.status;
+    return out;
+  };
+  const described = await run([permission]);
+  assertEquals(described.includes('"status":"described"'), true, described);
+  assertEquals(described.includes('"byteLength":20'), true, described);
+  // And without it, the defect QA found: the same worker cannot read the file.
+  const refused = await run([]);
+  assertEquals(refused.includes('"code":"unreadable"'), true, refused);
+  await Deno.remove(dir, { recursive: true });
+});
+
+Deno.test("the launcher asks the same questions the contracts declare", async () => {
+  const launcher = await Deno.readTextFile(
+    new URL("../../infra/server-exec/artifact-probe.sh", import.meta.url),
+  );
+  const contracts = await Deno.readTextFile(
+    new URL("../../packages/contracts/src/artifact-probe.ts", import.meta.url),
+  );
+  for (
+    const [name, value] of [
+      ["self_test_host", "1.1.1.1"],
+      ["self_test_port", "443"],
+      ["self_test_canary", ".bakery-probe-filesystem-self-test"],
+    ]
+  ) {
+    assert(launcher.includes(`${name}="${value}"`), `${name} is ${value}`);
+    // The port is a number in the contracts, the rest are strings.
+    assert(
+      contracts.includes(`"${value}"`) || contracts.includes(`= ${value};`),
+      `contracts declare ${value}`,
+    );
+  }
+});
+
 Deno.test("both seals are asked of the real launcher", () => {
   assert(script.includes("for seal in network filesystem; do"));
   assert(script.includes('"$outdir/selftest-$seal.json"'));
@@ -339,10 +424,11 @@ Deno.test("the proof cleans up after itself and stays in its own directory", () 
     true,
     "the spool fixture is removed, not left in the host",
   );
-  // Nothing else is deleted.
+  // Nothing else is deleted: the spool fixture and the canary control's own
+  // directory, both of which this script made.
   assertEquals(
     code.split("\n").filter((line) => line.includes("rm -rf")).length,
-    1,
+    2,
   );
 });
 

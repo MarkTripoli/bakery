@@ -15,6 +15,14 @@
 # tests/unit/artifact-probe-launcher_test.ts keeps them equal to the server's
 # ARTIFACT_PROBE_UNIT_PROPERTIES and treats any divergence as a defect.
 #
+# The worker is given exactly one permission, chosen by the question in the
+# frame, and the unit is what must refuse everything else. Two shipped defects
+# came from getting this wrong, both found by QA on mini1: a worker with no
+# `--allow-read` answered "unreadable" for a healthy file, so the probe could
+# never describe anything; and a worker with no `--allow-net`/`--allow-write`
+# answered "sealed" on every host, so the preflight could never fail. A
+# permission the worker lacks is not a sandbox.
+#
 # No systemd on this host (a container, or no user bus): exit 69
 # (EX_UNAVAILABLE), which the server reports as sandbox-unavailable. The probe
 # is not run in-process as a fallback, for the reason this launcher exists.
@@ -45,6 +53,35 @@ if [ "$#" -eq 2 ]; then
   esac
   [ -d "$spool_dir" ] && [ ! -L "$spool_dir" ] || exit 64
 fi
+
+# --- worker permissions (tested: tests/rails/qa-launcher-proof-is-honest_test.ts) ---
+# The self-test constants are the contracts' own, and a rail keeps them equal:
+# a launcher that asked a different address than the server would answer a
+# question nobody asked.
+self_test_host="1.1.1.1"
+self_test_port="443"
+self_test_canary=".bakery-probe-filesystem-self-test"
+
+worker_permission() { # worker_permission <frame> <repo root>
+  case "$1" in
+    *'"selfTest":"network"'*)
+      printf '%s' "--allow-net=$self_test_host:$self_test_port"
+      ;;
+    *'"selfTest":"filesystem"'*)
+      printf '%s' "--allow-write=$2/$self_test_canary"
+      ;;
+    *)
+      # The path the server named, and only that path. A quote or a backslash in
+      # it would make this extraction a guess, so it is refused rather than
+      # half-read: the server never sends one, and a launcher that guessed would
+      # be granting something nobody asked for.
+      path=$(printf '%s' "$1" | sed -n 's/.*"path":"\([^"\\]*\)".*/\1/p')
+      [ -n "$path" ] || return 1
+      printf '%s' "--allow-read=$path"
+      ;;
+  esac
+}
+# --- end worker permissions ---
 
 uid=$(/usr/bin/id -u) || exit 70
 case "$uid" in *[!0-9]* | "") exit 70 ;; esac
@@ -117,7 +154,15 @@ if [ -n "$spool_dir" ]; then
   set -- "$@" "--property=ReadOnlyPaths=$spool_dir"
 fi
 
-exec /usr/bin/env -i XDG_RUNTIME_DIR="$runtime_dir" \
+# The frame is read here, not by the worker, because the permission depends on
+# the question it asks. It is then handed to the unit unchanged: the worker still
+# reads its own frame, and the launcher still decides nothing about the answer.
+frame=$(cat) || exit 70
+permission=$(worker_permission "$frame" "$repo_root") || exit 64
+
+printf '%s' "$frame" | /usr/bin/env -i XDG_RUNTIME_DIR="$runtime_dir" \
   DBUS_SESSION_BUS_ADDRESS="$bus" LC_ALL=C \
   /usr/bin/systemd-run "$@" \
-  "$deno" run --cached-only --no-prompt --deny-import --frozen "$worker"
+  "$deno" run --cached-only --no-prompt --deny-import --frozen \
+  "$permission" "$worker"
+exit $?

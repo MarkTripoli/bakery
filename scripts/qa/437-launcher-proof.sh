@@ -520,6 +520,14 @@ say "## step 6: both seals answer, through the real launcher"
 # network, and can it write? Both are asked of the shipped launcher here, because
 # a property the host silently skips is a property the server does not have, and
 # only the answer says which it is.
+#
+# Each question is asked twice: once inside the unit, where the answer must be
+# "no", and once with no sandbox at all, where the answer must be "yes". The
+# second run is what makes the first mean anything. A worker started without the
+# permission its question needs answers "no" on every host -- QA measured exactly
+# that on mini1, both self-tests answering false with detail NotCapable -- and a
+# preflight that accepted it could never fail.
+worker="$repo/apps/server/src/modules/knowledge/probe-worker.ts"
 for seal in network filesystem; do
   printf '{"selfTest":"%s"}' "$seal" >"$outdir/selftest-$seal.json"
   deno run -A "$here/437-launcher-under-deno.ts" "$(uuidgen | tr 'A-Z' 'a-z')" \
@@ -529,18 +537,41 @@ for seal in network filesystem; do
   seal_out=$(cat "$outdir/selftest-$seal-stdout.txt" 2>/dev/null)
   say "$seal: exit $seal_code, answered: $seal_out"
   printf '%s\n' "$seal_out" >>"$summary"
+
+  # The control: the same worker, the same frame, the one permission the
+  # question needs, and no sandbox. It must answer "yes", or the sandboxed "no"
+  # is Deno's permission check rather than the unit.
   if [ "$seal" = "network" ]; then
-    if printf '%s' "$seal_out" | grep -q '"reachable":false'; then
-      record "step-6 the network seal holds" 0
-    else
-      record "step-6 the network seal holds" 1
-    fi
+    control_out=$(printf '{"selfTest":"network"}' | deno run --cached-only \
+      --no-prompt --deny-import --frozen "--allow-net=1.1.1.1:443" "$worker" 2>&1)
+    want='"reachable":true'
+    sealed='"reachable":false'
   else
-    if printf '%s' "$seal_out" | grep -q '"writable":false'; then
-      record "step-6 the filesystem seal holds" 0
-    else
-      record "step-6 the filesystem seal holds" 1
-    fi
+    control_dir="$runtime_dir/bakery-canary-control-$$"
+    mkdir -m 700 "$control_dir"
+    control_out=$(cd "$control_dir" && printf '{"selfTest":"filesystem"}' |
+      deno run --cached-only --no-prompt --deny-import --frozen \
+        "--allow-write=$control_dir/.bakery-probe-filesystem-self-test" \
+        "$worker" 2>&1)
+    rm -rf "$control_dir"
+    want='"writable":true'
+    sealed='"writable":false'
+  fi
+  say "$seal control (no sandbox) said: $control_out"
+  printf '%s\n' "$control_out" >>"$summary"
+  if printf '%s' "$control_out" | grep -q "$want"; then
+    record "step-6 the $seal control can answer yes without a sandbox" 0
+  else
+    record "step-6 the $seal control can answer yes without a sandbox" 1
+  fi
+  # A "no" that is Deno's own permission error is not a seal, and must not be
+  # recorded as one.
+  if printf '%s' "$seal_out" | grep -q '"detail":"NotCapable"'; then
+    record "step-6 the $seal seal holds (the worker lacked the permission)" 1
+  elif printf '%s' "$seal_out" | grep -q "$sealed"; then
+    record "step-6 the $seal seal holds" 0
+  else
+    record "step-6 the $seal seal holds" 1
   fi
 done
 
