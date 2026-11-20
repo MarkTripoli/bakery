@@ -381,6 +381,8 @@ export const DeliveryImplementedAction = Object.freeze(
     PullRequestsMerge: "pullRequests.merge",
     MergeAttemptsList: "mergeAttempts.list",
     MergeAttemptsReconcile: "mergeAttempts.reconcile",
+    MetricsGet: "metrics.get",
+    MetricsSources: "metrics.sources",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const deliveryImplementedActions = Object.freeze(

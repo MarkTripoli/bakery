@@ -1,6 +1,7 @@
 import { type Handler, Hono } from "hono";
 import {
   type DependencyHealth,
+  HEALTH_API_COMPATIBILITY,
   type HealthResponse,
   healthResponseSchema,
 } from "./health.ts";
@@ -108,6 +109,7 @@ export async function readiness(
       : "ok",
     version: options.version,
     dependencies,
+    compatibility: HEALTH_API_COMPATIBILITY,
   } satisfies HealthResponse;
   return healthResponseSchema.parse(response);
 }
@@ -121,6 +123,7 @@ export function createHealthApp(options: HealthAppOptions): Hono {
         state: "ok",
         version: options.version,
         dependencies: [],
+        compatibility: HEALTH_API_COMPATIBILITY,
       } satisfies HealthResponse,
     );
   const ready: Handler = async (context) => {
