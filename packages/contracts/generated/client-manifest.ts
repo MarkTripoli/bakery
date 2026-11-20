@@ -10845,7 +10845,7 @@ export const clientManifest = {
       "output": "Draft",
       "event": "",
       "mcp": "bakery_drafts_rollover",
-      "idempotency": "Guarded by epoch: the call names the epoch it closes and the published checkpoint it starts from, so a repeat after the roll fails with PRECONDITION_FAILED instead of rolling twice",
+      "idempotency": "Idempotency-Key required; the call also names the epoch it closes, so a new key after the roll fails with PRECONDITION_FAILED instead of rolling twice",
       "idempotencyKeyOptional": false,
       "errors": [
         "AUTH_REQUIRED",

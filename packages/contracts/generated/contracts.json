@@ -12233,7 +12233,7 @@
       "output": "Draft",
       "event": "",
       "mcp": "bakery_drafts_rollover",
-      "idempotency": "Guarded by epoch: the call names the epoch it closes and the published checkpoint it starts from, so a repeat after the roll fails with PRECONDITION_FAILED instead of rolling twice",
+      "idempotency": "Idempotency-Key required; the call also names the epoch it closes, so a new key after the roll fails with PRECONDITION_FAILED instead of rolling twice",
       "idempotencyKeyOptional": false,
       "errors": [
         "AUTH_REQUIRED",
@@ -260423,7 +260423,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:39c80b8e72b1dff68460f67b508339e00e545d84f739858139b45081601d8fa9",
+  "compatibilityDigest": "sha256:3612b8260a4426f8216696b2a4e0e0cd91dfbdad2aad2d2d8e1f5cbf86452220",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

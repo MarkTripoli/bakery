@@ -69,6 +69,13 @@ function post(fixture: DraftFixture, path: string, body: unknown) {
   );
 }
 
+/** A command that needs an Idempotency-Key, as drafts.rollover does. */
+function postKeyed(fixture: DraftFixture, path: string, body: unknown) {
+  const request = jsonDraftRequest(fixture, path, "POST", body);
+  request.headers.set("Idempotency-Key", crypto.randomUUID());
+  return Promise.resolve(fixture.app.fetch(request));
+}
+
 function publish(fixture: DraftFixture, draft: Draft) {
   return post(fixture, `/v1/drafts/${draft.id}/publications`, {
     checkpointId: draft.checkpointId,
@@ -77,7 +84,7 @@ function publish(fixture: DraftFixture, draft: Draft) {
 }
 
 function rollover(fixture: DraftFixture, draft: Draft, epoch = draft.epoch) {
-  return post(fixture, `/v1/drafts/${draft.id}/rollover`, {
+  return postKeyed(fixture, `/v1/drafts/${draft.id}/rollover`, {
     epoch,
     checkpointId: draft.checkpointId,
   });
@@ -164,7 +171,7 @@ Deno.test("a repeated or mismatched rollover changes nothing", async () => {
     const wrongEpoch = await rollover(fixture, opened, 7);
     assertEquals(wrongEpoch.status, 412, await wrongEpoch.clone().text());
     await wrongEpoch.body?.cancel();
-    const wrongCheckpoint = await post(
+    const wrongCheckpoint = await postKeyed(
       fixture,
       `/v1/drafts/${opened.id}/rollover`,
       { epoch: 1, checkpointId: crypto.randomUUID() },
