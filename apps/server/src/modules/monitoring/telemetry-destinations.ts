@@ -591,7 +591,7 @@ export async function testTelemetryDestination(
   input: TestInput,
   dependencies: TelemetryDestinationDependencies,
 ): Promise<TestResult> {
-  const { context: value } = installationActor(context);
+  const { context: value, actor } = installationActor(context);
   const transaction = value.transaction;
   let kind = input.kind;
   let saved: Record<string, string> = {};
@@ -633,6 +633,16 @@ export async function testTelemetryDestination(
     dependencies.providerDependencies,
     AbortSignal.timeout(TELEMETRY_TEST_TIMEOUT_MS),
   );
+  // A test sends a message to an address an administrator chose, so it is
+  // recorded; the values and the destination's answer are not.
+  await recordAuthAudit(transaction, value, {
+    organizationId: null,
+    principalId: actor.subject.principalId,
+    operation: Action.TelemetryDestinationsTest,
+    resourceType: "telemetry_destination",
+    resourceId: input.id ?? "unsaved",
+    details: { kind, ok: outcome.ok, status: outcome.status },
+  });
   return contractSchemas.TelemetryDestinationTestResult.parse({
     ok: outcome.ok,
     status: outcome.status,
