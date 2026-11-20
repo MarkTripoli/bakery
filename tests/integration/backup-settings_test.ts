@@ -229,7 +229,7 @@ Deno.test("a destination is tested before it is saved, and a refused one stores 
   }
 });
 
-Deno.test("a save that changes where backups go is tested with the stored credentials, a plain save is not", async () => {
+Deno.test("a save that moves the destination is tested with the new pair, a plain save is not tested at all", async () => {
   const o = await openBackupSettingsFixture();
   try {
     assertEquals((await o.putOffsite(offsiteBody())).status, 200);
@@ -242,20 +242,21 @@ Deno.test("a save that changes where backups go is tested with the stored creden
     assertEquals(same.status, 200, await same.clone().text());
     assertEquals(o.calls.length, 1);
     assertEquals((await same.json() as Offsite).version, 2);
-    // A moved bucket without new credentials is tested with the STORED pair.
+    // A moved bucket is tested with the pair that came with the move, never
+    // with the stored one.
     const moved = await o.putOffsite(
       offsiteBody({
         bucket: "other-bucket",
-        accessKeyId: undefined,
-        secretAccessKey: undefined,
+        accessKeyId: "AKIAMOVED",
+        secretAccessKey: "moved/secret",
       }),
       { version: 2 },
     );
     assertEquals(moved.status, 200, await moved.clone().text());
     assertEquals(o.calls.length, 2);
     assertEquals(o.calls[1].bucket, "other-bucket");
-    assertEquals(o.calls[1].accessKeyId, accessKeyId);
-    assertEquals(o.calls[1].secretAccessKey, secretAccessKey);
+    assertEquals(o.calls[1].accessKeyId, "AKIAMOVED");
+    assertEquals(o.calls[1].secretAccessKey, "moved/secret");
     // A move the destination refuses keeps the old bucket.
     o.setProbe(() =>
       Promise.resolve({ outcome: "destination_unreachable", detail: "timeout" })
@@ -263,8 +264,8 @@ Deno.test("a save that changes where backups go is tested with the stored creden
     const refused = await o.putOffsite(
       offsiteBody({
         bucket: "third-bucket",
-        accessKeyId: undefined,
-        secretAccessKey: undefined,
+        accessKeyId: "AKIATHIRD",
+        secretAccessKey: "third/secret",
       }),
       { version: 3 },
     );
@@ -285,14 +286,14 @@ Deno.test("a save that changes where backups go is tested with the stored creden
     );
     assertEquals(rotated.status, 200, await rotated.clone().text());
     const rotatedBody = await rotated.json() as Offsite;
-    assertEquals([rotatedBody.credentialRevision, rotatedBody.version], [2, 4]);
+    assertEquals([rotatedBody.credentialRevision, rotatedBody.version], [3, 4]);
     assertEquals(await secretCount(o), 1);
     const versions = await o.f.pgDatabase.query<{ count: string }>(
       `select count(*) from bakery.secret_versions version
          join bakery.secrets secret on secret.id = version.secret_id
         where secret.provider = 's3-backup'`,
     );
-    assertEquals(Number(versions.rows[0].count), 2);
+    assertEquals(Number(versions.rows[0].count), 3);
     // A stale or missing If-Match is refused.
     assertEquals(
       (await o.putOffsite(offsiteBody({ bucket: "other-bucket" }), {
@@ -305,6 +306,78 @@ Deno.test("a save that changes where backups go is tested with the stored creden
       (await o.putOffsite(offsiteBody({ bucket: "other-bucket" }))).status,
       428,
     );
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("moving the destination needs the key pair again, and a prefix-only change keeps it", async () => {
+  const o = await openBackupSettingsFixture();
+  try {
+    assertEquals((await o.putOffsite(offsiteBody())).status, 200);
+    assertEquals(o.calls.length, 1);
+    const saved = await (await o.admin("GET", offsitePath)).json() as Offsite;
+    const noKeys = { accessKeyId: undefined, secretAccessKey: undefined };
+    // A new endpoint, region or bucket without the pair is refused, naming the
+    // access key id. No test object is sent and nothing is stored, so the saved
+    // pair never reaches the new host and the runner never releases it there.
+    for (
+      const moved of [
+        { endpoint: "http://127.0.0.1:9100" },
+        { region: "eu-west-1" },
+        { bucket: "somewhere-else" },
+      ]
+    ) {
+      const refused = await o.putOffsite(offsiteBody({ ...noKeys, ...moved }), {
+        version: saved.version,
+      });
+      assertEquals(refused.status, 422, JSON.stringify(moved));
+      const problem = await refused.json() as Problem;
+      assertEquals(problem.issues?.[0].path, ["accessKeyId"]);
+      assertEquals(problem.issues?.[0].code, "credentials_required");
+      assertEquals(o.calls.length, 1, `${JSON.stringify(moved)} sent a test`);
+      const after = await (await o.admin("GET", offsitePath)).json() as Offsite;
+      assertEquals(after, saved, JSON.stringify(moved));
+    }
+    // One half is not the pair, move or not.
+    const half = await o.putOffsite(
+      offsiteBody({
+        bucket: "somewhere-else",
+        accessKeyId: "AKIAONLYHALF",
+        secretAccessKey: undefined,
+      }),
+      { version: saved.version },
+    );
+    assertEquals(half.status, 400);
+    assertEquals(o.calls.length, 1);
+    // A folder in the same bucket is not a move: the stored pair is kept, and
+    // the test object goes to the same host with it.
+    const folder = await o.putOffsite(
+      offsiteBody({ ...noKeys, prefix: "other/folder" }),
+      { version: saved.version },
+    );
+    assertEquals(folder.status, 200, await folder.clone().text());
+    assertEquals(o.calls.length, 2);
+    assertEquals(o.calls[1].endpoint, o.calls[0].endpoint);
+    assertEquals(o.calls[1].bucket, o.calls[0].bucket);
+    assertEquals(o.calls[1].accessKeyId, accessKeyId);
+    assertEquals(o.calls[1].secretAccessKey, secretAccessKey);
+    // A move with both halves is tested with the NEW pair and only that.
+    const next = await folder.json() as Offsite;
+    const moved = await o.putOffsite(
+      offsiteBody({
+        endpoint: "http://127.0.0.1:9100",
+        bucket: "somewhere-else",
+        accessKeyId: "AKIANEWHOST",
+        secretAccessKey: "new/host/secret",
+      }),
+      { version: next.version },
+    );
+    assertEquals(moved.status, 200, await moved.clone().text());
+    assertEquals(o.calls.length, 3);
+    assertEquals(o.calls[2].endpoint, "http://127.0.0.1:9100");
+    assertEquals(o.calls[2].accessKeyId, "AKIANEWHOST");
+    assertEquals(o.calls[2].secretAccessKey, "new/host/secret");
   } finally {
     await o.finish();
   }
@@ -721,14 +794,11 @@ Deno.test("a save is refused when the host resolves to an address the server may
       (await (await o.admin("GET", offsitePath)).json() as Offsite).version,
       1,
     );
-    // The loopback fixture is still allowed in a test environment.
+    // The loopback fixture is still allowed in a test environment. Moving the
+    // endpoint takes the key pair again, so the body carries it.
     o.setHost(namedHost, [publicAddress]);
     const fixture = await o.putOffsite(
-      offsiteBody({
-        endpoint: "http://127.0.0.1:9000",
-        accessKeyId: undefined,
-        secretAccessKey: undefined,
-      }),
+      offsiteBody({ endpoint: "http://127.0.0.1:9000" }),
       { version: 1 },
     );
     assertEquals(fixture.status, 200, await fixture.clone().text());

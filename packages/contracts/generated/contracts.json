@@ -74952,7 +74952,7 @@
               "maxLength": 256
             },
             "accessKeyId": {
-              "description": "Access key id of the account that writes the backups. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save, omit both on a later save to keep the stored credentials. BackupOffsitePut.accessKeyId must contain at most 256 characters.",
+              "description": "Access key id of the account that writes the backups. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save and whenever the endpoint, region or bucket changes (the saved pair is never reused for another host, and a move without it answers 422 credentials_required). Omit both on a later save to keep the stored credentials for the same destination, including a change to the prefix only. BackupOffsitePut.accessKeyId must contain at most 256 characters.",
               "type": "string",
               "minLength": 1,
               "maxLength": 256
@@ -256878,7 +256878,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:a0e4f7fedabf5157ca6c3d96fc19f1a7e97de03542d9c8e0dacdd08218812db7",
+  "compatibilityDigest": "sha256:90824f3a6de45df5013b314260ebc326300f674bece2394b87a7b1bd1385e5b8",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -286458,7 +286458,7 @@
           "maxLength": 256
         },
         "accessKeyId": {
-          "description": "Access key id of the account that writes the backups. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save, omit both on a later save to keep the stored credentials. BackupOffsitePut.accessKeyId must contain at most 256 characters.",
+          "description": "Access key id of the account that writes the backups. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save and whenever the endpoint, region or bucket changes (the saved pair is never reused for another host, and a move without it answers 422 credentials_required). Omit both on a later save to keep the stored credentials for the same destination, including a change to the prefix only. BackupOffsitePut.accessKeyId must contain at most 256 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 256

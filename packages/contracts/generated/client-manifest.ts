@@ -29577,7 +29577,7 @@ export const clientManifest = {
           "maxLength": 256
         },
         "accessKeyId": {
-          "description": "Access key id of the account that writes the backups. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save, omit both on a later save to keep the stored credentials. BackupOffsitePut.accessKeyId must contain at most 256 characters.",
+          "description": "Access key id of the account that writes the backups. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save and whenever the endpoint, region or bucket changes (the saved pair is never reused for another host, and a move without it answers 422 credentials_required). Omit both on a later save to keep the stored credentials for the same destination, including a change to the prefix only. BackupOffsitePut.accessKeyId must contain at most 256 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 256

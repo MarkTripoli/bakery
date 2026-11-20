@@ -223,6 +223,39 @@ function suppliedCredentials(input: OffsitePut): BackupS3Credentials | null {
   return { accessKeyId, secretAccessKey };
 }
 
+/**
+ * True when a save points the saved destination at another host: a new
+ * endpoint, region or bucket. A prefix is only a folder in the same bucket, so
+ * a prefix-only change is not a move.
+ */
+export function movesDestination(
+  stored: Pick<StoredBackupOffsite, "endpoint" | "region" | "bucket"> | null,
+  destination: Pick<BackupDestination, "endpoint" | "region" | "bucket">,
+): boolean {
+  return stored !== null && (
+    stored.endpoint !== destination.endpoint ||
+    stored.region !== destination.region ||
+    stored.bucket !== destination.bucket
+  );
+}
+
+/**
+ * The saved key pair belongs to the saved destination. Pointing the save at
+ * another host without both halves again would send that pair to a host the
+ * person never proved they could use it for (and the runner read would then
+ * release it there), so a move without the pair is refused before anything is
+ * opened, tested or written.
+ */
+export function assertKeysForMove(
+  stored: Pick<StoredBackupOffsite, "endpoint" | "region" | "bucket"> | null,
+  destination: Pick<BackupDestination, "endpoint" | "region" | "bucket">,
+  credentials: BackupS3Credentials | null,
+): void {
+  if (credentials === null && movesDestination(stored, destination)) {
+    throw unprocessable(["accessKeyId"], "credentials_required");
+  }
+}
+
 /** The validated destination, or a 422 naming the field that is wrong. */
 function destinationOf(
   input: Pick<OffsitePut, "endpoint" | "region" | "bucket" | "prefix">,
@@ -282,6 +315,9 @@ export async function putOffsite(
       );
     }
   }
+  // The same rule as before the test, now under the row lock: the pair the save
+  // keeps is only ever the pair for the host it was saved with.
+  assertKeysForMove(stored, destination, credentials);
   const sealed = credentials === null
     ? null
     : await sealBackupCredentials(dependencies.secretsKey, stored, credentials);
@@ -412,6 +448,10 @@ async function runPut(
         input: parsed,
       });
       if (replay) return { skip: true };
+      const stored = await readBackupOffsite(value.transaction);
+      // A move of the host needs the pair again, before any lookup, any open of
+      // the stored pair and any test object.
+      assertKeysForMove(stored, destination, supplied);
       // Every save holds the host to the address policy, even one that moves
       // nothing: a name re-pointed since the last save is caught here.
       const addresses = await checkDestinationHost(
@@ -420,7 +460,6 @@ async function runPut(
         authorized.signal,
       );
       if (!addresses.ok) throw addressRefusal(addresses);
-      const stored = await readBackupOffsite(value.transaction);
       const moved = stored === null ||
         stored.endpoint !== destination.endpoint ||
         stored.region !== destination.region ||
