@@ -1239,6 +1239,32 @@ Deno.test("organizationIdQuery is only for a GET action with required organizati
   }
 });
 
+Deno.test("organizationIdQuery must be a plain query parameter name", () => {
+  const definition = (organizationIdQuery: string) => ({
+    name: "storageFiles.content" as const,
+    method: HttpMethod.Get,
+    path: "/v1/storage/files/:id/content",
+    input: contractSchemas.StorageFileContentQuery,
+    output: contractSchemas.BinaryArtifact,
+    handler: () => null as never,
+    policy: {
+      type: ActionKind.Query,
+      access: "Developer",
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+      organizationIdQuery,
+    } as const,
+  });
+  new ActionRegistry().register(definition("organizationId"));
+  for (const bad of ["org id", "", "a/b", "1org", "org-id"]) {
+    assertThrows(
+      () => new ActionRegistry().register(definition(bad)),
+      ActionRegistryError,
+      "organizationIdQuery",
+    );
+  }
+});
+
 Deno.test("the catalog and the runtime agree on the organization query parameter", () => {
   const action = {
     name: "storageFiles.content" as const,

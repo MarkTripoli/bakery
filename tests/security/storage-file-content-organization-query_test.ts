@@ -173,6 +173,20 @@ Deno.test("the query organization is membership-checked and must agree with the 
         "RESOURCE_NOT_FOUND",
         "mine",
       );
+      // The header wins: header = the other organization, query = mine, on MY
+      // file. If the query won, the file would be in scope; under the header
+      // it is not, so the read is 404 with no bytes.
+      await refused(
+        await media(
+          fixture,
+          path + "?organizationId=" + fixture.organizationId,
+          {
+            "Bakery-Organization-Id": other.organizationId,
+          },
+        ),
+        "RESOURCE_NOT_FOUND",
+        "mine",
+      );
       // Header and query agree: served.
       assertEquals(
         await status(
@@ -239,8 +253,13 @@ Deno.test("an action that does not declare the query never reads it", () =>
       "/v1/storage/folders/" + roots.rows[0].id + "/entries?organizationId=" +
         fixture.organizationId,
     );
-    // storageFolderEntries.list still needs the header: the query is ignored.
+    // storageFolderEntries.list does not declare organizationIdQuery, and its
+    // own strict query schema refuses the unknown organizationId key with 400
+    // before the authority runs, so nothing ever reads the value.
     const text = await response.text();
-    assert(response.status >= 400, response.status + " " + text);
-    assertEquals((JSON.parse(text) as Json).code, "SCOPE_REQUIRED", text);
+    assertEquals(response.status, 400, text);
+    const body = JSON.parse(text) as Json;
+    assertEquals(body.code, "MALFORMED_REQUEST", text);
+    assertEquals(body.items, undefined, text);
+    assert(!text.includes("clip.txt"), text);
   }));
