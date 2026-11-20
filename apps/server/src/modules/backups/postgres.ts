@@ -140,9 +140,10 @@ export async function readBackupStatus(
     `select id from bakery.backup_runs where status = 'requested'`,
   );
   const newest = await transaction.query<
-    { status: string; finishedAt: Date | null }
+    { status: string; finishedAt: Date | null; failureCode: string | null }
   >(
-    `select status, finished_at as "finishedAt" from bakery.backup_runs
+    `select status, finished_at as "finishedAt", failure_code as "failureCode"
+       from bakery.backup_runs
       where status in ('completed', 'failed')
       order by finished_at desc, id desc limit 1`,
   );
@@ -160,6 +161,9 @@ export async function readBackupStatus(
     now,
     held: heldRow,
     newestFinishedStatus: (newest.rows[0]?.status as BackupRunStatus) ?? null,
+    // Completed with a failure code is "taken, not copied off-site".
+    newestFinishedNotCopied: newest.rows[0]?.status === "completed" &&
+      newest.rows[0]?.failureCode != null,
     lastGoodAt,
     staleAfterMs: staleAfterMs(await readBackupSchedule(transaction)),
   });
@@ -485,9 +489,19 @@ async function applyReport(
               finished_at = clock_timestamp(), progress_percent = 100,
               size_bytes = $2::bigint, locations = $3::text[],
               lease_expires_at = null,
+              failure_code = $6, failure_detail = $7,
               report_sequence = $4, last_report_digest = $5, version = version + 1
         where id = $1`,
-      [runId, report.sizeBytes, report.locations, report.sequence, digest],
+      [
+        runId,
+        report.sizeBytes,
+        report.locations,
+        report.sequence,
+        digest,
+        // Only a backup taken but not copied off-site carries a cause.
+        report.failureCode ?? null,
+        report.failureCode === undefined ? null : report.failureDetail ?? null,
+      ],
     );
     return;
   }
