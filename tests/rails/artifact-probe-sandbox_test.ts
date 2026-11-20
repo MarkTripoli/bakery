@@ -19,13 +19,22 @@ const LAUNCHER =
     .pathname;
 
 function commandsOf(script: string): string {
+  // The working directory is the one property whose value is a path the
+  // launcher must compute rather than a constant: it is the repository root,
+  // derived from the launcher's own location so a caller cannot point it
+  // elsewhere. The server's list names that with a placeholder, so the two
+  // lists are compared with the shell variable folded into it -- the check
+  // stays exact about everything else, and still catches a launcher that
+  // hard-coded a different directory.
   return script.split("\n").filter((line) => !line.trimStart().startsWith("#"))
-    .join("\n");
+    .join("\n").replaceAll("$repo_root", "@REPO_ROOT@");
 }
 
 Deno.test("the probe launcher pins exactly the unit properties the server declares", async () => {
   const script = await Deno.readTextFile(LAUNCHER);
-  const commands = commandsOf(script);
+  // Quotes around a value are not a difference in what systemd is told, and
+  // the working directory is quoted because a checkout may contain a space.
+  const commands = commandsOf(script).replaceAll('"', "");
   for (const property of ARTIFACT_PROBE_UNIT_PROPERTIES) {
     assert(
       commands.includes(` ${property} \\`),
@@ -37,6 +46,24 @@ Deno.test("the probe launcher pins exactly the unit properties the server declar
     ARTIFACT_PROBE_UNIT_PROPERTIES.length,
     "the launcher sets a property the server does not declare",
   );
+});
+
+Deno.test("the unit starts where the worker's imports resolve, from a path it computes", async () => {
+  const script = await Deno.readTextFile(LAUNCHER);
+  // A unit that starts in $HOME cannot resolve a bare specifier or find the
+  // lockfile, so the worker dies with 226 before reading a byte. The root must
+  // come from the launcher's own location, never from the caller's
+  // environment: a sandbox whose working directory a caller chooses is a
+  // sandbox a caller can point at a directory it has written to.
+  assert(
+    /repo_root=\$\(cd "\$here\/\.\.\/\.\." && pwd -P\)/.test(script),
+    "the repository root is derived from the launcher's own path",
+  );
+  assert(
+    script.includes('"--property=WorkingDirectory=$repo_root"'),
+    "the unit is pinned to it",
+  );
+  assert(!/WorkingDirectory=\$[^r]/.test(script), "no caller-supplied path");
 });
 
 Deno.test("the probe sandbox has no network and no writable system", async () => {

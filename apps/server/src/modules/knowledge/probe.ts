@@ -32,6 +32,12 @@ import { readBlobProbe, writeBlobProbe } from "./blob-probes.ts";
 
 /** The unit properties the launcher pins; the test holds both lists equal. */
 export const ARTIFACT_PROBE_UNIT_PROPERTIES: readonly string[] = Object.freeze([
+  // The unit must start where Deno can resolve the worker's imports and its
+  // lockfile: a bare specifier is resolved from the working directory, not from
+  // the module's path, so a unit that starts in $HOME fails with 226 before it
+  // reads a byte. The value is the repository root, which the launcher computes
+  // and which ProtectSystem=strict also makes read-only.
+  "--property=WorkingDirectory=@REPO_ROOT@",
   `--property=MemoryMax=${ARTIFACT_PROBE_MEMORY_MAX_BYTES}`,
   "--property=MemorySwapMax=0",
   "--property=TasksMax=32",

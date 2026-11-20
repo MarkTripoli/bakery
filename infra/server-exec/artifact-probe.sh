@@ -28,15 +28,26 @@ unit="bakery-artifact-probe-$1"
 
 uid=$(/usr/bin/id -u) || exit 70
 case "$uid" in *[!0-9]* | "") exit 70 ;; esac
-runtime_dir=/run/user/$uid
-bus="unix:path=$runtime_dir/bus"
+# The runtime directory is the caller's when the caller set one: that is how
+# systemd's own user manager finds it, and honouring it is what lets a test put
+# a real socket somewhere other than /run/user/<uid>. It is only trusted when it
+# is a directory this user owns, so it cannot be pointed at someone else's bus.
+runtime_dir="/run/user/$uid"
+if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -d "$XDG_RUNTIME_DIR" ] &&
+  [ -O "$XDG_RUNTIME_DIR" ]; then
+  runtime_dir=$XDG_RUNTIME_DIR
+fi
+# Two different things, and confusing them is why this line is commented: the
+# socket PATH is what -S tests, the D-Bus ADDRESS is what the child is told.
+bus_path="$runtime_dir/bus"
+bus="unix:path=$bus_path"
 
 # No user bus or no systemd (a container): unavailable, not a refused probe.
 # Checked before the parent's executable, because a process launched under a
 # wrapper is still told the truth about the host: this host has no user bus, and
 # saying so is more useful than saying "not the server".
 [ -x /usr/bin/systemd-run ] && [ -x /usr/bin/systemctl ] || exit 69
-[ -S "$bus" ] || exit 69
+[ -S "$bus_path" ] || exit 69
 
 deno=$(/usr/bin/readlink "/proc/$PPID/exe") || exit 70
 case "$deno" in /*/deno) ;; *) exit 70 ;; esac
@@ -44,6 +55,12 @@ case "$deno" in /*/deno) ;; *) exit 70 ;; esac
 here=$(cd "$(/usr/bin/dirname "$0")" && pwd -P) || exit 70
 worker="$here/../../apps/server/src/modules/knowledge/probe-worker.ts"
 [ -f "$worker" ] || exit 70
+# Deno resolves a bare specifier and its lockfile from the working directory, so
+# a unit that starts in $HOME cannot find either: the worker exits 226 before it
+# reads a byte. The unit is pinned to the repository root, which is also the
+# directory ProtectSystem=strict makes read-only, so the pinned path is not
+# writable by the thing reading a stranger's file.
+repo_root=$(cd "$here/../.." && pwd -P) || exit 70
 
 exec /usr/bin/env -i XDG_RUNTIME_DIR="$runtime_dir" \
   DBUS_SESSION_BUS_ADDRESS="$bus" LC_ALL=C \
@@ -53,6 +70,7 @@ exec /usr/bin/env -i XDG_RUNTIME_DIR="$runtime_dir" \
   --wait \
   --quiet \
   "--unit=$unit" \
+  "--property=WorkingDirectory=$repo_root" \
   --property=MemoryMax=536870912 \
   --property=MemorySwapMax=0 \
   --property=TasksMax=32 \
