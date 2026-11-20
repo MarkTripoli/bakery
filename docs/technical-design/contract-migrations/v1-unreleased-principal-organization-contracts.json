@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "8bfc768ae1d064339b8cb7a7c56ab5b038fb3738"
+    "c358b2528a07b903f624a1c5db72d23e7eaa7b9d"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:f73e29cdd14d993f60599946f3264ec74e6f76cee270625ee8075f7a0773a7b2",
-  "reason": "#19 private previews re-bind by dev-agx3 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8bfc768ae1d064339b8cb7a7c56ab5b038fb3738: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:438ac5e4e1641c9c9150c59387fdf6214453b4b3cc394112a6d3d8bc1a829827",
+  "reason": "#19 private previews re-bind by dev-agx3 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main c358b2528a07b903f624a1c5db72d23e7eaa7b9d: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",

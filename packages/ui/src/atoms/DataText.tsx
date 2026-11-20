@@ -8,11 +8,18 @@ export type DataTextProps =
     children: ReactNode;
     state?: "default" | "wrapped" | "truncated";
     truncate?: boolean;
+    /**
+     * Opt-in: the value takes the room it needs instead of a line to itself,
+     * so it can share a line with a control beside it (a fingerprint and its
+     * Copy button). Without it a value fills its line.
+     */
+    fit?: boolean;
     variant?: "identifier" | "timestamp" | "metric" | "code";
   };
 
 export function DataText(
   {
+    fit = false,
     state = "default",
     truncate = false,
     variant = "identifier",
@@ -26,6 +33,7 @@ export function DataText(
         `ui-data-text--${variant}`,
         (truncate || state === "truncated") &&
         "ui-data-text--truncate",
+        fit && "ui-data-text--fit",
       ].filter(Boolean).join(" ")}
       data-rail={truncate || state === "truncated"
         ? "truncation-allowed"

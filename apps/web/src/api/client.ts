@@ -168,6 +168,22 @@ export type PluginPackageListResponse = ClientOutputMap["Page<PluginPackage>"];
 export type PluginVersionListResponse = ClientOutputMap["Page<PluginVersion>"];
 export type PluginInstallListResponse = ClientOutputMap["Page<PluginInstall>"];
 export type PluginInstallResponse = ClientOutputMap["PluginInstall"];
+/**
+ * One item a plugin has saved, as the page may know it: where it is kept, how
+ * big it is and when it was last saved. The read it comes from carries no saved
+ * value at all.
+ */
+export type SavedDataItem = Readonly<{
+  id: string;
+  namespace: string;
+  key: string;
+  sizeBytes: number;
+  updatedAt: string;
+}>;
+export type SavedDataPage = Readonly<{
+  items: readonly SavedDataItem[];
+  nextCursor: string | null;
+}>;
 export type TicketSourceCreate = ClientInputMap["TicketSourceCreate"];
 export type TicketSourceUpdate = ClientInputMap["TicketSourceUpdate"];
 export type TicketOperationReceiptResponse =
@@ -827,6 +843,14 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<PluginInstallResponse>>;
+    /** `GET /v1/plugin-installs/{id}/state-items`: what the plugin has saved, with no values in the response. */
+    readonly savedData: (options: {
+      readonly organizationId: string;
+      readonly installId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<SavedDataPage>>;
     /** `PATCH /v1/plugin-installs/{id}`: turns an install on or off, moves it to another version, or removes it. */
     readonly update: (options: {
       readonly organizationId: string;
@@ -2455,6 +2479,28 @@ export function createBakeryApiClient({
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
+        );
+      },
+      savedData(options) {
+        return workerResult(
+          options.organizationId,
+          async (scoped): Promise<SavedDataPage> => {
+            const page = await scoped.actions["pluginStateItems.list"]({
+              id: options.installId,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal });
+            return {
+              items: page.items.map((item) => ({
+                id: item.id,
+                namespace: item.namespace,
+                key: item.key,
+                sizeBytes: item.sizeBytes,
+                updatedAt: item.updatedAt,
+              })),
+              nextCursor: page.nextCursor,
+            };
+          },
         );
       },
       update(options) {

@@ -24,7 +24,7 @@
     }
   ],
   "assetUrlPrefix": "https://app.paper.design/file-assets/01M1X504XVC45FC0VDK857A37D/",
-  "expectedScreens": 19,
+  "expectedScreens": 16,
   "screens": [
     {
       "id": "queue",
