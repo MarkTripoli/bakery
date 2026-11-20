@@ -22,6 +22,7 @@ import {
   seedEligibleJob,
   workerRequest,
 } from "../helpers/worker-execution.ts";
+import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-job.ts";
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 type Json = Record<string, unknown>;
@@ -86,8 +87,11 @@ async function agentSession(
     job: Awaited<ReturnType<typeof seedEligibleJob>>,
   ) => Promise<void>,
 ): Promise<Agent> {
-  const worker = await registeredWorker(fixture, { name });
-  const job = await seedEligibleJob(
+  const worker = await registeredWorker(fixture, { name, slots: 1 });
+  // A nonmodel job (quality.check): the fixture worker claims it with its
+  // default capabilities. A model job needs funding and a model route, so a
+  // bare seedEligibleJob is never claimed and the claim answers 204.
+  const job = await seedEligibleNonmodelJob(
     fixture.pgDatabase,
     fixture.organizationId,
     fixture.principalId,
