@@ -10550,6 +10550,15 @@ const transportSchemas = {
           "description": "Which kind of destination this is, as listed by telemetryDestinations.list (for example otlp for OpenTelemetry); it decides which values the destination needs and which measurements it can receive."
         },
         {
+          "name": "provider",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "The provider the person chose in the Add destination chooser: a key from the list's providers whose kind is this destination's kind. Omitted means the kind's default provider. It is a label and cannot be changed later."
+        },
+        {
           "name": "name",
           "type": "string",
           "required": true,
@@ -10585,7 +10594,7 @@ const transportSchemas = {
       ],
       "rules": [
         "Installation administrator with a browser session; access tokens are refused. Idempotency-Key is required.",
-        "An unknown kind, a missing required value or a value the kind refuses answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 20 destinations exist; one more answers 409 STATE_CONFLICT. Storing a secret value with no secrets key configured answers 409 STATE_CONFLICT and stores nothing."
+        "An unknown kind, a missing required value or a value the kind refuses answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 200 destinations exist; one more answers 409 STATE_CONFLICT. A provider that is unknown, or belongs to another kind, answers 422 UNPROCESSABLE naming the provider field. Storing a secret value with no secrets key configured answers 409 STATE_CONFLICT and stores nothing."
       ],
       "description": "Adds a telemetry destination: a place Bakery sends the measurements it takes, with its own queue, its own settings and encrypted credentials."
     },
@@ -10636,6 +10645,110 @@ const transportSchemas = {
         "Installation administrator with a browser session. Idempotency-Key and a strong If-Match with the destination's version are required (428 when missing, 412 when stale)."
       ],
       "description": "Changes a telemetry destination's name, on or off state, measurements or settings; the stored secret is replaced only when a new one is supplied."
+    },
+    "TelemetryDestinationListQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page of this list, bound to the same search, state, kind and provider filters and to the caller; pass it back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Most destinations returned in one page; defaults to 25 and cannot exceed 100."
+        },
+        {
+          "name": "search",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Text to look for in the destination's name, ignoring case; omitted means every name."
+        },
+        {
+          "name": "state",
+          "type": "enum",
+          "enum": [
+            "working",
+            "not_tested_yet",
+            "failing",
+            "dropping_data",
+            "off"
+          ],
+          "required": false,
+          "description": "Only destinations in this state now; omitted means every state."
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 63
+          },
+          "description": "Only destinations of this kind, named by an identifier from the list's kinds; omitted means every kind."
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Only destinations added for this provider, named by a key from the list's providers; omitted means every provider."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, offset and skip. The order is failing, then dropping_data, then everything else by name ignoring case, then id; a cursor is good only with the same search, state, kind and provider."
+      ],
+      "description": "Filters and the page window for the Monitoring destination list; an unknown state or a malformed cursor is rejected."
+    },
+    "TelemetryDestinationDroppedQuery": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The destination whose drop reports are read; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page of this destination's drop reports; pass it back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Most drop reports returned in one page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Newest first by report id; reject page, offset and skip."
+      ],
+      "description": "Page window for the reports of records Bakery could not deliver to one destination."
     },
     "TelemetryDestinationTest": {
       "fields": [
@@ -30210,6 +30323,7 @@ const transportSchemas = {
       "fields": [
         "id",
         "kind",
+        "provider",
         "name",
         "enabled",
         "measurements",
@@ -30230,6 +30344,7 @@ const transportSchemas = {
       "fieldTypes": {
         "id": "uuid",
         "kind": "string",
+        "provider": "string",
         "name": "string",
         "enabled": "boolean",
         "measurements": "string[]",
@@ -30259,6 +30374,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "id": "Stable UUID of the destination.",
         "kind": "Which kind of destination this is, for example otlp.",
+        "provider": "Which provider the destination was added for, one of the keys in the list's providers (opentelemetry, grafana, datadog, honeycomb or sentry). It is a label chosen when the destination is added, never worked out from its name or address; destinations saved before it existed read as the default provider of their kind.",
         "name": "Name shown in the list and in alerts.",
         "enabled": "Whether the destination receives measurements now.",
         "measurements": "The kinds of measurement it receives: cost, durations, results, skills, health, errors.",
@@ -30281,19 +30397,86 @@ const transportSchemas = {
       "fields": [
         "kinds",
         "measurements",
-        "destinations"
+        "destinations",
+        "destinationLimit",
+        "nextCursor",
+        "total",
+        "stateCounts",
+        "providers"
       ],
       "fieldTypes": {
         "kinds": "json[]",
         "measurements": "json[]",
-        "destinations": "json[]"
+        "destinations": "json[]",
+        "destinationLimit": "integer",
+        "nextCursor": "string|null",
+        "total": "integer",
+        "stateCounts": "json",
+        "providers": "json[]"
       },
-      "nullableFields": [],
-      "description": "Everything the Monitoring page needs about destinations in one read: the kinds the server can deliver to with their fields, the six kinds of measurement, and the destinations that exist (at most 20) with their state.",
+      "nullableFields": [
+        "nextCursor"
+      ],
+      "description": "Everything the Monitoring list needs in one read: the kinds the server can deliver to with their fields, the six kinds of measurement, one page of the destinations that match the search and filters, and the counts the page's notice and filters show.",
       "fieldDescriptions": {
         "kinds": "Each kind of destination: its identifier, label, fields (name, label, help, secret, required), the measurements it can take and why any it cannot take is unavailable.",
         "measurements": "The six kinds of measurement, each with its identifier, label and one line of help.",
-        "destinations": "The destinations, oldest first, each shaped as a TelemetryDestination."
+        "destinations": "This page of destinations, each shaped as a TelemetryDestination: failing first, then dropping_data, then the rest by name ignoring case.",
+        "destinationLimit": "The most destinations an installation can have; creating one past it is refused with destination_limit.",
+        "nextCursor": "Opaque token for the next page with the same filters, or null on the last page.",
+        "total": "How many destinations match the search and filters, across every page.",
+        "stateCounts": "How many destinations are in each state with no search or filter applied: an object with all, working, not_tested_yet, failing, dropping_data and off.",
+        "providers": "The providers a destination can be added for, for the Add destination chooser: key, name, one plain sentence (description), the kind it uses and the values filled in when it is chosen (prefill, by field name)."
+      }
+    },
+    "TelemetryDestinationDetail": {
+      "fields": [
+        "destination",
+        "kind",
+        "provider",
+        "measurements"
+      ],
+      "fieldTypes": {
+        "destination": "json",
+        "kind": "json|null",
+        "provider": "json|null",
+        "measurements": "json[]"
+      },
+      "nullableFields": [
+        "kind",
+        "provider"
+      ],
+      "description": "One destination with what its page needs to show and edit it: the destination, the description of its kind and the measurement list.",
+      "fieldDescriptions": {
+        "destination": "The destination shaped as a TelemetryDestination, with its live state.",
+        "kind": "The description of the destination's kind (identifier, label, fields, measurements it can take), or null when the server no longer has that kind installed.",
+        "provider": "The destination's provider as the list's providers describe it (key, name, description, kind, prefill), or null when the server no longer knows that provider.",
+        "measurements": "The six kinds of measurement, each with its identifier, label and one line of help."
+      }
+    },
+    "TelemetryDestinationDropped": {
+      "fields": [
+        "items",
+        "nextCursor",
+        "droppedTotal",
+        "droppedSince"
+      ],
+      "fieldTypes": {
+        "items": "json[]",
+        "nextCursor": "string|null",
+        "droppedTotal": "integer",
+        "droppedSince": "timestamp|null"
+      },
+      "nullableFields": [
+        "nextCursor",
+        "droppedSince"
+      ],
+      "description": "One page of the reports of records Bakery could not deliver to a destination, newest first. Bakery keeps how many were lost, when and why, never the records themselves, and only the last 200 reports in memory, so a restart empties the list.",
+      "fieldDescriptions": {
+        "items": "This page of reports, each with id (counts up from 1 since the server started), at (UTC time), reason (queue_full, send_failed or shutdown) and count (records lost in that report).",
+        "nextCursor": "Opaque token for the next, older page, or null on the last page.",
+        "droppedTotal": "Records dropped for this destination since the server started, the same number as the destination's dropped.",
+        "droppedSince": "When the first of them was dropped, or null when none were."
       }
     },
     "TelemetryDestinationTestResult": {
