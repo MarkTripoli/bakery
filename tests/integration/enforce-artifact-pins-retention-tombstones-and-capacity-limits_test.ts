@@ -4,6 +4,11 @@ import {
   retentionFixture,
 } from "../helpers/artifact-retention.ts";
 import { collectArtifactVersion } from "../../apps/server/src/modules/knowledge/retention/collector.ts";
+import {
+  findCachedExtract,
+  storeCachedExtract,
+} from "../../apps/server/src/modules/knowledge/extract-cache.ts";
+import { CONTEXT_EXTRACTOR_VERSION } from "../../apps/server/src/modules/knowledge/context-projection.ts";
 import { statfs } from "node:fs/promises";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 
@@ -518,6 +523,68 @@ Deno.test("purging a version deletes the extracts cached from its bytes", async 
       [fixture.versionId],
     );
     assertEquals(after.rows[0]?.n, 0, "no cached copy outlives the purge");
+  } finally {
+    await fixture.closeRetention();
+  }
+});
+
+Deno.test("a cached extract is found only for its own scope, digest and request, in the real SQL", async () => {
+  // The unit stand-in re-implements the lookup filters in TypeScript, so only a
+  // real database can show the SQL keeps one caller's rows apart from another's.
+  const fixture = await retentionFixture();
+  try {
+    const db = fixture.pgDatabase;
+    const citation = {
+      artifactId: fixture.artifactId,
+      versionId: fixture.versionId,
+      sha256: fixture.sha256,
+      mediaType: "text/plain",
+      location: { startByte: 0, endByteExclusive: 28 },
+      extractorVersion: CONTEXT_EXTRACTOR_VERSION,
+    };
+    await storeCachedExtract(db, {
+      organizationId: fixture.organizationId,
+      scope: "p1|org",
+      citation,
+      text: "Immutable retention evidence",
+      hasMore: false,
+      maxBytes: 65536,
+    });
+    const ask = (over: Record<string, unknown> = {}) =>
+      findCachedExtract(db, {
+        organizationId: fixture.organizationId,
+        versionId: fixture.versionId,
+        sha256: fixture.sha256,
+        startByte: 0,
+        maxBytes: 65536,
+        scope: "p1|org",
+        ...over,
+      } as never);
+    const own = await ask();
+    assert(own !== null, "the storing scope finds its row");
+    assertEquals(own.text, "Immutable retention evidence");
+    assertEquals(own.citation.location?.endByteExclusive, 28);
+    assertEquals(
+      await ask({ scope: "p2|org" }),
+      null,
+      "another principal misses",
+    );
+    assertEquals(
+      await ask({ scope: "p1|task:t1" }),
+      null,
+      "a narrower scope misses",
+    );
+    assertEquals(
+      await ask({ sha256: "b".repeat(64) }),
+      null,
+      "another digest misses",
+    );
+    assertEquals(await ask({ startByte: 65536 }), null, "another chunk misses");
+    assertEquals(
+      await ask({ maxBytes: 10 }),
+      null,
+      "another window size misses",
+    );
   } finally {
     await fixture.closeRetention();
   }
