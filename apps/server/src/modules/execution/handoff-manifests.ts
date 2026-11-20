@@ -318,12 +318,15 @@ export async function createHandoffManifest(
     new TextEncoder().encode(encoded).byteLength > HANDOFF_MANIFEST_MAX_BYTES
   ) throw new StandardError({ code: "BODY_TOO_LARGE" });
   const digest = await sha256Hex(encoded);
+  // What the source sent, before the server's view replaced parts of it: the
+  // key a retry is compared on.
+  const requestDigest = await sha256Hex(canonicalJson(manifest));
 
   const inserted = await transaction.query<ManifestRow>(
     `insert into bakery.handoff_manifests
        (organization_id, task_id, run_id, run_step_id, source_attempt_id,
-        source_fence, mode, digest, safe_boundary, manifest)
-     values ($1, $2, $3, $4, $5, $6::bigint, $7, $8, $9, $10::jsonb)
+        source_fence, mode, digest, request_digest, safe_boundary, manifest)
+     values ($1, $2, $3, $4, $5, $6::bigint, $7, $8, $9, $10, $11::jsonb)
      on conflict (source_attempt_id) do nothing
      returning ${MANIFEST_COLUMNS}`,
     [
@@ -335,6 +338,7 @@ export async function createHandoffManifest(
       String(attempt.fence),
       stored.mode,
       digest,
+      requestDigest,
       safeBoundary,
       JSON.stringify(stored),
     ],
@@ -342,15 +346,17 @@ export async function createHandoffManifest(
   if (inserted.rows[0]) {
     return { kind: "created", record: toRecord(inserted.rows[0]) };
   }
-  const existing = await transaction.query<ManifestRow>(
-    `select ${MANIFEST_COLUMNS}
+  const existing = await transaction.query<
+    ManifestRow & { request_digest: string }
+  >(
+    `select ${MANIFEST_COLUMNS}, request_digest
        from bakery.handoff_manifests
       where organization_id = $1 and source_attempt_id = $2`,
     [organizationId, attempt.id],
   );
   const row = existing.rows[0];
   if (!row) throw new StandardError({ code: "STATE_CONFLICT" });
-  if (row.digest !== digest) {
+  if (row.request_digest !== requestDigest) {
     throw new StandardError({ code: "STATE_CONFLICT" });
   }
   return { kind: "replayed", record: toRecord(row) };

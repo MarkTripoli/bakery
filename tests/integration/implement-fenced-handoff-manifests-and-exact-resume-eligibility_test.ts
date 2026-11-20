@@ -50,6 +50,48 @@ Deno.test("the worker of a live attempt stores one manifest, and a person reads 
     assertEquals((await body(read)).digest, record.digest);
   }));
 
+Deno.test("the same bytes replay after the server's view of the step has changed", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "handoff-replay-after-change");
+    const manifest = await manifestFor(fixture, live.job);
+    const created = await post(fixture, live, manifest);
+    assertEquals(created.status, 201, await created.clone().text());
+    const record = await body(created);
+    assertEquals(record.safeBoundary, true);
+
+    // An effect now sits in flight: the server's own view of the step differs
+    // from the one it stored, but the source's bytes are the same.
+    await fixture.pgDatabase.query(
+      `insert into bakery.external_effects
+         (organization_id, run_step_id, operation, target, requesting_principal_id,
+          actor_ref, idempotency_key, request_digest, adapter_version, status)
+       values ($1, $2, 'test.operation', 'test-target', $3, 'actor', $4, $5, 'v1', 'submitted')`,
+      [
+        fixture.organizationId,
+        live.job.runStepId,
+        fixture.principalId,
+        crypto.randomUUID(),
+        SHA,
+      ],
+    );
+    const replay = await post(fixture, live, manifest);
+    assertEquals(replay.status, 200, await replay.clone().text());
+    const again = await body(replay);
+    assertEquals(again.id, record.id);
+    // The stored manifest is unchanged: a replay never rewrites it.
+    assertEquals(again.digest, record.digest);
+    assertEquals(again.safeBoundary, true);
+
+    // Different bytes are still a conflict.
+    const different = await post(
+      fixture,
+      live,
+      { ...manifest, goal: "A different goal." },
+    );
+    assertEquals(different.status, 409);
+    await different.body?.cancel();
+  }));
+
 Deno.test("the server's journal and effect ledger decide the safe boundary, not the source", () =>
   withWorkerFixture(async (fixture) => {
     const beyond = await liveAttempt(fixture, "handoff-beyond");
