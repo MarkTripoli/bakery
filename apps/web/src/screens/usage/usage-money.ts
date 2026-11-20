@@ -29,7 +29,20 @@ export function addDecimalStrings(left: string, right: string): string {
   return `${negative ? "-" : ""}${whole}${fraction ? `.${fraction}` : ""}`;
 }
 
-/** Money as the page shows it: the server's figure with its unit. */
+/**
+ * Money as the page shows it: two places and grouped thousands.
+ *
+ * A cost table that mixes "$41.5" with "$500" makes a reader compare digits
+ * that are not in the same place, and "$1000" is easy to misread by a factor
+ * of ten. The server's figure is exact; this only puts it in the shape money
+ * is read in. Rounding never invents a cent: six places are cut to the two a
+ * reader is quoted in, and the cut is a display decision, not a stored one.
+ */
 export function usd(amount: string): string {
-  return `$${amount}`;
+  const [whole = "0", fraction = ""] = amount.trim().split(".");
+  const negative = whole.startsWith("-");
+  const dollars = (negative ? whole.slice(1) : whole) || "0";
+  const cents = fraction.padEnd(2, "0").slice(0, 2);
+  const grouped = dollars.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${negative ? "-" : ""}$${grouped}.${cents}`;
 }

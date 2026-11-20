@@ -2,7 +2,16 @@ import * as UI from "@bakery/ui";
 import { formatDate } from "@bakery/i18n";
 import type { UsageSummary } from "../api/client.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { addDecimalStrings, usd } from "./usage/usage-money.ts";
+import { usd } from "./usage/usage-money.ts";
+import {
+  billingKey,
+  confirmedFigure,
+  moneyOrDash,
+  providerName,
+  type ProviderRow,
+  providerRows,
+  recordKey,
+} from "./usage/usage-display.ts";
 import {
   isUsagePeriod,
   USAGE_PERIODS,
@@ -45,6 +54,9 @@ export function InstallationUsageScreen(
   }: InstallationUsageScreenProps,
 ) {
   const { translate, locale, timeZone } = useI18n();
+  // Formatted here, so the count is an argument the catalogue can inflect on.
+  const records = (count: number) =>
+    translate(recordKey(count), { count: String(count) });
 
   if (state === "notFound") {
     return (
@@ -58,6 +70,24 @@ export function InstallationUsageScreen(
     );
   }
 
+  const completeness = summary?.completeness ?? "complete";
+  const rows = summary?.byProvider ?? [];
+  const budgets = summary?.budgetAccounts ?? [];
+  const confirmed = confirmedFigure(summary);
+
+  // Two filter buttons beside the title, each a compact trigger whose panel is
+  // the menu of choices: the period and the provider are settings on the
+  // figures below, not part of reading them. Each button says its own word and
+  // its current value ("Period: Last 30 days"), so the page never needs a
+  // caption above a pair of open lists.
+  const periodWord = translate("installation.usage.period");
+  const providerWord = translate("installation.usage.provider");
+  const periodLabel = `${periodWord}: ${translate(PERIOD_MESSAGES[period])}`;
+  const providerLabel = `${providerWord}: ${
+    provider === null
+      ? translate("installation.usage.provider.all")
+      : providerName(provider)
+  }`;
   const periodItems: UI.MenuItem[] = USAGE_PERIODS.map((choice) => ({
     id: choice,
     label: translate(PERIOD_MESSAGES[choice]),
@@ -69,101 +99,117 @@ export function InstallationUsageScreen(
       label: translate("installation.usage.provider.all"),
       selected: provider === null,
     },
-    ...(summary?.byProvider ?? []).map((row) => ({
+    ...rows.map((row) => ({
       id: row.provider,
-      label: row.provider,
+      label: providerName(row.provider),
       selected: row.provider === provider,
     })),
   ];
+  const filters = (
+    <UI.Inline gap="compact">
+      <UI.Popover
+        align="end"
+        label={periodWord}
+        trigger={
+          <>
+            {periodLabel}
+            <UI.IconGlyph name="chevron-down" size="small" />
+          </>
+        }
+        triggerAppearance="toolbar"
+        triggerLabel={periodLabel}
+        variant="interactive"
+      >
+        <UI.Menu
+          aria-label={periodWord}
+          items={periodItems}
+          onSelect={(id) => {
+            if (isUsagePeriod(id)) onPeriodChange(id);
+          }}
+          variant="selection"
+        />
+      </UI.Popover>
+      <UI.Popover
+        align="end"
+        label={providerWord}
+        trigger={
+          <>
+            {providerLabel}
+            <UI.IconGlyph name="chevron-down" size="small" />
+          </>
+        }
+        triggerAppearance="toolbar"
+        triggerLabel={providerLabel}
+        variant="interactive"
+      >
+        <UI.Menu
+          aria-label={providerWord}
+          items={providerItems}
+          onSelect={(id) => onProviderChange(id === "all" ? null : id)}
+          variant="selection"
+        />
+      </UI.Popover>
+    </UI.Inline>
+  );
 
-  const completeness = summary?.completeness ?? "complete";
-  const rows = summary?.byProvider ?? [];
-  const budgets = summary?.budgetAccounts ?? [];
+  // Loading is its own state, not an empty table: a table of zeros while the
+  // first answer is in flight says the period had nothing in it, which is a
+  // claim the page has not earned yet.
+  const pageState = state === "ready"
+    ? "default"
+    : state === "error"
+    ? "error"
+    : state === "empty"
+    ? "empty"
+    : "loading";
 
   return (
-    <div className="bakery-page" data-page="installation-usage">
-      <header className="bakery-page__header">
-        <div>
-          <h1 className="bakery-page__title">
-            {translate("installation.usage.title")}
-          </h1>
-          <p className="bakery-page__subtitle">
-            {translate("installation.usage.description")}
-          </p>
-        </div>
-        <div className="bakery-page__actions">
-          <UI.Menu
-            aria-label={translate("installation.usage.period")}
-            items={periodItems}
-            onSelect={(id) => {
-              if (isUsagePeriod(id)) onPeriodChange(id);
-            }}
-            variant="selection"
-          />
-          <UI.Menu
-            aria-label={translate("installation.usage.provider")}
-            items={providerItems}
-            onSelect={(id) => onProviderChange(id === "all" ? null : id)}
-            variant="selection"
-          />
-        </div>
-      </header>
-
-      {periodTooLong
-        ? (
-          <p className="bakery-page__note">
-            {translate("installation.usage.period.tooLong")}
-          </p>
-        )
-        : null}
-
-      {
-        /* The completeness notice is the screen's honesty statement: a partial
-          total says which parts are missing, and an unknowable one says so
-          rather than showing a clean figure. */
-      }
-      {completeness === "partial" && summary
-        ? (
-          <UI.AlertBanner tone="warning">
-            <strong>{translate("installation.usage.partial.title")}</strong>
-            {" "}
-            {translate("installation.usage.partial.body", {
-              unverified: summary.unverifiedCount,
-              unknown: summary.unknownCount,
-            })}
-          </UI.AlertBanner>
-        )
-        : completeness === "unknown"
-        ? (
-          <UI.AlertBanner tone="information">
-            <strong>{translate("installation.usage.unknown.title")}</strong>
-            {" "}
-            {translate("installation.usage.unknown.body")}
-          </UI.AlertBanner>
-        )
-        : null}
-
-      {state === "error"
-        ? (
-          <UI.ErrorState
-            action={
-              <UI.Button onClick={onRetry}>
-                {translate("installation.usage.retry")}
-              </UI.Button>
-            }
-            description={translate("installation.usage.error")}
-            title={translate("installation.usage.title")}
-          />
-        )
-        : state === "empty"
-        ? (
-          <UI.EmptyState
-            action={
-              <UI.Button onClick={onShowLast30Days}>
-                {translate("installation.usage.empty.action")}
-              </UI.Button>
-            }
-            description={translate("installation.usage.empty.body", {
+    <UI.SettingsContent data-page="installation-usage">
+      <UI.AccessSettings
+        actions={filters}
+        description={translate("installation.usage.description")}
+        notice={periodTooLong
+          ? (
+            <UI.AlertBanner tone="warning">
+              <span>{translate("installation.usage.period.tooLong")}</span>
+            </UI.AlertBanner>
+          )
+          : completeness === "partial" && summary
+          ? (
+            <UI.AlertBanner tone="warning">
+              {
+                /* The title stands on its own line: run together with the
+                    sentence it reads as one long heading. */
+              }
+              <UI.Stack gap="tight">
+                <strong>{translate("installation.usage.partial.title")}</strong>
+                <span>
+                  {translate("installation.usage.partial.body", {
+                    unverified: records(summary.unverifiedCount),
+                    unknown: records(summary.unknownCount),
+                  })}
+                </span>
+              </UI.Stack>
+            </UI.AlertBanner>
+          )
+          : completeness === "unknown"
+          ? (
+            <UI.AlertBanner tone="information">
+              <UI.Stack gap="tight">
+                <strong>{translate("installation.usage.unknown.title")}</strong>
+                <span>{translate("installation.usage.unknown.body")}</span>
+              </UI.Stack>
+            </UI.AlertBanner>
+          )
+          : undefined}
+        state={pageState}
+        status={{
+          title: state === "error"
+            ? translate("installation.usage.title")
+            : translate("installation.usage.empty.title"),
+          description: state === "error"
+            ? translate("installation.usage.error")
+            : translate("installation.usage.empty.body", {
               from: summary
                 ? formatDate(new Date(summary.from), locale, {
                   dateStyle: "medium",
@@ -176,177 +222,214 @@ export function InstallationUsageScreen(
                   timeZone,
                 })
                 : "",
-            })}
-            title={translate("installation.usage.empty.title")}
-            variant="filtered"
-          />
-        )
-        : (
-          <>
-            <div className="bakery-usage-figures" data-testid="usage-figures">
-              <UI.StatTile
-                detail={translate("installation.usage.confirmed.detail")}
-                label={translate("installation.usage.confirmed.label")}
-                value={summary ? usd(summary.knownCostUsd) : "—"}
-              />
-              <UI.StatTile
-                detail={translate("installation.usage.unverified.detail", {
-                  count: summary?.unverifiedCount ?? 0,
-                })}
-                label={translate("installation.usage.unverified.label")}
-                value={summary ? usd(summary.unverifiedCostUsd) : "—"}
-              />
-              <UI.StatTile
-                detail={translate("installation.usage.unknownCount.detail")}
-                label={translate("installation.usage.unknownCount.label")}
-                value={summary ? String(summary.unknownCount) : "—"}
-              />
-            </div>
-
-            <UI.DataTable<UsageProviderRow>
-              caption={translate("installation.usage.byProvider.caption")}
-              columns={[
-                {
-                  id: "provider",
-                  header: translate("installation.usage.byProvider.provider"),
-                  cell: (row) => (
-                    <UI.Stack gap="none">
-                      <span>{row.provider}</span>
-                      <UI.Text variant="muted">
-                        {BILLING_MESSAGES[row.billingType] === undefined
-                          ? row.billingType
-                          : translate(BILLING_MESSAGES[row.billingType])}
-                      </UI.Text>
-                    </UI.Stack>
-                  ),
-                },
-                {
-                  id: "confirmed",
-                  header: translate("installation.usage.byProvider.confirmed"),
-                  align: "end",
-                  cell: (row) =>
-                    row.subscription
-                      // A subscription is not $0.00 of usage: it is cost that
-                      // arrived as a flat fee, and printing zero would say the
-                      // work was free.
-                      ? translate("installation.usage.subscriptionIncluded")
-                      : usd(row.knownCostUsd),
-                },
-                {
-                  id: "unverified",
-                  header: translate("installation.usage.byProvider.unverified"),
-                  align: "end",
-                  cell: (row) =>
-                    row.subscription ? "—" : usd(row.unverifiedCostUsd),
-                },
-                {
-                  id: "unknown",
-                  header: translate("installation.usage.byProvider.unknown"),
-                  align: "end",
-                  cell: (row) => String(row.unknownCount),
-                },
-              ]}
-              emptyMessage={translate("installation.usage.empty.title")}
-              getRowKey={(row) =>
-                `${row.provider}:${row.billingType}:${row.model}`}
-              rows={providerRows(rows)}
-              state={state === "loading" ? "loading" : "ready"}
-            />
-
-            {budgets.length > 0
-              ? (
-                <UI.DataTable<UsageBudgetRow>
-                  caption={translate("installation.usage.budgets.caption")}
-                  columns={[
-                    {
-                      id: "budget",
-                      header: translate("installation.usage.budgets.budget"),
-                      cell: (row) => row.scopeLabel,
-                    },
-                    {
-                      id: "limit",
-                      header: translate("installation.usage.budgets.limit"),
-                      align: "end",
-                      cell: (row) => usd(row.limitUsd),
-                    },
-                    {
-                      id: "used",
-                      header: translate("installation.usage.budgets.used"),
-                      align: "end",
-                      cell: (row) => usd(row.settledUsd),
-                    },
-                    {
-                      id: "reserved",
-                      header: (
-                        <UI.Stack gap="none">
-                          <span>
-                            {translate("installation.usage.budgets.reserved")}
-                          </span>
-                          <UI.HelpTip
-                            label={translate(
-                              "installation.usage.budgets.reserved",
-                            )}
-                          >
-                            {translate(
-                              "installation.usage.budgets.reservedHelp",
-                            )}
-                          </UI.HelpTip>
-                        </UI.Stack>
-                      ),
-                      align: "end",
-                      cell: (row) => usd(row.reservedUsd),
-                    },
-                  ]}
-                  getRowKey={(row) => row.key}
-                  rows={budgetRows(budgets)}
+            }),
+          action: (
+            <UI.Button onClick={state === "error" ? onRetry : onShowLast30Days}>
+              {state === "error"
+                ? translate("installation.usage.retry")
+                : translate("installation.usage.empty.action")}
+            </UI.Button>
+          ),
+          label: translate("installation.usage.loading"),
+        }}
+        title={translate("installation.usage.title")}
+      >
+        {state === "ready"
+          ? (
+            <>
+              <UI.Inline gap="standard" variant="thirds">
+                <UI.StatTile
+                  detail={confirmed.noReceipts
+                    ? translate("installation.usage.confirmed.noReceipts")
+                    : translate("installation.usage.confirmed.detail")}
+                  help={{
+                    label: translate("installation.usage.confirmed.label"),
+                    text: translate("installation.usage.confirmed.help"),
+                  }}
+                  label={translate("installation.usage.confirmed.label")}
+                  value={confirmed.noReceipts || summary === null
+                    ? "\u2014"
+                    : usd(confirmed.value)}
                 />
-              )
-              : null}
-          </>
-        )}
-    </div>
+                <UI.StatTile
+                  detail={translate("installation.usage.unverified.detail", {
+                    records: records(summary?.unverifiedCount ?? 0),
+                  })}
+                  help={{
+                    label: translate("installation.usage.unverified.label"),
+                    text: translate("installation.usage.unverified.help"),
+                  }}
+                  label={translate("installation.usage.unverified.label")}
+                  value={summary ? usd(summary.unverifiedCostUsd) : "\u2014"}
+                />
+                <UI.StatTile
+                  detail={translate("installation.usage.unknownCount.detail")}
+                  help={{
+                    label: translate("installation.usage.unknownCount.label"),
+                    text: translate("installation.usage.unknownCount.help"),
+                  }}
+                  label={translate("installation.usage.unknownCount.label")}
+                  value={summary ? records(summary.unknownCount) : "\u2014"}
+                />
+              </UI.Inline>
+
+              <UI.SettingsSection
+                title={translate(
+                  "installation.usage.byProvider.heading",
+                )}
+              >
+                <UsageProviderTable rows={providerRows(rows)} />
+              </UI.SettingsSection>
+
+              {budgets.length > 0
+                ? (
+                  <UI.SettingsSection
+                    title={translate(
+                      "installation.usage.budgets.heading",
+                    )}
+                  >
+                    <UsageBudgetTable accounts={budgets} />
+                  </UI.SettingsSection>
+                )
+                : null}
+            </>
+          )
+          : null}
+      </UI.AccessSettings>
+    </UI.SettingsContent>
   );
 }
 
-/** One table row per provider and billing route, with the sum of its models. */
-function providerRows(
-  rows: UsageSummary["byProvider"],
-): UsageProviderRow[] {
-  const grouped = new Map<string, UsageProviderRow>();
-  for (const row of rows) {
-    const key = `${row.provider}:${row.billingType}`;
-    const current = grouped.get(key);
-    if (current === undefined) {
-      grouped.set(key, {
-        provider: row.provider,
-        billingType: row.billingType,
-        model: row.model,
-        knownCostUsd: row.knownCostUsd,
-        unverifiedCostUsd: row.unverifiedCostUsd,
-        unknownCount: row.unknownCount,
-        subscription: row.billingType === "subscription",
-      });
-      continue;
-    }
-    grouped.set(key, {
-      ...current,
-      // Sums are decimal strings in micro-units of a dollar; adding them as
-      // floats would turn a total into a number no receipt ever stated.
-      knownCostUsd: addDecimalStrings(current.knownCostUsd, row.knownCostUsd),
-      unverifiedCostUsd: addDecimalStrings(
-        current.unverifiedCostUsd,
-        row.unverifiedCostUsd,
-      ),
-      unknownCount: current.unknownCount + row.unknownCount,
-    });
-  }
-  return [...grouped.values()];
+/** Provider figures, with the total as the last row. */
+function UsageProviderTable({ rows }: { readonly rows: ProviderRow[] }) {
+  const { translate } = useI18n();
+  // The wire value is a fallback, never a guess: a route this page has no
+  // word for prints itself rather than being called one of the five.
+  const routeWord = (route: string) => {
+    const key = billingKey(route);
+    return key === null ? route : translate(key);
+  };
+  // Formatted here, so the count is an argument the catalogue can inflect on.
+  const records = (count: number) =>
+    translate(recordKey(count), { count: String(count) });
+  return (
+    <UI.DataTable<ProviderRow>
+      caption={translate("installation.usage.byProvider.caption")}
+      captionHidden
+      columns={[
+        {
+          id: "provider",
+          header: translate("installation.usage.byProvider.provider"),
+          cell: (row) => (
+            <UI.Stack gap="none">
+              <span>
+                {row.key === "total"
+                  ? translate("installation.usage.byProvider.total")
+                  : providerName(row.provider)}
+              </span>
+              {row.key === "total" || row.billingType === ""
+                ? null
+                : (
+                  <UI.Text variant="muted">
+                    {routeWord(row.billingType)}
+                  </UI.Text>
+                )}
+            </UI.Stack>
+          ),
+        },
+        {
+          id: "confirmed",
+          header: translate("installation.usage.byProvider.confirmed"),
+          align: "end",
+          cell: (row) => {
+            // A subscription is not $0.00 of usage: it is cost that arrived
+            // as a flat fee, and printing zero would say the work was free.
+            if (row.subscription) {
+              return translate("installation.usage.subscriptionIncluded");
+            }
+            // A total that is zero has nothing to add up, and a provider whose
+            // confirmed cost is zero has no receipt: both are a dash.
+            const figure = moneyOrDash(row.knownCostUsd);
+            return figure === null ? "\u2014" : usd(figure);
+          },
+        },
+        {
+          id: "unverified",
+          header: translate("installation.usage.byProvider.unverified"),
+          align: "end",
+          cell: (row) =>
+            row.subscription ? "\u2014" : usd(row.unverifiedCostUsd),
+        },
+        {
+          id: "unknown",
+          header: translate("installation.usage.byProvider.unknown"),
+          align: "end",
+          cell: (row) =>
+            row.unknownCount === 0 ? "0" : records(row.unknownCount),
+        },
+      ]}
+      getRowAttributes={(row) => row.key === "total"
+        ? { "data-total": "true" }
+        : ({} as Record<`data-${string}`, string>)}
+      getRowKey={(row) => row.key}
+      rows={rows}
+    />
+  );
+}
+
+/** Budgets, with the scope the account covers spelled out. */
+function UsageBudgetTable(
+  { accounts }: { readonly accounts: UsageSummary["budgetAccounts"] },
+) {
+  const { translate } = useI18n();
+  return (
+    <UI.DataTable<BudgetRow>
+      caption={translate("installation.usage.budgets.caption")}
+      captionHidden
+      columns={[
+        {
+          id: "budget",
+          header: translate("installation.usage.budgets.budget"),
+          cell: (row) => row.scopeLabel,
+        },
+        {
+          id: "limit",
+          header: translate("installation.usage.budgets.limit"),
+          align: "end",
+          cell: (row) => usd(row.limitUsd),
+        },
+        {
+          id: "used",
+          header: translate("installation.usage.budgets.used"),
+          align: "end",
+          cell: (row) => usd(row.settledUsd),
+        },
+        {
+          id: "reserved",
+          header: (
+            <UI.Inline gap="compact">
+              <span>{translate("installation.usage.budgets.reserved")}</span>
+              <UI.HelpTip
+                label={translate("installation.usage.budgets.reserved")}
+              >
+                {translate("installation.usage.budgets.reservedHelp")}
+              </UI.HelpTip>
+            </UI.Inline>
+          ),
+          align: "end",
+          cell: (row) => usd(row.reservedUsd),
+        },
+      ]}
+      getRowKey={(row) => row.key}
+      rows={budgetRows(accounts)}
+    />
+  );
 }
 
 /** Budget rows, with the scope the account covers spelled out. */
-function budgetRows(
+export function budgetRows(
   accounts: UsageSummary["budgetAccounts"],
-): UsageBudgetRow[] {
+): BudgetRow[] {
   return accounts.map((account) => ({
     key: `${account.scope}:${account.runId ?? ""}:${account.periodStart}`,
     // The server names a scope; a person reads which budget it is. A run
@@ -359,17 +442,7 @@ function budgetRows(
   }));
 }
 
-type UsageProviderRow = {
-  readonly provider: string;
-  readonly billingType: string;
-  readonly model: string | null;
-  readonly knownCostUsd: string;
-  readonly unverifiedCostUsd: string;
-  readonly unknownCount: number;
-  readonly subscription: boolean;
-};
-
-type UsageBudgetRow = {
+export type BudgetRow = {
   readonly key: string;
   readonly scopeLabel: string;
   readonly limitUsd: string;
@@ -377,28 +450,7 @@ type UsageBudgetRow = {
   readonly reservedUsd: string;
 };
 
-/**
- * The four billing routes the summaries carry, each with the words for it.
- *
- * A record whose route is not one of these shows the route itself rather than
- * a guess at which of the four it might be: an unknown word in a table is
- * better than the wrong one.
- */
-const BILLING_MESSAGES: Readonly<
-  Record<
-    string,
-    | "installation.usage.billing.payPerUse"
-    | "installation.usage.billing.subscription"
-    | "installation.usage.billing.compute"
-    | "installation.usage.billing.storage"
-  >
-> = {
-  "pay-per-use": "installation.usage.billing.payPerUse",
-  subscription: "installation.usage.billing.subscription",
-  compute: "installation.usage.billing.compute",
-  storage: "installation.usage.billing.storage",
-};
-
+/** Each period choice and the words for it. */
 const PERIOD_MESSAGES = {
   last7: "installation.usage.period.last7",
   last30: "installation.usage.period.last30",

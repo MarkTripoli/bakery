@@ -88,7 +88,17 @@ for (const [label, viewport] of VIEWPORTS) {
     // The page's own words, so a still cannot prove a blank or a spinner.
     const heading = page.getByRole("heading", { name: /Usage/i }).first();
     await heading.waitFor({ state: "visible", timeout: 45_000 });
+    // Network idle is not "settled": the first answer can arrive after the
+    // page has finished loading, and a still of the loading state proves
+    // nothing about the design. Wait for the state the run is claiming.
     await page.waitForLoadState("networkidle").catch(() => {});
+    if (MODE === "empty") {
+      await page.getByRole("heading", { name: /No usage in this period/i })
+        .first().waitFor({ state: "visible", timeout: 45_000 });
+    } else {
+      await page.getByText("Total", { exact: true }).first()
+        .waitFor({ state: "visible", timeout: 45_000 });
+    }
 
     const body = await page.locator("body").innerText();
     if (MODE === "empty") {
@@ -108,7 +118,11 @@ for (const [label, viewport] of VIEWPORTS) {
         );
       }
       if (/\$0\.00/.test(body)) {
-        throw new Error(`seeded: page drew \$0.00, which the rule forbids`);
+        const at = body.indexOf("$0.00");
+        throw new Error(
+          `seeded: page drew \$0.00, which the rule forbids:\n` +
+            JSON.stringify(body.slice(Math.max(0, at - 240), at + 120)),
+        );
       }
     }
 

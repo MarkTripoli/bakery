@@ -881,6 +881,11 @@
 .ui-task-queue--list .ui-task-queue__application {
   color: var(--color-fg-muted);
 }
+/* A total row: the line a table adds up to, marked by the row rather than by
+   the table, so a table with no total is unchanged. */
+.ui-data-table tbody tr[data-total="true"] td {
+  font-weight: var(--weight-semibold);
+}
 /* Toolbar filter (Paper 5J-0 "Status"): a 36px secondary frame drawn by
    ::before, while the native select keeps the 44px task-surface hit area by
    overhanging the frame equally above and below. */

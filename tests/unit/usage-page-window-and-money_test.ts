@@ -9,6 +9,13 @@ import {
   addDecimalStrings,
   usd,
 } from "../../apps/web/src/screens/usage/usage-money.ts";
+import {
+  billingKey,
+  confirmedFigure,
+  providerName,
+  providerRows,
+  recordKey,
+} from "../../apps/web/src/screens/usage/usage-display.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date("2026-11-19T12:00:00.000Z");
@@ -109,5 +116,110 @@ Deno.test("money keeps every digit the server sent", () => {
 
 Deno.test("money is shown with its unit", () => {
   assertEquals(usd("12.40"), "$12.40");
-  assertEquals(usd("0"), "$0");
+  // Two places always: "$41.5" beside "$500" makes a reader compare digits
+  // that are not in the same column, and "$0" is not a figure anyone quotes.
+  assertEquals(usd("0"), "$0.00");
+  assertEquals(usd("41.5"), "$41.50");
+  assertEquals(usd("500"), "$500.00");
+  assertEquals(usd("1000"), "$1,000.00");
+  assertEquals(usd("12.755"), "$12.75");
+  assertEquals(usd("-3.4"), "-$3.40");
+});
+
+Deno.test("a provider id is not a name, and an unknown id stays itself", () => {
+  assertEquals(providerName("anthropic"), "Anthropic");
+  assertEquals(providerName("openai"), "OpenAI");
+  // A provider this page has no name for keeps its own id. A guessed company
+  // name beside a real cost is worse than a lowercase one.
+  assertEquals(providerName("acme-inference"), "acme-inference");
+});
+
+Deno.test("a billing route reads as words, and an unknown one as itself", () => {
+  assertEquals(billingKey("api"), "installation.usage.billing.payPerUse");
+  assertEquals(
+    billingKey("subscription"),
+    "installation.usage.billing.subscription",
+  );
+  // The page prints the route rather than calling it one of the five.
+  assertEquals(billingKey("credits"), null);
+});
+
+Deno.test("a count of records is a phrase, not a number", () => {
+  // The words come from the catalogue; this only picks which row of it, so a
+  // language that inflects for one or many is not handed an English rule.
+  assertEquals(recordKey(0), "installation.usage.records.other");
+  assertEquals(recordKey(1), "installation.usage.records.one");
+  assertEquals(recordKey(14), "installation.usage.records.other");
+});
+
+Deno.test("no receipt is a dash and a reason, never a zero", () => {
+  const summary = (knownCostUsd: string) =>
+    ({ knownCostUsd }) as Parameters<typeof confirmedFigure>[0];
+  assertEquals(confirmedFigure(summary("0")), {
+    value: "—",
+    noReceipts: true,
+  });
+  assertEquals(confirmedFigure(summary("0.000000")), {
+    value: "—",
+    noReceipts: true,
+  });
+  assertEquals(confirmedFigure(summary("12.75")), {
+    value: "12.75",
+    noReceipts: false,
+  });
+  // Nothing has loaded: a dash, and no claim about receipts either way.
+  assertEquals(confirmedFigure(null), { value: "—", noReceipts: false });
+});
+
+Deno.test("the provider table sums in the table, and the total is a row", () => {
+  const rows = providerRows([
+    {
+      provider: "anthropic",
+      billingType: "api",
+      model: "a",
+      knownCostUsd: "0.1",
+      unverifiedCostUsd: "12.75",
+      unknownCount: 0,
+      unverifiedCount: 1,
+    } as never,
+    {
+      provider: "anthropic",
+      billingType: "api",
+      model: "b",
+      knownCostUsd: "0.2",
+      unverifiedCostUsd: "0.005",
+      unknownCount: 2,
+      unverifiedCount: 2,
+    } as never,
+    {
+      provider: "openai",
+      billingType: "subscription",
+      model: "c",
+      knownCostUsd: "0",
+      unverifiedCostUsd: "0",
+      unknownCount: 1,
+      unverifiedCount: 0,
+    } as never,
+  ]);
+  // One row per provider and route, then the total.
+  assertEquals(rows.length, 3);
+  assertEquals(rows[0], {
+    key: "anthropic:api",
+    provider: "anthropic",
+    billingType: "api",
+    // 0.1 + 0.2 through floats would be 0.30000000000000004.
+    knownCostUsd: "0.3",
+    unverifiedCostUsd: "12.755",
+    unknownCount: 2,
+    subscription: false,
+  });
+  assertEquals(rows[1]?.subscription, true);
+  const total = rows[2]!;
+  assertEquals(total.key, "total");
+  assertEquals(total.knownCostUsd, "0.3");
+  assertEquals(total.unverifiedCostUsd, "12.755");
+  assertEquals(total.unknownCount, 3);
+  // The total adds the subscription route's zero in, rather than dropping it:
+  // a route that reported nothing is still a route in the table.
+  assertEquals(total.subscription, false);
 });
