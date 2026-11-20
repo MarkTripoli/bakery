@@ -1558,6 +1558,13 @@
       "frames": []
     },
     {
+      "routeId": "organization-storage",
+      "path": "/organization/storage",
+      "status": "no-mock",
+      "rationale": "Storage settings page (how full storage is, the limits and retention, saved with a compare-and-swap version). The design is the UX design comment on issue 447 (settings mock at design-447/storage-settings); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition plus UsageMeter, and covered by the organization-storage spec.",
+      "frames": []
+    },
+    {
       "routeId": "artifact-retrieval",
       "path": "/tasks/$taskId/artifacts/$artifactId",
       "status": "baselined",

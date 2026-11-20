@@ -92,6 +92,7 @@ import type {
   StorageFileVersionPage,
   StorageFolderItem,
   StorageFolderPage,
+  StorageSettings,
   SyncQuery,
   SyncResponse,
   TaskCursorQuery,
@@ -1549,6 +1550,25 @@ export function userPreferencesQueryOptions(
         }),
       );
     },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The organization's storage limits and how much of its quota is used. */
+export function storageSettingsQueryOptions(
+  client: Pick<BakeryApiClient, "storageSettings">,
+  scope: ApiScope,
+) {
+  return queryOptions<StorageSettings, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "storageSettings.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.storageSettings.get({
+          organizationId: requireOrganization(scope),
+          signal,
+        }),
+      ),
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });

@@ -31212,6 +31212,8 @@ const transportSchemas = {
         "citation",
         "text",
         "truncated",
+        "limits",
+        "redactions",
         "tokens",
         "countState"
       ],
@@ -31221,6 +31223,8 @@ const transportSchemas = {
         "citation": "json|null",
         "text": "string|null",
         "truncated": "boolean",
+        "limits": "enum(binary_media|no_text_extractor|extraction_failed)|null",
+        "redactions": "integer",
         "tokens": "integer",
         "countState": "enum(measured|estimated|unknown)"
       },
@@ -31235,6 +31239,8 @@ const transportSchemas = {
         "citation": "Reproducible citation of the version and, for a window, its exact byte range and extractor; null for a caller-supplied text item.",
         "text": "The bounded text admitted to the prompt, or null for every reference kind.",
         "truncated": "Whether the window ends before the version does.",
+        "limits": "Why the item carries no content: binary_media (images, audio, video and unknown binaries are references only), no_text_extractor (PDFs have no text extractor yet) or extraction_failed (a text window could not be produced); null when the item carries text.",
+        "redactions": "How many credentials were replaced by a redaction marker in the text of this item; 0 for a reference or for text with none.",
         "tokens": "What the item counted as under countState.",
         "countState": "Whether tokens was measured, estimated from bounded metadata, or unknown."
       }

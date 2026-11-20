@@ -2359,3 +2359,74 @@
     padding: var(--space-0);
   }
 }
+
+/* How much of a limit is used: a bar, a fill that changes tone with the state,
+   and ticks where the state changes. The fill is plain, then warning, then
+   destructive; the page also writes the state, so colour is not the only cue.
+   The ticks are dark lines taller than the bar, so they show on an empty track
+   in both themes. */
+.ui-usage-meter {
+  display: grid;
+  margin: 0;
+}
+.ui-usage-meter__track {
+  padding-block: var(--space-1);
+  position: relative;
+}
+.ui-usage-meter__bar {
+  background: var(--color-surface-subtle);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  block-size: var(--space-3);
+  overflow: hidden;
+  position: relative;
+}
+.ui-usage-meter__fill {
+  background: var(--color-fg);
+  block-size: 100%;
+  display: block;
+  inset-block-start: 0;
+  position: absolute;
+}
+.ui-usage-meter[data-state="warning"] .ui-usage-meter__fill {
+  background: var(--color-status-warning);
+}
+.ui-usage-meter[data-state="paused"] .ui-usage-meter__fill {
+  background: var(--color-destructive);
+}
+.ui-usage-meter__mark {
+  background: var(--color-fg);
+  inline-size: var(--border-emphasis);
+  inset-block: 0;
+  position: absolute;
+  /* Centred on its position, whichever way the line runs. */
+  translate: -50% 0;
+}
+
+/* Storage settings: the description takes the content width, and on a phone
+   Save and Reset fill the line, Save first. */
+.ui-settings-content[data-page="organization-storage"]:has(> .ui-form-content) > .ui-auth-heading {
+  max-inline-size: none;
+}
+.ui-settings-content[data-page="organization-storage"] .ui-field .ui-inline {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.ui-settings-content[data-page="organization-storage"] .ui-field .ui-inline > :first-child {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+.ui-settings-content[data-page="organization-storage"] .ui-field .ui-inline > :last-child {
+  flex: none;
+  white-space: nowrap;
+}
+@media (max-width: 743px) {
+  .ui-settings-content[data-page="organization-storage"] [data-form-actions] {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .ui-settings-content[data-page="organization-storage"] [data-form-actions] .ui-button {
+    inline-size: 100%;
+    min-block-size: var(--target-coarse);
+  }
+}

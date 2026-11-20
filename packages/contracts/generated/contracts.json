@@ -242902,6 +242902,30 @@
               "type": "boolean",
               "description": "Whether the window ends before the version does."
             },
+            "limits": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "binary_media",
+                    "no_text_extractor",
+                    "extraction_failed"
+                  ],
+                  "description": "Why the item carries no content: binary_media (images, audio, video and unknown binaries are references only), no_text_extractor (PDFs have no text extractor yet) or extraction_failed (a text window could not be produced); null when the item carries text."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "ContextPackItem.limits may be null in this transport value."
+            },
+            "redactions": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How many credentials were replaced by a redaction marker in the text of this item; 0 for a reference or for text with none."
+            },
             "tokens": {
               "type": "integer",
               "minimum": -9007199254740991,
@@ -242924,6 +242948,8 @@
             "citation",
             "text",
             "truncated",
+            "limits",
+            "redactions",
             "tokens",
             "countState"
           ],
@@ -243233,6 +243259,30 @@
                     "type": "boolean",
                     "description": "Whether the window ends before the version does."
                   },
+                  "limits": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "binary_media",
+                          "no_text_extractor",
+                          "extraction_failed"
+                        ],
+                        "description": "Why the item carries no content: binary_media (images, audio, video and unknown binaries are references only), no_text_extractor (PDFs have no text extractor yet) or extraction_failed (a text window could not be produced); null when the item carries text."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "ContextPackItem.limits may be null in this transport value."
+                  },
+                  "redactions": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "How many credentials were replaced by a redaction marker in the text of this item; 0 for a reference or for text with none."
+                  },
                   "tokens": {
                     "type": "integer",
                     "minimum": -9007199254740991,
@@ -243255,6 +243305,8 @@
                   "citation",
                   "text",
                   "truncated",
+                  "limits",
+                  "redactions",
                   "tokens",
                   "countState"
                 ],
@@ -260303,7 +260355,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:fc075ce5d6872fcdd64a2af1ef7ba9ec1b31b5e5043b0d31b471270e1659a1d3",
+  "compatibilityDigest": "sha256:9ba189cc43ffbe02eeddd3a250f68eb0a6fcd143089fa3732b2fdf597d4085a9",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -456948,6 +457000,30 @@
           "type": "boolean",
           "description": "Whether the window ends before the version does."
         },
+        "limits": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "binary_media",
+                "no_text_extractor",
+                "extraction_failed"
+              ],
+              "description": "Why the item carries no content: binary_media (images, audio, video and unknown binaries are references only), no_text_extractor (PDFs have no text extractor yet) or extraction_failed (a text window could not be produced); null when the item carries text."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ContextPackItem.limits may be null in this transport value."
+        },
+        "redactions": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many credentials were replaced by a redaction marker in the text of this item; 0 for a reference or for text with none."
+        },
         "tokens": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -456970,6 +457046,8 @@
         "citation",
         "text",
         "truncated",
+        "limits",
+        "redactions",
         "tokens",
         "countState"
       ],
@@ -457281,6 +457359,30 @@
                 "type": "boolean",
                 "description": "Whether the window ends before the version does."
               },
+              "limits": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "binary_media",
+                      "no_text_extractor",
+                      "extraction_failed"
+                    ],
+                    "description": "Why the item carries no content: binary_media (images, audio, video and unknown binaries are references only), no_text_extractor (PDFs have no text extractor yet) or extraction_failed (a text window could not be produced); null when the item carries text."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ContextPackItem.limits may be null in this transport value."
+              },
+              "redactions": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many credentials were replaced by a redaction marker in the text of this item; 0 for a reference or for text with none."
+              },
               "tokens": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -457303,6 +457405,8 @@
               "citation",
               "text",
               "truncated",
+              "limits",
+              "redactions",
               "tokens",
               "countState"
             ],
