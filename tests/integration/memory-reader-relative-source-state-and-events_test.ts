@@ -49,6 +49,15 @@ async function case1(suite: Suite) {
   assertEquals(current.body, "Deploys run from main.");
   assertEquals(current.sourceName, "secret-evidence-title");
   assertEquals(current.sourceRevision, 1);
+  // The history names who made the wording: the creator's display name,
+  // resolved on the server in one query, not left to the page.
+  const creator = await seeded.fixture.fixture.pgDatabase.query<
+    { display_name: string }
+  >("select display_name from bakery.principals where id = $1", [
+    current.createdBy,
+  ]);
+  assert(creator.rows[0].display_name.trim() !== "");
+  assertEquals(current.createdByName, creator.rows[0].display_name);
   assertEquals(current.sourceState, entry.sourceState);
   assertEquals(current.confidence, revisions.items[0].confidence);
   assertEquals(current, revisions.items[0]);

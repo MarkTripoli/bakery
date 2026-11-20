@@ -690,6 +690,28 @@ for (
       await expect(saved.getByText("back", { exact: true })).toBeVisible();
     });
 
+    test("a plugin that is not found says so, with a way back", async ({ page }) => {
+      await pluginsFixture(page);
+      await page.goto(`/settings/organization/plugins/${id(999)}`);
+      await expect(page.getByRole("heading", { name: "Plugins", level: 1 }))
+        .toBeVisible();
+      await expect(page.getByText("This plugin could not be found."))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: "Go to Plugins" }))
+        .toBeVisible();
+      if (viewport.name === "desktop") {
+        // The trail ends on the one Plugins crumb, not Plugins / Plugins.
+        await expect(
+          page.getByRole("navigation", { name: "Breadcrumb" }).getByText(
+            "Plugins",
+            { exact: true },
+          ),
+        ).toHaveCount(1);
+      }
+      await page.mouse.move(700, 700);
+      await shot(page, `plugin-not-found-${viewport.name}`);
+    });
+
     test("a viewer sees the list and nothing to change", async ({ page }) => {
       await pluginsFixture(page, { role: "viewer" });
       await page.goto("/settings/organization/plugins");
