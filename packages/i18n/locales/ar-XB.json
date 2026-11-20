@@ -4684,5 +4684,6 @@
   "auth.desktopSignIn.signedOut.title": "سجّل الدخول للمتابعة",
   "auth.desktopSignIn.signedOut.body": "طلب تطبيق Bakery على هذا الكمبيوتر تسجيل الدخول. سجّل الدخول إلى Bakery في هذا المتصفح أولًا؛ وسيعود السؤال بعد ذلك.",
   "auth.desktopSignIn.confirm.askedAgo": "{minutes, plural, =0 {الآن} one {قبل دقيقة واحدة} two {قبل دقيقتين} few {قبل # دقائق} many {قبل # دقيقة} other {قبل # دقيقة}}",
-  "auth.desktopSignIn.used.link": "الحساب والأمان"
+  "auth.desktopSignIn.used.link": "الحساب والأمان",
+  "settings.roles.verb.author": "⟪Create, change and publish {things}⟫"
 }

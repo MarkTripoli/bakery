@@ -23,6 +23,7 @@ import {
 } from "../../platform/postgres-errors.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { reconcilePersonalSkillUse } from "../catalog/skill-use-grants.ts";
 import {
   assertCompilerPinTogether,
   compilerPinOf,
@@ -787,7 +788,28 @@ export type DraftContentInput = {
   sourceYaml?: string;
   revision?: number;
   digest?: string;
+  /** Personal skill versions the author confirms letting this workflow use. */
+  confirmPersonalSkillUse?: string[];
 };
+
+/** Settles the personal skills a draft's steps name before the draft is written. */
+async function settlePersonalSkillUse(
+  transaction: PgTransactionClient,
+  facts: WorkflowWriteFacts,
+  workflowId: string,
+  value: DraftContentInput,
+): Promise<void> {
+  await reconcilePersonalSkillUse(transaction, {
+    organizationId: facts.organizationId,
+    principalId: facts.principalId,
+    actorKind: facts.actorKind ?? "person",
+    requestId: facts.requestId,
+    traceId: facts.traceId,
+    workflowId,
+    definition: value.definition,
+    confirmed: value.confirmPersonalSkillUse,
+  });
+}
 
 /** Structural guard only: a JSON object within the size bound. */
 function requireDraftDefinition(definition: unknown): string {
@@ -881,6 +903,7 @@ export async function createWorkflowDraft(
   const { organizationId, principalId } = facts;
   const canonical = requireDraftDefinition(value.definition);
   await lockAuthoringDefinition(transaction, organizationId, workflowId);
+  await settlePersonalSkillUse(transaction, facts, workflowId, value);
   const existing = await transaction.query(
     `select 1 from bakery.workflow_drafts
       where organization_id = $1 and workflow_id = $2`,
@@ -983,6 +1006,7 @@ export async function updateWorkflowDraft(
   const { workflowId, versionId, expectedVersion } = target;
   const canonical = requireDraftDefinition(value.definition);
   await lockAuthoringDefinition(transaction, organizationId, workflowId);
+  await settlePersonalSkillUse(transaction, facts, workflowId, value);
   const draft = await transaction.query(
     `select 1 from bakery.workflow_drafts
       where organization_id = $1 and workflow_id = $2 and id = $3`,
