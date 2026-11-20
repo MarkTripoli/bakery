@@ -10,11 +10,12 @@ import {
   MOCK_PRINCIPAL_ID,
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { shot } from "./helpers/real-api.ts";
 
 // A shared machine can be slow to answer; give each assertion and test room.
 const expect = baseExpect.configure({ timeout: 15_000 });
-test.describe.configure({ timeout: 60_000 });
+test.describe.configure({ timeout: laneBudgetMs(60_000) });
 
 // #76: the Plugins settings pages, against a mocked plugin API. What matters is
 // what the person is told (installing gives all of it at once, turning off takes
@@ -340,7 +341,7 @@ for (
 
     test("the list, the install dialog and the plugin page have no accessibility violations", async ({ page }) => {
       // Three axe scans and two navigations take longer than the default.
-      test.setTimeout(90_000);
+      test.setTimeout(laneBudgetMs(90_000));
       await pluginsFixture(page);
       await page.goto("/settings/organization/plugins");
       await expect(page.getByTestId("plugins-installed")).toBeVisible();
