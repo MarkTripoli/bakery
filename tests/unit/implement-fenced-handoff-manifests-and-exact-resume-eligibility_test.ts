@@ -79,7 +79,7 @@ type World = {
   effects?: Array<{ id: string; status: string }>;
   artifactSha?: string;
   sessionConversation?: string;
-  existing?: { digest: string } | null;
+  existing?: { requestDigest: string } | null;
 };
 
 function fake(world: World = {}) {
@@ -136,7 +136,10 @@ function fake(world: World = {}) {
       if (sql.includes("from bakery.handoff_manifests")) {
         return Promise.resolve({
           rowCount: 1,
-          rows: [{ ...row(inserted[0] ?? []), digest: world.existing!.digest }],
+          rows: [{
+            ...row(inserted[0] ?? []),
+            request_digest: world.existing!.requestDigest,
+          }],
         });
       }
       throw new Error("unexpected query: " + sql.slice(0, 60));
@@ -156,9 +159,9 @@ function row(values: readonly unknown[]) {
     source_fence: String(values[5] ?? "3"),
     mode: values[6] ?? "fresh_session",
     digest: values[7] ?? SHA,
-    safe_boundary: values[8] ?? true,
+    safe_boundary: values[9] ?? true,
     status: "pending",
-    manifest: JSON.parse(String(values[9] ?? "{}")),
+    manifest: JSON.parse(String(values[10] ?? "{}")),
     created_at: new Date("2026-11-20T00:00:00Z"),
   };
 }
@@ -240,15 +243,17 @@ Deno.test("the server's safe boundary and effect list replace the source's claim
   });
   const result = await promise;
   assertEquals(result.kind, "created");
-  const stored = JSON.parse(String(inserted[0][9]));
+  const stored = JSON.parse(String(inserted[0][10]));
   assertEquals(stored.checkpoint.safeBoundary, false);
   assertEquals(stored.pendingEffects, [{
     effectId: EFFECT,
     state: "uncertain",
   }]);
-  assertEquals(inserted[0][8], false);
-  // The digest covers what was stored, not what was sent.
+  assertEquals(inserted[0][9], false);
+  // The digest covers what was stored; a retry is compared on what was sent.
   assert(/^[0-9a-f]{64}$/.test(String(inserted[0][7])));
+  assert(/^[0-9a-f]{64}$/.test(String(inserted[0][8])));
+  assert(inserted[0][7] !== inserted[0][8]);
 });
 
 Deno.test("a clean ledger and a checkpoint inside the journal store a true boundary", async () => {
@@ -259,7 +264,7 @@ Deno.test("a clean ledger and a checkpoint inside the journal store a true bound
   );
   await promise;
   assertEquals(
-    JSON.parse(String(inserted[0][9])).checkpoint.safeBoundary,
+    JSON.parse(String(inserted[0][10])).checkpoint.safeBoundary,
     true,
   );
   assertEquals(inserted[0][5], "3");
@@ -325,12 +330,14 @@ Deno.test("the same manifest replays; a different one for the same attempt confl
   const first = create(manifest());
   const created = await first.promise;
   assertEquals(created.kind, "created");
-  const digest = String(first.inserted[0][7]);
-  const replay = await create(manifest(), { existing: { digest } }).promise;
+  const requestDigest = String(first.inserted[0][8]);
+  const replay = await create(manifest(), { existing: { requestDigest } })
+    .promise;
   assertEquals(replay.kind, "replayed");
   assertEquals(
     await code(
-      create(manifest(), { existing: { digest: "f".repeat(64) } }).promise,
+      create(manifest(), { existing: { requestDigest: "f".repeat(64) } })
+        .promise,
     ),
     "STATE_CONFLICT",
   );

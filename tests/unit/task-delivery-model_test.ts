@@ -7,15 +7,20 @@ import {
   type DeliveryFinding,
   type DeliveryInput,
   type DeliveryMergeAttempt,
+  type DeliveryMergeEntry,
   deliveryModel,
   type DeliveryPullRequest,
   type DeliveryReview,
   findingTitle,
   type ListedApproval,
+  type NowCard,
 } from "../../apps/web/src/pages/task-delivery/model.ts";
 
 const OLD = "4be19c2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const NEW = "91d0aa3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const BASE = "a7254e7cccccccccccccccccccccccccccccccc";
+const POLICY = "c".repeat(64);
+const REPOSITORY = "3f0d1c2e-0000-4000-8000-0000000000c3";
 const RUN = "3f0d1c2e-0000-4000-8000-0000000000a1";
 const OTHER_RUN = "3f0d1c2e-0000-4000-8000-0000000000b2";
 
@@ -35,6 +40,7 @@ const review = (over: Partial<DeliveryReview> = {}): DeliveryReview => ({
   id: "r0",
   ordinal: 0,
   headSha: NEW,
+  policyDigest: POLICY,
   status: "approved",
   findingCount: 0,
   blockingCount: 0,
@@ -75,6 +81,7 @@ const input = (over: Partial<DeliveryInput> = {}): DeliveryInput => ({
   approvals: [],
   pullRequests: [],
   mergeAttempts: [],
+  mergeEntries: [],
   mergeUnavailable: false,
   approvalsUnavailable: false,
   revisionHeadSha: null,
@@ -636,7 +643,10 @@ const pullRequest = (
   status: "open",
   mergedSha: null,
   createdAt: `2026-11-13T10:0${over.providerNumber}:00.000Z`,
+  repositoryId: REPOSITORY,
   headSha: NEW,
+  baseSha: BASE,
+  targetBranch: "main",
   mayMerge: true,
   mergeMethod: "squash",
   ...over,
@@ -707,6 +717,7 @@ const attempt = (
   id: "m1",
   state: "unknown",
   expectedHeadSha: NEW,
+  createdAt: "2026-11-13T10:10:00.000Z",
   settledAt: null,
   ...over,
 });
@@ -730,6 +741,7 @@ Deno.test("an approved candidate at the reviewed head is ready to merge for some
     kind: "mergeReady",
     head: NEW.slice(0, 7),
     number: 7,
+    branch: "main",
   });
   assertEquals(model.afterApproval.badge, "readyToMerge");
 });
@@ -861,4 +873,334 @@ Deno.test("attempts that could not be read offer no merge: an unknown outcome mi
   }));
   assertEquals(model.merge, null);
   assertEquals(model.now, { kind: "approved" });
+});
+
+// ---- merging through the queue: what Bakery is doing, and why it stopped.
+
+const entry = (over: Partial<DeliveryMergeEntry> = {}): DeliveryMergeEntry => ({
+  id: "e1",
+  status: "queued",
+  blockedReason: null,
+  expectedHeadSha: NEW,
+  createdAt: "2026-11-13T10:20:00.000Z",
+  updatedAt: "2026-11-13T10:21:00.000Z",
+  ...over,
+});
+
+const blocked = (
+  blockedReason: string | null,
+  over: Partial<DeliveryMergeEntry> = {},
+): DeliveryMergeEntry => entry({ status: "blocked", blockedReason, ...over });
+
+Deno.test("a queued merge names the candidate: head, base, run, rules, review and the newest result of every check", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    checks: [
+      check({
+        id: "c0",
+        checkId: "tests",
+        createdAt: "2026-11-13T09:00:00.000Z",
+      }),
+      check({ id: "c1", checkId: "tests" }),
+      check({ id: "c2", checkId: "lint" }),
+    ],
+    reviews: [
+      review({ id: "r-old", ordinal: 0, policyDigest: "d".repeat(64) }),
+      review({ id: "r-new", ordinal: 1 }),
+    ],
+  }));
+  assertEquals(model.merge?.request, {
+    repositoryId: REPOSITORY,
+    targetBranch: "main",
+    expectedBaseSha: BASE,
+    runId: RUN,
+    policyDigest: POLICY,
+    reviewCycleId: "r-new",
+    checkRunIds: ["c1", "c2"],
+  });
+  assertEquals(model.merge?.targetBranch, "main");
+  assertEquals(model.merge?.startable, true);
+});
+
+Deno.test("without a check result on the reviewed commit there is nothing a queued merge could name: the card says so, offers no Merge, and the badge stays Approved", () => {
+  const model = deliveryModel(approvedWithPullRequest({ checks: [] }));
+  assertEquals(model.merge?.state, "noChecks");
+  assertEquals(model.merge?.request, null);
+  assertEquals(model.merge?.startable, false);
+  assertEquals(model.now, { kind: "mergeNoChecks", head: NEW.slice(0, 7) });
+  assertEquals(model.afterApproval.badge, "approved");
+});
+
+Deno.test("someone who may not merge cannot start one, whatever stopped the last", () => {
+  for (const reason of ["not_permitted", "unavailable", "not_merged"]) {
+    const model = deliveryModel(approvedWithPullRequest(
+      { mergeEntries: [blocked(reason)] },
+      { mayMerge: false },
+    ));
+    assertEquals(model.merge?.startable, false, reason);
+  }
+});
+
+Deno.test("a queued, checking or merging entry shows as Bakery working, with the step's stage and no button", () => {
+  for (const status of ["queued", "validating", "merging"] as const) {
+    const model = deliveryModel(approvedWithPullRequest({
+      mergeEntries: [entry({ status })],
+    }));
+    assertEquals(model.merge?.state, "working", status);
+    assertEquals(model.merge?.stage, status);
+    assertEquals(model.merge?.startable, false, status);
+    assertEquals(model.now, { kind: "mergeWorking" }, status);
+    assertEquals(model.afterApproval.badge, "merging", status);
+  }
+});
+
+Deno.test("the working card holds even when the run is no longer clean, but not over a pause", () => {
+  const working = approvedWithPullRequest({
+    mergeEntries: [entry({ status: "merging" })],
+  });
+  assertEquals(deliveryModel(working).now, { kind: "mergeWorking" });
+  assertEquals(deliveryModel({ ...working, paused: true }).now, {
+    kind: "paused",
+  });
+});
+
+Deno.test("a merging entry whose newest attempt is unknown is the unknown card, not working", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [entry({ status: "merging" })],
+    mergeAttempts: [attempt({ state: "unknown" })],
+  }));
+  assertEquals(model.merge?.state, "unknown");
+  assertEquals(model.now, { kind: "mergeUnknown", head: NEW.slice(0, 7) });
+  assertEquals(model.afterApproval.badge, "mergeUnknown");
+});
+
+Deno.test("a merging entry whose newest attempt is not unknown is still working", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [entry({ status: "merging" })],
+    mergeAttempts: [attempt({ state: "refused" })],
+  }));
+  assertEquals(model.merge?.state, "working");
+});
+
+Deno.test("an entry the queue merged on a pull request that still reads open is not offered a second merge", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [entry({ status: "merged" })],
+  }));
+  assertEquals(model.merge?.state, "working");
+  assertEquals(model.merge?.stage, "merging");
+});
+
+Deno.test("each reason a merge was stopped gives its own card, and a button only when pressing it can help", () => {
+  const expectations: ReadonlyArray<
+    readonly [
+      string | null,
+      Readonly<{
+        reason: Extract<NowCard, { kind: "mergeBlocked" }>["reason"];
+        mayMerge: boolean;
+        startable: boolean;
+      }>,
+    ]
+  > = [
+    ["head_moved", { reason: "head_moved", mayMerge: false, startable: false }],
+    ["base_moved", { reason: "base_moved", mayMerge: false, startable: false }],
+    [
+      "evidence_changed",
+      { reason: "evidence_changed", mayMerge: false, startable: false },
+    ],
+    [
+      "checks_not_passed",
+      { reason: "checks_not_passed", mayMerge: false, startable: false },
+    ],
+    ["not_open", { reason: "not_open", mayMerge: false, startable: false }],
+    [
+      "not_permitted",
+      { reason: "not_permitted", mayMerge: true, startable: true },
+    ],
+    ["unavailable", { reason: "unavailable", mayMerge: true, startable: true }],
+    // No reason, one the page does not know, and one that means nothing to do.
+    [null, { reason: null, mayMerge: false, startable: false }],
+    ["from_the_future", { reason: null, mayMerge: false, startable: false }],
+    ["already_merged", { reason: null, mayMerge: false, startable: false }],
+  ];
+  for (const [reason, expected] of expectations) {
+    const model = deliveryModel(approvedWithPullRequest({
+      mergeEntries: [blocked(reason)],
+    }));
+    assertEquals(model.merge?.state, "blocked", String(reason));
+    assertEquals(model.merge?.startable, expected.startable, String(reason));
+    assertEquals(model.now, {
+      kind: "mergeBlocked",
+      reason: expected.reason,
+      head: NEW.slice(0, 7),
+      branch: "main",
+      mayMerge: expected.mayMerge,
+    }, String(reason));
+    assertEquals(model.afterApproval.badge, "mergeBlocked", String(reason));
+  }
+});
+
+Deno.test("GitHub's refusal and a merge GitHub did not make are the built cards", () => {
+  const refused = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [blocked("github_refused")],
+  }));
+  assertEquals(refused.merge?.state, "refused");
+  assertEquals(refused.now, {
+    kind: "mergeRefused",
+    head: NEW.slice(0, 7),
+    mayMerge: true,
+  });
+  // A stopped queue entry is a merge that did not happen: "Not merged".
+  assertEquals(refused.afterApproval.badge, "mergeBlocked");
+  const notMerged = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [blocked("not_merged")],
+  }));
+  assertEquals(notMerged.merge?.state, "ready");
+  assertEquals(notMerged.merge?.afterNotMerged, true);
+  assertEquals(notMerged.merge?.startable, true);
+  assertEquals(notMerged.now.kind, "mergeReady");
+  assertEquals(notMerged.afterApproval.badge, "readyToMerge");
+});
+
+Deno.test("a canceled merge brings the Ready card back", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [entry({ status: "canceled" })],
+  }));
+  assertEquals(model.merge?.state, "ready");
+  assertEquals(model.merge?.canceled, true);
+  assertEquals(model.merge?.afterNotMerged, false);
+  assertEquals(model.now.kind, "mergeReady");
+});
+
+Deno.test("a stopped merge stops showing when the pull request's head changes: the built moved card, tried", () => {
+  const model = deliveryModel(approvedWithPullRequest(
+    { mergeEntries: [blocked("checks_not_passed")] },
+    { headSha: OLD },
+  ));
+  assertEquals(model.merge?.state, "moved");
+  assertEquals(model.now, {
+    kind: "mergeMoved",
+    approved: NEW.slice(0, 7),
+    current: OLD.slice(0, 7),
+    tried: true,
+  });
+});
+
+Deno.test("a stopped merge for an older head does not show against a newer one", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [blocked("checks_not_passed", { expectedHeadSha: OLD })],
+  }));
+  assertEquals(model.merge?.state, "ready");
+  assertEquals(model.now.kind, "mergeReady");
+});
+
+Deno.test("a newer entry replaces a stopped one", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [
+      blocked("unavailable"),
+      entry({
+        id: "e2",
+        status: "validating",
+        createdAt: "2026-11-13T10:30:00.000Z",
+        updatedAt: "2026-11-13T10:30:00.000Z",
+      }),
+    ],
+  }));
+  assertEquals(model.merge?.state, "working");
+  assertEquals(model.merge?.stage, "validating");
+  const canceledLater = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [
+      blocked("unavailable"),
+      entry({
+        id: "e2",
+        status: "canceled",
+        createdAt: "2026-11-13T10:30:00.000Z",
+        updatedAt: "2026-11-13T10:31:00.000Z",
+      }),
+    ],
+  }));
+  assertEquals(canceledLater.merge?.state, "ready");
+  assertEquals(canceledLater.merge?.canceled, true);
+});
+
+Deno.test("a newer attempt replaces a stopped merge", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [blocked("unavailable")],
+    mergeAttempts: [
+      attempt({
+        id: "m9",
+        state: "refused",
+        createdAt: "2026-11-13T10:40:00.000Z",
+      }),
+    ],
+  }));
+  assertEquals(model.merge?.state, "refused");
+  // An attempt the stopped merge itself made does not replace it.
+  const own = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [blocked("unavailable")],
+    mergeAttempts: [
+      attempt({
+        id: "m9",
+        state: "refused",
+        createdAt: "2026-11-13T10:20:30.000Z",
+      }),
+    ],
+  }));
+  assertEquals(own.merge?.state, "blocked");
+});
+
+Deno.test("an older refusal does not show over a newer canceled entry", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [entry({ status: "canceled" })],
+    mergeAttempts: [
+      attempt({
+        state: "refused",
+        createdAt: "2026-11-13T10:05:00.000Z",
+      }),
+    ],
+  }));
+  assertEquals(model.merge?.state, "ready");
+});
+
+Deno.test("a merged or closed pull request shows no stopped merge", () => {
+  for (const status of ["merged", "closed"] as const) {
+    const model = deliveryModel(approvedWithPullRequest(
+      { mergeEntries: [blocked("not_open")] },
+      { status, mergedSha: NEW },
+    ));
+    assertEquals(model.merge, null, status);
+  }
+});
+
+Deno.test("queued merges that could not be read offer no merge, like unreadable attempts", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [],
+    mergeUnavailable: true,
+  }));
+  assertEquals(model.merge, null);
+});
+
+Deno.test("a refusal reached only through its attempt, or an attempt newer than its entry, is Not merged too", () => {
+  const attemptOnly = deliveryModel(approvedWithPullRequest({
+    mergeAttempts: [attempt({ state: "refused" })],
+  }));
+  assertEquals(attemptOnly.merge?.state, "refused");
+  assertEquals(attemptOnly.afterApproval.badge, "mergeBlocked");
+  const newerThanEntry = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [blocked("github_refused")],
+    mergeAttempts: [
+      attempt({ state: "refused", createdAt: "2026-11-13T10:40:00.000Z" }),
+    ],
+  }));
+  assertEquals(newerThanEntry.merge?.state, "refused");
+  assertEquals(newerThanEntry.afterApproval.badge, "mergeBlocked");
+});
+
+Deno.test("the Ready card names the branch the pull request merges into", () => {
+  const model = deliveryModel(
+    approvedWithPullRequest({}, { targetBranch: "release/1.0" }),
+  );
+  assertEquals(model.now.kind, "mergeReady");
+  assertEquals(
+    model.now.kind === "mergeReady" ? model.now.branch : null,
+    "release/1.0",
+  );
 });
