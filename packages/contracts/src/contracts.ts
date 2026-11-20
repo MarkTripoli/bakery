@@ -209,6 +209,7 @@ export type CatalogAction = {
   organizationContext?: OrganizationContextPolicy;
   organizationHeaderOptional?: boolean;
   organizationIdParam?: string;
+  organizationIdQuery?: string;
 };
 
 function validCatalogAccess(value: unknown): value is string {
@@ -278,6 +279,20 @@ for (const [index, action] of loadedCatalogActions.entries()) {
   ) {
     throw new ContractQualityError(
       `inventory action ${index} ${action.action}: organizationIdParam must name a route parameter of a required authenticated context action`,
+    );
+  }
+  const organizationIdQuery = "organizationIdQuery" in action
+    ? action.organizationIdQuery
+    : undefined;
+  if (
+    organizationIdQuery !== undefined &&
+    (typeof organizationIdQuery !== "string" ||
+      action.method !== "GET" ||
+      organizationContext !==
+        OrganizationContextPolicy.RequiredAuthenticatedContext)
+  ) {
+    throw new ContractQualityError(
+      `inventory action ${index} ${action.action}: organizationIdQuery requires a GET required authenticated context action`,
     );
   }
 }
@@ -3082,6 +3097,7 @@ export type InventoryAction = {
   idempotencyKeyOptional?: boolean;
   errors: string[];
   organizationIdParam?: string;
+  organizationIdQuery?: string;
   implemented: boolean;
 };
 export type GeneratedContracts = {
@@ -4347,6 +4363,9 @@ export function generateContracts(
     ...(action.organizationIdParam === undefined
       ? {}
       : { organizationIdParam: action.organizationIdParam }),
+    ...(action.organizationIdQuery === undefined
+      ? {}
+      : { organizationIdQuery: action.organizationIdQuery }),
     implemented: implemented[action.action] === true,
   }));
   const jsonSchemas = Object.fromEntries(

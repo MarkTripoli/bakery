@@ -65,6 +65,7 @@ import {
 } from "./agent-file-grants.ts";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import {
+  createFileFactsHandler,
   createFileSearchHandler,
   createLibraryFolderHandler,
 } from "./file-search.ts";
@@ -306,22 +307,30 @@ export function createArtifactActions(
   );
   // Library items need `library:read` on top of the route's file permission, so
   // searching files never reveals the library to someone who may not read it.
-  const searchFiles = createFileSearchHandler(options.secret, (context) => {
-    const actor = (context as Partial<AuthorizedActionContext>).authority;
-    if (actor === undefined) return false;
-    try {
-      authorize(
-        actor as Parameters<typeof authorize>[0],
-        "library:read",
-        {
-          action: ArtifactImplementedAction.FilesSearch,
-        },
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  });
+  const searchFiles = createFileSearchHandler(
+    options.secret,
+    (context) => {
+      const actor = (context as Partial<AuthorizedActionContext>).authority;
+      if (actor === undefined) return false;
+      try {
+        authorize(
+          actor as Parameters<typeof authorize>[0],
+          "library:read",
+          {
+            action: ArtifactImplementedAction.FilesSearch,
+          },
+        );
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    (context) =>
+      storageReader(context, ArtifactImplementedAction.FilesSearch).isAdmin,
+  );
+  const listFileFacts = createFileFactsHandler((context) =>
+    storageReader(context, ArtifactImplementedAction.FilesFacts).isAdmin
+  );
   const listLibrary = createLibraryFolderHandler(options.secret);
   const blobUploads = createBlobUploadHandlers(options.blobStore);
   const trustedRepositoryResolver = createTrustedRepositoryResolver();
@@ -460,6 +469,18 @@ export function createArtifactActions(
       handler: async (context, input) =>
         contractSchemas["Page<FileSearchHit>"].parse(
           await searchFiles(context, input),
+        ),
+    })
+    .register({
+      name: ArtifactImplementedAction.FilesFacts,
+      method: HttpMethod.Get,
+      path: "/v1/files/facts",
+      input: contractSchemas.FileFactQuery,
+      output: contractSchemas["Page<FileFact>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<FileFact>"].parse(
+          await listFileFacts(context, input),
         ),
     })
     .register({
@@ -810,7 +831,8 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
       path: "/v1/storage/files/:id/content",
       input: contractSchemas.StorageFileContentQuery,
       output: contractSchemas.BinaryArtifact,
-      policy: readPolicy,
+      // A <video> or <audio> src cannot send the organization header.
+      policy: { ...readPolicy, organizationIdQuery: "organizationId" },
       handler: () => {
         throw new StandardError({ code: "INTERNAL" });
       },
@@ -1002,6 +1024,7 @@ export function createArtifactResourceRoutes(
       ? options.tokenSession(context, next)
       : session(context, next);
   app.use("/v1/files/search", readsAcceptTokens);
+  app.use("/v1/files/facts", readsAcceptTokens);
   app.use("/v1/files/library", session);
   app.use("/v1/artifacts/*", session);
   app.use("/v1/artifact-versions", session);

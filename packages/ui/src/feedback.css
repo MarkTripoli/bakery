@@ -423,6 +423,11 @@
   min-inline-size: 0;
 }
 
+/* A sheet's close button sits on the title line, not below it. */
+.ui-sheet .ui-dialog__header {
+  align-items: center;
+}
+
 .ui-dialog__title {
   flex: 1 1 min(12rem, 100%);
   min-inline-size: 0;

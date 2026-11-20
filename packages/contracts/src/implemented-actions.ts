@@ -381,6 +381,8 @@ export const DeliveryImplementedAction = Object.freeze(
     PullRequestsMerge: "pullRequests.merge",
     MergeAttemptsList: "mergeAttempts.list",
     MergeAttemptsReconcile: "mergeAttempts.reconcile",
+    MetricsGet: "metrics.get",
+    MetricsSources: "metrics.sources",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const deliveryImplementedActions = Object.freeze(
@@ -595,6 +597,7 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactCommentsMentionCandidates: "artifactComments.mentionCandidates",
     ArtifactsList: "artifacts.list",
     FilesSearch: "files.search",
+    FilesFacts: "files.facts",
     FilesLibrary: "files.library",
     ArtifactsGet: "artifacts.get",
     ArtifactsUpdate: "artifacts.update",
@@ -671,6 +674,19 @@ export const SkillStorageImplementedAction = Object.freeze(
 );
 export const skillStorageImplementedActions = Object.freeze(
   Object.values(SkillStorageImplementedAction),
+);
+
+export const TelemetryDestinationImplementedAction = Object.freeze(
+  {
+    TelemetryDestinationsList: "telemetryDestinations.list",
+    TelemetryDestinationsCreate: "telemetryDestinations.create",
+    TelemetryDestinationsUpdate: "telemetryDestinations.update",
+    TelemetryDestinationsDelete: "telemetryDestinations.delete",
+    TelemetryDestinationsTest: "telemetryDestinations.test",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const telemetryDestinationImplementedActions = Object.freeze(
+  Object.values(TelemetryDestinationImplementedAction),
 );
 
 export const BlobUploadImplementedAction = Object.freeze(
@@ -844,6 +860,7 @@ export const implementedActions = Object.freeze(
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
+    ...telemetryDestinationImplementedActions,
     ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
