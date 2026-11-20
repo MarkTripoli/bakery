@@ -99,7 +99,6 @@ const DEVELOPER_MINIMUM_ACCESS = [
   "Initiating principal or Admin",
   "Linked principal or Admin",
   "Organization member",
-  "Owner for personal; Admin for organization",
 ];
 
 /**
