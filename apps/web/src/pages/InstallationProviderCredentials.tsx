@@ -94,6 +94,10 @@ export function InstallationProviderCredentials(
       guideUrl={guideUrl}
       onChange={(field, value) =>
         setValues((current) => ({ ...current, [field]: value }))}
+      onCancel={() => {
+        setValues(EMPTY_PROVIDER_CREDENTIALS);
+        setStatus("idle");
+      }}
       onReload={() => void credentials.refetch()}
       onSubmit={() => void save()}
       provider={provider}

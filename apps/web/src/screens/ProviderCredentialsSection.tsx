@@ -55,6 +55,8 @@ export type ProviderCredentialsSectionProps = {
   ) => void;
   readonly onSubmit: () => void;
   readonly onReload: () => void;
+  /** Cancel closes Replace and drops what was typed and any save notice. */
+  readonly onCancel: () => void;
 };
 
 /** Both fields present and within bounds: what the server will accept. */
@@ -84,6 +86,7 @@ export function ProviderCredentialsSection(
     onChange,
     onSubmit,
     onReload,
+    onCancel,
   }: ProviderCredentialsSectionProps,
 ) {
   const { translate, locale, timeZone } = useI18n();
@@ -328,8 +331,7 @@ export function ProviderCredentialsSection(
                               onClick={() => {
                                 setReplacing(false);
                                 setAttempted(false);
-                                onChange("clientId", "");
-                                onChange("clientSecret", "");
+                                onCancel();
                               }}
                               type="button"
                               variant="secondary"

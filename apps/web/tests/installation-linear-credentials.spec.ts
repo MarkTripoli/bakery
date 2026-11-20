@@ -255,6 +255,12 @@ test.describe("Linear credentials on installation settings", () => {
     await expect(form(page)).toBeVisible();
     await expect(field(page, "clientId")).toHaveValue("replacement-client");
     await expect(field(page, "clientSecret")).toHaveValue("");
+    // Cancel closes the form and takes the notice with it: no red message is left
+    // over a page that has no form.
+    await form(page).getByRole("button", { name: "Cancel" }).click();
+    await expect(form(page)).toHaveCount(0);
+    await expect(section(page)).not.toContainText("could not be saved");
+    await expect(section(page)).toContainText("Linear is set up.");
   });
 
   test("a stale version closes the form onto the current details and keeps nothing typed", async ({ page }) => {
@@ -276,6 +282,10 @@ test.describe("Linear credentials on installation settings", () => {
       .click();
     await expect(field(page, "clientId")).toHaveValue("");
     await expect(field(page, "clientSecret")).toHaveValue("");
+    // Cancel from here drops the details-changed notice too.
+    await form(page).getByRole("button", { name: "Cancel" }).click();
+    await expect(form(page)).toHaveCount(0);
+    await expect(section(page)).not.toContainText("details changed");
   });
 
   test("a failed load can be retried", async ({ page }) => {
