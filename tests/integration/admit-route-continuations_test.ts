@@ -1071,4 +1071,54 @@ Deno.test("admit: only a recorded continuation can make a job's pin differ from 
       await done(seeded);
     }
   }
+  // A pin that is fully consistent, and priced, but is not where any continuation went:
+  // the job, its budget intent, its call intent and a real pricing snapshot all agree on
+  // another model, so the funding check cannot refuse it. Only the rule that a changed
+  // pin must be the target of a recorded continuation does.
+  {
+    const seeded = await seed();
+    try {
+      const worker = await registeredWorker(seeded.fixture, { slots: 4 });
+      await admit(seeded);
+      const pg = database(seeded.fixture);
+      const other = { ...TARGET_BILLING, model: "model-nobody-continued-to" };
+      await seedProviderPricingSnapshot(pg, { billing: other });
+      const snapshotId = (await pg.query(
+        `select id from bakery.provider_pricing_snapshots
+          where provider = $1 and model = $2 and billing_account_id = $3`,
+        [other.provider, other.model, other.billingAccountId],
+      )).rows[0].id;
+      await pg.query(
+        `update bakery.jobs
+            set billing = jsonb_set(billing, '{model}', to_jsonb($2::text)),
+                agent_config = jsonb_set(agent_config, '{billing,model}', to_jsonb($2::text))
+          where id = $1`,
+        [seeded.job.jobId, other.model],
+      );
+      await pg.query(
+        `update bakery.budget_action_intents set model = $2 where run_step_id = $1`,
+        [seeded.job.runStepId, other.model],
+      );
+      await pg.query(
+        `update bakery.provider_call_intents
+            set model = $2, pricing_snapshot_id = $3 where run_step_id = $1`,
+        [seeded.job.runStepId, other.model, snapshotId],
+      );
+      // Prove the setup first: the claim's own funding check accepts this pin, so the
+      // refusal below is the continuation rule and nothing else.
+      const funded = await withPgTransaction(
+        pg,
+        (transaction) =>
+          hasHeldJobBudgetReservation(
+            transaction,
+            seeded.fixture.organizationId,
+            seeded.job.jobId,
+          ),
+      );
+      assertEquals(funded, true);
+      assertEquals(await claimStatus(seeded, worker), 204);
+    } finally {
+      await done(seeded);
+    }
+  }
 });
