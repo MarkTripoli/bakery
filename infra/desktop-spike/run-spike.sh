@@ -5,6 +5,7 @@
 # Follows the agx64 DB rules: wait for a stack-gate slot outside the lock, take the db-slot
 # lock, re-check, one fresh container, removed with its volume on every exit.
 set -uo pipefail
+umask 022
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 CACHE="${SPIKE_CACHE:-$HOME/Development/bakery-wt/_spike-77-cache}"

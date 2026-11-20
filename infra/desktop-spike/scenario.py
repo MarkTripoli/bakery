@@ -17,6 +17,54 @@ def check(name, ok, detail=""):
     results.append({"check": name, "ok": bool(ok), "detail": str(detail)[:300]})
     print(("PASS " if ok else "FAIL ") + name + (f"  [{detail}]" if detail else ""), flush=True)
 
+findings = []
+
+def finding(name, detail):
+    findings.append({"finding": name, "detail": str(detail)[:600]})
+    print("FINDING " + name + "  [" + str(detail)[:300] + "]", flush=True)
+
+def raw_http(request: bytes, timeout=10):
+    """One raw HTTP/1.1 exchange with the real server: status line, headers, a body prefix."""
+    import socket
+    host, port = SERVER.split("//")[1].split(":")
+    with socket.create_connection((host, int(port)), timeout=timeout) as sock:
+        sock.sendall(request)
+        data = b""
+        sock.settimeout(3)
+        try:
+            while len(data) < 6000:
+                chunk = sock.recv(2048)
+                if not chunk: break
+                data += chunk
+        except Exception:
+            pass
+    head, _, body = data.partition(b"\r\n\r\n")
+    lines = head.decode("latin1").split("\r\n")
+    hdrs = {}
+    for l in lines[1:]:
+        if ":" in l:
+            k, v = l.split(":", 1); hdrs[k.strip().lower()] = v.strip()
+    return lines[0] if lines else "", hdrs, body[:300].decode("latin1", "replace")
+
+def probe_server(credential):
+    """What the real server answers to the two things the web view does that Rust does not."""
+    host = SERVER.split("//")[1]
+    import base64 as b64
+    cors = raw_http((f"OPTIONS /v1/me HTTP/1.1\r\nHost: {host}\r\nOrigin: tauri://localhost\r\n"
+                     "Access-Control-Request-Method: GET\r\nAccess-Control-Request-Headers: authorization\r\n"
+                     "Connection: close\r\n\r\n").encode())
+    allow = {k: v for k, v in cors[1].items() if k.startswith("access-control")}
+    finding("CORS preflight from tauri://localhost for a bearer call", f"{cors[0]} allow-headers={allow or 'none'}")
+    for label, path in (("without an organization", "/v1/events"),):
+        key = b64.b64encode(os.urandom(16)).decode()
+        r = raw_http((f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                      f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nOrigin: tauri://localhost\r\n"
+                      f"Sec-WebSocket-Protocol: bakery.desktop, bakery.credential.{credential}\r\n\r\n").encode())
+        echoed = credential in (r[0] + json.dumps(r[1]) + r[2])
+        finding(f"raw WebSocket handshake {label}",
+                f"{r[0]} selected={r[1].get('sec-websocket-protocol')} credential-echoed={echoed} body={r[2][:160]!r}")
+    return
+
 def events(path):
     p = os.path.join(path, "report.jsonl")
     if not os.path.exists(p):
@@ -146,6 +194,9 @@ def main():
         rc, secret = secret_prefix()
         check("[applink] the secret store really holds a bkd_ credential (read with secret-tool)",
               rc == 0 and secret.startswith("bkd_"), f"exit {rc}, prefix {secret[:4]}")
+        rc0, cred0 = secret_prefix()
+        if rc0 == 0 and cred0:
+            probe_server(cred0)
         check("[applink] the bearer credential is accepted by the server (/v1/me)",
               wait_event(A, "bearer_ok", 20) is not None)
         fm = wait_event(A, "web:fetch_me", 25)
@@ -227,7 +278,7 @@ def main():
         check("[loopback] the live socket opens with the subprotocol",
               op is not None and op["data"].get("protocol") == "bakery.desktop", op and op["data"])
     stop_app()
-    json.dump(results, open(OUT + "/results.json", "w"), indent=2)
+    json.dump({"results": results, "findings": findings}, open(OUT + "/results.json", "w"), indent=2)
     failed = [r for r in results if not r["ok"]]
     print(f"\n{len(results) - len(failed)} passed, {len(failed)} failed")
     sys.exit(1 if failed else 0)

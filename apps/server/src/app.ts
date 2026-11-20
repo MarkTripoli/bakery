@@ -40,6 +40,7 @@ import { selectTicketSourceReader } from "./modules/work/ticket-reader-selection
 import { readAppCredentials } from "./modules/integrations/callbacks.ts";
 import { loadSnapshot } from "./modules/catalog/authority-snapshot-postgres.ts";
 import { withPgTransaction } from "./platform/database.ts";
+import { createDesktopCors } from "./platform/desktop-cors.ts";
 import { createWorkflowsRoutes } from "./modules/workflows/index.ts";
 import { createAutomationsRoutes } from "./modules/workflows/automations/routes.ts";
 import {
@@ -323,6 +324,12 @@ export function createApp(options: {
     })
     : undefined;
   app.use("*", createPreviewHostDispatch(previewOrigin, previewHandler));
+  // The desktop web view's origins may call the API with a bearer credential. Mounted before
+  // every origin guard, because a preflight carries no credential and the guard would refuse it.
+  app.use(
+    "*",
+    createDesktopCors({ origins: options.config.auth.desktopOrigins }),
+  );
   app.route(
     "/",
     createHealthApp({
