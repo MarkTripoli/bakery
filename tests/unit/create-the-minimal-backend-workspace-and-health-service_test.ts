@@ -566,6 +566,12 @@ Deno.test("server auth config normalizes exact origins and paired GitHub credent
       "https://bakery.example.test",
       "https://admin.example.test",
     ],
+    // Unset: the three fixed desktop web view origins, which never carry a cookie session.
+    desktopOrigins: [
+      "tauri://localhost",
+      "http://tauri.localhost",
+      "https://tauri.localhost",
+    ],
     github: { clientId: "client-id", clientSecret: "client-secret" },
   });
 });
