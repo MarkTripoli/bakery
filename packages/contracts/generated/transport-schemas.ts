@@ -11867,7 +11867,7 @@ const transportSchemas = {
           "name": "intent",
           "type": "enum(fyi|review|approve|answer|take_over)",
           "required": true,
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer name the questionId they concern, review names the artifactVersionId, and take_over names the stepKey; each gives the person asked the right to do that one thing, until the request expires."
         },
         {
           "name": "stepKey",
@@ -11877,7 +11877,7 @@ const transportSchemas = {
             "minLength": 1,
             "maxLength": 200
           },
-          "description": "The step the request concerns, or omitted for the run as a whole."
+          "description": "The step the request concerns, or omitted for the run as a whole. Required for take_over, which gives the right to steer and take over that one step."
         },
         {
           "name": "note",
@@ -11899,6 +11899,12 @@ const transportSchemas = {
           "type": "uuid",
           "required": false,
           "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
+        },
+        {
+          "name": "artifactVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The artifact version of this run the request asks someone to review. Required for review and refused for the other intents. The person asked is given the right to comment on that one version, until the request expires."
         }
       ],
       "rules": [
@@ -30305,7 +30311,8 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "questionId"
+        "questionId",
+        "artifactVersionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -30324,7 +30331,8 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "questionId": "uuid|null"
+        "questionId": "uuid|null",
+        "artifactVersionId": "uuid|null"
       },
       "nullableFields": [
         "stepKey",
@@ -30332,7 +30340,8 @@ const transportSchemas = {
         "note",
         "neededBy",
         "fallbackForName",
-        "questionId"
+        "questionId",
+        "artifactVersionId"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -30352,10 +30361,12 @@ const transportSchemas = {
         "createdAt": "UTC time the request was made.",
         "updatedAt": "UTC time it last changed.",
         "version": "Optimistic-concurrency version used as If-Match.",
-        "questionId": "The approval or question the request asks about, or null when it asks for none."
+        "questionId": "The approval or question the request asks about, or null when it asks for none.",
+        "artifactVersionId": "The artifact version the request asks someone to review, or null when it asks for none."
       },
       "optionalFields": [
-        "questionId"
+        "questionId",
+        "artifactVersionId"
       ]
     },
     "RunRequests": {

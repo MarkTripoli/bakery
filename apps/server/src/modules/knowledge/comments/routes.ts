@@ -1,3 +1,4 @@
+import { handleRequestsOnTarget } from "../../work/run-requests.ts";
 import {
   ActionKind,
   type ActionRegistry,
@@ -39,7 +40,20 @@ export function registerCommentActions(
     input: contractSchemas.ArtifactCommentCreate,
     output: contractSchemas.ArtifactComment,
     policy: write,
-    handler: (context, input) => createComment(context, input, blobStore),
+    handler: async (context, input) => {
+      const comment = await createComment(context, input, blobStore);
+      // The request that asked for this review is handled (#456 2b).
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      await handleRequestsOnTarget(
+        transaction,
+        organizationId,
+        principalId,
+        "review",
+        context.params.id,
+      );
+      return comment;
+    },
   });
   registry.register({
     name: "artifactComments.update",

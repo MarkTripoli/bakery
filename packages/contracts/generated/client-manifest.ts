@@ -24388,10 +24388,10 @@ export const clientManifest = {
             "answer",
             "take_over"
           ],
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer name the questionId they concern, review names the artifactVersionId, and take_over names the stepKey; each gives the person asked the right to do that one thing, until the request expires."
         },
         "stepKey": {
-          "description": "The step the request concerns, or omitted for the run as a whole. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
+          "description": "The step the request concerns, or omitted for the run as a whole. Required for take_over, which gives the right to steer and take over that one step. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 200
@@ -24409,6 +24409,12 @@ export const clientManifest = {
         },
         "questionId": {
           "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "artifactVersionId": {
+          "description": "The artifact version of this run the request asks someone to review. Required for review and refused for the other intents. The person asked is given the right to comment on that one version, until the request expires.",
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
@@ -84663,6 +84669,21 @@ export const clientManifest = {
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "artifactVersionId": {
+          "description": "RunRequest.artifactVersionId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The artifact version the request asks someone to review, or null when it asks for none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -84884,6 +84905,21 @@ export const clientManifest = {
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "The approval or question the request asks about, or null when it asks for none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "artifactVersionId": {
+                "description": "RunRequest.artifactVersionId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The artifact version the request asks someone to review, or null when it asks for none."
                   },
                   {
                     "type": "null",

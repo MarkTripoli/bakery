@@ -246,3 +246,67 @@ export async function seedArtifactVersion(
   );
   return versionId;
 }
+
+/**
+ * A real agent session on the run's step (#456 slice 2b), so the session routes
+ * have a row that belongs to a step of that run.
+ */
+export async function seedAgentSession(
+  fixture: SocketFixture,
+  run: SeededRun,
+  stepKey = run.stepKey,
+): Promise<string> {
+  const db = fixture.pgDatabase;
+  const agentId = crypto.randomUUID();
+  const versionId = crypto.randomUUID();
+  const sessionId = crypto.randomUUID();
+  await db.query(
+    `insert into bakery.agent_definitions (id, organization_id, slug, name)
+     values ($1, $2, $3, 'Steered')`,
+    [agentId, fixture.organizationId, `steered-${agentId}`],
+  );
+  await db.query(
+    `insert into bakery.agent_versions (id, organization_id, agent_id, revision,
+       config, digest, created_by)
+     values ($1, $2, $3, 1, '{}'::jsonb, $4, $5)`,
+    [
+      versionId,
+      fixture.organizationId,
+      agentId,
+      `digest-${versionId}`,
+      fixture.principalId,
+    ],
+  );
+  await db.query(
+    `insert into bakery.agent_sessions (id, organization_id, run_step_id,
+       conversation_id, agent_version_id, harness, status)
+     select $1, $2, step.id, $3, $4, 'codex', 'active'
+       from bakery.run_steps step
+      where step.organization_id = $2 and step.run_id = $5
+        and step.step_key = $6
+      order by step.iteration desc limit 1`,
+    [
+      sessionId,
+      fixture.organizationId,
+      fixture.conversationId,
+      versionId,
+      run.runId,
+      stepKey,
+    ],
+  );
+  return sessionId;
+}
+
+/** A second step on the run, so "the other step" cases have something to name. */
+export async function seedStep(
+  fixture: SocketFixture,
+  run: SeededRun,
+  stepKey: string,
+): Promise<void> {
+  await fixture.pgDatabase.query(
+    `insert into bakery.run_steps (id, organization_id, run_id, step_key,
+       position, iteration, status, input)
+     values ($1, $2, $3, $4, 2, 0, 'running', '{}')`,
+    [crypto.randomUUID(), fixture.organizationId, run.runId, stepKey],
+  );
+}
