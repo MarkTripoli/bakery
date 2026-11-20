@@ -31021,6 +31021,41 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version a stop must name in If-Match."
       }
     },
+    "SkillUsage": {
+      "fields": [
+        "kind",
+        "definitionId",
+        "definitionName",
+        "versionId",
+        "revision",
+        "skillVersionIds",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "kind": "enum(workflow|agent)",
+        "definitionId": "uuid",
+        "definitionName": "string",
+        "versionId": "uuid",
+        "revision": "integer",
+        "skillVersionIds": "uuid[]",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [],
+      "description": "One workflow version or agent version that pins a version of a skill: what it is, which version of it, and which versions of the skill it names. A workflow version uses a skill when one of its steps lists the version; an agent version uses it when its skill bindings name the version.",
+      "fieldDescriptions": {
+        "kind": "workflow for a published workflow version, agent for an agent version.",
+        "definitionId": "Stable UUID of the workflow or agent the version belongs to.",
+        "definitionName": "Name of that workflow or agent, as shown in the Library.",
+        "versionId": "Immutable UUID of the workflow version or agent version that names the skill.",
+        "revision": "Revision number of that workflow or agent version.",
+        "skillVersionIds": "The versions of this skill the workflow or agent version pins, oldest first; at least one.",
+        "createdAt": "UTC time that workflow or agent version was created, which orders the list newest first."
+      }
+    },
+    "Page<SkillUsage>": {
+      "pageOf": "SkillUsage",
+      "description": "Cursor page of SkillUsage rows, newest first. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
+    },
     "Page<SkillUseGrant>": {
       "pageOf": "SkillUseGrant",
       "description": "Cursor page of SkillUseGrant rows in the collection's stable sort order. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
