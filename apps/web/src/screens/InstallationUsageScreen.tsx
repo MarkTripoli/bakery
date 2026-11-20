@@ -1,6 +1,7 @@
 import * as UI from "@bakery/ui";
 import { formatDate } from "@bakery/i18n";
 import type { UsageSummary } from "../api/client.ts";
+import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { usd } from "./usage/usage-money.ts";
 import {
@@ -223,13 +224,18 @@ export function InstallationUsageScreen(
                 })
                 : "",
             }),
-          action: (
-            <UI.Button onClick={state === "error" ? onRetry : onShowLast30Days}>
-              {state === "error"
-                ? translate("installation.usage.retry")
-                : translate("installation.usage.empty.action")}
-            </UI.Button>
-          ),
+          // The way back to 30 days is offered only when the period is not already 30 days.
+          action: state !== "error" && period === "last30"
+            ? undefined
+            : (
+              <UI.Button
+                onClick={state === "error" ? onRetry : onShowLast30Days}
+              >
+                {state === "error"
+                  ? translate("installation.usage.retry")
+                  : translate("installation.usage.empty.action")}
+              </UI.Button>
+            ),
           label: translate("installation.usage.loading"),
         }}
         title={translate("installation.usage.title")}
@@ -312,65 +318,80 @@ function UsageProviderTable({ rows }: { readonly rows: ProviderRow[] }) {
   // Formatted here, so the count is an argument the catalogue can inflect on.
   const records = (count: number) =>
     translate(recordKey(count), { count: String(count) });
+  const phone = useShellViewport() === "phone";
+  const columns: UI.DataTableColumn<ProviderRow>[] = [
+    {
+      id: "provider",
+      header: translate("installation.usage.byProvider.provider"),
+      cell: (row) => (
+        <UI.Stack gap="none">
+          <span>
+            {row.key === "total"
+              ? translate("installation.usage.byProvider.total")
+              : providerName(row.provider)}
+          </span>
+          {row.key === "total" || row.billingType === ""
+            ? null
+            : (
+              <UI.Text variant="muted">
+                {routeWord(row.billingType)}
+              </UI.Text>
+            )}
+        </UI.Stack>
+      ),
+    },
+    {
+      id: "confirmed",
+      header: translate("installation.usage.byProvider.confirmed"),
+      align: "end",
+      cell: (row) => {
+        // A subscription is not $0.00 of usage: it is cost that arrived
+        // as a flat fee, and printing zero would say the work was free.
+        if (row.subscription) {
+          return translate("installation.usage.subscriptionIncluded");
+        }
+        // A total that is zero has nothing to add up, and a provider whose
+        // confirmed cost is zero has no receipt: both are a dash.
+        const figure = moneyOrDash(row.knownCostUsd);
+        return figure === null ? "\u2014" : usd(figure);
+      },
+    },
+    {
+      id: "unverified",
+      header: translate("installation.usage.byProvider.unverified"),
+      align: "end",
+      cell: (row) => row.subscription ? "\u2014" : usd(row.unverifiedCostUsd),
+    },
+    {
+      id: "unknown",
+      header: translate("installation.usage.byProvider.unknown"),
+      align: "end",
+      // Nothing unknown is "None": a bare 0 beside "1 record" reads as a count of something else.
+      cell: (row) =>
+        row.unknownCount === 0
+          ? translate("installation.usage.none")
+          : records(row.unknownCount),
+    },
+  ];
+  if (phone) {
+    return (
+      <StackedRecords
+        caption={translate("installation.usage.byProvider.caption")}
+        columns={columns}
+        getRowKey={(row) => row.key}
+        rows={rows}
+      />
+    );
+  }
   return (
     <UI.DataTable<ProviderRow>
       caption={translate("installation.usage.byProvider.caption")}
       captionHidden
-      columns={[
-        {
-          id: "provider",
-          header: translate("installation.usage.byProvider.provider"),
-          cell: (row) => (
-            <UI.Stack gap="none">
-              <span>
-                {row.key === "total"
-                  ? translate("installation.usage.byProvider.total")
-                  : providerName(row.provider)}
-              </span>
-              {row.key === "total" || row.billingType === ""
-                ? null
-                : (
-                  <UI.Text variant="muted">
-                    {routeWord(row.billingType)}
-                  </UI.Text>
-                )}
-            </UI.Stack>
-          ),
-        },
-        {
-          id: "confirmed",
-          header: translate("installation.usage.byProvider.confirmed"),
-          align: "end",
-          cell: (row) => {
-            // A subscription is not $0.00 of usage: it is cost that arrived
-            // as a flat fee, and printing zero would say the work was free.
-            if (row.subscription) {
-              return translate("installation.usage.subscriptionIncluded");
-            }
-            // A total that is zero has nothing to add up, and a provider whose
-            // confirmed cost is zero has no receipt: both are a dash.
-            const figure = moneyOrDash(row.knownCostUsd);
-            return figure === null ? "\u2014" : usd(figure);
-          },
-        },
-        {
-          id: "unverified",
-          header: translate("installation.usage.byProvider.unverified"),
-          align: "end",
-          cell: (row) =>
-            row.subscription ? "\u2014" : usd(row.unverifiedCostUsd),
-        },
-        {
-          id: "unknown",
-          header: translate("installation.usage.byProvider.unknown"),
-          align: "end",
-          cell: (row) =>
-            row.unknownCount === 0 ? "0" : records(row.unknownCount),
-        },
-      ]}
-      getRowAttributes={(row) => row.key === "total"
-        ? { "data-total": "true" }
-        : ({} as Record<`data-${string}`, string>)}
+      columns={columns}
+      getRowAttributes={(row) =>
+        row.key === "total"
+          ? { "data-total": "true" }
+          : ({} as Record<`data-${string}`, string>)}
       getRowKey={(row) => row.key}
       rows={rows}
     />
@@ -382,47 +403,95 @@ function UsageBudgetTable(
   { accounts }: { readonly accounts: UsageSummary["budgetAccounts"] },
 ) {
   const { translate } = useI18n();
+  const phone = useShellViewport() === "phone";
+  const columns: UI.DataTableColumn<BudgetRow>[] = [
+    {
+      id: "budget",
+      header: translate("installation.usage.budgets.budget"),
+      cell: (row) => row.scopeLabel,
+    },
+    {
+      id: "limit",
+      header: translate("installation.usage.budgets.limit"),
+      align: "end",
+      cell: (row) => usd(row.limitUsd),
+    },
+    {
+      id: "used",
+      header: translate("installation.usage.budgets.used"),
+      align: "end",
+      cell: (row) => usd(row.settledUsd),
+    },
+    {
+      id: "reserved",
+      header: (
+        <UI.Inline gap="compact">
+          <span>{translate("installation.usage.budgets.reserved")}</span>
+          <UI.HelpTip
+            label={translate("installation.usage.budgets.reserved")}
+          >
+            {translate("installation.usage.budgets.reservedHelp")}
+          </UI.HelpTip>
+        </UI.Inline>
+      ),
+      align: "end",
+      cell: (row) => usd(row.reservedUsd),
+    },
+  ];
+  const rows = budgetRows(accounts);
+  if (phone) {
+    return (
+      <StackedRecords
+        caption={translate("installation.usage.budgets.caption")}
+        columns={columns}
+        getRowKey={(row) => row.key}
+        labels={{ reserved: translate("installation.usage.budgets.reserved") }}
+        rows={rows}
+      />
+    );
+  }
   return (
     <UI.DataTable<BudgetRow>
       caption={translate("installation.usage.budgets.caption")}
       captionHidden
-      columns={[
-        {
-          id: "budget",
-          header: translate("installation.usage.budgets.budget"),
-          cell: (row) => row.scopeLabel,
-        },
-        {
-          id: "limit",
-          header: translate("installation.usage.budgets.limit"),
-          align: "end",
-          cell: (row) => usd(row.limitUsd),
-        },
-        {
-          id: "used",
-          header: translate("installation.usage.budgets.used"),
-          align: "end",
-          cell: (row) => usd(row.settledUsd),
-        },
-        {
-          id: "reserved",
-          header: (
-            <UI.Inline gap="compact">
-              <span>{translate("installation.usage.budgets.reserved")}</span>
-              <UI.HelpTip
-                label={translate("installation.usage.budgets.reserved")}
-              >
-                {translate("installation.usage.budgets.reservedHelp")}
-              </UI.HelpTip>
-            </UI.Inline>
-          ),
-          align: "end",
-          cell: (row) => usd(row.reservedUsd),
-        },
-      ]}
+      columns={columns}
       getRowKey={(row) => row.key}
-      rows={budgetRows(accounts)}
+      rows={rows}
     />
+  );
+}
+
+/**
+ * Rows as a phone shows them: no table to split words, each record a stacked
+ * row with its first column as the title and every other value labelled.
+ */
+function StackedRecords<Row>(
+  { caption, columns, getRowKey, labels = {}, rows }: {
+    readonly caption: string;
+    readonly columns: readonly UI.DataTableColumn<Row>[];
+    readonly getRowKey: (row: Row) => string;
+    /** Plain-text names for columns whose header is more than text. */
+    readonly labels?: Readonly<Record<string, string>>;
+    readonly rows: readonly Row[];
+  },
+) {
+  return (
+    <UI.Stack aria-label={caption} gap="none" role="list">
+      {rows.map((row) => (
+        <div key={getRowKey(row)} role="listitem">
+          <UI.StackedRow title={columns[0].cell(row)}>
+            {columns.slice(1).map((column) => (
+              <UI.Text key={column.id} variant="caption">
+                {labels[column.id] ??
+                  (typeof column.header === "string"
+                    ? column.header
+                    : column.id)}: {column.cell(row)}
+              </UI.Text>
+            ))}
+          </UI.StackedRow>
+        </div>
+      ))}
+    </UI.Stack>
   );
 }
 

@@ -1809,6 +1809,7 @@
   "installation.usage.unknownCount.label": "Cost unknown",
   "installation.usage.unknownCount.detail": "No cost was reported. Unknown is not zero.",
   "installation.usage.unknownCount.help": "These records have no cost at all. They are never counted as zero, which would make the total look lower than it is.",
+  "installation.usage.none": "None",
   "installation.usage.records.one": "{count} record",
   "installation.usage.records.other": "{count} records",
   "installation.usage.byProvider.heading": "By provider",

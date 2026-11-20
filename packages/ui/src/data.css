@@ -2311,3 +2311,9 @@
   grid-column: 1 / -1;
   grid-row: 2;
 }
+
+/* Usage's two filters share the title's row: the description beside the title
+   yields, and the filters keep their one line. */
+.ui-settings-content[data-page="installation-usage"] .ui-access-settings__actions {
+  flex-shrink: 0;
+}
