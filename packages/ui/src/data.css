@@ -2317,3 +2317,17 @@
 .ui-settings-content[data-page="installation-usage"] .ui-access-settings__actions {
   flex-shrink: 0;
 }
+
+/* On a phone the empty state's action sits inside the dashed box, as it does on
+   a desktop: the box is the panel, not the copy alone. */
+@media (max-width: 743px) {
+  .ui-settings-content[data-page="installation-usage"] .ui-access-settings__panel[data-tone="empty"] {
+    border: var(--border-default) dashed var(--color-control-border);
+    border-radius: var(--radius-overlay);
+    padding: var(--space-5);
+  }
+  .ui-settings-content[data-page="installation-usage"] .ui-access-settings__panel[data-tone="empty"] .ui-access-settings__panel-copy {
+    border: var(--border-none);
+    padding: var(--space-0);
+  }
+}

@@ -408,7 +408,12 @@ function UsageBudgetTable(
     {
       id: "budget",
       header: translate("installation.usage.budgets.budget"),
-      cell: (row) => row.scopeLabel,
+      cell: (row) =>
+        translate(
+          row.scopeLabel === "run"
+            ? "installation.usage.budgets.scope.run"
+            : "installation.usage.budgets.scope.installation",
+        ),
     },
     {
       id: "limit",

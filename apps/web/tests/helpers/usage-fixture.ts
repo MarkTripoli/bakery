@@ -34,7 +34,7 @@ const ROWS = [
     outputTokens: "90000",
   },
   {
-    provider: "claude",
+    provider: "google",
     billingType: "subscription",
     model: null,
     knownCostUsd: "0.0000",

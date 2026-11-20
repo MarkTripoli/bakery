@@ -5196,5 +5196,7 @@
   "delivery.time.blockedUnknown.text": "⟦Ɓàķëŕÿ ðôëš ñôŧ ŕëçôŕð ŵĥëñ à ŧàšķ ŵàš ƀļôçķëð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "delivery.fresh.neverZero": "⟦{count, plural, one {It is listed} other {They are listed}}, ñëṽëŕ çôûñŧëð àš žëŕô. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "delivery.duration.none": "⟦Ñôñë⟧",
-  "installation.usage.none": "⟦Ñôñë⟧"
+  "installation.usage.none": "⟦Ñôñë⟧",
+  "installation.usage.budgets.scope.installation": "⟦Ïñšŧàļļàŧïôñ ŧë⟧",
+  "installation.usage.budgets.scope.run": "⟦Ŕûñ⟧"
 }

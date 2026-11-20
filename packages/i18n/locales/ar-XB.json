@@ -5196,5 +5196,7 @@
   "delivery.time.blockedUnknown.text": "⟪Bakery does not record when a task was blocked yet.⟫",
   "delivery.fresh.neverZero": "⟪{count, plural, one {It is listed} other {They are listed}}, never counted as zero.⟫",
   "delivery.duration.none": "⟪None⟫",
-  "installation.usage.none": "⟪None⟫"
+  "installation.usage.none": "⟪None⟫",
+  "installation.usage.budgets.scope.installation": "⟪Installation⟫",
+  "installation.usage.budgets.scope.run": "⟪Run⟫"
 }
