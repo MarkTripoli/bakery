@@ -197,3 +197,85 @@ Deno.test("a skill's Used by lists the published workflow versions and agent ver
     await f.close();
   }
 });
+
+Deno.test("a Used by cursor belongs to its skill, and a row lists each pinned version once, oldest revision first", async () => {
+  const f = await openPersonalSkillFixture();
+  try {
+    const make = async (slug: string) => {
+      const created = await f.post(
+        f.ownerCookie,
+        "/v1/skills",
+        { slug, name: slug },
+        `skill-${slug}`,
+      );
+      assertEquals(created.status, 201, await created.clone().text());
+      return (await created.json() as { id: string }).id;
+    };
+    const alpha = await make("alpha");
+    const beta = await make("beta");
+    const a1 = await f.insertSkillVersion(alpha);
+    const a2 = `00000000-0000-8000-8000-${crypto.randomUUID().slice(-12)}`;
+    await f.fixture.pgDatabase.query(
+      `insert into bakery.skill_versions (
+         id, organization_id, skill_id, revision, source_revision, digest,
+         entry_path, manifest, status, created_by
+       ) values ($1, $2, $3, 2, 'rev-2', $4, 'SKILL.md', '{}'::jsonb, 'published', $5)`,
+      [
+        a2,
+        f.organizationId,
+        alpha,
+        `sha256:${"d".repeat(64)}`,
+        f.ownerPrincipalId,
+      ],
+    );
+    const b1 = await f.insertSkillVersion(beta);
+    // One workflow version names both revisions of alpha, the newer first, and
+    // the older again in a second step: still one row listing [a1, a2] once each.
+    const both = await publishedWorkflow(f, "pins-both", {
+      kind: "fixed",
+      steps: [
+        {
+          id: "first",
+          uses: "workflow.noop",
+          action: "agent.run",
+          skills: [a2, a1],
+        },
+        {
+          id: "second",
+          uses: "workflow.noop",
+          action: "agent.run",
+          skills: [a1],
+        },
+      ],
+    });
+    // A second workflow pins alpha too, so alpha has two rows and a cursor.
+    const other = await publishedWorkflow(f, "pins-a1", step([a1]));
+    // Beta has its own row, so replaying alpha's cursor on it is a real attempt.
+    await publishedWorkflow(f, "pins-b1", step([b1]));
+    const read = (id: string, query = "") =>
+      f.read(f.adminCookie, `/v1/skills/${id}/used-by${query}`);
+    const all = await (await read(alpha)).json() as Page;
+    const bothRows = all.items.filter((item) =>
+      item.versionId === both.versionId
+    );
+    assertEquals(bothRows.length, 1);
+    assertEquals(
+      bothRows[0].skillVersionIds,
+      [a1, a2],
+      "each version once, oldest revision first",
+    );
+    assert(all.items.some((item) => item.versionId === other.versionId));
+    // A cursor taken from alpha pages alpha, and is refused on beta.
+    const first = await (await read(alpha, "?limit=1")).json() as Page;
+    assert(first.nextCursor !== null, "alpha has a second page");
+    const cursor = encodeURIComponent(first.nextCursor);
+    const onAlpha = await read(alpha, `?limit=1&cursor=${cursor}`);
+    assertEquals(onAlpha.status, 200, await onAlpha.clone().text());
+    await onAlpha.body?.cancel();
+    const onBeta = await read(beta, `?limit=1&cursor=${cursor}`);
+    assertEquals(onBeta.status, 400, await onBeta.clone().text());
+    await onBeta.body?.cancel();
+  } finally {
+    await f.close();
+  }
+});
