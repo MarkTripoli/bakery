@@ -4492,7 +4492,6 @@
   "issues.settings.workflow.standard": "⟪Every repository runs the standard coding workflow.⟫",
   "issues.settings.routing.removeShort": "⟪Remove rule⟫",
   "settings.roles.thing.runRequest": "⟪requests⟫",
-  "settings.roles.thing.batch": "⟪batches of issues⟫",
   "settings.sso.provider.delete.body": "⟪People at {domain} will no longer be able to sign in through this provider.⟫",
   "settings.sso.provider.delete.titleStopRequiring": "⟪Remove {name} and stop requiring SSO?⟫",
   "settings.sso.provider.delete.confirmStopRequiring": "⟪Remove and stop requiring SSO⟫",
@@ -5005,5 +5004,6 @@
   "files.search.by": "⟪Made by⟫",
   "files.search.by.any": "⟪Anyone⟫",
   "files.search.by.unknown": "⟪Unknown account⟫",
-  "files.search.by.disabled": "⟪{name} (inactive)⟫"
+  "files.search.by.disabled": "⟪{name} (inactive)⟫",
+  "settings.roles.thing.batch": "⟪batches of issues⟫"
 }
