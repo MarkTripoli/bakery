@@ -516,7 +516,7 @@ Deno.test("a closed read without a close time keeps the stored one; a reopen cle
       read(f.organizationId, 1, {
         state: "open",
         merged: false,
-        providerUpdatedAt: new Date("2026-06-04T12:00:00Z"),
+        providerUpdatedAt: new Date("2026-06-06T12:00:00Z"),
         closedAt: null,
         mergedAt: null,
       }),
