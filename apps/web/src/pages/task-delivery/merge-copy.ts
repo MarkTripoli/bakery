@@ -23,6 +23,21 @@ export type MergeCardCopy = Readonly<{
   action: MergeCardAction;
 }>;
 
+/** Approved and ready: Merge is the one action, and the card names the branch. */
+export function mergeReadyCopy(
+  t: Translator,
+  now: Extract<NowCard, { kind: "mergeReady" }>,
+): MergeCardCopy {
+  return {
+    title: t("tasks.delivery.now.mergeReady.title"),
+    body: t("tasks.delivery.now.mergeReady.body", {
+      head: now.head,
+      branch: now.branch,
+    }),
+    action: "merge",
+  };
+}
+
 /** Bakery is checking and merging; nothing is for the person to do. */
 export function mergeWorkingCopy(t: Translator): MergeCardCopy {
   return {

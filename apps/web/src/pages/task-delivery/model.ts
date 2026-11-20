@@ -403,7 +403,9 @@ export type NowCard =
   | Readonly<{ kind: "approval" }>
   | Readonly<{ kind: "approvalUnknown" }>
   | Readonly<{ kind: "approved" }>
-  | Readonly<{ kind: "mergeReady"; head: string; number: number }>
+  | Readonly<
+    { kind: "mergeReady"; head: string; number: number; branch: string }
+  >
   | Readonly<{ kind: "mergeNoPermission" }>
   | Readonly<{ kind: "mergeUnknown"; head: string }>
   | Readonly<{ kind: "mergeWorking" }>
@@ -958,10 +960,10 @@ function mergeBadge(
   if (merge.state === "unknown") return { ...after, badge: "mergeUnknown" };
   if (merge.state === "working") return { ...after, badge: "merging" };
   if (merge.state === "noChecks") return { ...after, badge: "approved" };
-  if (
-    merge.state === "blocked" ||
-    (merge.state === "refused" && merge.blockedReason !== null)
-  ) {
+  // A refused merge is a merge that did not happen, whether it was reached
+  // through a stopped queue entry or only through its attempt (an attempt newer
+  // than the entry that made it reads the same): both say "Not merged".
+  if (merge.state === "blocked" || merge.state === "refused") {
     return { ...after, badge: "mergeBlocked" };
   }
   if (merge.state === "moved") {
@@ -1000,6 +1002,7 @@ function mergeNow(
         kind: "mergeReady",
         head: shortSha(merge.headSha),
         number: merge.providerNumber,
+        branch: merge.targetBranch,
       };
     case "noPermission":
       return { kind: "mergeNoPermission" };

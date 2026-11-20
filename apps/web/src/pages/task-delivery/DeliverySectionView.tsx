@@ -20,6 +20,7 @@ import {
   mergeBlockedCopy,
   type MergeCardAction,
   mergeNoChecksCopy,
+  mergeReadyCopy,
   mergeStepCopy,
   type MergeTarget,
   mergeWorkingCopy,
@@ -129,11 +130,7 @@ function nowCopy(t: Translate, now: NowCard): NowCopy {
         action: null,
       };
     case "mergeReady":
-      return {
-        title: t("tasks.delivery.now.mergeReady.title"),
-        body: t("tasks.delivery.now.mergeReady.body", { head: now.head }),
-        action: "merge",
-      };
+      return mergeReadyCopy(t, now);
     case "mergeNoPermission":
       return {
         title: t("tasks.delivery.now.mergeNoPermission.title"),

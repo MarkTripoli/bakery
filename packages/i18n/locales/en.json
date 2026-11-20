@@ -4799,7 +4799,7 @@
   "tasks.delivery.afterApproval.merge.refused": "GitHub refused the merge.",
   "tasks.delivery.afterApproval.merge.moved": "Bakery did not merge. The pull request no longer matches what was checked.",
   "tasks.delivery.now.mergeReady.title": "Ready to merge",
-  "tasks.delivery.now.mergeReady.body": "Checks and the review passed for commit {head}, and it was approved. Merging puts these changes into the branch this pull request targets.",
+  "tasks.delivery.now.mergeReady.body": "Checks and the review passed for commit {head}, and it was approved. Merging puts these changes into {branch}.",
   "tasks.delivery.now.mergeNoPermission.title": "Ready to merge",
   "tasks.delivery.now.mergeNoPermission.body": "Someone who can merge in this repository can do it here.",
   "tasks.delivery.now.mergeUnknown.title": "Bakery does not know whether this merged",

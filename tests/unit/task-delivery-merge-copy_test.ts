@@ -5,6 +5,7 @@ import {
   MERGE_REFUSAL_ABOVE,
   mergeBlockedCopy,
   mergeNoChecksCopy,
+  mergeReadyCopy,
   mergeStepCopy,
   mergeWorkingCopy,
 } from "../../apps/web/src/pages/task-delivery/merge-copy.ts";
@@ -363,4 +364,21 @@ Deno.test("an answer that never arrived is not a refusal", () => {
     "noAnswer",
   );
   assertEquals(queueFailure(problem(500, "INTERNAL")), "noAnswer");
+});
+
+Deno.test("the Ready card says which branch Merge puts the changes into", () => {
+  assertEquals(
+    mergeReadyCopy(t, {
+      kind: "mergeReady",
+      head: "91d0aa3",
+      number: 482,
+      branch: "release/1.0",
+    }),
+    {
+      title: "Ready to merge",
+      body:
+        "Checks and the review passed for commit 91d0aa3, and it was approved. Merging puts these changes into release/1.0.",
+      action: "merge",
+    },
+  );
 });

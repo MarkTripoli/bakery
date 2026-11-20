@@ -741,6 +741,7 @@ Deno.test("an approved candidate at the reviewed head is ready to merge for some
     kind: "mergeReady",
     head: NEW.slice(0, 7),
     number: 7,
+    branch: "main",
   });
   assertEquals(model.afterApproval.badge, "readyToMerge");
 });
@@ -1047,6 +1048,8 @@ Deno.test("GitHub's refusal and a merge GitHub did not make are the built cards"
     head: NEW.slice(0, 7),
     mayMerge: true,
   });
+  // A stopped queue entry is a merge that did not happen: "Not merged".
+  assertEquals(refused.afterApproval.badge, "mergeBlocked");
   const notMerged = deliveryModel(approvedWithPullRequest({
     mergeEntries: [blocked("not_merged")],
   }));
@@ -1173,4 +1176,31 @@ Deno.test("queued merges that could not be read offer no merge, like unreadable 
     mergeUnavailable: true,
   }));
   assertEquals(model.merge, null);
+});
+
+Deno.test("a refusal reached only through its attempt, or an attempt newer than its entry, is Not merged too", () => {
+  const attemptOnly = deliveryModel(approvedWithPullRequest({
+    mergeAttempts: [attempt({ state: "refused" })],
+  }));
+  assertEquals(attemptOnly.merge?.state, "refused");
+  assertEquals(attemptOnly.afterApproval.badge, "mergeBlocked");
+  const newerThanEntry = deliveryModel(approvedWithPullRequest({
+    mergeEntries: [blocked("github_refused")],
+    mergeAttempts: [
+      attempt({ state: "refused", createdAt: "2026-11-13T10:40:00.000Z" }),
+    ],
+  }));
+  assertEquals(newerThanEntry.merge?.state, "refused");
+  assertEquals(newerThanEntry.afterApproval.badge, "mergeBlocked");
+});
+
+Deno.test("the Ready card names the branch the pull request merges into", () => {
+  const model = deliveryModel(
+    approvedWithPullRequest({}, { targetBranch: "release/1.0" }),
+  );
+  assertEquals(model.now.kind, "mergeReady");
+  assertEquals(
+    model.now.kind === "mergeReady" ? model.now.branch : null,
+    "release/1.0",
+  );
 });

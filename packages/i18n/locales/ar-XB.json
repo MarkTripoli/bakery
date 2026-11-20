@@ -4519,7 +4519,6 @@
   "tasks.delivery.afterApproval.merge.refused": "⟪GitHub refused the merge.⟫",
   "tasks.delivery.afterApproval.merge.moved": "⟪Bakery did not merge. The pull request no longer matches what was checked.⟫",
   "tasks.delivery.now.mergeReady.title": "⟪Ready to merge⟫",
-  "tasks.delivery.now.mergeReady.body": "⟪Checks and the review passed for commit {head}, and it was approved. Merging puts these changes into the branch this pull request targets.⟫",
   "tasks.delivery.now.mergeNoPermission.title": "⟪Ready to merge⟫",
   "tasks.delivery.now.mergeNoPermission.body": "⟪Someone who can merge in this repository can do it here.⟫",
   "tasks.delivery.now.mergeUnknown.title": "⟪Bakery does not know whether this merged⟫",
@@ -5060,5 +5059,6 @@
   "tasks.delivery.merge.notice.checksNotPassed": "⟪A required check has not passed for commit {head}.⟫",
   "tasks.delivery.now.mergeNoChecks.title": "⟪No check results for this commit⟫",
   "tasks.delivery.now.mergeNoChecks.body": "⟪Bakery merges only what was checked, and it has no check results for commit {head}. Open the pull request to see its checks.⟫",
-  "tasks.delivery.afterApproval.merge.blocked.not_merged": "⟪GitHub did not merge it.⟫"
+  "tasks.delivery.afterApproval.merge.blocked.not_merged": "⟪GitHub did not merge it.⟫",
+  "tasks.delivery.now.mergeReady.body": "⟪Checks and the review passed for commit {head}, and it was approved. Merging puts these changes into {branch}.⟫"
 }
