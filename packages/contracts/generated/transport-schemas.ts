@@ -26058,7 +26058,8 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "value"
+        "value",
+        "sizeBytes"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -26072,7 +26073,8 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "value": "json"
+        "value": "json",
+        "sizeBytes": "integer"
       },
       "nullableFields": [
         "ownerPrincipalId"
@@ -26080,7 +26082,7 @@ const transportSchemas = {
       "rules": [
         "Owner-authorized response only; JSON validates against its pinned schema and size limit. Never contains credentials or raw provider payloads. Not a public catalog/list projection."
       ],
-      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration.",
+      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration. sizeBytes is the size of the stored value.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying this plugin state record.",
         "organizationId": "UUID of the organization that owns this record.",
@@ -26093,8 +26095,12 @@ const transportSchemas = {
         "createdAt": "Timestamp recording when the created event occurred for this plugin state record.",
         "updatedAt": "Timestamp recording the last update to this plugin state record.",
         "version": "Monotonic revision used to order or conditionally update this plugin state record.",
-        "value": "Measured value recorded at the metric point."
-      }
+        "value": "Measured value recorded at the metric point.",
+        "sizeBytes": "Size in bytes of the stored value's JSON text, so a caller can say how much a plugin has saved without holding the value. Read from the stored row, never from a caller."
+      },
+      "optionalFields": [
+        "sizeBytes"
+      ]
     },
     "Page<PluginState>": {
       "pageOf": "PluginState"

@@ -24739,6 +24739,12 @@ export const clientManifest = {
             }
           ],
           "description": "Measured value recorded at the metric point."
+        },
+        "sizeBytes": {
+          "description": "Size in bytes of the stored value's JSON text, so a caller can say how much a plugin has saved without holding the value. Read from the stored row, never from a caller.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         }
       },
       "required": [
@@ -24756,7 +24762,7 @@ export const clientManifest = {
         "value"
       ],
       "additionalProperties": false,
-      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration.",
+      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration. sizeBytes is the size of the stored value.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -71556,6 +71562,12 @@ export const clientManifest = {
                   }
                 ],
                 "description": "Measured value recorded at the metric point."
+              },
+              "sizeBytes": {
+                "description": "Size in bytes of the stored value's JSON text, so a caller can say how much a plugin has saved without holding the value. Read from the stored row, never from a caller.",
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               }
             },
             "required": [
@@ -71573,7 +71585,7 @@ export const clientManifest = {
               "value"
             ],
             "additionalProperties": false,
-            "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration."
+            "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration. sizeBytes is the size of the stored value."
           },
           "description": "PluginState items in this cursor page. Page<PluginState>.items must contain at most 100 items."
         },

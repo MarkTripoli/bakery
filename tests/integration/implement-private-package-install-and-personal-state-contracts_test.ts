@@ -2572,3 +2572,70 @@ Deno.test("a removed install does not remember an update, and a draft version is
     );
     assertEquals(row.rows[0].f, null);
   }));
+
+Deno.test("a state read says how big each saved item is, and the write answers with it too", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    const put = (key: string, value: unknown) =>
+      call(fixture, `/v1/plugin-installs/${install.id}/state/settings/${key}`, {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key,
+          schemaVersion: 1,
+          value,
+          expectedCasVersion: 0,
+        },
+      });
+    const small = await put("small", { a: 1 });
+    assertEquals(small.status, 200, await small.clone().text());
+    const big = await put("big", { text: "x".repeat(5000) });
+    assertEquals(big.status, 200, await big.clone().text());
+    // The write answers with the size of what it stored.
+    assert((await big.json()).sizeBytes > 5000);
+
+    // The read gives each item's size and last-saved time without the caller
+    // having to hold the value to measure it, and the size is what Postgres
+    // stores, not something a caller supplied.
+    const listed = await (await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}/state`,
+      { method: "GET" },
+    )).json();
+    const stored = await fixture.pgDatabase.query<
+      { key: string; size: string }
+    >(
+      `select key, octet_length(value::text)::text as size
+         from bakery.plugin_state
+        where organization_id = $1 and plugin_install_id = $2`,
+      [fixture.organizationId, install.id],
+    );
+    const expected = new Map(
+      stored.rows.map((row) => [row.key, Number(row.size)]),
+    );
+    assertEquals(listed.items.length, 2);
+    for (
+      const item of listed.items as {
+        key: string;
+        sizeBytes: number;
+        updatedAt: string;
+      }[]
+    ) {
+      assertEquals(item.sizeBytes, expected.get(item.key));
+      assert(!Number.isNaN(Date.parse(item.updatedAt)));
+    }
+    assert(
+      listed.items.find((item: { key: string }) => item.key === "big")
+        .sizeBytes >
+        listed.items.find((item: { key: string }) => item.key === "small")
+          .sizeBytes,
+    );
+  }));

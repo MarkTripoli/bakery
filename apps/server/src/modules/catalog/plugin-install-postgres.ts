@@ -56,7 +56,7 @@ const INSTALL_COLUMNS = `
 const STATE_COLUMNS = `
   s.id, s.plugin_install_id, s.owner_principal_id, s.namespace, s.key,
   s.schema_version, s.cas_version, s.value, s.created_at, s.updated_at,
-  s.version
+  s.version, octet_length(s.value::text) as size_bytes
 `;
 
 type InstallRow = {
@@ -87,6 +87,7 @@ type StateRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  size_bytes: number;
 };
 
 type PluginInstall = z.output<typeof contractSchemas.PluginInstall>;
@@ -131,6 +132,7 @@ function toState(row: StateRow, organizationId: string): PluginState {
     createdAt: iso(row.created_at)!,
     updatedAt: iso(row.updated_at)!,
     version: row.version,
+    sizeBytes: Number(row.size_bytes),
   };
 }
 
