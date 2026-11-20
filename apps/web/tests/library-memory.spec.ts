@@ -705,7 +705,9 @@ for (
       for (const id of [99, 98]) {
         await page.goto(`/library?tab=memory&fact=${uuid(id)}`);
         const missing = page.getByTestId("memory-fact-missing");
-        await expect(missing).toContainText("This fact was not found");
+        await expect(
+          page.getByText("This fact was not found").first(),
+        ).toBeVisible();
         await expect(missing).toContainText(
           "It may have been removed, or you may not have access to it.",
         );

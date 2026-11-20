@@ -280,7 +280,7 @@ export function MemoryFactProblem(
   const close = translate("library.memory.fact.close" as never);
   const body = (
     <UI.Stack gap="standard" data-testid="memory-fact-missing">
-      <UI.Heading level="section">{title}</UI.Heading>
+      {phone ? null : <UI.Heading level="section">{title}</UI.Heading>}
       <UI.Text>
         {translate(
           (kind === "missing"
