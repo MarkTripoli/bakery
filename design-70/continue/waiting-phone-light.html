@@ -1,0 +1,46 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>#70 another way to run it</title><style>:root{--color-border:#E3E6EB;--color-border-strong:#CBD0D8;--color-canvas:#F5F6F8;--color-control-border:#8A939F;--color-destructive:#BE3341;--color-destructive-surface:#FCEEEF;--color-fg:#141A24;--color-fg-muted:#5D6675;--color-fg-disabled:#9AA3B1;--color-focus:#0B63C6;--color-primary:#141A24;--color-primary-foreground:#FFFFFF;--color-selection:#0B63C6;--color-selection-surface:#ECF1F8;--color-status-neutral:#374151;--color-status-neutral-surface:#E5E7EB;--color-status-success:#17784B;--color-status-success-surface:#E8F5EE;--color-status-warning:#8F5A0B;--color-status-warning-surface:#FBF3E4;--color-surface:#FFFFFF;--color-surface-subtle:#EEF0F4;--shadow:0 8px 24px rgba(20,26,36,.16);--scrim:rgba(20,26,36,.36);}
+*{box-sizing:border-box}html,body{margin:0}
+body{font:400 14px/20px Geist,Inter,system-ui,sans-serif;color:var(--color-fg);background:var(--color-surface);padding:24px}
+body.phone{padding:16px}
+.h{display:flex;justify-content:space-between;align-items:center}
+.h b{font:600 15px/22px Geist,system-ui,sans-serif}
+.sub{color:var(--color-fg-muted);margin:8px 0 14px}
+.badge{font:500 12px/18px Geist,system-ui,sans-serif;padding:1px 8px;border-radius:4px;white-space:nowrap}
+.badge.warn{background:var(--color-status-warning-surface);color:var(--color-status-warning)}
+.badge.neutral{background:var(--color-status-neutral-surface);color:var(--color-status-neutral)}
+.card{border:1px solid var(--color-status-warning);background:var(--color-status-warning-surface);border-radius:6px;padding:12px 16px;display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.card svg{flex:none;align-self:flex-start;margin-top:3px;color:var(--color-status-warning)}
+.card .g{flex:1;min-width:0}.card .g b{font:600 15px/22px Geist,system-ui,sans-serif;display:block}
+.card .g p{margin:4px 0 0}.card .g .m{color:var(--color-fg-muted)}
+.btn{font:500 14px/20px Geist,system-ui,sans-serif;height:36px;padding:0 14px;border-radius:4px;border:1px solid var(--color-border-strong);background:var(--color-surface);color:var(--color-fg);display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+.btn.pri{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-foreground)}
+.btn.off{background:var(--color-surface-subtle);border-color:var(--color-border);color:var(--color-fg-disabled)}
+.steps{border:1px solid var(--color-border);border-radius:6px}
+.st{display:flex;gap:14px;padding:12px 16px;border-top:1px solid var(--color-border);align-items:flex-start}
+.st:first-child{border-top:0}
+.mk{width:22px;height:22px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font:600 12px/1 Geist,system-ui,sans-serif}
+.mk.done{background:var(--color-status-success-surface);color:var(--color-status-success)}
+.mk.wait{background:var(--color-status-warning-surface);color:var(--color-status-warning)}
+.mk.none{border:1.5px solid var(--color-border-strong)}
+.st .b{flex:1;min-width:0}.st .b b{font-weight:600;display:block}.st .b span{color:var(--color-fg-muted);display:block;margin-top:6px}
+body.phone .card{flex-direction:column;align-items:stretch}
+body.phone .btn{height:44px}
+.scrim{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px}
+.dlg{background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;box-shadow:var(--shadow);width:560px;max-width:100%;padding:20px 24px}
+.dlg h2{font:600 17px/24px Geist,system-ui,sans-serif;margin:0 0 6px}
+.dlg .intro{color:var(--color-fg-muted);margin:0 0 16px}
+.opt{display:flex;gap:12px;border:1px solid var(--color-border-strong);border-radius:6px;padding:12px 14px;margin-bottom:8px;align-items:flex-start}
+.opt.on{border-color:var(--color-selection);background:var(--color-selection-surface);box-shadow:inset 0 0 0 1px var(--color-selection)}
+.radio{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--color-control-border);flex:none;margin-top:2px}
+.opt.on .radio{border:5px solid var(--color-selection)}
+.opt .t{flex:1;min-width:0}.opt .t b{font-weight:600;display:block}.opt .t span{color:var(--color-fg-muted);display:block;margin-top:2px}
+.notice{border:1px solid var(--color-status-warning);background:var(--color-status-warning-surface);color:var(--color-status-warning);border-radius:6px;padding:10px 14px;margin:12px 0 0;display:flex;gap:10px}
+.notice svg{flex:none;margin-top:2px}
+.more{color:var(--color-fg-muted);margin:14px 0 6px;font-weight:500;display:flex;gap:6px;align-items:center}
+.no{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--color-border)}
+.no span{color:var(--color-fg-muted)}
+.cost{color:var(--color-fg-muted);margin:14px 0 0}
+.foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+body.phone .foot{flex-direction:column-reverse}</style></head><body class="phone"><div class="h"><b>Run 3</b><span class="badge warn">Waiting on a model</span></div><div class="sub">Started 14:02 · Fix the flaky upload test</div>
+<div class="card"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.2 14.2 13H1.8L8 2.2Z" stroke-linejoin="round"/><path d="M8 6.6v3M8 11.3v.2" stroke-linecap="round"/></svg><div class="g"><b>Waiting: Claude Code cannot reach its model</b><p>The step “Write the fix” runs on Claude Code with claude-opus-5-5, paid by the subscription on a machine. Anthropic has been limiting requests since 14:31.</p><p class="m">Bakery has not moved this work anywhere else. It checks again at 14:46.</p></div><span class="btn">Choose another way to run it</span></div>
+<div class="steps"><div class="st"><span class="mk done">✓</span><div class="b"><b>Read the issue</b><span>Done in 40 seconds</span></div></div><div class="st"><span class="mk done">✓</span><div class="b"><b>Plan</b><span>Done in 2 minutes</span></div></div><div class="st"><span class="mk wait">!</span><div class="b"><b>Write the fix</b><span>Waiting on Claude Code with claude-opus-5-5.</span></div></div><div class="st"><span class="mk none"></span><div class="b"><b>Check the result</b><span>Not started</span></div></div></div></body></html>
