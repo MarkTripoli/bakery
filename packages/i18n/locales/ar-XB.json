@@ -4635,5 +4635,8 @@
   "library.memory.refusal.other": "⟪The change did not go through. Nothing was changed. Try again.⟫",
   "library.memory.refusal.forbidden": "⟪Only an administrator can change remembered facts.⟫",
   "library.memory.correct.savedNotApproved": "⟪The correction was saved, but the fact was not put in use.⟫",
-  "library.memory.action.adminOnly": "⟪Only an administrator can change remembered facts.⟫"
+  "library.memory.action.adminOnly": "⟪Only an administrator can change remembered facts.⟫",
+  "library.memory.correct.sourceVersion": "⟪Bakery will link version {version} of {name}.⟫",
+  "library.memory.review": "⟪Review⟫",
+  "library.memory.source.boxAvailable": "⟪{name}, version {version}⟫"
 }

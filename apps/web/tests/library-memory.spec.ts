@@ -202,6 +202,32 @@ async function memoryFixture(
     "**/v1/artifacts**",
     (route) => route.fulfill(json({ items: DOCUMENTS, nextCursor: null })),
   );
+  // Registered after the artifacts list, so it wins for a document's versions.
+  await page.route("**/v1/artifacts/*/versions**", (route) => {
+    const artifactId = new URL(route.request().url()).pathname.split("/")[3];
+    const document = DOCUMENTS.find((item) => item.id === artifactId);
+    return route.fulfill(json({
+      items: document
+        ? [{
+          id: document.currentVersionId,
+          artifactId: document.id,
+          revision: document.name === "Deploy runbook" ? 4 : 2,
+          runStepId: null,
+          authorId: uuid(1),
+          mediaType: "text/markdown",
+          sizeBytes: 10,
+          sha256: "a".repeat(64),
+          subjectHeadSha: null,
+          subjectBaseSha: null,
+          metadata: null,
+          createdAt: STAMP,
+          updatedAt: STAMP,
+          version: 1,
+        }]
+        : [],
+      nextCursor: null,
+    }));
+  });
   await page.route("**/v1/memories**", (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -313,6 +339,9 @@ for (
       );
       await expect(row(page, 1)).toContainText("Repository: api-service");
       await expect(row(page, 2)).toContainText("Suggested");
+      // A suggestion waits on a person: its button says Review.
+      await expect(row(page, 2).getByRole("button")).toHaveText("Review");
+      await expect(row(page, 1).getByRole("button")).toHaveText("Open");
       await expect(row(page, 2)).toContainText("Source: Runbook, version 3");
       await expect(row(page, 2)).not.toContainText("corrected");
       await expect(row(page, 3)).toContainText("Source missing");
@@ -350,8 +379,8 @@ for (
       await expect(sheet.getByTestId("memory-fact-body")).toHaveText(
         "Deploys run from main, never from a branch.",
       );
-      await expect(sheet.getByTestId("memory-source")).toContainText(
-        "Source: Runbook, version 3",
+      await expect(sheet.getByTestId("memory-source")).toHaveText(
+        "Runbook, version 3",
       );
       await expect(sheet).toContainText("How sure: High");
       await expect(sheet).toContainText("It is a guide, not a measurement.");
@@ -419,6 +448,11 @@ for (
       await expect(sheet).toContainText(
         "Agents are not given a suggested fact. Read the source, then decide.",
       );
+      // The wording is the fact's own state, not "In use".
+      const first = sheet.getByTestId("memory-history").getByRole("listitem")
+        .first();
+      await expect(first).toContainText("Suggested");
+      await expect(first).not.toContainText("In use");
       await expect(sheet.getByRole("button", { name: "Approve", exact: true }))
         .toBeVisible();
       await expect(
@@ -472,7 +506,13 @@ for (
       await form.getByLabel("Why is this changing?").fill(
         "The reset moved.",
       );
+      // Source is required, like the other two fields.
+      await expect(form.getByText("Source *")).toBeVisible();
       await form.locator("select").selectOption({ label: "Deploy runbook" });
+      // The help names the exact version Bakery will link.
+      await expect(form).toContainText(
+        "Bakery will link version 4 of Deploy runbook.",
+      );
       await shot(page, "library-memory-correct", [], { windowOnly: true });
       await form.getByRole("button", { name: "Save and approve" }).click();
       await expect(sheet.getByTestId("memory-toast")).toContainText(
@@ -595,6 +635,25 @@ for (
         await expect(sheet.getByRole("button", { name })).toHaveCount(0);
       }
     });
+
+    if (viewport.name === "desktop") {
+      test("on a wide screen the list stays beside the fact; Escape closes it and returns to the row", async ({ page }) => {
+        await memoryFixture(page);
+        const sheet = await open(page, 1);
+        // No backdrop: another row can be opened while this one is.
+        await row(page, 3).getByRole("button", { name: /^Open fact:/ }).click();
+        await expect(page).toHaveURL(new RegExp(`fact=${uuid(3)}`));
+        await expect(sheet.getByTestId("memory-fact-body")).toHaveText(
+          "Releases are tagged by the on-call engineer.",
+        );
+        await expect(row(page, 3)).toHaveAttribute("aria-current", "true");
+        await expect(row(page, 1)).not.toHaveAttribute("aria-current", "true");
+        await page.keyboard.press("Escape");
+        await expect(sheet).toHaveCount(0);
+        await expect(page).not.toHaveURL(/fact=/);
+        await expect(row(page, 3).getByRole("button")).toBeFocused();
+      });
+    }
   });
 }
 
