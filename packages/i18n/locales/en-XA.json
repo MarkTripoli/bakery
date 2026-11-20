@@ -4803,5 +4803,6 @@
   "files.action.open": "⟦Ôþëñ⟧",
   "files.back": "⟦Ɓàçķ ŧô {name} ŧë⟧",
   "files.version.viewing": "⟦Ṽïëŵïñĝ…⟧",
-  "files.madeBy.openItem": "⟦Ôþëñ {item} ŧ⟧"
+  "files.madeBy.openItem": "⟦Ôþëñ {item} ŧ⟧",
+  "settings.roles.verb.author": "⟦Çŕëàŧë, çĥàñĝë àñð þûƀļïšĥ {things} ŧëšŧ çôþÿŧ⟧"
 }

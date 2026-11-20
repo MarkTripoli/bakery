@@ -4803,5 +4803,6 @@
   "files.action.open": "⟪Open⟫",
   "files.back": "⟪Back to {name}⟫",
   "files.version.viewing": "⟪Viewing⟫",
-  "files.madeBy.openItem": "⟪Open {item}⟫"
+  "files.madeBy.openItem": "⟪Open {item}⟫",
+  "settings.roles.verb.author": "⟪Create, change and publish {things}⟫"
 }
