@@ -4585,5 +4585,9 @@
   "files.action.download": "⟦Ðôŵñļôàð…⟧",
   "files.action.downloadFailed": "⟦Ŧĥë ðôŵñļôàð ðïð ñôŧ šŧàŕŧ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
   "files.action.copyPath": "⟦Çôþÿ þàŧĥ ŧ⟧",
-  "files.action.copyPathLabel": "⟦Çôþÿ ŧĥë þàŧĥ ôƒ {name} ŧëšŧ ç⟧"
+  "files.action.copyPathLabel": "⟦Çôþÿ ŧĥë þàŧĥ ôƒ {name} ŧëšŧ ç⟧",
+  "files.version.notice": "⟦Ÿôû àŕë ļôôķïñĝ àŧ ṽëŕšïôñ {number} ôƒ {total}, šàṽëð {when}. Ïŧ ïš ñôŧ ŧĥë çûŕŕëñŧ ṽëŕšïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "files.version.backToCurrent": "⟦Ɓàçķ ŧô çûŕŕëñŧ ŧëš⟧",
+  "files.action.downloadVersion": "⟦Ðôŵñļôàð ŧĥïš ṽëŕšïôñ ŧëšŧŧ⟧",
+  "files.version.choose": "⟦Šĥôŵ ṽëŕšïôñ {number} ŧëšŧŧ⟧"
 }

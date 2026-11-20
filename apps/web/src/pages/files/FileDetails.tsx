@@ -23,11 +23,14 @@ export type FileTab = "details" | "versions" | "uses";
 
 /** One file's details: what it is, its versions, and the runs that used it. */
 export function FileDetails(
-  { file, tab, onTab, onClose }: {
+  { file, tab, onTab, onClose, revision, onRevision }: {
     readonly file: StorageFolderItem;
     readonly tab: FileTab;
     readonly onTab: (tab: FileTab) => void;
     readonly onClose: () => void;
+    /** The version number being shown; undefined for the current version. */
+    readonly revision: number | undefined;
+    readonly onRevision: (revision: number | undefined) => void;
   },
 ) {
   const api = useBakeryApi();
@@ -49,7 +52,7 @@ export function FileDetails(
     const result = await api.files.content(
       scope.organizationId,
       file.id,
-      undefined,
+      shown?.revision,
     );
     if (
       !result.ok || result.data.status !== 200 || result.data.content === null
@@ -59,7 +62,7 @@ export function FileDetails(
     }
     const url = URL.createObjectURL(
       new Blob([new Uint8Array(result.data.content)], {
-        type: file.mediaType ?? "application/octet-stream",
+        type: shown?.mediaType ?? file.mediaType ?? "application/octet-stream",
       }),
     );
     const link = document.createElement("a");
@@ -71,6 +74,10 @@ export function FileDetails(
   const versionRows = versions.data?.pages.flatMap((page) => page.items) ?? [];
   const useRows = uses.data?.pages.flatMap((page) => page.items) ?? [];
   const current = versionRows.find((version) => version.isCurrent) ?? null;
+  // An older version being looked at; the current one is the plain file.
+  const shown = revision === undefined || revision === current?.revision
+    ? null
+    : versionRows.find((version) => version.revision === revision) ?? null;
 
   const day = (value: string) =>
     formatDate(new Date(value), locale, { dateStyle: "medium", timeZone });
@@ -178,9 +185,25 @@ export function FileDetails(
           {versionRows.map((version) => (
             <UI.DescriptionItem
               key={version.id}
-              title={translate("files.version.title", {
+              onSelect={() =>
+                onRevision(version.isCurrent ? undefined : version.revision)}
+              aria-label={translate("files.version.choose", {
                 number: version.revision,
               })}
+              title={
+                <UI.Inline gap="compact">
+                  {translate("files.version.title", {
+                    number: version.revision,
+                  })}
+                  {version.isCurrent
+                    ? (
+                      <UI.Badge tone="information">
+                        {translate("files.version.current")}
+                      </UI.Badge>
+                    )
+                    : null}
+                </UI.Inline>
+              }
               description={version.contentRemoved && version.removedAt !== null
                 ? translate("files.version.removed", {
                   date: day(version.removedAt),
@@ -190,13 +213,6 @@ export function FileDetails(
                   who: madeBy(version),
                   size: size(version.sizeBytes),
                 })}
-              action={version.isCurrent
-                ? (
-                  <UI.Badge tone="information">
-                    {translate("files.version.current")}
-                  </UI.Badge>
-                )
-                : undefined}
             />
           ))}
         </UI.DescriptionList>
@@ -276,13 +292,36 @@ export function FileDetails(
           {translate("files.details.close")}
         </UI.Button>
       </UI.Inline>
-      <FilePreview file={file} />
+      {shown !== null
+        ? (
+          <UI.Stack gap="compact">
+            <UI.InlineNotice tone="information">
+              {translate("files.version.notice", {
+                number: shown.revision,
+                total: current?.revision ?? versionRows.length,
+                when: when(shown.createdAt),
+              })}
+            </UI.InlineNotice>
+            <UI.Inline>
+              <UI.Button
+                variant="secondary"
+                onClick={() => onRevision(undefined)}
+              >
+                {translate("files.version.backToCurrent")}
+              </UI.Button>
+            </UI.Inline>
+          </UI.Stack>
+        )
+        : null}
+      <FilePreview file={file} version={shown} />
       <UI.Inline gap="compact">
-        {file.contentRemoved
+        {(shown?.contentRemoved ?? file.contentRemoved)
           ? null
           : (
             <UI.Button variant="primary" onClick={() => void download()}>
-              {translate("files.action.download")}
+              {shown === null
+                ? translate("files.action.download")
+                : translate("files.action.downloadVersion")}
             </UI.Button>
           )}
         <CopyValueButton

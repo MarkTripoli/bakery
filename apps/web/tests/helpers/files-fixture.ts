@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Page } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
@@ -184,7 +185,13 @@ const item = (entry: Entry) => ({
 export async function filesFixture(page: Page, options: FilesOptions = {}) {
   await mockAuthenticatedSession(page);
   const tree = options.tree ?? TREE;
-  const seen = { entries: [] as string[], versions: 0, uses: 0 };
+  const seen = {
+    entries: [] as string[],
+    versions: 0,
+    uses: 0,
+    /** The revision each content read asked for; null for the current one. */
+    contents: [] as (string | null)[],
+  };
   const json = (route: import("@playwright/test").Route, body: string) =>
     route.fulfill({ status: 200, contentType: "application/json", body });
 
@@ -261,6 +268,29 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           sessionId: null,
         }))),
       );
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/storage\/files\/[^/]+\/content$/.test(url.pathname),
+    (route) => {
+      const revision = new URL(route.request().url()).searchParams.get(
+        "revision",
+      );
+      seen.contents.push(revision);
+      const bytes = Buffer.from(
+        revision === "1"
+          ? "# Plan\n\nThe first draft of the plan."
+          : "# Plan\n\nThe current plan: fix the redirect, then add the test.",
+      );
+      return route.fulfill({
+        status: 200,
+        body: bytes,
+        headers: {
+          "content-type": "text/markdown",
+          "content-length": String(bytes.length),
+          etag: `"${createHash("sha256").update(bytes).digest("hex")}"`,
+        },
+      });
     },
   );
   await page.route(

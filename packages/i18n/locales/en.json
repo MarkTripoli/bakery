@@ -4585,5 +4585,9 @@
   "files.action.download": "Download",
   "files.action.downloadFailed": "The download did not start. Try again.",
   "files.action.copyPath": "Copy path",
-  "files.action.copyPathLabel": "Copy the path of {name}"
+  "files.action.copyPathLabel": "Copy the path of {name}",
+  "files.version.notice": "You are looking at version {number} of {total}, saved {when}. It is not the current version.",
+  "files.version.backToCurrent": "Back to current",
+  "files.action.downloadVersion": "Download this version",
+  "files.version.choose": "Show version {number}"
 }

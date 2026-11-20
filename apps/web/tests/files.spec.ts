@@ -128,6 +128,44 @@ for (
       await expect(page.getByTestId("file-details")).toHaveCount(0);
     });
 
+    test("the preview shows the current text, and an older version says it is not the current one", async ({ page }) => {
+      const { seen } = await filesFixture(page);
+      await page.goto(`/files/projects/web-app?file=${uuid(40)}`);
+      await expect(page.getByText("The current plan: fix the redirect"))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-preview");
+      await page.getByRole("tab", { name: "Versions" }).click();
+      await page.getByRole("button", { name: "Show version 1" }).click();
+      await expect(page).toHaveURL(/version=1/);
+      await expect(page.getByText("The first draft of the plan."))
+        .toBeVisible();
+      await expect(page.getByText(
+        /You are looking at version 1 of 2, saved .* It is not the current version\./,
+      )).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Download this version" }),
+      ).toBeVisible();
+      expect(seen.contents).toContain("1");
+      await page.mouse.move(700, 700);
+      await still(page, "files-older-version");
+      await page.getByRole("button", { name: "Back to current" }).click();
+      await expect(page).not.toHaveURL(/version=/);
+      await expect(page.getByText("The current plan: fix the redirect"))
+        .toBeVisible();
+    });
+
+    test("a version in the address opens that version", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(
+        `/files/projects/web-app?file=${uuid(40)}&tab=versions&version=1`,
+      );
+      await expect(page.getByText("The first draft of the plan."))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: "Back to current" }))
+        .toBeVisible();
+    });
+
     test("a file nothing has used says so", async ({ page }) => {
       await filesFixture(page, { uses: [] });
       await page.goto(`/files/projects/web-app?file=${uuid(40)}&tab=uses`);

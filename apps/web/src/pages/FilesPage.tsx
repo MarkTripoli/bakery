@@ -43,21 +43,32 @@ export function FilesPage({ path }: { readonly path: string }) {
   const search = useSearch({ strict: false }) as {
     file?: string;
     tab?: FileTab;
+    version?: number;
   };
   const tab: FileTab = search.tab === "versions" || search.tab === "uses"
     ? search.tab
     : "details";
   const setSearch = (
-    next: { file?: string | undefined; tab?: "versions" | "uses" | undefined },
+    next: {
+      file?: string | undefined;
+      tab?: "versions" | "uses" | undefined;
+      version?: number | undefined;
+    },
   ) => {
     const merged = {
       file: search.file,
       tab: search.tab === "details" ? undefined : search.tab,
+      version: search.version,
       ...next,
     };
-    const query: { file?: string; tab?: "versions" | "uses" } = {};
+    const query: {
+      file?: string;
+      tab?: "versions" | "uses";
+      version?: number;
+    } = {};
     if (merged.file !== undefined) query.file = merged.file;
     if (merged.tab !== undefined) query.tab = merged.tab;
+    if (merged.version !== undefined) query.version = merged.version;
     if (atTop) {
       void navigate({ to: "/files", search: query, replace: true });
     } else {
@@ -99,7 +110,7 @@ export function FilesPage({ path }: { readonly path: string }) {
           variant="quiet"
           onClick={(event) => {
             event.preventDefault();
-            setSearch({ file: item.id, tab: undefined });
+            setSearch({ file: item.id, tab: undefined, version: undefined });
           }}
         >
           {nameOf(item)}
@@ -147,9 +158,12 @@ export function FilesPage({ path }: { readonly path: string }) {
     <FileDetails
       file={selected}
       tab={tab}
+      revision={search.version}
+      onRevision={(next) => setSearch({ version: next })}
       onTab={(next) =>
         setSearch({ tab: next === "details" ? undefined : next })}
-      onClose={() => setSearch({ file: undefined, tab: undefined })}
+      onClose={() =>
+        setSearch({ file: undefined, tab: undefined, version: undefined })}
     />
   );
 

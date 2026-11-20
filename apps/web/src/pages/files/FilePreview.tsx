@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatNumber } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
-import type { StorageFolderItem } from "../../api/client.ts";
+import type {
+  StorageFileVersion,
+  StorageFolderItem,
+} from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
 import { protectedQueryKey } from "../../app/query-scope.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
@@ -32,24 +35,33 @@ const imageTypes = new Set([
 ]);
 
 /** The file's contents as far as the page can show them: text and images, bounded. */
-export function FilePreview({ file }: { readonly file: StorageFolderItem }) {
+export function FilePreview(
+  { file, version }: {
+    readonly file: StorageFolderItem;
+    /** An older version being shown; null for the current one. */
+    readonly version: StorageFileVersion | null;
+  },
+) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const { translate, locale } = useI18n();
-  const mediaType = (file.mediaType ?? "").split(";", 1)[0]!.trim()
-    .toLowerCase();
+  const sizeBytes = version?.sizeBytes ?? file.sizeBytes;
+  const contentRemoved = version?.contentRemoved ?? file.contentRemoved;
+  const mediaType = (version?.mediaType ?? file.mediaType ?? "")
+    .split(";", 1)[0]!.trim().toLowerCase();
   const textMode = textModes[mediaType];
   const image = imageTypes.has(mediaType);
   const supported = image || textMode !== undefined;
   const limit = image ? MAX_IMAGE_PREVIEW_BYTES : MAX_TEXT_PREVIEW_BYTES;
-  const tooLarge = (file.sizeBytes ?? 0) > limit;
+  const tooLarge = (sizeBytes ?? 0) > limit;
   const content = useQuery({
     queryKey: protectedQueryKey(scope, "storageFiles.preview", {
       fileId: file.id,
       updatedAt: file.updatedAt,
+      revision: version?.revision ?? null,
     }),
     enabled: scope.organizationId !== null && supported && !tooLarge &&
-      !file.contentRemoved,
+      !contentRemoved,
     retry: false,
     staleTime: Infinity,
     queryFn: async ({ signal }) => {
@@ -59,7 +71,7 @@ export function FilePreview({ file }: { readonly file: StorageFolderItem }) {
       const result = await api.files.content(
         scope.organizationId,
         file.id,
-        undefined,
+        version?.revision,
         signal,
       );
       if (!result.ok) throw result.error;
@@ -84,7 +96,7 @@ export function FilePreview({ file }: { readonly file: StorageFolderItem }) {
     };
   }, [content.data, image, mediaType]);
 
-  if (file.contentRemoved) return null;
+  if (contentRemoved) return null;
   if (!supported) {
     return (
       <UI.Text variant="muted">
@@ -93,7 +105,7 @@ export function FilePreview({ file }: { readonly file: StorageFolderItem }) {
     );
   }
   if (tooLarge || content.error?.message === "PREVIEW_TOO_LARGE") {
-    const { value, unit } = sizeParts(file.sizeBytes ?? 0);
+    const { value, unit } = sizeParts(sizeBytes ?? 0);
     return (
       <UI.Text variant="muted">
         {translate("files.preview.tooLarge", {
