@@ -93,7 +93,9 @@ export async function attemptOrigin(
                 from bakery.agent_sessions as session
                where session.organization_id = job.organization_id
                  and session.run_step_id = job.run_step_id
-               order by session.created_at asc, session.id asc
+               -- The newest session of the step: a retried attempt opens a new
+               -- one, so the earliest would name an earlier attempt's session.
+               order by session.created_at desc, session.id desc
                limit 1
             ) as "agentSessionId"
        from bakery.job_attempts as attempt

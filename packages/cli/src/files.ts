@@ -213,7 +213,7 @@ export async function history(
       String(version.revision),
       version.createdAt.slice(0, 19).replace("T", " "),
       formatSize(version.sizeBytes),
-      version.makerName ?? version.makerKind,
+      madeBy(version),
       version.sha256 === null ? "-" : version.sha256.slice(0, 12),
       [
         version.isCurrent ? "current" : "",
@@ -222,6 +222,15 @@ export async function history(
         .filter((word) => word !== "").join(" "),
     ]),
   ]);
+}
+
+/** Who a version is by: an agent's version names the agent and the person. */
+export function madeBy(version: StorageVersion): string {
+  if (version.makerKind !== "agent") {
+    return version.makerName ?? version.makerKind;
+  }
+  const agent = version.agentName ? `agent ${version.agentName}` : "an agent";
+  return `${agent} for ${version.makerName ?? "unknown"}`;
 }
 
 /** `uses <path>`: the runs that pinned a version of this file as an input. */
