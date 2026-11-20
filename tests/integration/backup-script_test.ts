@@ -454,11 +454,32 @@ Deno.test("with the release checkout missing the dumps are still taken, kept as 
   });
 });
 
+// A directory of wrappers for every system tool except `deno`, so the test does
+// not depend on whether the host has /usr/bin/deno (a dev or CI host may). The
+// wrappers are scripts, not links: the test permissions do not allow symlinks.
+async function toolsWithoutDeno(dir: string): Promise<string> {
+  const tools = join(dir, "tools-without-deno");
+  await Deno.mkdir(tools);
+  const seen = new Set<string>(["deno"]);
+  for (const source of ["/usr/bin", "/bin"]) {
+    for await (const entry of Deno.readDir(source)) {
+      if (seen.has(entry.name)) continue;
+      seen.add(entry.name);
+      await Deno.writeTextFile(
+        join(tools, entry.name),
+        `#!/bin/sh\nexec ${JSON.stringify(join(source, entry.name))} "$@"\n`,
+        { mode: 0o755 },
+      );
+    }
+  }
+  return tools;
+}
+
 Deno.test("with Deno missing the dumps are still taken, kept as an incomplete set, never latest", async () => {
   await withSandbox({}, async (box) => {
-    // Neither the shim dir nor /usr/bin:/bin has a deno.
     await Deno.remove(join(box.bin, "deno"));
-    const result = await box.run();
+    const tools = await toolsWithoutDeno(box.dir);
+    const result = await box.run({ PATH: `${box.bin}:${tools}` });
     await assertKeptIncomplete(box, result, null);
   });
 });
