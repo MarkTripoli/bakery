@@ -693,6 +693,7 @@ export function createExecutionRunControlApp(
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/runs/*", options.browserSession);
   app.use("/v1/sessions/*", options.browserSession);
+  app.use("/v1/handoff-manifests/*", options.browserSession);
   app.use("/v1/output-streams/*", options.browserSession);
   app.route(
     "/",
