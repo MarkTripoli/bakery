@@ -813,7 +813,7 @@ Deno.test("a repository rule that requires a check is read against a plan's shap
     // (The same plan without a check is admitted where no rule requires one: the first test.)
   }));
 
-Deno.test("a bare list of steps is kept on the fixed executor: flat rows, no plan runtime", () =>
+Deno.test("a bare list of steps is admitted as a plan, not kept on a fixed executor", () =>
   withWorkerFixture(async (fixture) => {
     const { repository } = await repositoryWithAgent(fixture, "bare");
     const { versionId } = await publishWorkflow(
@@ -825,15 +825,113 @@ Deno.test("a bare list of steps is kept on the fixed executor: flat rows, no pla
     const { response } = await start(fixture, repository, versionId);
     const run = await expectJson<RunBody>(response, 201);
     const snapshot = await snapshotOf(fixture, run.id);
-    // Admission dispatches on the document: a bare step list is the flat
-    // grammar, which the fixed executor runs, so the run carries no plan
-    // runtime and gets its step rows at admission. (#400 deletes this path and
-    // turns this case into a refusal.)
-    assert(!Object.hasOwn(snapshot, "runtime"));
-    assertEquals(
-      (await stepRows(fixture, run.id)).map((row) => row.stepKey),
-      ["brief", "implement"],
+    // #400: admission resolves a plan for every run, so even a bare step list
+    // carries a plan runtime and gets no flat rows of its own.
+    assert(Object.hasOwn(snapshot, "runtime"));
+    assertEquals(await stepRows(fixture, run.id), []);
+  }));
+
+Deno.test("a cloud-only plan run with a model agent admits a real job that carries no repository pins", () =>
+  withWorkerFixture(async (fixture) => {
+    // The job-level half of the cloud-only property: a run that mounts no
+    // repository freezes none, so the job the engine builds from it pins none
+    // either, while still running as the agent the plan names.
+    const { agent, repository } = await repositoryWithAgent(fixture, "cloud");
+    const task = await expectJson<{ id: string }>(
+      await apiCall(fixture, fixture, "POST", "/v1/tasks", {
+        body: {
+          applicationId: repository.applicationId,
+          taskType: "maintenance",
+          title: "Cloud-only plan",
+          description: "A plan that mounts no repository.",
+        },
+      }),
+      201,
     );
+    const { versionId } = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-cloud-only",
+      {
+        apiVersion: "bakery.dev/v1",
+        kind: "workflow",
+        name: "plan-cloud-only",
+        description: "A model step with no repository.",
+        agents: { "agent.freeform": agent },
+        inputs: { prompt: { type: "string", required: true } },
+        steps: [{
+          id: "flow",
+          steps: [{
+            id: "draft",
+            uses: "agent.freeform",
+            with: {
+              prompt: "$input.prompt",
+              maxTurns: 3,
+              timeout: "5m",
+              maxCostUsd: 1,
+              allowedTools: [],
+            },
+          }],
+        }],
+      },
+    );
+    const response = await apiCall(
+      fixture,
+      fixture,
+      "POST",
+      `/v1/tasks/${task.id}/runs`,
+      {
+        body: {
+          workflowVersionId: versionId,
+          executionMode: "cloud_only",
+          budgetLimitUsd: "5.00",
+          inputs: { prompt: "Summarise the open maintenance work." },
+        },
+      },
+    );
+    const run = await expectJson<RunBody>(response, 201);
+    const snapshot = await snapshotOf(fixture, run.id);
+    assertEquals(snapshot.executionMode, "cloud_only");
+    assertEquals(snapshot.repositoryProfile, null);
+    assertEquals(Object.keys(snapshot.planAgents as object), [agent]);
+
+    const engine = createBakeryPostgresWorkflowRepository({
+      database: fixture.pgDatabase,
+      maxAttempts: 3,
+      budgetPolicy: presetBudgetPolicy,
+    });
+    const owner = await engine.acquireEngineOwner(
+      run.id,
+      `cloud-${crypto.randomUUID()}`,
+      60_000,
+    );
+    assert(owner !== undefined);
+    const key = await engine.findNext(run.id, owner);
+    assertEquals(key?.stepKey, "flow.draft");
+    const admission = await engine.admit(key!, owner);
+    assertEquals(admission.terminal, false);
+    assert(admission.jobId !== undefined);
+    const job = (await fixture.pgDatabase.query<Record<string, unknown>>(
+      `select application_id, repository_id, repository_profile_id,
+              repository_profile_revision, repository_profile_digest,
+              observation_id, observation_digest, base_sha, action, status,
+              agent_version_id
+         from bakery.jobs where id = $1`,
+      [admission.jobId],
+    )).rows[0];
+    assertEquals(job, {
+      application_id: null,
+      repository_id: null,
+      repository_profile_id: null,
+      repository_profile_revision: null,
+      repository_profile_digest: null,
+      observation_id: null,
+      observation_digest: null,
+      base_sha: null,
+      action: "agent.freeform",
+      status: "queued",
+      agent_version_id: agent,
+    });
   }));
 
 Deno.test("a plan with a duration wait is admitted, and the engine puts the wait between its steps as a row without a job", () =>
@@ -923,12 +1021,13 @@ Deno.test("a plan with an event wait, which the engine cannot run yet, is refuse
     );
   }));
 
-Deno.test("a bare-list run freezes flat step sections and no plan sections", () =>
+Deno.test("a preset run is admitted as a plan: plan sections written, no flat step agents", () =>
   withWorkerFixture(async (fixture) => {
     const { repository } = await repositoryWithAgent(fixture, "flat");
     // A bare list of steps, not a sequence: the fixed executor runs this one, so
-    // it keeps its step rows and freezes no plan sections. (The `fixed-coding`
-    // presets are compiled plans; the flat case needs a definition of its own.)
+    // it keeps its step rows and freezes no plan sections. The `fixed-coding`
+    // preset used to be this shape; it is a compiled plan since it was written
+    // as a document, so the flat case needs a definition of its own.
     const flat = await publishWorkflow(
       fixture,
       fixture,
@@ -940,13 +1039,14 @@ Deno.test("a bare-list run freezes flat step sections and no plan sections", () 
       201,
     );
     const snapshot = await snapshotOf(fixture, run.id);
-    for (const key of ["runtime", "planAgents", "planActionAgents"]) {
-      assert(!Object.hasOwn(snapshot, key), key);
+    // #400: a preset used to be the one remaining flat run. It is now admitted
+    // as a plan like everything else, so the plan sections are present and the
+    // flat ones the old path wrote are absent.
+    for (const key of ["runtime", "task", "planAgents", "planActionAgents"]) {
+      assert(Object.hasOwn(snapshot, key), key);
     }
-    assertEquals(
-      Object.keys(snapshot.stepActions as object).sort(),
-      ["brief", "implement"],
-    );
+    assertEquals(snapshot.stepAgents, {});
+    assertEquals(snapshot.stepActions, {});
   }));
 
 const reviewedDocument = (name: string, agent: string) =>

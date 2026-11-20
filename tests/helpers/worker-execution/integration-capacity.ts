@@ -12,6 +12,7 @@ import {
 } from "../worker-execution.ts";
 import { withWorkerFixture } from "./scenarios.ts";
 import { seedEligibleNonmodelJob } from "./nonmodel-job.ts";
+import { assertClaimReplay } from "./replay-assert.ts";
 
 Deno.test("lease authority uses real time after a worker-host lock wait", () =>
   withWorkerFixture(async (fixture) => {
@@ -267,7 +268,10 @@ Deno.test("concurrent workers produce one assignment and stable claim replay sem
       { idempotencyKey: winner.body.claimKey },
     );
     assertEquals(exactReplay.status, 200);
-    assertEquals(new Uint8Array(await exactReplay.arrayBuffer()), winner.raw);
+    assertClaimReplay(
+      new Uint8Array(await exactReplay.arrayBuffer()),
+      winner.raw,
+    );
 
     const secondJob = await seedEligibleNonmodelJob(
       fixture.pgDatabase,

@@ -88,7 +88,12 @@ async function fillComposer(page, input, title, description) {
 
 async function newTaskFromQueue(page, input, title, description) {
   await page.goto(`${input.baseUrl}/tasks`, { waitUntil: "domcontentloaded" });
-  await page.getByRole("link", { name: "New task", exact: true }).click();
+  // The queue shows the action twice (the shell's top bar and the All work
+  // panel); the journey means the top bar's.
+  await page.getByRole("banner").getByRole("link", {
+    name: "New task",
+    exact: true,
+  }).click();
   await expect(page).toHaveURL(/\/tasks\/new$/);
   await fillComposer(page, input, title, description);
 }
@@ -529,8 +534,12 @@ async function capture(page, input, name, { caption = true } = {}) {
 
 async function showQueue(page, input) {
   await page.goto(`${input.baseUrl}/tasks`, { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("link", { name: "New task", exact: true }))
-    .toBeVisible();
+  await expect(
+    page.getByRole("banner").getByRole("link", {
+      name: "New task",
+      exact: true,
+    }),
+  ).toBeVisible();
   await page.waitForTimeout(1_500);
   await capture(page, input, "queue", { caption: false });
 }
