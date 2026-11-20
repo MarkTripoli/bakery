@@ -495,7 +495,7 @@ for (
     });
 
     test("the Fact filter waits for a kind, lists that kind's facts, lives in the address, and goes when the kind changes", async ({ page }) => {
-      const seen = await filesFixture(page);
+      const { seen } = await filesFixture(page);
       await page.goto("/files/projects/web-app");
       await withFilters(page, async (filters) => {
         const fact = filters.getByRole("combobox", { name: "Fact" });
@@ -511,6 +511,8 @@ for (
       });
       await expect(page).toHaveURL(/fact=risk(%3A|:)high/);
       await expect(page.getByRole("link", { name: "plan.md" })).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-fact-filter");
       await expect(page.getByRole("link", { name: "demo.mp4" })).toHaveCount(0);
       expect(
         seen.searches.some((search) =>
@@ -664,7 +666,7 @@ for (
     });
 
     test("a video shows a player that is not autoplayed and loads nothing until it is played", async ({ page }) => {
-      const seen = await filesFixture(page);
+      const { seen } = await filesFixture(page);
       await page.goto(`/files/projects/web-app?file=${uuid(41)}`);
       const player = page.locator("video");
       await expect(player).toBeVisible();
