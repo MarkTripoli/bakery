@@ -314,7 +314,13 @@ export function createClaudeJudgeTransport(
   return async (call) => {
     const cwd = await mkdtemp(join(tmpdir(), "bakery-judge-"));
     try {
-      const run = await runClaudeStructuredCall(call.assignment, options, {
+      // Call the model the server reserved budget for, so the receipt names
+      // the model that actually answered; the harness model is the fallback.
+      const model = call.assignment.billing?.model ?? options.model;
+      const run = await runClaudeStructuredCall(call.assignment, {
+        ...options,
+        model,
+      }, {
         cwd,
         prompt: call.prompt,
         jsonSchema: call.answerSchema,
