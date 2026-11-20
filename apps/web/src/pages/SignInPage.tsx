@@ -9,17 +9,20 @@ import {
   type AuthProviderFailureCode,
 } from "@bakery/contracts/auth-provider-client";
 import { useBakeryApi } from "../api/context.tsx";
+import { formatWait } from "../app/retry-wait.ts";
 import { invitationPreviewQueryOptions } from "../api/query.ts";
 import {
   focusFirstInvalidField,
   useSingleFlightSubmit,
 } from "../app/auth-form.ts";
 import {
+  isDesktopSignInReturn,
   postSignInDestination,
   rememberReturnTo,
   safeSessionStorage,
 } from "../app/auth-return.ts";
 import {
+  FORGOT_PASSWORD_PATH,
   INVITATION_PATH,
   ORGANIZATIONS_PATH,
   REGISTER_PATH,
@@ -41,30 +44,62 @@ import {
   SignInScreen,
 } from "../screens/SignInScreen.tsx";
 
-const FAILURE_MESSAGE_KEYS: Readonly<
-  Partial<Record<AuthProviderFailureCode, MessageKey>>
-> = {
-  INVALID_CREDENTIALS: "auth.signIn.genericFailure",
-  CROSS_ORIGIN_BLOCKED: "auth.signIn.crossOrigin",
-};
-
-type RecoveryKind = "offline" | "unavailable" | "throttled";
-
-function recoveryKindFor(
+/**
+ * The message under the form for each failed attempt, one at a time. A rate
+ * limit that told us when to try again names the wait; one that did not says
+ * to wait a moment. Being offline or not reaching the server is a warning,
+ * not a mistake the person made.
+ */
+function failureMessage(
   code: AuthProviderFailureCode | null,
-): RecoveryKind | null {
-  if (code === "NETWORK") return "offline";
-  if (code === "RATE_LIMITED" || code === "LOCKED") return "throttled";
-  if (code === null) return null;
-  if (
-    code === "UNAVAILABLE" || code === "TWO_FACTOR_REQUIRED" ||
-    code === "FACTOR_PROOF_REQUIRED" || code === "FRESH_SIGN_IN_REQUIRED" ||
-    code === "TWO_FACTOR_INVALID" || code === "TWO_FACTOR_SESSION_EXPIRED" ||
-    code === "ACCOUNT_EXISTS" || code === "WEAK_PASSWORD"
-  ) {
-    return "unavailable";
+  retryAfterSeconds: number | null,
+): {
+  readonly key: MessageKey;
+  readonly tone: "error" | "warning";
+  readonly waitSeconds: number | null;
+} | null {
+  switch (code) {
+    case null:
+      return null;
+    case "INVALID_CREDENTIALS":
+      return {
+        key: "auth.signIn.genericFailure",
+        tone: "error",
+        waitSeconds: null,
+      };
+    case "RATE_LIMITED":
+      return retryAfterSeconds === null
+        ? {
+          key: "auth.signIn.rateLimitedNoWait",
+          tone: "error",
+          waitSeconds: null,
+        }
+        : {
+          key: "auth.signIn.rateLimited",
+          tone: "error",
+          waitSeconds: retryAfterSeconds,
+        };
+    case "LOCKED":
+      return { key: "auth.signIn.locked", tone: "error", waitSeconds: null };
+    case "CROSS_ORIGIN_BLOCKED":
+      return {
+        key: "auth.signIn.crossOrigin",
+        tone: "error",
+        waitSeconds: null,
+      };
+    case "NETWORK":
+      return {
+        key: "auth.signIn.offlineNotice",
+        tone: "warning",
+        waitSeconds: null,
+      };
+    default:
+      return {
+        key: "auth.signIn.unreachable",
+        tone: "warning",
+        waitSeconds: null,
+      };
   }
-  return null;
 }
 
 type AuthContinuationStatus =
@@ -127,7 +162,7 @@ export function SignInPage(
     readonly reason: "expired" | "factor" | null;
   },
 ) {
-  const { translate } = useI18n();
+  const { locale, translate } = useI18n();
   const brand = useAuthBrandProps();
   const api = useBakeryApi();
   const session = useSessionController();
@@ -141,6 +176,9 @@ export function SignInPage(
   const [failureCode, setFailureCode] = useState<
     AuthProviderFailureCode | null
   >(null);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState<number | null>(
+    null,
+  );
   const [dismissedExpired, setDismissedExpired] = useState(false);
   const [movingOn, setMovingOn] = useState<"two-factor" | null>(null);
   const [postAuthenticationFailure, setPostAuthenticationFailure] = useState(
@@ -152,6 +190,7 @@ export function SignInPage(
     setEmailInvalid(false);
     setPasswordInvalid(false);
     setFailureCode(null);
+    setRetryAfterSeconds(null);
     setPassword("");
     setDismissedExpired(false);
     setPostAuthenticationFailure(false);
@@ -186,6 +225,17 @@ export function SignInPage(
       to: REGISTER_PATH,
       search: invitation === null ? {} : { invitation },
     });
+  };
+
+  const onForgotPassword = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.defaultPrevented || event.button !== 0 || event.metaKey ||
+      event.ctrlKey || event.shiftKey || event.altKey
+    ) return;
+    event.preventDefault();
+    abortMutation();
+    abortContinuation();
+    void navigate({ to: FORGOT_PASSWORD_PATH });
   };
 
   const rememberInvitationDestination = () => {
@@ -286,7 +336,13 @@ export function SignInPage(
     if (signal.aborted) return;
     // Keep accepted-credential recovery visible until the destination commits.
     // Its identity loader may still be pending after scope resolution succeeds.
-    await navigate({ to: postSignInDestination({ outcome }) });
+    const destination = postSignInDestination({ outcome });
+    // A desktop sign-in question is a server page: leave the app for it.
+    if (isDesktopSignInReturn(destination)) {
+      globalThis.location.assign(destination);
+      return;
+    }
+    await navigate({ to: destination });
   };
 
   const continueAfterAuthentication = async () => {
@@ -314,6 +370,16 @@ export function SignInPage(
     }
   };
 
+  useEffect(() => {
+    if (failureCode === null) return;
+    // The message is announced under the form; focus goes back to the fields.
+    document.getElementById(
+      invitedEmail === null
+        ? SIGN_IN_EMAIL_FIELD_ID
+        : SIGN_IN_PASSWORD_FIELD_ID,
+    )?.focus();
+  }, [failureCode, retryAfterSeconds, invitedEmail]);
+
   const [submitting, run] = useSingleFlightSubmit(async () => {
     if (postAuthenticationFailure) {
       await continueAfterAuthentication();
@@ -325,6 +391,7 @@ export function SignInPage(
     setEmailInvalid(emailBad);
     setPasswordInvalid(passwordBad);
     setFailureCode(null);
+    setRetryAfterSeconds(null);
     setPostAuthenticationFailure(false);
     if (emailBad || passwordBad) {
       focusFirstInvalidField([
@@ -363,8 +430,15 @@ export function SignInPage(
         ) {
           if (code === "INVALID_CREDENTIALS") setPassword("");
           setFailureCode(code ?? "UNAVAILABLE");
+          setRetryAfterSeconds(
+            error instanceof AuthProviderError ? error.retryAfterSeconds : null,
+          );
           return;
         }
+        // An outcome we cannot tell (no answer, no server) is reconciled below
+        // before anything is said; the message waits under the form in case
+        // the person is still signed out afterwards.
+        if (code === "NETWORK" || code === "UNAVAILABLE") setFailureCode(code);
 
         setPassword("");
         try {
@@ -410,14 +484,12 @@ export function SignInPage(
     );
   }
 
-  const recoveryKind = failureCode === "INVALID_CREDENTIALS"
-    ? null
-    : recoveryKindFor(failureCode);
+  const failureText = failureMessage(failureCode, retryAfterSeconds);
   const state = postAuthenticationFailure
     ? "continuation-failed"
     : reason === "expired" && !dismissedExpired
     ? "expired"
-    : recoveryKind ?? "form";
+    : "form";
 
   const previewFailure = preview.isError ? preview.error : null;
   if (
@@ -452,8 +524,13 @@ export function SignInPage(
       })}
       email={invitedEmail ?? email}
       emailInvalid={emailInvalid}
-      failure={failureCode ? FAILURE_MESSAGE_KEYS[failureCode] ?? null : null}
+      failure={failureText?.key ?? null}
+      failureParams={failureText?.waitSeconds == null
+        ? undefined
+        : { wait: formatWait(failureText.waitSeconds, locale) }}
+      failureTone={failureText?.tone ?? "error"}
       focusRecoveryHeading
+      onForgotPassword={onForgotPassword}
       notice={reason === "factor" ? "auth.factorRequired.description" : null}
       onBackToSignIn={() => {
         abortContinuation();
@@ -466,12 +543,6 @@ export function SignInPage(
       onPasswordChange={setPassword}
       onRegister={onRegister}
       onRetry={() => void run()}
-      onReturnToSignIn={() => {
-        abortContinuation();
-        abortMutation();
-        setFailureCode(null);
-        setPostAuthenticationFailure(false);
-      }}
       onSignInAgain={() => {
         abortContinuation();
         abortMutation();

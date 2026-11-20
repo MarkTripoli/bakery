@@ -51,13 +51,6 @@ export async function submitUntilAccepted(
   submit: () => Promise<void>,
 ): Promise<void> {
   for (;;) {
-    // A 429 on sign-in replaces the form with the "A short pause" interstitial
-    // (`data-testid="sign-in-throttled"`); only its "Return to sign in" button
-    // restores the fields `submit` fills, so step back out before resubmitting.
-    if (await page.getByTestId("sign-in-throttled").isVisible()) {
-      await page.getByRole("button", { name: "Return to sign in", exact: true })
-        .click();
-    }
     const responsePromise = page.waitForResponse((response) =>
       response.url().includes(urlIncludes)
     );

@@ -243,6 +243,13 @@
       "frames": []
     },
     {
+      "routeId": "forgot-password",
+      "path": "/sign-in/forgot-password",
+      "status": "no-mock",
+      "rationale": "Designed by design-ux on #241 (the UX design comment of 2026-11-19); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "sign-in",
       "path": "/sign-in",
       "status": "baselined",
@@ -411,38 +418,6 @@
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
-          "frameId": "KY8-0",
-          "device": "desktop",
-          "theme": "light",
-          "state": "throttled"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "V-0",
-          "frameId": "KZS-0",
-          "device": "phone",
-          "theme": "light",
-          "state": "throttled"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "V-0",
-          "frameId": "XD9-0",
-          "device": "desktop",
-          "theme": "dark",
-          "state": "throttled"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "V-0",
-          "frameId": "XEL-0",
-          "device": "phone",
-          "theme": "dark",
-          "state": "throttled"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "V-0",
           "frameId": "KU3-0",
           "device": "desktop",
           "theme": "light",
@@ -494,10 +469,6 @@
         "expired.default.light.phone",
         "expired.default.dark.desktop",
         "expired.default.dark.phone",
-        "login.throttled.light.desktop",
-        "login.throttled.light.phone",
-        "login.throttled.dark.desktop",
-        "login.throttled.dark.phone",
         "login.loading.light.desktop",
         "login.loading.light.phone",
         "login.loading.dark.desktop",
@@ -5055,6 +5026,20 @@
       "frames": []
     },
     {
+      "routeId": "settings-organization-plugins",
+      "path": "/settings/organization/plugins",
+      "status": "no-mock",
+      "rationale": "Designed in design-ux's #76 revision 3 (design-76/v3 on the pr-evidence branch): token-value mocks, not Paper frames, so there is no Paper artboard to score. Not searched against the Paper artboard list; the page is judged against those mocks in the PR's visual evidence and by the Storybook component lanes.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-plugin",
+      "path": "/settings/organization/plugins/$installId",
+      "status": "no-mock",
+      "rationale": "Designed in design-ux's #76 revision 3 (design-76/v3 on the pr-evidence branch): token-value mocks, not Paper frames, so there is no Paper artboard to score. Not searched against the Paper artboard list; the page is judged against those mocks in the PR's visual evidence and by the Storybook component lanes.",
+      "frames": []
+    },
+    {
       "routeId": "settings-organization-repository-rules",
       "path": "/settings/organization/repository-rules",
       "status": "no-mock",
@@ -5143,6 +5128,27 @@
       "path": "/machines/$machineId",
       "status": "no-mock",
       "rationale": "Live machine detail includes server-derived readiness, bounded dispatch blockers and Admin-only provider auth state. The approved worker-readiness K-0 detail Paper reference remains available through /__fixtures__/machines/detail for deterministic template coverage; this production route intentionally stays real-API only and is not scored against synthetic records.",
+      "frames": []
+    },
+    {
+      "routeId": "files",
+      "path": "/files",
+      "status": "no-mock",
+      "rationale": "The files browser's top of the tree (#445) is designed by design-ux on #445 (mocks at pr-evidence design-445/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "files-version",
+      "path": "/files/versions/$versionId",
+      "status": "no-mock",
+      "rationale": "A link to one saved version (a memory's source) finds its file and opens it in its folder at that version (#445); there is no screen of its own, so no Paper frame.",
+      "frames": []
+    },
+    {
+      "routeId": "files-folder",
+      "path": "/files/$",
+      "status": "no-mock",
+      "rationale": "One folder of the files browser, with a file's details beside it (#445), is designed by design-ux on #445 (mocks at pr-evidence design-445/); Paper has no frame for it.",
       "frames": []
     },
     {

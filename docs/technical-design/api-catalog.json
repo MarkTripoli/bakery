@@ -1708,6 +1708,27 @@
     },
     {
       "group": "Definitions",
+      "method": "GET",
+      "path": "/v1/workflows/{id}/versions/{versionId}/skills",
+      "action": "workflowVersions.skills",
+      "access": "Developer",
+      "permission": "workflowVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "WorkflowVersionPath",
+      "output": "WorkflowVersionSkills",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Definitions",
       "method": "PATCH",
       "path": "/v1/workflows/{id}/versions/{versionId}",
       "action": "workflowVersions.update",
@@ -2701,8 +2722,8 @@
       "method": "POST",
       "path": "/v1/skills",
       "action": "skills.create",
-      "access": "Admin",
-      "permission": "skill:manage",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "skill:author",
       "organizationContext": "required_authenticated_context",
       "input": "SkillCreate",
       "output": "Skill",
@@ -2721,6 +2742,35 @@
         "IDEMPOTENCY_IN_FLIGHT",
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED"
+      ]
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/copy",
+      "action": "skills.copy",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "skill:author",
+      "organizationContext": "required_authenticated_context",
+      "input": "SkillCopy",
+      "output": "Skill",
+      "event": "skills.copied",
+      "mcp": "bakery_skills_copy",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "SKILL_CONTENT_INTEGRITY_FAILED"
       ]
     },
     {
@@ -2793,8 +2843,8 @@
       "method": "PATCH",
       "path": "/v1/skills/{id}",
       "action": "skills.update",
-      "access": "Admin",
-      "permission": "skill:manage",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
       "input": "DefinitionUpdate",
       "output": "Skill",
       "event": "skills.updated",
@@ -2814,6 +2864,53 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "method": "GET",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.list",
+      "input": "CursorQuery",
+      "output": "Page<SkillUseGrant>",
+      "event": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Skills",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "method": "DELETE",
+      "path": "/v1/skills/{id}/use-grants/{grantId}",
+      "action": "skills.useGrants.delete",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "skillUseGrant.deleted",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
     },
     {
       "group": "Skills",
@@ -2883,7 +2980,7 @@
       "method": "POST",
       "path": "/v1/skills/{id}/versions",
       "action": "skillVersions.create",
-      "access": "Admin",
+      "access": "Owner for personal; Admin for organization",
       "permission": "skillVersion:manage",
       "organizationContext": "required_authenticated_context",
       "input": "LocalSkillVersion",
@@ -3137,8 +3234,10 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
-      ]
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
@@ -3155,8 +3254,11 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
-      ]
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
@@ -3177,8 +3279,11 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
@@ -3199,8 +3304,11 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
@@ -3219,8 +3327,10 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
-      ]
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
@@ -3237,15 +3347,18 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
-      ]
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
       "method": "POST",
       "path": "/v1/mcp-connections",
       "action": "mcpConnections.create",
-      "access": "Admin",
+      "access": "Developer for personal; Admin for organization",
       "permission": "mcpConnection:manage",
       "input": "McpConnectionCreate",
       "output": "McpConnection",
@@ -3259,15 +3372,18 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
       "method": "PATCH",
       "path": "/v1/mcp-connections/{id}",
       "action": "mcpConnections.update",
-      "access": "Admin",
+      "access": "Owner for personal; Admin for organization",
       "permission": "mcpConnection:manage",
       "input": "McpConnectionUpdate",
       "output": "McpConnection",
@@ -3281,19 +3397,22 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
       "method": "POST",
       "path": "/v1/mcp-connections/{id}/discoveries",
       "action": "mcpConnections.discover",
-      "access": "Admin",
+      "access": "Owner for personal; Admin for organization",
       "permission": "mcpConnection:manage",
       "input": "Empty",
-      "output": "Run",
-      "event": "run.requested",
+      "output": "McpCapabilitySnapshot",
+      "event": "",
       "mcp": "bakery_mcpConnections_discover",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
       "errors": [
@@ -3303,8 +3422,11 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
@@ -3321,8 +3443,127 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
-      ]
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Extensions",
+      "method": "GET",
+      "path": "/v1/mcp-connections/{id}/tool-classifications",
+      "action": "mcpToolClassifications.list",
+      "access": "Developer",
+      "permission": "mcpConnection:read",
+      "input": "IdPath",
+      "output": "McpToolClassificationList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Extensions",
+      "method": "PUT",
+      "path": "/v1/mcp-connections/{id}/tool-classifications/{toolName}",
+      "action": "mcpToolClassifications.put",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "mcpConnection:manage",
+      "input": "McpToolClassificationPut",
+      "output": "McpToolClassification",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once the tool is classified",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Extensions",
+      "method": "GET",
+      "path": "/v1/mcp-connections/{id}/use-grants",
+      "action": "mcpUseGrants.list",
+      "access": "Developer",
+      "permission": "mcpConnection:read",
+      "input": "IdPath",
+      "output": "McpUseGrantList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Extensions",
+      "method": "POST",
+      "path": "/v1/mcp-connections/{id}/use-grants",
+      "action": "mcpUseGrants.create",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "mcpConnection:manage",
+      "input": "McpUseGrantCreate",
+      "output": "McpUseGrant",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Extensions",
+      "method": "POST",
+      "path": "/v1/mcp-connections/{id}/use-grants/{grantId}/revocation",
+      "action": "mcpUseGrants.revoke",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "mcpConnection:manage",
+      "input": "Empty",
+      "output": "McpUseGrant",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Extensions",
@@ -3755,6 +3996,47 @@
       "errors": [
         "RESOURCE_NOT_FOUND",
         "UNPROCESSABLE",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-sign-ins",
+      "action": "desktopSignIns.start",
+      "access": "Public",
+      "permission": null,
+      "input": "DesktopSignInStart",
+      "output": "DesktopSignInStarted",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; every call opens a new ten-minute request",
+      "errors": [
+        "VALIDATION_FAILED",
+        "UNPROCESSABLE",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-sign-ins/{id}/credential",
+      "action": "desktopSignIns.exchange",
+      "access": "Public",
+      "permission": null,
+      "input": "DesktopSignInExchange",
+      "output": "DesktopSignInCredential",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; a request is exchanged at most once and a replay ends the sign-in it issued",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
         "VALIDATION_FAILED",
         "RATE_LIMITED",
         "MALFORMED_REQUEST",
@@ -5168,6 +5450,32 @@
     {
       "group": "Providers",
       "method": "POST",
+      "path": "/v1/runs/{id}/route-continuations",
+      "action": "routeContinuations.admit",
+      "access": "Developer",
+      "permission": "run:control",
+      "organizationContext": "required_authenticated_context",
+      "input": "RouteContinuationAdmit",
+      "output": "RouteContinuation",
+      "event": "routeContinuations.admitted",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ]
+    },
+    {
+      "group": "Providers",
+      "method": "POST",
       "path": "/v1/workers/{id}/provider-bindings",
       "action": "workerProviderBindings.create",
       "access": "Admin",
@@ -5716,6 +6024,50 @@
       "output": "Page<Artifact>",
       "event": "",
       "mcp": "bakery_artifacts_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/files/search",
+      "action": "files.search",
+      "access": "Developer",
+      "permission": "artifact:read",
+      "input": "FileSearchQuery",
+      "output": "Page<FileSearchHit>",
+      "event": "",
+      "mcp": "bakery_files_search",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Library",
+      "method": "GET",
+      "path": "/v1/files/library",
+      "action": "files.library",
+      "access": "Developer",
+      "permission": "library:read",
+      "input": "LibraryFolderQuery",
+      "output": "Page<LibraryEntry>",
+      "event": "",
+      "mcp": "bakery_files_library",
       "idempotency": "read",
       "errors": [
         "AUTH_REQUIRED",
@@ -6305,6 +6657,31 @@
     },
     {
       "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/runs/{id}/reviews/{reviewId}/accept",
+      "action": "runReviews.accept",
+      "access": "Admin",
+      "permission": "review:accept",
+      "organizationContext": "required_authenticated_context",
+      "input": "ReviewAccept",
+      "output": "ReviewCycle",
+      "event": "",
+      "mcp": "bakery_runReviews_accept",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Delivery",
       "method": "GET",
       "path": "/v1/runs/{id}/delivery-decisions",
       "action": "runDeliveryDecisions.list",
@@ -6333,7 +6710,7 @@
       "access": "Developer",
       "permission": "mergeEntry:read",
       "organizationContext": "required_authenticated_context",
-      "input": "RepositoryQuery",
+      "input": "MergeEntryQuery",
       "output": "Page<MergeEntry>",
       "errors": [
         "AUTH_REQUIRED",
@@ -7742,6 +8119,61 @@
     {
       "group": "Installation administration",
       "method": "GET",
+      "path": "/v1/integration-client-credentials/{provider}",
+      "action": "integrationClientCredentials.get",
+      "access": "Installation administrator",
+      "permission": "installationSetting:read",
+      "input": "IntegrationProviderPath",
+      "output": "IntegrationClientCredentials",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "INTERNAL",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/integration-client-credentials/{provider}",
+      "action": "integrationClientCredentials.put",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "IntegrationClientCredentialsPut",
+      "output": "IntegrationClientCredentials",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required; If-Match with the current version once credentials are registered",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE",
+        "INTERNAL",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
       "path": "/v1/installation/skill-storage",
       "action": "skillStorageSettings.get",
       "access": "Installation administrator",
@@ -7884,6 +8316,447 @@
         "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "STATE_CONFLICT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "PUT",
+      "path": "/v1/storage/files",
+      "action": "storageFiles.put",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "organizationContext": "required_authenticated_context",
+      "input": "StorageFilePut",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required; If-Match when the file exists",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STORAGE_AREA_REFUSED",
+        "STORAGE_QUOTA_EXCEEDED",
+        "STORAGE_FILE_TOO_LARGE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/folders",
+      "action": "storageFolders.create",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "organizationContext": "required_authenticated_context",
+      "input": "StorageFolderCreate",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/entries/{id}/copy",
+      "action": "storageEntries.copy",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "organizationContext": "required_authenticated_context",
+      "input": "StorageEntryDestination",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "STORAGE_QUOTA_EXCEEDED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/entries/{id}/move",
+      "action": "storageEntries.move",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "organizationContext": "required_authenticated_context",
+      "input": "StorageEntryDestination",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STORAGE_AREA_REFUSED",
+        "STORAGE_QUOTA_EXCEEDED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "DELETE",
+      "path": "/v1/storage/entries/{id}",
+      "action": "storageEntries.trash",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "organizationContext": "required_authenticated_context",
+      "input": "IdPath",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/entries/{id}/restore",
+      "action": "storageEntries.restore",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "organizationContext": "required_authenticated_context",
+      "input": "IdPath",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/roots",
+      "action": "storageRoots.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "Empty",
+      "output": "Page<StorageFolderItem>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/folders/{id}/entries",
+      "action": "storageFolderEntries.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "CursorQuery",
+      "output": "Page<StorageFolderItem>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/files/{id}/versions",
+      "action": "storageFileVersions.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "CursorQuery",
+      "output": "Page<StorageFileVersion>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/files/{id}/uses",
+      "action": "storageFileUses.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "CursorQuery",
+      "output": "Page<StorageFileUse>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/file-versions/{id}",
+      "action": "storageFiles.byVersion",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "Empty",
+      "output": "StorageFileAtVersion",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/files/{id}/content",
+      "action": "storageFiles.content",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "StorageFileContentQuery",
+      "output": "BinaryArtifact",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "ARTIFACT_CONTENT_EXPIRED",
+        "RANGE_NOT_SATISFIABLE"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/trash",
+      "action": "storageTrash.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "CursorQuery",
+      "output": "Page<StorageEntry>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/settings",
+      "action": "storageSettings.get",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "Empty",
+      "output": "StorageSettings",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "PUT",
+      "path": "/v1/storage/settings",
+      "action": "storageSettings.put",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "organizationContext": "required_authenticated_context",
+      "input": "StorageSettingsPut",
+      "output": "StorageSettings",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required; If-Match once settings exist",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/entries/{id}/purge",
+      "action": "storageEntries.purge",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "organizationContext": "required_authenticated_context",
+      "input": "IdPath",
+      "output": "StoragePurgeResult",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/agent-file-grants",
+      "action": "agentFileGrants.create",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "organizationContext": "required_authenticated_context",
+      "input": "AgentFileGrantCreate",
+      "output": "AgentFileGrant",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/agent-file-grants/{id}/revoke",
+      "action": "agentFileGrants.revoke",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "organizationContext": "required_authenticated_context",
+      "input": "IdPath",
+      "output": "AgentFileGrant",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
       ]
     },
     {
@@ -9146,6 +10019,28 @@
     },
     {
       "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/state-items",
+      "action": "pluginStateItems.list",
+      "access": "Authorized owner/member",
+      "permission": "pluginState:read",
+      "input": "CursorQuery",
+      "output": "Page<PluginStateItem>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Plugins",
       "method": "PUT",
       "path": "/v1/plugin-installs/{id}/state/{namespace}/{key}",
       "action": "pluginState.put",
@@ -10074,6 +10969,97 @@
       "organizationContext": "required_authenticated_context"
     },
     {
+      "group": "Work",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "access": "Developer",
+      "permission": "runRequest:write",
+      "method": "POST",
+      "path": "/v1/runs/{id}/requests",
+      "action": "runRequests.create",
+      "input": "RunRequestCreate",
+      "output": "RunRequest",
+      "event": "runRequest.created",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "access": "Developer",
+      "permission": "runRequest:read",
+      "method": "GET",
+      "path": "/v1/runs/{id}/requests",
+      "action": "runRequests.list",
+      "input": "Empty",
+      "output": "RunRequests",
+      "event": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "access": "Current member",
+      "permission": "runRequest:read",
+      "method": "GET",
+      "path": "/v1/runs/{id}/requests/mine",
+      "action": "runRequests.mine",
+      "input": "Empty",
+      "output": "RunRequests",
+      "event": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "access": "Developer",
+      "permission": "runRequest:write",
+      "method": "POST",
+      "path": "/v1/run-requests/{id}/withdraw",
+      "action": "runRequests.withdraw",
+      "input": "Empty",
+      "output": "RunRequest",
+      "event": "runRequest.withdrawn",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
       "group": "Organizations",
       "organizationContext": "required_authenticated_context",
       "mcp": null,
@@ -10274,6 +11260,28 @@
         "IDEMPOTENCY_IN_FLIGHT",
         "INTERNAL"
       ]
+    },
+    {
+      "group": "Delivery",
+      "method": "GET",
+      "path": "/v1/merge-attempts",
+      "action": "mergeAttempts.list",
+      "access": "Developer",
+      "permission": "pullRequest:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "MergeAttemptQuery",
+      "output": "Page<MergeAttempt>",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "event": "",
+      "mcp": null,
+      "idempotency": "read"
     }
   ]
 }

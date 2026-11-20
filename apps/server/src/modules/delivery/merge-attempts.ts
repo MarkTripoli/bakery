@@ -1,5 +1,10 @@
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import {
+  type CursorBinding,
+  decodeCursor,
+  encodeCursor,
+} from "../../platform/cursor.ts";
 import type {
   GitHubMergeMethod,
   GitHubMergeOutcome,
@@ -234,4 +239,65 @@ export async function readMergeAttempt(
   )).rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   return attempt(row);
+}
+
+const MERGE_ATTEMPT_ORDERING = "createdAt:desc,id:desc";
+const MAX_ATTEMPT_PAGE = 100;
+
+/**
+ * Lists one pull request's merge attempts, newest first, keyset paginated on
+ * (created_at, id). The cursor is bound to the pull request and the caller. An
+ * attempt that is still `unknown` reads as unknown: Bakery never reports a
+ * merge it has not confirmed, and the answer survives a reload.
+ */
+export async function listMergeAttempts(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  secret: string,
+  query: { pullRequestId: string; cursor?: string; limit?: number },
+): Promise<{ items: MergeAttempt[]; nextCursor: string | null }> {
+  const limit = query.limit ?? 25;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_ATTEMPT_PAGE) {
+    throw new StandardError({ code: "UNPROCESSABLE" });
+  }
+  const binding: CursorBinding = {
+    action: "mergeAttempts.list",
+    principalId,
+    organizationId,
+    ordering: MERGE_ATTEMPT_ORDERING,
+    filters: JSON.stringify({ pullRequestId: query.pullRequestId }),
+    schemaVersion: 1,
+  };
+  const position = await decodeCursor(secret, query.cursor, binding);
+  const rows = (await transaction.query<
+    AttemptRow & { cursor_created_at: string }
+  >(
+    `select ${ATTEMPT_COLUMNS},
+            to_char(created_at at time zone 'UTC',
+                    'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at
+       from bakery.pull_request_merge_attempts
+      where organization_id = $1 and pull_request_id = $2
+        and ($3::timestamptz is null or (created_at, id) < ($3, $4::uuid))
+      order by created_at desc, id desc
+      limit $5`,
+    [
+      organizationId,
+      query.pullRequestId,
+      position?.createdAt ?? null,
+      position?.id ?? null,
+      limit + 1,
+    ],
+  )).rows;
+  const items = rows.slice(0, limit);
+  const last = items.at(-1);
+  return {
+    items: items.map(attempt),
+    nextCursor: rows.length > limit && last
+      ? await encodeCursor(secret, binding, {
+        createdAt: last.cursor_created_at,
+        id: last.id,
+      })
+      : null,
+  };
 }

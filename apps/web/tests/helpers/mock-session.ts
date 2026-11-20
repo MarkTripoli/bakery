@@ -152,6 +152,27 @@ export async function mockAuthenticatedSession(page: Page): Promise<void> {
     }));
   await mockBootstrappedInstallation(page);
   await mockUserPreferences(page);
+  // The installation Integrations page asks for each provider's OAuth client
+  // credentials. Unregistered by default, so a spec about something else on that
+  // page sees no second error state; a spec about the credentials registers its own
+  // route, which wins because the latest route matches first.
+  await page.route(
+    "**/v1/integration-client-credentials/*",
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          provider: "linear",
+          configured: false,
+          clientId: null,
+          clientSecretSavedAt: null,
+          callbackUrl:
+            "https://bakery.example/v1/integration-auth/linear/callback",
+          version: 0,
+        }),
+      }),
+  );
   await page.route("**/v1/me", (route) =>
     route.fulfill({
       status: 200,
@@ -293,6 +314,16 @@ export async function mockAuthenticatedSession(page: Page): Promise<void> {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ unread: 0, revision: 1 }),
+    });
+  });
+  // The task page asks for the issues a task is linked to (#69). Most specs
+  // are not about that, so it answers with none; one that is registers its own.
+  await page.route("**/v1/ticket-task-links*", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [], nextCursor: null }),
     });
   });
   await page.route("**/v1/installation/settings", (route) => {

@@ -68,11 +68,17 @@ type World = {
   seen: Seen[];
 };
 
-function membership(id: string, principalId: string, role: string): Body {
+function membership(
+  id: string,
+  principalId: string,
+  role: string,
+  displayName = "Fixture member",
+): Body {
   return {
     id,
     organizationId: ORG,
     principalId,
+    displayName,
     role,
     status: "active",
     joinedAt: STAMP,
@@ -159,7 +165,9 @@ function fullWorld(): World {
       organizationId: ORG,
       organizationName: "Fixture Org",
       scopes: ["bakery:read"],
-      authorizedAt: "2026-10-02T00:00:00.000Z",
+      // Midday UTC, so the day reads 1 Oct in every realistic time zone, not
+      // only on a host behind UTC.
+      authorizedAt: "2026-10-01T12:00:00.000Z",
       lastUsedAt: null,
     }],
     lastAdminConflict: false,

@@ -43,6 +43,8 @@ export const AuthImplementedAction = Object.freeze(
     InstallationAdministratorsRevoke: "installationAdministrators.revoke",
     PasswordResetLinksCreate: "passwordResetLinks.create",
     PasswordResetsRedeem: "passwordResets.redeem",
+    DesktopSignInsStart: "desktopSignIns.start",
+    DesktopSignInsExchange: "desktopSignIns.exchange",
     AuditEventsList: "auditEvents.list",
     AuditEventsExport: "auditEvents.export",
     AuditEventsStream: "auditEvents.stream",
@@ -292,13 +294,15 @@ export const providerWritesImplementedActions = Object.freeze(
 /**
  * The route continuation offers (#26 slice 6a).
  *
- * A read only: which steps of a run are stalled behind a provider incident and
- * which routes they could continue on. Admission is the next slice, and it is a
- * command of its own, so nothing here decides, pauses or charges anything.
+ * The offers read (which steps of a run are stalled behind a provider incident
+ * and which routes they could continue on) and the admission command that acts on
+ * an offer. The read decides nothing; the command is the one place a continuation
+ * is admitted.
  */
 export const RouteContinuationsImplementedAction = Object.freeze(
   {
     RouteContinuationsList: "routeContinuations.list",
+    RouteContinuationsAdmit: "routeContinuations.admit",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const routeContinuationsImplementedActions = Object.freeze(
@@ -368,12 +372,14 @@ export const DeliveryImplementedAction = Object.freeze(
   {
     ChecksList: "checks.list",
     RunReviewsList: "runReviews.list",
+    RunReviewsAccept: "runReviews.accept",
     ReviewFindingsList: "reviewFindings.list",
     RunDeliveryDecisionsList: "runDeliveryDecisions.list",
     PullRequestsList: "pullRequests.list",
     MergeEntriesList: "mergeEntries.list",
     MergeEntriesCreate: "mergeEntries.create",
     PullRequestsMerge: "pullRequests.merge",
+    MergeAttemptsList: "mergeAttempts.list",
     MergeAttemptsReconcile: "mergeAttempts.reconcile",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -428,6 +434,18 @@ export const notificationImplementedActions = Object.freeze(
   Object.values(NotificationImplementedAction),
 );
 
+export const RunRequestImplementedAction = Object.freeze(
+  {
+    RunRequestsCreate: "runRequests.create",
+    RunRequestsList: "runRequests.list",
+    RunRequestsMine: "runRequests.mine",
+    RunRequestsWithdraw: "runRequests.withdraw",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const runRequestImplementedActions = Object.freeze(
+  Object.values(RunRequestImplementedAction),
+);
+
 export const GroupImplementedAction = Object.freeze(
   {
     GroupsList: "groups.list",
@@ -461,6 +479,7 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowsCopy: "workflows.copy",
     WorkflowVersionsList: "workflowVersions.list",
     WorkflowVersionsGet: "workflowVersions.get",
+    WorkflowVersionsSkills: "workflowVersions.skills",
     WorkflowVersionsCreate: "workflowVersions.create",
     WorkflowVersionsUpdate: "workflowVersions.update",
     WorkflowVersionsPublish: "workflowVersions.publish",
@@ -478,6 +497,46 @@ export const WorkflowImplementedAction = Object.freeze(
 );
 export const workflowImplementedActions = Object.freeze(
   Object.values(WorkflowImplementedAction),
+);
+
+/**
+ * MCP server definitions (#434): the shared, organization-scoped record of what a
+ * remote server is. Connections, discovery and classification are separate groups
+ * as they land; the runtime registry and this list stay equal at every commit.
+ */
+export const McpServerImplementedAction = Object.freeze(
+  {
+    McpServersList: "mcpServers.list",
+    McpServersGet: "mcpServers.get",
+    McpServersCreate: "mcpServers.create",
+    McpServersUpdate: "mcpServers.update",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const mcpServerImplementedActions = Object.freeze(
+  Object.values(McpServerImplementedAction),
+);
+
+/**
+ * MCP connections (#434): one use of a server definition, organization or personal.
+ * Discovery pins what a server offers; the capabilities read shows the pin.
+ */
+export const McpConnectionImplementedAction = Object.freeze(
+  {
+    McpConnectionsList: "mcpConnections.list",
+    McpConnectionsGet: "mcpConnections.get",
+    McpConnectionsCreate: "mcpConnections.create",
+    McpConnectionsUpdate: "mcpConnections.update",
+    McpConnectionsDiscover: "mcpConnections.discover",
+    McpConnectionsCapabilities: "mcpConnections.capabilities",
+    McpToolClassificationsList: "mcpToolClassifications.list",
+    McpToolClassificationsPut: "mcpToolClassifications.put",
+    McpUseGrantsList: "mcpUseGrants.list",
+    McpUseGrantsCreate: "mcpUseGrants.create",
+    McpUseGrantsRevoke: "mcpUseGrants.revoke",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const mcpConnectionImplementedActions = Object.freeze(
+  Object.values(McpConnectionImplementedAction),
 );
 
 /** Registered workflow action discovery served by the handwritten Hono routes. */
@@ -515,6 +574,8 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactCommentsListAcrossVersions: "artifactComments.listAcrossVersions",
     ArtifactCommentsMentionCandidates: "artifactComments.mentionCandidates",
     ArtifactsList: "artifacts.list",
+    FilesSearch: "files.search",
+    FilesLibrary: "files.library",
     ArtifactsGet: "artifacts.get",
     ArtifactsUpdate: "artifacts.update",
     ArtifactStorageGet: "artifactStorage.get",
@@ -563,6 +624,24 @@ export const secretsImplementedActions = Object.freeze(
   Object.values(SecretsImplementedAction),
 );
 
+/**
+ * The provider-neutral OAuth client credentials (#410).
+ *
+ * One installation-level get and put for every provider whose manifest asks for
+ * `client-credentials`, so adding a provider adds no operation. The put is a
+ * session-only command that is idempotent and version-guarded once credentials
+ * exist, and the secret it takes is never returned.
+ */
+export const IntegrationClientCredentialsImplementedAction = Object.freeze(
+  {
+    IntegrationClientCredentialsGet: "integrationClientCredentials.get",
+    IntegrationClientCredentialsPut: "integrationClientCredentials.put",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const integrationClientCredentialsImplementedActions = Object.freeze(
+  Object.values(IntegrationClientCredentialsImplementedAction),
+);
+
 export const SkillStorageImplementedAction = Object.freeze(
   {
     SkillStorageSettingsGet: "skillStorageSettings.get",
@@ -585,6 +664,32 @@ export const blobUploadImplementedActions = Object.freeze(
   Object.values(BlobUploadImplementedAction),
 );
 
+export const StorageImplementedAction = Object.freeze(
+  {
+    StorageFilesPut: "storageFiles.put",
+    StorageFoldersCreate: "storageFolders.create",
+    StorageEntriesCopy: "storageEntries.copy",
+    StorageEntriesMove: "storageEntries.move",
+    StorageEntriesTrash: "storageEntries.trash",
+    StorageEntriesRestore: "storageEntries.restore",
+    StorageEntriesPurge: "storageEntries.purge",
+    StorageTrashList: "storageTrash.list",
+    StorageSettingsGet: "storageSettings.get",
+    StorageSettingsPut: "storageSettings.put",
+    AgentFileGrantsCreate: "agentFileGrants.create",
+    AgentFileGrantsRevoke: "agentFileGrants.revoke",
+    StorageRootsList: "storageRoots.list",
+    StorageFolderEntriesList: "storageFolderEntries.list",
+    StorageFileVersionsList: "storageFileVersions.list",
+    StorageFileUsesList: "storageFileUses.list",
+    StorageFilesContent: "storageFiles.content",
+    StorageFilesByVersion: "storageFiles.byVersion",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const storageImplementedActions = Object.freeze(
+  Object.values(StorageImplementedAction),
+);
+
 export const CatalogImplementedAction = Object.freeze(
   {
     SkillSourcesList: "skillSources.list",
@@ -595,8 +700,11 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsList: "skills.list",
     SkillsGet: "skills.get",
     SkillsCreate: "skills.create",
+    SkillsCopy: "skills.copy",
     SkillsUpdate: "skills.update",
     SkillVersionsCreate: "skillVersions.create",
+    SkillUseGrantsList: "skills.useGrants.list",
+    SkillUseGrantsDelete: "skills.useGrants.delete",
     LibrarySearch: "library.search",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -605,7 +713,8 @@ export const catalogImplementedActions = Object.freeze(
 );
 export const catalogIdentityImplementedActions = Object.freeze(
   Object.values(CatalogImplementedAction).filter((action) =>
-    action !== CatalogImplementedAction.SkillVersionsCreate
+    action !== CatalogImplementedAction.SkillVersionsCreate &&
+    action !== CatalogImplementedAction.SkillsCopy
   ),
 );
 
@@ -629,6 +738,7 @@ export const PluginInstallImplementedAction = Object.freeze(
     PluginInstallsGet: "pluginInstalls.get",
     PluginInstallsUpdate: "pluginInstalls.update",
     PluginStateGet: "pluginState.get",
+    PluginStateItemsList: "pluginStateItems.list",
     PluginStatePut: "pluginState.put",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -689,6 +799,7 @@ export const implementedActions = Object.freeze(
     ...notificationImplementedActions,
     ...groupImplementedActions,
     ...emailSettingsImplementedActions,
+    ...runRequestImplementedActions,
     ...workflowImplementedActions,
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,
@@ -699,7 +810,11 @@ export const implementedActions = Object.freeze(
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
+    ...integrationClientCredentialsImplementedActions,
+    ...mcpServerImplementedActions,
+    ...mcpConnectionImplementedActions,
     ...blobUploadImplementedActions,
+    ...storageImplementedActions,
     ...memoryImplementedActions,
   ] as const,
 );
@@ -743,6 +858,7 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     Review: "review.independent",
     Freeform: "agent.freeform",
     TaskBrief: "task.brief",
+    SecretIdentityRead: "secret.identity.read",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 

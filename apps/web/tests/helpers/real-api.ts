@@ -128,10 +128,28 @@ export async function shot(
   page: Page,
   name: string,
   mask: Locator[] = [],
-  options: { windowOnly?: boolean; only?: "desktop" | "mobile" } = {},
+  options: {
+    windowOnly?: boolean;
+    only?: "desktop" | "mobile";
+    /** A scrolling container (a dialog) to scroll to its end before each capture. */
+    scrollToEnd?: Locator;
+  } = {},
 ) {
   if (!evidenceDirectory) return;
-  if (evidenceScheme) await page.emulateMedia({ colorScheme: evidenceScheme });
+  if (evidenceScheme) {
+    await page.emulateMedia({ colorScheme: evidenceScheme });
+    // The logo picks its art after a theme change (observer, render, image
+    // load); a shot taken before then shows the other theme's art.
+    await page.waitForFunction(
+      (expected) =>
+        Array.from(document.querySelectorAll("img[data-logo-variant]")).every(
+          (image) =>
+            image instanceof HTMLImageElement && image.complete &&
+            image.dataset.logoVariant?.endsWith(expected),
+        ),
+      evidenceScheme,
+    );
+  }
   const original = page.viewportSize();
   for (const { name: viewport, ...size } of EVIDENCE_VIEWPORTS) {
     if (options.only && options.only !== viewport) continue;
@@ -140,6 +158,21 @@ export async function shot(
     await page.evaluate(() =>
       new Promise((resolve) => requestAnimationFrame(resolve))
     );
+    if (options.scrollToEnd) {
+      // The end of the dialog, so the last button is in the picture.
+      await options.scrollToEnd.evaluate((element) => {
+        const scrollers = [
+          element,
+          ...Array.from(element.querySelectorAll("*")),
+        ];
+        for (const candidate of scrollers) {
+          if (
+            candidate.scrollHeight > candidate.clientHeight &&
+            getComputedStyle(candidate).overflowY !== "visible"
+          ) candidate.scrollTop = candidate.scrollHeight;
+        }
+      });
+    }
     await page.screenshot({
       path: join(evidenceDirectory, `${name}--${viewport}.png`),
       fullPage: !options.windowOnly,
