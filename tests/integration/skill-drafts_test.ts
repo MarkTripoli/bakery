@@ -87,7 +87,10 @@ async function upload(files: Record<string, string>) {
 async function agentFor(f: Fx): Promise<{ bearer: string; tokenId: string }> {
   const db = f.fixture.pgDatabase;
   const principalId = crypto.randomUUID();
-  const secret = `bky_${crypto.randomUUID().replaceAll("-", "")}`;
+  const body = btoa(
+    String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))),
+  ).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+  const secret = `bky_${body}`;
   await db.query(
     `insert into bakery.principals (id, provider_user_id, display_name, principal_type)
      values ($1, null, 'draft agent', 'service')`,
