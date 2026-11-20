@@ -124,6 +124,7 @@ import {
   type EventsSocketLimits,
   type EventsSocketRegistry,
 } from "./modules/work/events-socket.ts";
+import { createBatchRoutes } from "./modules/work/batch-routes.ts";
 import { createMcpManagementRoutes } from "./modules/mcp/routes.ts";
 import {
   createGroupRoutes,
@@ -845,6 +846,15 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
       merge: { github: githubAppClient, broker: installationTokenBroker },
+    }),
+  );
+  app.route(
+    "/",
+    createBatchRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
     }),
   );
   app.route(
