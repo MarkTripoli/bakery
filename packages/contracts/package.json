@@ -7,6 +7,7 @@
     ".": "./src/health.ts",
     "./action-registry": "./src/action-registry.ts",
     "./artifact-kinds": "./src/artifact-kinds.ts",
+    "./artifact-probe": "./src/artifact-probe.ts",
     "./auth-provider-client": "./src/auth-provider-client.ts",
     "./check-evidence": "./src/check-evidence.ts",
     "./client": "./src/client.ts",

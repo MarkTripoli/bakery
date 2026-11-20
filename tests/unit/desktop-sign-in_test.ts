@@ -7,11 +7,13 @@ import {
   constantTimeEqual,
   DESKTOP_APP_LINK_REDIRECT,
   DESKTOP_CLIENT_ID,
+  desktopAuthorization,
   desktopCredentialFromAuthorization,
   desktopSessionLabel,
   DesktopSignInDecision,
   DesktopSignInRefusal,
   type DesktopSignInRequestState,
+  desktopSocketUpgrade,
   exchangeRefusalFor,
   generateDesktopCredential,
   normalizeComputerName,
@@ -356,4 +358,58 @@ Deno.test("signed out: one Sign in button that remembers only this exact request
     signInPage("en", '"></script><script>alert(1)</script>'),
   ).text();
   assertFalse(unsafe.includes("<script"));
+});
+
+Deno.test("a socket carries the desktop credential as a subprotocol, and nothing else does", () => {
+  const credential = generateDesktopCredential();
+  const upgrade = (protocols: string, extra: Record<string, string> = {}) =>
+    new Headers({
+      upgrade: "websocket",
+      "sec-websocket-protocol": protocols,
+      ...extra,
+    });
+  const carried = upgrade("bakery.desktop, bakery.credential." + credential);
+  assertEquals(
+    desktopAuthorization(carried, "/v1/events"),
+    "Bearer " + credential,
+  );
+  assertEquals(
+    desktopCredentialFromAuthorization(
+      desktopAuthorization(carried, "/v1/events"),
+    ),
+    credential,
+  );
+  assertEquals(desktopSocketUpgrade(carried), { protocol: "bakery.desktop" });
+  // The header wins when both are present.
+  assertEquals(
+    desktopAuthorization(
+      upgrade("bakery.desktop", { authorization: "Bearer x" }),
+      "/v1/events",
+    ),
+    "Bearer x",
+  );
+  // Not an upgrade, no desktop protocol, two credentials, or an access token.
+  const plain = new Headers({
+    "sec-websocket-protocol": "bakery.desktop, bakery.credential." + credential,
+  });
+  for (
+    const headers of [
+      plain,
+      upgrade("bakery.credential." + credential),
+      upgrade(
+        "bakery.desktop, bakery.credential." + credential +
+          ", bakery.credential." + credential,
+      ),
+      upgrade("bakery.desktop, bakery.credential.bky_" + randomSecret()),
+    ]
+  ) assertEquals(desktopAuthorization(headers, "/v1/events"), null);
+  assertEquals(desktopSocketUpgrade(upgrade("chat")), {});
+  // Any route but the two sockets ignores the carrier, upgrade or not.
+  for (const path of ["/v1/me", "/v1/events/x", undefined]) {
+    assertEquals(desktopAuthorization(carried, path), null, String(path));
+  }
+  assertEquals(
+    desktopAuthorization(carried, "/v1/collaboration"),
+    "Bearer " + credential,
+  );
 });

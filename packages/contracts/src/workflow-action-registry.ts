@@ -25,6 +25,7 @@ export const WORKFLOW_ACTION_NAMES = Object.freeze(
     "evaluation.check",
     "evaluation.score",
     "task.brief",
+    "secret.identity.read",
   ] as const,
 );
 
@@ -36,6 +37,7 @@ export type WorkflowActionCapability =
   | "git"
   | "shell"
   | "browser"
+  | "secret.identity"
   | "reviewer"
   | "integration"
   | "delivery"
@@ -337,6 +339,18 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
         faults: ["DEPENDENCY_UNAVAILABLE"],
       },
       effectPolicy: "artifact_only",
+    }),
+    // The server prepares one sealed operation per claimed attempt and the
+    // worker's daemon performs it, so a retry would be a second read of the
+    // provider identity: the attempt budget is one, and a lost worker fails
+    // the run.
+    "secret.identity.read": metadata({
+      input: "SecretIdentityReadInput",
+      output: "SecretIdentityOutput",
+      capabilities: ["secret.identity"],
+      cancel: "cooperative_fenced",
+      retry: { maxAttempts: 1, backoff: "0s", faults: [] },
+      effectPolicy: "evidence_only",
     }),
   } satisfies Record<WorkflowActionName, WorkflowActionMetadata>,
 );

@@ -18,6 +18,7 @@ const CAPABILITY_TABLE: Readonly<Record<WorkflowActionCapability, true>> =
     integration: true,
     delivery: true,
     storage: true,
+    "secret.identity": true,
   });
 
 /** Capability names an action may declare in `requires`. */

@@ -113,6 +113,10 @@ export type IntegrationAppRegistrationBegin =
   ClientInputMap["IntegrationAppRegistrationBegin"];
 export type IntegrationAppRegistrationPut =
   ClientInputMap["IntegrationAppRegistrationPut"];
+export type IntegrationClientCredentials =
+  ClientOutputMap["IntegrationClientCredentials"];
+export type IntegrationClientCredentialsPut =
+  ClientInputMap["IntegrationClientCredentialsPut"];
 export type SkillStorageSettings = ClientOutputMap["SkillStorageSettings"];
 export type SkillStorageSettingsPut = ClientInputMap["SkillStorageSettingsPut"];
 export type SkillStorageVerification =
@@ -164,6 +168,22 @@ export type PluginPackageListResponse = ClientOutputMap["Page<PluginPackage>"];
 export type PluginVersionListResponse = ClientOutputMap["Page<PluginVersion>"];
 export type PluginInstallListResponse = ClientOutputMap["Page<PluginInstall>"];
 export type PluginInstallResponse = ClientOutputMap["PluginInstall"];
+/**
+ * One item a plugin has saved, as the page may know it: where it is kept, how
+ * big it is and when it was last saved. The read it comes from carries no saved
+ * value at all.
+ */
+export type SavedDataItem = Readonly<{
+  id: string;
+  namespace: string;
+  key: string;
+  sizeBytes: number;
+  updatedAt: string;
+}>;
+export type SavedDataPage = Readonly<{
+  items: readonly SavedDataItem[];
+  nextCursor: string | null;
+}>;
 export type TicketSourceCreate = ClientInputMap["TicketSourceCreate"];
 export type TicketSourceUpdate = ClientInputMap["TicketSourceUpdate"];
 export type TicketOperationReceiptResponse =
@@ -823,6 +843,14 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<PluginInstallResponse>>;
+    /** `GET /v1/plugin-installs/{id}/state-items`: what the plugin has saved, with no values in the response. */
+    readonly savedData: (options: {
+      readonly organizationId: string;
+      readonly installId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<SavedDataPage>>;
     /** `PATCH /v1/plugin-installs/{id}`: turns an install on or off, moves it to another version, or removes it. */
     readonly update: (options: {
       readonly organizationId: string;
@@ -1172,6 +1200,28 @@ export type BakeryApiClient = {
       readonly idempotencyKey: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<IntegrationAppRegistration>>;
+  };
+  /**
+   * Provider OAuth client credentials, per provider (#410); installation
+   * administrators only. A result never carries the secret.
+   */
+  readonly integrationClientCredentials: {
+    /** `GET /v1/integration-client-credentials/{provider}`: configured or not, the client ID, when the secret was saved. */
+    readonly get: (options: {
+      readonly provider: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<IntegrationClientCredentials>>;
+    /**
+     * `PUT /v1/integration-client-credentials/{provider}`: registers the pair, or
+     * replaces it when `version` is set. The input carries a write-only secret.
+     */
+    readonly put: (options: {
+      readonly provider: string;
+      readonly input: IntegrationClientCredentialsPut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<IntegrationClientCredentials>>;
   };
   /** Installation skill object storage; administrators only, never a secret in a result. */
   readonly skillStorage: {
@@ -2431,6 +2481,28 @@ export function createBakeryApiClient({
             }),
         );
       },
+      savedData(options) {
+        return workerResult(
+          options.organizationId,
+          async (scoped): Promise<SavedDataPage> => {
+            const page = await scoped.actions["pluginStateItems.list"]({
+              id: options.installId,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal });
+            return {
+              items: page.items.map((item) => ({
+                id: item.id,
+                namespace: item.namespace,
+                key: item.key,
+                sizeBytes: item.sizeBytes,
+                updatedAt: item.updatedAt,
+              })),
+              nextCursor: page.nextCursor,
+            };
+          },
+        );
+      },
       update(options) {
         return workerResult(
           options.organizationId,
@@ -3688,6 +3760,40 @@ export function createBakeryApiClient({
             ok: true,
             data: await client.actions["integrationAppRegistrations.put"](
               options.input,
+              {
+                ...(options.version === undefined
+                  ? {}
+                  : { ifMatch: versionEtag(options.version) }),
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    integrationClientCredentials: {
+      async get(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["integrationClientCredentials.get"]({
+              provider: options.provider,
+            }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async put(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["integrationClientCredentials.put"](
+              { provider: options.provider, ...options.input },
               {
                 ...(options.version === undefined
                   ? {}

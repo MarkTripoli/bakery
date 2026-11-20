@@ -540,6 +540,7 @@ const runtimeSet = [
   "review.independent",
   "rpi.design",
   "rpi.plan",
+  "secret.identity.read",
   "task.brief",
   "workflow.noop",
   "workflow.stop",

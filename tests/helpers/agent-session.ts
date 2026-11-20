@@ -61,10 +61,13 @@ export async function agentSession(
   options: { granted: Power | null },
 ) {
   const worker = await registeredWorker(fixture, { slots: 1 });
+  // The session's workflow must compile: an agent spawns by admitting a run of
+  // it, and the plan compiler refuses the default fixture document.
   const own = await seedEligibleNonmodelJob(
     fixture.pgDatabase,
     fixture.organizationId,
     fixture.principalId,
+    { compilable: true },
   );
   const grantId = options.granted === null
     ? null
