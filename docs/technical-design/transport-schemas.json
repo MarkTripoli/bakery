@@ -5045,6 +5045,55 @@
       ],
       "description": "Registers a running preview upstream for an attempt so Bakery can proxy client traffic to it; the record tracks its route, port and expiry until the preview stops."
     },
+    "WorkerHandoffManifest": {
+      "fields": [
+        {
+          "name": "leaseToken",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "Proof of the attempt's current lease backing this manifest; the manifest is refused once a newer attempt has advanced the job's fence."
+        },
+        {
+          "name": "fence",
+          "type": "decimalString",
+          "required": true,
+          "bounds": {
+            "min": 0
+          },
+          "description": "Monotonic fence value bound to the current attempt; the manifest is rejected once a newer attempt has advanced this job's fence."
+        },
+        {
+          "name": "manifest",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 32768
+          },
+          "description": "The bounded handoff manifest the source session writes before it stops: repository state as immutable artifact references, accepted decisions, the exact context selection, recent checks, effects still to reconcile, a durable checkpoint and a grant comparison digest. The server verifies every identifier and artifact digest, ignores the source's own safe-boundary and pending-effect claims and stores its own; it never holds a transcript, a secret or a lease token."
+        },
+        {
+          "name": "workerSessionId",
+          "type": "uuid",
+          "required": false,
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts."
+        },
+        {
+          "name": "workerSessionGeneration",
+          "type": "decimalString",
+          "required": false,
+          "description": "Generation of that worker session; required with workerSessionId."
+        }
+      ],
+      "rules": [
+        "The lease, the fence and the worker session are proved first, exactly as for every other attempt mutation, so a fenced, expired or foreign attempt can never write a manifest.",
+        "One manifest per source attempt: the same manifest replays, a different one for the same attempt is STATE_CONFLICT. A manifest over 32 KiB inline is BODY_TOO_LARGE; long content belongs in artifacts the manifest references.",
+        "The manifest is a record, never the authority: run, step, task, agent version, workflow version, source session, repository and every artifact reference are checked against the server's own rows, and a mismatch is UNPROCESSABLE."
+      ],
+      "description": "Persists the handoff manifest of an attempt before the source session stops, so a continuation can resume from a verified record or start fresh without replaying uncertain effects."
+    },
     "WorkerEnrollmentInspect": {
       "fields": [
         {
@@ -22827,6 +22876,51 @@
         "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
         "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
         "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
+      }
+    },
+    "HandoffManifestRecord": {
+      "fields": [
+        "id",
+        "taskId",
+        "runId",
+        "runStepId",
+        "sourceAttemptId",
+        "sourceFence",
+        "mode",
+        "digest",
+        "safeBoundary",
+        "status",
+        "manifest",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "taskId": "uuid",
+        "runId": "uuid",
+        "runStepId": "uuid",
+        "sourceAttemptId": "uuid",
+        "sourceFence": "decimalString",
+        "mode": "enum(fresh_session|exact_harness_resume)",
+        "digest": "string",
+        "safeBoundary": "boolean",
+        "status": "enum(pending|continued|blocked)",
+        "manifest": "json",
+        "createdAt": "timestamp"
+      },
+      "description": "A stored handoff manifest: where one source attempt stopped, with the server's own safe-boundary computation and the digest a continuation pins. It is a record to be re-verified, never the authority for run state.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the stored manifest.",
+        "taskId": "Task the manifest continues.",
+        "runId": "Workflow run the manifest continues.",
+        "runStepId": "Workflow step whose attempt wrote the manifest.",
+        "sourceAttemptId": "Attempt that wrote the manifest; there is at most one manifest per attempt.",
+        "sourceFence": "Fence of the source attempt when the manifest was written; decimal string.",
+        "mode": "Whether the source asked for a fresh session or an exact harness resume; the receiving side decides eligibility again.",
+        "digest": "SHA-256 of the canonical stored manifest, so a reader can tell two manifests apart and a continuation can pin exactly one.",
+        "safeBoundary": "Whether resuming here cannot repeat a non-replay-safe operation, computed by the server from the event journal and the effect ledger; the source's own claim is ignored.",
+        "status": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused).",
+        "manifest": "The stored manifest with the server's pending-effect list and safe boundary in place of the source's claims.",
+        "createdAt": "UTC timestamp when the manifest was stored."
       }
     },
     "MergeEntry": {

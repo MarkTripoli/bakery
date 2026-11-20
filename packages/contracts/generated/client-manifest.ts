@@ -873,6 +873,28 @@ export const clientManifest = {
     {
       "group": "Work",
       "method": "GET",
+      "path": "/v1/handoff-manifests/{id}",
+      "action": "handoffManifests.get",
+      "access": "Developer",
+      "permission": "run:read",
+      "input": "IdPath",
+      "output": "HandoffManifestRecord",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "GET",
       "path": "/v1/runs/{id}/steps",
       "action": "runSteps.list",
       "access": "Developer",
@@ -17083,6 +17105,7 @@ export const clientManifest = {
             "workflowPresets.list",
             "runs.list",
             "runs.get",
+            "handoffManifests.get",
             "runSteps.list",
             "output.streams.list",
             "output.streams.read",
@@ -17309,6 +17332,7 @@ export const clientManifest = {
             "worker.result",
             "worker.artifacts",
             "worker.previews",
+            "worker.handoffManifests",
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
@@ -43052,6 +43076,7 @@ export const clientManifest = {
                   "workflowPresets.list",
                   "runs.list",
                   "runs.get",
+                  "handoffManifests.get",
                   "runSteps.list",
                   "output.streams.list",
                   "output.streams.read",
@@ -43278,6 +43303,7 @@ export const clientManifest = {
                   "worker.result",
                   "worker.artifacts",
                   "worker.previews",
+                  "worker.handoffManifests",
                   "worker.invokeTool",
                   "artifacts.list",
                   "files.search",
@@ -63443,6 +63469,7 @@ export const clientManifest = {
             "workflowPresets.list",
             "runs.list",
             "runs.get",
+            "handoffManifests.get",
             "runSteps.list",
             "output.streams.list",
             "output.streams.read",
@@ -63669,6 +63696,7 @@ export const clientManifest = {
             "worker.result",
             "worker.artifacts",
             "worker.previews",
+            "worker.handoffManifests",
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
@@ -65601,6 +65629,247 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned."
+    },
+    "HandoffManifestRecord": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the stored manifest."
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Task the manifest continues."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Workflow run the manifest continues."
+        },
+        "runStepId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Workflow step whose attempt wrote the manifest."
+        },
+        "sourceAttemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Attempt that wrote the manifest; there is at most one manifest per attempt."
+        },
+        "sourceFence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Fence of the source attempt when the manifest was written; decimal string."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "fresh_session",
+            "exact_harness_resume"
+          ],
+          "description": "Whether the source asked for a fresh session or an exact harness resume; the receiving side decides eligibility again."
+        },
+        "digest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 of the canonical stored manifest, so a reader can tell two manifests apart and a continuation can pin exactly one."
+        },
+        "safeBoundary": {
+          "type": "boolean",
+          "description": "Whether resuming here cannot repeat a non-replay-safe operation, computed by the server from the event journal and the effect ledger; the source's own claim is ignored."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "continued",
+            "blocked"
+          ],
+          "description": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused)."
+        },
+        "manifest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "The stored manifest with the server's pending-effect list and safe boundary in place of the source's claims."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the manifest was stored."
+        }
+      },
+      "required": [
+        "id",
+        "taskId",
+        "runId",
+        "runStepId",
+        "sourceAttemptId",
+        "sourceFence",
+        "mode",
+        "digest",
+        "safeBoundary",
+        "status",
+        "manifest",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "A stored handoff manifest: where one source attempt stopped, with the server's own safe-boundary computation and the digest a continuation pins. It is a record to be re-verified, never the authority for run state.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "MergeEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

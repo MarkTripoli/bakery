@@ -73,6 +73,7 @@ import {
   steerAgentSession,
 } from "./sessions.ts";
 import { createRunStepNote } from "./step-notes.ts";
+import { getHandoffManifest } from "./handoff-manifests.ts";
 import { takeOverRunStep } from "./step-takeover.ts";
 import { createSessionFeedHandler } from "./session-feed.ts";
 import { openSessionFeedStream } from "./session-feed-stream.ts";
@@ -633,6 +634,25 @@ export function createRunControlRegistry(
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
     handler: (context, input) => steerAgentSession(context, input, limits),
+  });
+  registry.register({
+    name: ExecutionImplementedAction.HandoffManifestsGet,
+    method: HttpMethod.Get,
+    path: "/v1/handoff-manifests/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.HandoffManifestRecord,
+    policy: {
+      type: ActionKind.Query,
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: (context) =>
+      Promise.resolve(
+        contractSchemas.HandoffManifestRecord.parse(
+          getHandoffManifest(context),
+        ),
+      ),
   });
   registry.register({
     name: ExecutionImplementedAction.RunStepsNote,
