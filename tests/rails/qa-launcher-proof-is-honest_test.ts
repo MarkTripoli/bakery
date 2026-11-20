@@ -121,6 +121,67 @@ Deno.test("a defect in the proof is never reported as a limit of the host", () =
   assertEquals(exitTwos.length, 3, "only a host that cannot start a unit");
 });
 
+Deno.test("a unit recorded from a subshell is still cleaned up", async () => {
+  // The first green run on mini1 left two killed units behind: `run_victim` is
+  // called as `$(run_victim ...)`, so its append to a shell variable was lost
+  // when the subshell exited, and the EXIT trap never learned the unit's name.
+  // The ledger is a file for exactly this reason, and this test runs the real
+  // functions from the script against a fake `systemctl` to prove it.
+  const ledger = script.slice(
+    script.indexOf("# --- unit ledger"),
+    script.indexOf("# --- end unit ledger ---"),
+  );
+  assert(ledger.includes("record_unit"), "the ledger has a recorder");
+  assert(ledger.includes("reset_ledger"), "and a resetter");
+  const dir = await Deno.makeTempDir({ prefix: "bakery-qa-ledger-" });
+  const calls = `${dir}/calls.txt`;
+  await Deno.writeTextFile(
+    `${dir}/systemctl`,
+    `#!/bin/sh\nprintf '%s\\n' "$*" >>"${calls}"\nexit 0\n`,
+  );
+  await Deno.chmod(`${dir}/systemctl`, 0o755);
+  const driver = `${dir}/driver.sh`;
+  await Deno.writeTextFile(
+    driver,
+    `outdir=${dir}
+failures=0
+${ledger}
+# Exactly the call shape that leaked: a subshell whose appends vanish.
+name=$(record_unit bakery-artifact-probe-aaa && printf 'bakery-artifact-probe-aaa')
+record_unit bakery-artifact-probe-bbb
+reset_ledger
+printf 'remaining=%s\\n' "$(wc -l <"$unit_ledger" | tr -d ' ')"
+`,
+  );
+  const result = await new Deno.Command("/bin/sh", {
+    args: [driver],
+    env: { PATH: `${dir}:/usr/bin:/bin` },
+  }).output();
+  const out = new TextDecoder().decode(result.stdout);
+  const recorded = await Deno.readTextFile(calls);
+  assertEquals(result.code, 0, out);
+  assertEquals(
+    recorded.split("\n").filter((line) =>
+      line.startsWith("--user reset-failed")
+    ),
+    [
+      "--user reset-failed bakery-artifact-probe-aaa",
+      "--user reset-failed bakery-artifact-probe-bbb",
+    ].sort(),
+    "both units are reset, including the one recorded inside a subshell",
+  );
+  assertEquals(out.includes("remaining=0"), true, "the ledger is emptied");
+});
+
+Deno.test("the proof keeps its unit names where a subshell cannot lose them", () => {
+  // The bug was a shell variable appended to inside `$(run_victim ...)`. Reading
+  // the script text is the cheap half; the test above runs the mechanism.
+  assert(!script.includes("started_units"), "no shell-variable ledger");
+  assert(script.includes('unit_ledger="$outdir/started-units.txt"'));
+  assert(/cleanup\(\) \{[\s\S]{0,80}reset_ledger/.test(script));
+  assert(script.includes("trap cleanup EXIT"));
+});
+
 Deno.test("every file the proof tells you to look at is a file it writes", () => {
   // The first real run said "see launch-unit.txt" and no such file existed; the
   // file is launcher-unit.txt. A reader chasing a missing artefact is exactly
@@ -155,11 +216,32 @@ Deno.test("the proof cleans up after itself and stays in its own directory", () 
   for (const redirect of redirects) {
     assert(
       redirect.includes("$outdir") || redirect.includes("$summary") ||
-        redirect.includes("/dev/null"),
+        // The unit ledger is `$outdir/started-units.txt` behind a variable, so
+        // it is checked by the variable rather than by the path.
+        redirect.includes("$unit_ledger") || redirect.includes("/dev/null") ||
+        // The spool fixture is the one deliberate write outside the output
+        // directory: the sandbox may only be granted a directory that is not
+        // under /tmp, /var/tmp or $HOME. It is allowed here and pinned below.
+        redirect.includes("$spool_dir"),
       `a write outside the output directory: ${redirect}`,
     );
   }
-  assertEquals(script.includes("rm -rf"), false, "it deletes nothing");
+  // The one directory outside the output directory it writes to is the spool
+  // fixture, and it must be a place the launcher will grant, then be removed.
+  assert(
+    script.includes('spool_dir="${TMPDIR:-/var/lib}/bakery-spool-$$"'),
+    "the spool fixture avoids /tmp, /var/tmp and $HOME",
+  );
+  assertEquals(
+    script.includes('rm -rf "$spool_dir"'),
+    true,
+    "the spool fixture is removed, not left in the host",
+  );
+  // Nothing else is deleted.
+  assertEquals(
+    code.split("\n").filter((line) => line.includes("rm -rf")).length,
+    1,
+  );
 });
 
 Deno.test("the caps it claims are the caps the server declares", () => {

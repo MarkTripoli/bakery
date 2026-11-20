@@ -26,7 +26,26 @@ launcher="$repo/infra/server-exec/artifact-probe.sh"
 victim="$repo/scripts/qa/437-probe-victim.ts"
 summary="$outdir/summary.txt"
 failures=0
-started_units=""
+# --- unit ledger (tested: tests/rails/qa-launcher-proof-is-honest_test.ts) ---
+# Every unit this script starts is written here, and cleanup resets whatever the
+# file holds. A shell variable cannot do this job: `run_victim` is called as
+# `$(run_victim ...)`, which is a subshell, so an append to a variable is lost
+# when that subshell exits and the EXIT trap never learns the unit's name. A
+# first version did exactly that and left a killed OOM victim and a killed
+# timeout victim behind on mini1. A file is visible to the parent, the child and
+# the trap alike.
+unit_ledger="$outdir/started-units.txt"
+: >"$unit_ledger"
+record_unit() { printf '%s\n' "$1" >>"$unit_ledger"; }
+reset_ledger() {
+  [ -f "$unit_ledger" ] || return 0
+  while IFS= read -r unit; do
+    [ -n "$unit" ] || continue
+    systemctl --user reset-failed "$unit" >/dev/null 2>&1 || true
+  done <"$unit_ledger"
+  : >"$unit_ledger"
+}
+# --- end unit ledger ---
 
 mkdir -p "$outdir" || exit 2
 : >"$summary"
@@ -47,9 +66,7 @@ runtime_dir=${XDG_RUNTIME_DIR:-/run/user/$uid}
 bus="$runtime_dir/bus"
 
 cleanup() {
-  for unit in $started_units; do
-    systemctl --user reset-failed "$unit" >/dev/null 2>&1
-  done
+  reset_ledger
 }
 trap cleanup EXIT INT TERM
 
@@ -99,7 +116,7 @@ step_launcher() {
   local id unit code
   id=$(uuidgen | tr 'A-Z' 'a-z')
   unit="bakery-artifact-probe-$id"
-  started_units="$started_units $unit"
+  record_unit "$unit"
   printf '%s' '{"path":"/dev/null","sizeBytes":0}' >"$outdir/frame.json"
 
   # The launcher runs under a deno parent, because that is the only parent it
@@ -206,10 +223,10 @@ step_launcher() {
 # itself, because the launcher runs the real probe and the real probe does not
 # eat memory.
 run_victim() {
-  local mode=$1 seconds=${2:-120} id unit runtime
+  local mode=$1 seconds=${2:-120} spool=${3:-} id unit runtime
   id=$(uuidgen | tr 'A-Z' 'a-z')
   unit="bakery-artifact-probe-$id"
-  started_units="$started_units $unit"
+  record_unit "$unit"
   # The unit's wall clock is the declared cap, always. The victim must WANT to
   # run longer than that, or it would finish on its own and the step would
   # report a success as "the time cap did nothing" -- which is exactly what a
@@ -239,7 +256,9 @@ run_victim() {
     --property=RemoveIPC=yes \
     --property=TemporaryFileSystem=/tmp:ro \
     --property=InaccessiblePaths=/var/tmp \
-    deno run --allow-read --allow-net "$victim" "$mode" "$seconds" >"$outdir/victim-$mode-stdout.txt" 2>"$outdir/victim-$mode-stderr.txt"
+    ${spool:+--property=ReadOnlyPaths=$spool} \
+    deno run --allow-read --allow-net "$victim" "$mode" "$seconds" \
+    >"$outdir/victim-$mode-stdout.txt" 2>"$outdir/victim-$mode-stderr.txt"
   local code=$?
   {
     printf 'unit: %s\nmode: %s\nexit: %s\n\n' "$unit" "$mode" "$code"
@@ -329,6 +348,46 @@ elif printf '%s' "$net_out" | grep -q "^network: refused"; then
 else
   record "step-4 network denied (no attempt recorded)" 1
 fi
+
+say ""
+say "## step 5: the unit reads the spool and cannot write it"
+# The spool is the one directory outside the repository the unit may read: it is
+# how a blob whose store cannot hand over a path gets described. Two claims, and
+# both are the point: a readable copy (or a healthy file reports an unreadable
+# one) and an unwritable directory (or a sandboxed process edits what it reads).
+# The directory is made here, outside /tmp, /var/tmp and $HOME, because those are
+# exactly the places the launcher refuses to grant.
+spool_dir="${TMPDIR:-/var/lib}/bakery-spool-$$"
+mkdir -p "$spool_dir" || { say "step 5: cannot make $spool_dir"; exit 2; }
+chmod 700 "$spool_dir"
+printf 'probe-fixture-bytes\n' >"$spool_dir/probe-fixture.blob"
+spool_unit=$(run_victim spool 10 "$spool_dir")
+spool_code=$?
+spool_out=$(cat "$outdir/victim-spool-stdout.txt" 2>/dev/null)
+say "unit: $spool_unit"
+say "spool: $spool_dir"
+say "exit: $spool_code"
+say "worker said:"
+printf '%s\n' "$spool_out" | sed 's/^/  /' | tee -a "$summary"
+if printf '%s' "$spool_out" | grep -q "^spool: read "; then
+  record "step-5 the unit can read the spool" 0
+else
+  record "step-5 the unit can read the spool" 1
+fi
+if printf '%s' "$spool_out" | grep -q "^spool: wrote"; then
+  record "step-5 the unit cannot write the spool" 1
+elif printf '%s' "$spool_out" | grep -q "^spool: write-refused"; then
+  record "step-5 the unit cannot write the spool" 0
+else
+  record "step-5 the unit cannot write the spool (no attempt recorded)" 1
+fi
+# Nothing the sandbox wrote may exist, whether it said so or not.
+if [ -e "$spool_dir/probe-written-by-sandbox" ]; then
+  record "step-5 nothing was written into the spool" 1
+else
+  record "step-5 nothing was written into the spool" 0
+fi
+rm -rf "$spool_dir"
 
 say ""
 if [ "$failures" -eq 0 ]; then
