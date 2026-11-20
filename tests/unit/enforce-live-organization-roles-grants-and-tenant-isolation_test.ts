@@ -29,6 +29,7 @@ import {
   PrincipalType,
 } from "../../packages/contracts/src/contracts.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
+import { PostgresAuthorityRunner } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
 import {
   hasAnyRole,
   type OrganizationActor,
@@ -1293,4 +1294,46 @@ Deno.test("the catalog and the runtime agree on the organization query parameter
     ActionRegistryError,
     "organization id query parameter",
   );
+});
+
+Deno.test("an action that does not declare the query never reads it, so the authority asks for the header", async () => {
+  const organizationId = "00000000-0000-4000-8000-0000000000a1";
+  // The organization must be resolved before any database work, so a database
+  // that is touched at all means the query was read as the organization.
+  const database = {
+    connect: () => Promise.reject(new Error("DATABASE_TOUCHED")),
+  } as unknown as PgDatabase;
+  const run = (organizationIdQuery?: string) =>
+    new ActionRegistry(new PostgresAuthorityRunner(database)).register({
+      name: "organization.scoped" as CatalogActionName,
+      method: HttpMethod.Get,
+      path: "/v1/scoped",
+      input: contractSchemas.Empty,
+      output: contractSchemas.NoContent,
+      policy: {
+        type: "query",
+        access: "Authenticated",
+        organizationContext:
+          OrganizationContextPolicy.RequiredAuthenticatedContext,
+        ...(organizationIdQuery === undefined ? {} : { organizationIdQuery }),
+        authorize: () => {},
+      },
+      handler: () => null,
+    }).execute("organization.scoped", {
+      ...context(),
+      request: new Request(
+        `http://test/v1/scoped?organizationId=${organizationId}`,
+      ),
+      principal: {
+        principalId: asPrincipalId("00000000-0000-4000-8000-000000000001"),
+        principalType: PrincipalType.Human,
+        displayName: "Bakery User",
+      },
+    }, {});
+
+  const undeclared = await assertRejects(() => run(), StandardError);
+  assertEquals(undeclared.code, "SCOPE_REQUIRED");
+  // Control: the same request with the query declared gets past the
+  // organization and reaches the database.
+  await assertRejects(() => run("organizationId"), Error, "DATABASE_TOUCHED");
 });
