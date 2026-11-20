@@ -26692,7 +26692,7 @@ export const clientManifest = {
             "completed",
             "failed"
           ],
-          "description": "What the runner reports: running while it works (also extends the lease), completed when the encrypted backup is written and checked, failed when it gave up. Completed and failed end the run."
+          "description": "What the runner reports: running while it works (also extends the lease), completed when the encrypted backup is written and checked on the host (with a failureCode when the off-site copy then failed), failed when it gave up before or while taking the backup. Completed and failed end the run."
         },
         "progressPercent": {
           "description": "How far along the backup is, from 0 to 100, for a running report; it never goes down between reports. BackupRunReport.progressPercent must be at least 0. BackupRunReport.progressPercent must be at most 100.",
@@ -26707,17 +26707,17 @@ export const clientManifest = {
           "x-bigint-minimum": "0"
         },
         "locations": {
-          "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other. BackupRunReport.locations must contain at most 2 items.",
+          "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other. With a failureCode on a completed report it is exactly server-host: the backup was taken but not copied off-site. BackupRunReport.locations must contain at most 2 items.",
           "maxItems": 2,
           "type": "array",
           "items": {
             "type": "string",
             "maxLength": 65536,
-            "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other. Each array item follows this format."
+            "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other. With a failureCode on a completed report it is exactly server-host: the backup was taken but not copied off-site. Each array item follows this format."
           }
         },
         "failureCode": {
-          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report and refused with any other.",
+          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report. A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site.",
           "type": "string",
           "enum": [
             "disk_full",
@@ -26728,7 +26728,7 @@ export const clientManifest = {
           ]
         },
         "failureDetail": {
-          "description": "The runner's own plain-text answer for the failure, such as what the destination replied, at most 1000 characters; it is shown to administrators and must not contain key material. BackupRunReport.failureDetail must contain at most 1000 characters.",
+          "description": "The runner's own plain-text answer for the failure, such as what the destination replied, at most 1000 characters; it is shown to administrators and must not contain key material. Allowed only together with a failureCode. BackupRunReport.failureDetail must contain at most 1000 characters.",
           "type": "string",
           "maxLength": 1000
         }
@@ -89573,9 +89573,9 @@ export const clientManifest = {
           "items": {
             "type": "string",
             "maxLength": 65536,
-            "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. Each array item follows this format."
+            "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site. Each array item follows this format."
           },
-          "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed."
+          "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site."
         },
         "failureCode": {
           "anyOf": [
@@ -89588,7 +89588,7 @@ export const clientManifest = {
                 "key_missing",
                 "runner_error"
               ],
-              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise."
+              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
             },
             {
               "type": "null",
@@ -89602,7 +89602,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "The runner's plain-text answer for the failure, or null."
+              "description": "The runner's plain-text answer for the failure or the failed off-site copy, or null."
             },
             {
               "type": "null",
@@ -89781,9 +89781,9 @@ export const clientManifest = {
                 "items": {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. Each array item follows this format."
+                  "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site. Each array item follows this format."
                 },
-                "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed."
+                "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site."
               },
               "failureCode": {
                 "anyOf": [
@@ -89796,7 +89796,7 @@ export const clientManifest = {
                       "key_missing",
                       "runner_error"
                     ],
-                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise."
+                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                   },
                   {
                     "type": "null",
@@ -89810,7 +89810,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "The runner's plain-text answer for the failure, or null."
+                    "description": "The runner's plain-text answer for the failure or the failed off-site copy, or null."
                   },
                   {
                     "type": "null",
@@ -89902,10 +89902,11 @@ export const clientManifest = {
           "enum": [
             "protected",
             "running",
+            "not_copied",
             "stale",
             "failed"
           ],
-          "description": "running while a backup is claimed or running; failed when the newest finished attempt failed; stale when the last good backup is older than twice the schedule interval (7 days when no schedule is on) or none exists; protected otherwise."
+          "description": "running while a backup is claimed or running; failed when the newest finished attempt failed; not_copied when the newest finished attempt took the backup on the host but could not copy it off-site (a later good full backup replaces it); stale when the last good backup is older than twice the schedule interval (7 days when no schedule is on) or none exists; protected otherwise."
         },
         "lastGoodBackupAt": {
           "anyOf": [
@@ -89913,7 +89914,7 @@ export const clientManifest = {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "When the newest completed backup finished, or null when none has completed."
+              "description": "When the newest completed backup finished, or null when none has completed. A backup taken on the host but not copied off-site counts: the local copy exists."
             },
             {
               "type": "null",
@@ -95019,6 +95020,30 @@ export const clientManifest = {
                 "type": "boolean",
                 "description": "Whether the window ends before the version does."
               },
+              "limits": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "binary_media",
+                      "no_text_extractor",
+                      "extraction_failed"
+                    ],
+                    "description": "Why the item carries no content: binary_media (images, audio, video and unknown binaries are references only), no_text_extractor (PDFs have no text extractor yet) or extraction_failed (a text window could not be produced); null when the item carries text."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ContextPackItem.limits may be null in this transport value."
+              },
+              "redactions": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many credentials were replaced by a redaction marker in the text of this item; 0 for a reference or for text with none."
+              },
               "tokens": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -95041,6 +95066,8 @@ export const clientManifest = {
               "citation",
               "text",
               "truncated",
+              "limits",
+              "redactions",
               "tokens",
               "countState"
             ],

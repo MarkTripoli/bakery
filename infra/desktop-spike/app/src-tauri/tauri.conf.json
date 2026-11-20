@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Bakery Desktop Spike",
+  "version": "0.0.0",
+  "identifier": "com.bakery.desktop.spike",
+  "build": {
+    "frontendDist": "../web"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Bakery spike",
+        "width": 900,
+        "height": 600,
+        "label": "main"
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": false
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "bakery"
+        ]
+      }
+    }
+  }
+}
