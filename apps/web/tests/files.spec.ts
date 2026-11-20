@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import {
   AGENT_NO_PERSON_VERSIONS,
   filesFixture,
@@ -19,6 +19,23 @@ for (
 ) {
   test.describe(`${viewport.name}: files`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    /** The filters: beside the search on desktop, in one bottom sheet on a phone. */
+    const withFilters = async (
+      page: Page,
+      use: (filters: Page | Locator) => Promise<unknown>,
+    ) => {
+      if (viewport.name !== "phone") {
+        await use(page);
+        return;
+      }
+      await page.getByRole("button", { name: /^Filters/ }).click();
+      const sheet = page.getByRole("dialog", { name: "Filters" });
+      await expect(sheet).toBeVisible();
+      await use(sheet);
+      await sheet.getByRole("button", { name: "Show results" }).click();
+      await expect(sheet).toBeHidden();
+    };
 
     test("the top of the tree lists the folders with what each holds", async ({ page }) => {
       await filesFixture(page);
@@ -268,10 +285,278 @@ for (
       await expect(page.getByTestId("file-details")).toContainText("plan.md");
     });
 
+    test("the Kind and Made by filters narrow a search and live in the address", async ({ page }) => {
+      const { seen } = await filesFixture(page);
+      await page.goto("/files/projects/web-app");
+      await withFilters(
+        page,
+        (filters) =>
+          filters.getByRole("combobox", { name: "Kind" }).selectOption("plan"),
+      );
+      await expect(page).toHaveURL(/kind=plan/);
+      await expect(page.getByRole("link", { name: "plan.md" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "demo.mp4" })).toHaveCount(0);
+      expect(seen.searches.some((search) => search.includes("kind=plan")))
+        .toBe(true);
+      await withFilters(page, async (filters) => {
+        await filters.getByLabel("Made by").selectOption({
+          label: "Ana Reyes",
+        });
+        if (viewport.name === "phone") await still(page, "files-filters-sheet");
+      });
+      await expect(page).toHaveURL(new RegExp(`by=${uuid(8800)}`));
+      await page.mouse.move(700, 700);
+      await still(page, "files-filters");
+      expect(
+        seen.searches.some((search) =>
+          search.includes(`producerId=${uuid(8800)}`)
+        ),
+      ).toBe(true);
+      await withFilters(
+        page,
+        (filters) =>
+          filters.getByLabel("Made by").selectOption({ label: "Build worker" }),
+      );
+      await expect(page.getByText("Nothing matches")).toBeVisible();
+      await page.getByRole("button", { name: "Clear search" }).click();
+      await expect(page).not.toHaveURL(/kind=|by=/);
+      await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
+    });
+
+    test("the Library copy is read only: sections, then a table of what the Library holds", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto("/files");
+      await page.getByTestId("files-page").getByRole("link", {
+        name: "Library",
+        exact: true,
+      }).click();
+      await expect(page).toHaveURL(/\/files\/library$/);
+      await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+      await expect(page.getByText("This folder is a copy of the Library."))
+        .toBeVisible();
+      await expect(page.getByText("To change anything here, open the Library."))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-library-root");
+      await page.getByTestId("files-page").getByRole("link", {
+        name: "Workflows",
+        exact: true,
+      }).click();
+      await expect(page).toHaveURL(/\/files\/library\/workflows$/);
+      await expect(
+        page.getByText("Open a workflow to see or change it in the Library."),
+      ).toBeVisible();
+      // A workflow's name opens its Library page by id; the date says Added.
+      await expect(page.getByRole("link", { name: "Ship a change" }))
+        .toHaveAttribute("href", `/library/workflows/${uuid(7001)}`);
+      await expect(page.getByText(/^Workflow( ·|$)/).first()).toBeVisible();
+      if (viewport.name === "desktop") {
+        await expect(page.getByRole("columnheader", { name: "Added" }))
+          .toBeVisible();
+      } else {
+        await expect(page.getByText(/Added Dec 31, 2025/).first())
+          .toBeVisible();
+      }
+      // Nothing under /library can be changed: no rename, move, upload or delete.
+      await expect(
+        page.getByRole("button", { name: /Rename|Move|Upload|Delete/ }),
+      ).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "files-library");
+      // The search field is on the page and searches this folder.
+      await page.getByRole("searchbox", { name: "Search files by name" })
+        .fill("ship");
+      const results = page.getByTestId("files-results");
+      await expect(results.getByRole("link", { name: "Ship a change" }))
+        .toBeVisible();
+      await expect(results.getByRole("link", { name: "Coder" })).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "files-library-search");
+      await page.getByRole("button", { name: "Clear search" }).click();
+      await page.getByRole("button", { name: "Open the Library" }).click();
+      await expect(page).toHaveURL(/\/library$/);
+    });
+
+    test("an agent's Library folder links its agents, and the Kinds folder stays plain text", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto("/files/library/agents");
+      await expect(
+        page.getByText("Open an agent to see or change it in the Library."),
+      ).toBeVisible();
+      await expect(page.getByRole("link", { name: "Coder" }))
+        .toHaveAttribute("href", `/library/agents/${uuid(7003)}`);
+      await page.goto("/files/library/kinds");
+      await expect(
+        page.locator("td, [role=listitem]").filter({ hasText: "Plan" }).first(),
+      ).toBeVisible();
+      await expect(page.getByRole("link", { name: "Plan", exact: true }))
+        .toHaveCount(0);
+      await expect(page.getByText("To change anything here, open the Library."))
+        .toBeVisible();
+    });
+
+    test("a Library folder that does not exist says so", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto("/files/library/nothing");
+      await expect(page.getByText("This folder was not found")).toBeVisible();
+    });
+
+    test("Clear filters resets the filters and keeps the typed text", async ({ page }) => {
+      test.skip(viewport.name !== "phone");
+      await filesFixture(page);
+      await page.goto("/files/projects/web-app");
+      await page.getByRole("searchbox", { name: "Search files by name" })
+        .fill("plan");
+      await withFilters(
+        page,
+        (filters) =>
+          filters.getByRole("combobox", { name: "Kind" }).selectOption("plan"),
+      );
+      await expect(page).toHaveURL(/kind=plan/);
+      await page.getByRole("button", { name: /^Filters/ }).click();
+      const sheet = page.getByRole("dialog", { name: "Filters" });
+      await sheet.getByRole("button", { name: "Clear filters" }).click();
+      // The sheet stays open, the selects are reset, the text is kept.
+      await expect(sheet).toBeVisible();
+      await expect(sheet.getByRole("combobox", { name: "Kind" }))
+        .toHaveValue("");
+      await expect(sheet.getByRole("button", { name: "Clear filters" }))
+        .toBeDisabled();
+      await expect(page).not.toHaveURL(/kind=/);
+      await expect(page).toHaveURL(/q=plan/);
+    });
+
+    test("a Library hit uses the Library's words, shows a dash for what it lacks, and opens its page", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto("/files/library?q=ship");
+      const results = page.getByTestId("files-results");
+      const hit = results.getByRole("link", { name: "Ship a change" });
+      await expect(hit).toBeVisible();
+      // The same word the folder table uses, not the catalog's raw "workflow".
+      await expect(results.getByText("Workflow").first()).toBeVisible();
+      await expect(results.getByText("workflow", { exact: true })).toHaveCount(
+        0,
+      );
+      if (viewport.name === "desktop") {
+        // Made by and Size are empty for a Library item: a dash, never a blank.
+        await expect(results.getByRole("cell", { name: "\u2014" }))
+          .toHaveCount(2);
+      }
+      await expect(hit).toHaveAttribute(
+        "href",
+        `/library/workflows/${uuid(7001)}`,
+      );
+      await hit.click();
+      await expect(page).toHaveURL(
+        new RegExp(`/library/workflows/${uuid(7001)}$`),
+      );
+    });
+
+    test("in the Library the path comes before the search, and a phone says Back to Library", async ({ page }) => {
+      await filesFixture(page);
+      const above = async (first: Locator, second: Locator) => {
+        const a = await first.boundingBox();
+        const b = await second.boundingBox();
+        expect(a).not.toBeNull();
+        expect(b).not.toBeNull();
+        expect(a!.y).toBeLessThan(b!.y);
+      };
+      const search = page.getByRole("searchbox", {
+        name: "Search files by name",
+      });
+      await page.goto("/files/library/workflows");
+      if (viewport.name === "phone") {
+        const back = page.getByRole("link", { name: "Back to Library" });
+        await expect(back).toBeVisible();
+        await above(back, search);
+        await expect(page.getByText("Read only", { exact: true }))
+          .toBeVisible();
+        await page.goto("/files/library");
+        await expect(page.getByRole("link", { name: "Back to Files" }))
+          .toBeVisible();
+      } else {
+        const path = page.getByRole("navigation", { name: "Folder path" });
+        await expect(path).toBeVisible();
+        await above(path, search);
+        await expect(page.getByText("Read only", { exact: true }))
+          .toBeVisible();
+      }
+    });
+
+    test("text typed just before a filter is kept with it, not left to a timer that can undo the filter", async ({ page }) => {
+      test.skip(viewport.name !== "desktop");
+      await filesFixture(page);
+      await page.goto("/files/projects/web-app");
+      await page.getByRole("searchbox", { name: "Search files by name" })
+        .fill("plan");
+      await page.getByRole("combobox", { name: "Kind" }).selectOption("plan");
+      await page.waitForURL(/kind=plan/);
+      // Read at once, before any pause could have committed the text: the
+      // filter's own change carries it, so one write holds both.
+      expect(new URL(page.url()).searchParams.get("q")).toBe("plan");
+      await page.getByRole("button", { name: "Clear search" }).click();
+      await expect(page).not.toHaveURL(/kind=|q=/);
+    });
+
+    test("Made by and Kind list every page, an inactive account is marked, and an unlisted one is not shown as an id", async ({ page }) => {
+      await filesFixture(page, {
+        principalCount: 101,
+        kindCount: 101,
+        disabledPrincipal: true,
+      });
+      await page.goto("/files/projects/web-app");
+      await withFilters(page, async (filters) => {
+        const by = filters.getByLabel("Made by");
+        // 101 people beside the three: the last of them is past the first page.
+        await expect(by.locator("option", { hasText: "Person 101" }))
+          .toHaveCount(1);
+        await expect(by.locator("option", { hasText: "Old Bot (inactive)" }))
+          .toHaveCount(1);
+        const kind = filters.getByRole("combobox", { name: "Kind" });
+        await expect(kind.locator("option", { hasText: "Kind 101" }))
+          .toHaveCount(1);
+        await by.selectOption({ label: "Person 101" });
+      });
+      await expect(page).toHaveURL(new RegExp(`by=${uuid(9101)}`));
+      // An id nobody lists reads as a plain word.
+      await page.goto(`/files/projects/web-app?by=${uuid(7777)}`);
+      await withFilters(page, async (filters) => {
+        const by = filters.getByLabel("Made by");
+        await expect(by.locator("option:checked")).toHaveText(
+          "Unknown account",
+        );
+        await expect(by.locator("option", { hasText: uuid(7777) }))
+          .toHaveCount(0);
+        if (viewport.name === "phone") {
+          await still(page, "files-filters-by-unknown-sheet");
+        }
+      });
+      if (viewport.name !== "phone") {
+        await page.mouse.move(700, 700);
+        await still(page, "files-filters-by-unknown");
+      }
+      // The inactive account, chosen: it keeps its name, marked.
+      await page.goto(`/files/projects/web-app?by=${uuid(8802)}`);
+      await withFilters(page, async (filters) => {
+        await expect(filters.getByLabel("Made by").locator("option:checked"))
+          .toHaveText("Old Bot (inactive)");
+        if (viewport.name === "phone") {
+          await still(page, "files-filters-by-inactive-sheet");
+        }
+      });
+      if (viewport.name !== "phone") {
+        await page.mouse.move(700, 700);
+        await still(page, "files-filters-by-inactive");
+      }
+    });
+
     test("the file type filter narrows a search, and Clear search goes back to the folder", async ({ page }) => {
       await filesFixture(page);
       await page.goto("/files/projects/web-app");
-      await page.getByLabel("File type").selectOption("video");
+      await withFilters(
+        page,
+        (filters) => filters.getByLabel("File type").selectOption("video"),
+      );
       const results = page.getByTestId("files-results");
       await expect(results.getByRole("link", { name: "demo.mp4" }))
         .toBeVisible();
@@ -285,7 +570,10 @@ for (
     test("All files searches beyond the folder, and no match says so", async ({ page }) => {
       const { seen } = await filesFixture(page);
       await page.goto("/files/projects/api");
-      await page.getByLabel("Where").selectOption("all");
+      await withFilters(
+        page,
+        (filters) => filters.getByLabel("Where").selectOption("all"),
+      );
       await page.getByRole("searchbox", { name: "Search files by name" })
         .fill("plan");
       await expect(
