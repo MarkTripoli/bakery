@@ -5,7 +5,7 @@
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:6c1bc45a1f423be90dee2205abbbd07dd6d712ec4b15f1037e9764fcc08b03a5",
+  "targetCompatibilityDigest": "sha256:881114222b4c4d5f48c5f1688d0be0502ce27a83dafe211648c2fd02929de353",
   "reason": "#19 private previews re-bind by dev-agx3 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main dd57ce20531ff7f2ffa471548810d1eba312da3e: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
     {

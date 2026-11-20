@@ -5937,7 +5937,8 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -5961,7 +5962,8 @@
         "SCOPE_REQUIRED",
         "STATE_CONFLICT",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "IDEMPOTENCY_IN_FLIGHT"
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -5984,7 +5986,8 @@
         "RESOURCE_NOT_FOUND",
         "SCOPE_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "IDEMPOTENCY_IN_FLIGHT"
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -6004,7 +6007,8 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -237639,7 +237643,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:6c1bc45a1f423be90dee2205abbbd07dd6d712ec4b15f1037e9764fcc08b03a5",
+  "compatibilityDigest": "sha256:881114222b4c4d5f48c5f1688d0be0502ce27a83dafe211648c2fd02929de353",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
