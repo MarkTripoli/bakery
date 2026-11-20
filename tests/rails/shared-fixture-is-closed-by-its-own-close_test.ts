@@ -1,4 +1,5 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertNotEquals } from "@std/assert";
+import { readdir, readFile } from "node:fs/promises";
 
 /**
  * A shared fixture that resets the database in its own `close()` must be closed
@@ -14,32 +15,36 @@ import { assertEquals } from "@std/assert";
 
 const ROOTS = ["tests/integration", "tests/security", "tests/e2e"] as const;
 
-async function* sources(directory: string): AsyncGenerator<string> {
-  let entries: Deno.DirEntry[];
+/** Every `.ts` file under a root; a root that does not exist yields none. */
+async function sources(root: string): Promise<string[]> {
+  let entries: string[];
   try {
-    entries = [];
-    for await (const entry of Deno.readDir(directory)) entries.push(entry);
-  } catch {
-    return;
+    entries = await readdir(root, { recursive: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
   }
-  for (const entry of entries) {
-    const path = `${directory}/${entry.name}`;
-    if (entry.isDirectory) yield* sources(path);
-    else if (entry.name.endsWith(".ts")) yield path;
-  }
+  return entries.filter((entry) => entry.endsWith(".ts")).map((entry) =>
+    `${root}/${entry}`
+  );
 }
 
 Deno.test("no test closes only the auth fixture inside a repository rules fixture", async () => {
   const offenders: string[] = [];
+  let usingTheRulesFixture = 0;
   for (const root of ROOTS) {
-    for await (const path of sources(root)) {
-      const text = await Deno.readTextFile(path);
-      if (
-        text.includes("openRepositoryRulesFixture(") &&
-        /\.fixture\.close\(\)/.test(text)
-      ) offenders.push(path);
+    for (const path of await sources(root)) {
+      const text = await readFile(path, "utf8");
+      if (!text.includes("openRepositoryRulesFixture(")) continue;
+      usingTheRulesFixture += 1;
+      if (/\.fixture\.close\(\)/.test(text)) offenders.push(path);
     }
   }
+  assertNotEquals(
+    usingTheRulesFixture,
+    0,
+    "the rail scanned no test that opens a repository rules fixture, so it proves nothing",
+  );
   assertEquals(
     offenders,
     [],
