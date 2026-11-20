@@ -1,14 +1,24 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "c8cf571ea9fea05e16ae93dfa83ccfd414687a29",
-    "7b27af0ec5771c8deab67b80326829d0ddc2dbcd"
+    "133085d155d6af34566063e17a68bdd70bbebdbe"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:fdb9ae6084d1d4db3514b3596518187e565c6c128e770507f105f676b33e84e4",
-  "reason": "#445 Library under Files re-bind by dev-web on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main c8cf571ea9fea05e16ae93dfa83ccfd414687a29: LibraryEntry gains id and FileSearchHit gains itemId, both required and nullable, the id of the catalog item a Library entry or search hit mirrors (null for a folder and for a file), so the Library copy under Files and its search open the workflow or agent page itself. Re-bound again onto main 7b27af0ec5771c8deab67b80326829d0ddc2dbcd (#767 merged): the digest is unchanged. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:3e2838faa6d00b2453cffb23c8a9d70058ae6827c12233e7496972c8f6c18342",
+  "reason": "#448 S3-S6 write set, limits, undo and read set re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 133085d155d6af34566063e17a68bdd70bbebdbe: the breaking drift is this PR's own, unchanged.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "c8cf571ea9fea05e16ae93dfa83ccfd414687a29",
+        "7b27af0ec5771c8deab67b80326829d0ddc2dbcd"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:fdb9ae6084d1d4db3514b3596518187e565c6c128e770507f105f676b33e84e4",
+      "reason": "#445 Library under Files re-bind by dev-web on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main c8cf571ea9fea05e16ae93dfa83ccfd414687a29: LibraryEntry gains id and FileSearchHit gains itemId, both required and nullable, the id of the catalog item a Library entry or search hit mirrors (null for a folder and for a file), so the Library copy under Files and its search open the workflow or agent page itself. Re-bound again onto main 7b27af0ec5771c8deab67b80326829d0ddc2dbcd (#767 merged): the digest is unchanged. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

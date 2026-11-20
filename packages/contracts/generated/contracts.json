@@ -9296,6 +9296,7 @@
         "RANGE_NOT_SATISFIABLE"
       ],
       "organizationContext": "required_authenticated_context",
+      "organizationIdQuery": "organizationId",
       "implemented": true
     },
     {
@@ -35756,6 +35757,17 @@
                 "maxLength": 200,
                 "pattern": "^bytes=(?:\\d+-\\d*|-\\d+)$",
                 "x-utf8-max-bytes": 100
+              }
+            },
+            {
+              "name": "organizationId",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Organization that owns the file, as a query parameter for a video or audio src, which cannot send the Bakery-Organization-Id header. Parsed and membership-checked exactly like the header; the header wins when present, and a header and query that differ are refused. Omitting both is SCOPE_REQUIRED.",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               }
             },
             {
@@ -71346,6 +71358,12 @@
               "maxLength": 200,
               "pattern": "^bytes=(?:\\d+-\\d*|-\\d+)$",
               "x-utf8-max-bytes": 100
+            },
+            "organizationId": {
+              "description": "Organization that owns the file, as a query parameter for a video or audio src, which cannot send the Bakery-Organization-Id header. Parsed and membership-checked exactly like the header; the header wins when present, and a header and query that differ are refused. Omitting both is SCOPE_REQUIRED.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
           },
           "additionalProperties": false,
@@ -242195,7 +242213,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:dbc03fb51d657cd830c805230c2d34943f3cf2806ed621e66e44fb234774df66",
+  "compatibilityDigest": "sha256:3e2838faa6d00b2453cffb23c8a9d70058ae6827c12233e7496972c8f6c18342",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -270584,6 +270602,12 @@
           "maxLength": 200,
           "pattern": "^bytes=(?:\\d+-\\d*|-\\d+)$",
           "x-utf8-max-bytes": 100
+        },
+        "organizationId": {
+          "description": "Organization that owns the file, as a query parameter for a video or audio src, which cannot send the Bakery-Organization-Id header. Parsed and membership-checked exactly like the header; the header wins when present, and a header and query that differ are refused. Omitting both is SCOPE_REQUIRED.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         }
       },
       "additionalProperties": false,
