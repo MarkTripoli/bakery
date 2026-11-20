@@ -884,15 +884,22 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "4e1f1fdf68726693d0b8c36cf23a94ac453512c5",
+    "889c2fbfb938191e56ede7ed5dc7458216f131bd",
   ];
   const approvedDigest =
-    "sha256:67dd9ea9809f99be4aeb719ea1edaaa80cec17fce3d6ebe6b814fb86fce62e50";
+    "sha256:fa3cd4919cad71a56ef317c528e412072e557e35f49069c2ea18ec9a1dcb3f4f";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #400 S2 re-bind onto main 4e1f1fdf6: main's own approval, kept unchanged.
+    // Displaced by the #400 S2 re-bind onto main 889c2fbfb: main's own approval, kept unchanged.
+    "sha256:050bbfec6c6d3ccd73991e61264bee8b5d336bfd701d2a73dc9fc1374b2ee3aa",
+    // Displaced when main moved again (#725): the digest follows the tree, so the
+    // earlier one no longer authorises it.
+    "sha256:350a67b467395a98dc007935426ca0ec22397a03e33c236f38510f471d3026d3",
+    // Displaced by the #434 MCP connections re-bind: connection create and update drop
+    // secretId for a write-only secret, and discovery, classification and use grants
+    // add their actions.
     "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1",
     // The same #57 merge from Bakery change before main moved again (#724): the
     // digest follows the tree, so the earlier one no longer authorises it.
@@ -1012,6 +1019,8 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "sha256:23925a33300c5bace9bf0ea5729725c8779c2e6ac70f0a3290aaf2335daff1f2",
     "sha256:6bda73092281a4782bdf22990a05724cb6689eb6521e6002ce90c8a3649b68f8",
     "sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f",
+    // Displaced by the #400 S2 re-bind onto main 889c2fbfb: the approval in force before it.
+    "sha256:67dd9ea9809f99be4aeb719ea1edaaa80cec17fce3d6ebe6b814fb86fce62e50",
     // Displaced by the #400 S2 re-bind onto main 4e1f1fdf6: the approval in force before it.
     "sha256:64858f3ae4c0236b9c7335599e50d05f0adad1c8fc5989d4eed5cf97f2768577",
     // Displaced by the #400 re-bind onto main 1ce09ba92 (#714 merged).
