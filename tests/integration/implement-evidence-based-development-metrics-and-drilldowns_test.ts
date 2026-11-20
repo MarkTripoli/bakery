@@ -501,6 +501,14 @@ Deno.test("a closed read without a close time keeps the stored one; a reopen cle
       observedStartedAt: new Date(Date.now() + 1000),
     });
     assertEquals(await closedAt(), "2026-06-03T12:00:00.000Z");
+    // A later close (a reopen Bakery never saw) replaces the stored time.
+    await observe(f, repo.repositoryId, {
+      ...closedRead,
+      providerUpdatedAt: new Date("2026-06-05T12:00:00Z"),
+      closedAt: new Date("2026-06-05T12:00:00Z"),
+      observedStartedAt: new Date(Date.now() + 2000),
+    });
+    assertEquals(await closedAt(), "2026-06-05T12:00:00.000Z");
     // A reopen is the only read that clears it.
     await observe(
       f,
