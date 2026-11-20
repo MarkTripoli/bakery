@@ -85,6 +85,7 @@ function fakeApi(
       installs: rejecting,
       install: rejecting,
       update: rejecting,
+      savedData: rejecting,
     },
     tickets: {
       get: rejecting,
