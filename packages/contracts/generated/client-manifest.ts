@@ -87610,10 +87610,9 @@ export const clientManifest = {
                 "destination_refused",
                 "destination_unreachable",
                 "key_missing",
-                "runner_error",
-                "runner_lost"
+                "runner_error"
               ],
-              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, runner_error, or runner_lost when the runner stopped reporting; null otherwise."
+              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise."
             },
             {
               "type": "null",
@@ -87819,10 +87818,9 @@ export const clientManifest = {
                       "destination_refused",
                       "destination_unreachable",
                       "key_missing",
-                      "runner_error",
-                      "runner_lost"
+                      "runner_error"
                     ],
-                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, runner_error, or runner_lost when the runner stopped reporting; null otherwise."
+                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise."
                   },
                   {
                     "type": "null",

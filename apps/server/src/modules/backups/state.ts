@@ -29,7 +29,7 @@ export const BackupLocation = Object.freeze(
 );
 const LOCATIONS: ReadonlySet<string> = new Set(Object.values(BackupLocation));
 
-/** Stable failure causes. `runner_lost` is set by the server, never reported. */
+/** Stable failure causes a runner may report. */
 export const BackupFailureCode = Object.freeze(
   {
     DiskFull: "disk_full",
@@ -37,7 +37,6 @@ export const BackupFailureCode = Object.freeze(
     DestinationUnreachable: "destination_unreachable",
     KeyMissing: "key_missing",
     RunnerError: "runner_error",
-    RunnerLost: "runner_lost",
   } as const,
 );
 
@@ -112,9 +111,6 @@ export function assertReportShape(report: ReportBody): void {
     return;
   }
   if (!has.code) throw unprocessable(["failureCode"], "required");
-  if (report.failureCode === BackupFailureCode.RunnerLost) {
-    throw unprocessable(["failureCode"], "reserved_for_the_server");
-  }
   if (has.size) throw unprocessable(["sizeBytes"], "not_allowed");
   if (has.locations) throw unprocessable(["locations"], "not_allowed");
   if (has.progress) throw unprocessable(["progressPercent"], "not_allowed");
