@@ -101,6 +101,15 @@ import {
 export type ArtifactResourceRouteOptions = {
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
+  /**
+   * The same session middleware, also accepting access tokens. Used only for
+   * GET reads of the storage tree and file search (the command line and
+   * agents read files with a token); every other method and path stays on
+   * `browserSession`, which refuses a token. A token acts through the
+   * authority runner, so its scope and organization are enforced as for any
+   * action; absent, reads take the browser session only.
+   */
+  tokenSession?: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   secret: string;
   /** Validated `BAKERY_ARTIFACT_PREVIEW_ORIGIN`; absent fails previews closed. */
@@ -279,7 +288,7 @@ export type ArtifactActions = {
 export function createArtifactActions(
   options: Omit<
     ArtifactResourceRouteOptions,
-    "browserSession" | "artifactActions"
+    "browserSession" | "tokenSession" | "artifactActions"
   >,
 ): ArtifactActions {
   const handlers = createArtifactReadHandlers(
@@ -887,7 +896,15 @@ export function createArtifactResourceRoutes(
   app.use("/v1/artifact-comments/*", session);
   app.use("/v1/artifact-storage", session);
   app.use("/v1/artifacts", session);
-  app.use("/v1/files/search", session);
+  // Reads of files accept an access token; a write on the same paths does not.
+  const readsAcceptTokens: MiddlewareHandler<{ Variables: AuthVariables }> = (
+    context,
+    next,
+  ) =>
+    context.req.method === "GET" && options.tokenSession !== undefined
+      ? options.tokenSession(context, next)
+      : session(context, next);
+  app.use("/v1/files/search", readsAcceptTokens);
   app.use("/v1/files/library", session);
   app.use("/v1/artifacts/*", session);
   app.use("/v1/artifact-versions", session);
@@ -898,7 +915,7 @@ export function createArtifactResourceRoutes(
   // is refused as an anonymous one - a 403 that looks like a permission problem
   // and is really a missing middleware.
   app.use("/v1/blobs/*", session);
-  app.use("/v1/storage/*", session);
+  app.use("/v1/storage/*", readsAcceptTokens);
   app.onError((error, context) =>
     problemResponse(context, error, { publicBaseUrl: options.publicBaseUrl })
   );

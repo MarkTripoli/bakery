@@ -641,6 +641,9 @@ export function createApp(options: {
       telemetry: options.telemetry,
       database: options.pgDatabase,
       browserSession,
+      // Reads of the storage tree and file search accept an access token (the
+      // command line); every write stays on the browser session.
+      tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       secret: options.config.auth.secret,
       skillFileStore,
