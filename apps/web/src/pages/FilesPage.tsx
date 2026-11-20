@@ -15,6 +15,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { FileDetails, type FileTab } from "./files/FileDetails.tsx";
+import { FileOpened } from "./files/FileOpened.tsx";
 import { isLibraryPath, LibraryFilesPage } from "./files/LibraryFilesPage.tsx";
 import {
   FileSearchControls,
@@ -70,12 +71,17 @@ function StorageFilesPage({ path }: { readonly path: string }) {
     type?: MediaGroup;
     kind?: string;
     by?: string;
+    fact?: string;
+    view?: "open";
     in?: "all";
   };
   const searchState: SearchState = {
     q: search.q ?? "",
     kind: search.kind,
     by: search.by,
+    // A fact belongs to a kind: without one the control is disabled and empty,
+    // so a fact left in the address must not narrow a search the page does not show.
+    fact: search.kind === undefined ? undefined : search.fact,
     type: search.type !== undefined &&
         (MEDIA_GROUPS as readonly string[]).includes(search.type)
       ? search.type
@@ -95,6 +101,8 @@ function StorageFilesPage({ path }: { readonly path: string }) {
       type?: MediaGroup | undefined;
       kind?: string | undefined;
       by?: string | undefined;
+      fact?: string | undefined;
+      view?: "open" | undefined;
       in?: "all" | undefined;
     },
   ) => {
@@ -106,6 +114,8 @@ function StorageFilesPage({ path }: { readonly path: string }) {
       type: search.type,
       kind: search.kind,
       by: search.by,
+      fact: search.fact,
+      view: search.view,
       in: search.in,
       ...next,
     };
@@ -117,12 +127,18 @@ function StorageFilesPage({ path }: { readonly path: string }) {
       type?: MediaGroup;
       kind?: string;
       by?: string;
+      fact?: string;
+      view?: "open";
       in?: "all";
     } = {};
     if (merged.q !== undefined && merged.q !== "") query.q = merged.q;
     if (merged.type !== undefined) query.type = merged.type;
     if (merged.kind !== undefined) query.kind = merged.kind;
     if (merged.by !== undefined) query.by = merged.by;
+    if (merged.fact !== undefined && merged.kind !== undefined) {
+      query.fact = merged.fact;
+    }
+    if (merged.view !== undefined) query.view = merged.view;
     if (merged.in !== undefined) query.in = merged.in;
     if (merged.file !== undefined) query.file = merged.file;
     if (merged.tab !== undefined) query.tab = merged.tab;
@@ -173,7 +189,12 @@ function StorageFilesPage({ path }: { readonly path: string }) {
           data-name="true"
           onClick={(event) => {
             event.preventDefault();
-            setSearch({ file: item.id, tab: undefined, version: undefined });
+            setSearch({
+              file: item.id,
+              tab: undefined,
+              version: undefined,
+              view: undefined,
+            });
           }}
         >
           {nameOf(item)}
@@ -244,8 +265,16 @@ function StorageFilesPage({ path }: { readonly path: string }) {
       onRevision={(next) => setSearch({ version: next })}
       onTab={(next) =>
         setSearch({ tab: next === "details" ? undefined : next })}
+      opened={search.view === "open"}
+      onOpenView={() => setSearch({ view: "open" })}
+      onCloseView={() => setSearch({ view: undefined })}
       onClose={() =>
-        setSearch({ file: undefined, tab: undefined, version: undefined })}
+        setSearch({
+          file: undefined,
+          tab: undefined,
+          version: undefined,
+          view: undefined,
+        })}
     />
   );
 
@@ -316,6 +345,7 @@ function StorageFilesPage({ path }: { readonly path: string }) {
                 type: next.type,
                 kind: next.kind,
                 by: next.by,
+                fact: next.fact,
                 in: next.everywhere && !atTop ? "all" : undefined,
                 file: undefined,
                 tab: undefined,
@@ -383,6 +413,14 @@ function StorageFilesPage({ path }: { readonly path: string }) {
           ? <UI.Text role="status">{translate("files.loading")}</UI.Text>
           : detailsPanel !== null && phone
           ? detailsPanel
+          : search.view === "open" && selected !== null
+          ? (
+            <FileOpened
+              file={selected}
+              revision={search.version}
+              onBack={() => setSearch({ view: undefined })}
+            />
+          )
           : rows.length === 0
           ? (
             <UI.EmptyState
