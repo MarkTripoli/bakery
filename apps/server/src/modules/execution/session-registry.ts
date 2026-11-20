@@ -76,8 +76,13 @@ export function createSessionToolRegistry(
       // and different arguments are a different act.
       const commandMetadata = definition &&
           definition.policy.type === ActionKind.Command
-        ? (async () =>
-          createNormalizedCommandMetadata(
+        ? (async () => {
+          // A replace, mv or rm names the version it read (If-Match), exactly
+          // as a person's request does; the session call carries it as the
+          // same header and it joins the derived key, so a retry against a
+          // newer version is a different act, not a replay (#448).
+          const ifMatch = context.request.headers.get("if-match");
+          return createNormalizedCommandMetadata(
             definition,
             new Request(context.request.url, {
               method: "POST",
@@ -88,13 +93,16 @@ export function createSessionToolRegistry(
                     tool: name,
                     params: split.params,
                     value: split.value,
+                    ...(ifMatch === null ? {} : { ifMatch }),
                   }),
                 )}`,
+                ...(ifMatch === null ? {} : { "if-match": ifMatch }),
               },
             }),
             split.params,
             split.value,
-          ))()
+          );
+        })()
         : undefined;
       return Promise.resolve(commandMetadata).then(async (metadata) => {
         const result = await registry.execute(
