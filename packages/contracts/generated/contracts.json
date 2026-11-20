@@ -38014,7 +38014,7 @@
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Opaque continuation token from a previous page of this list, bound to the same search, state and kind filters and to the caller; pass it back verbatim. TelemetryDestinationListQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "description": "Opaque continuation token from a previous page of this list, bound to the same search, state, kind and provider filters and to the caller; pass it back verbatim. TelemetryDestinationListQuery.cursor must contain at most 512 UTF-8 bytes.",
                 "type": "string",
                 "maxLength": 65536,
                 "x-utf8-max-bytes": 512
@@ -74184,7 +74184,7 @@
           "type": "object",
           "properties": {
             "cursor": {
-              "description": "Opaque continuation token from a previous page of this list, bound to the same search, state and kind filters and to the caller; pass it back verbatim. TelemetryDestinationListQuery.cursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque continuation token from a previous page of this list, bound to the same search, state, kind and provider filters and to the caller; pass it back verbatim. TelemetryDestinationListQuery.cursor must contain at most 512 UTF-8 bytes.",
               "type": "string",
               "maxLength": 65536,
               "x-utf8-max-bytes": 512
@@ -264046,7 +264046,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:ea083571589f6da83d51efd60ecc88fbd387f29186d2f2c3bc01a7b685481c53",
+  "compatibilityDigest": "sha256:8a47341c72a1ca31d7f92cd3abdcfe15f9276ecca081f9947301907b1b16ee7b",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -290744,7 +290744,7 @@
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "Opaque continuation token from a previous page of this list, bound to the same search, state and kind filters and to the caller; pass it back verbatim. TelemetryDestinationListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a previous page of this list, bound to the same search, state, kind and provider filters and to the caller; pass it back verbatim. TelemetryDestinationListQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512

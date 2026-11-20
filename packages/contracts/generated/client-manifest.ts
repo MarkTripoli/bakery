@@ -27355,7 +27355,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "Opaque continuation token from a previous page of this list, bound to the same search, state and kind filters and to the caller; pass it back verbatim. TelemetryDestinationListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a previous page of this list, bound to the same search, state, kind and provider filters and to the caller; pass it back verbatim. TelemetryDestinationListQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512

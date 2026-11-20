@@ -887,11 +887,13 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "8d403f1221dc327bbb871c1eebc0b41b99b31619",
   ];
   const approvedDigest =
-    "sha256:ea083571589f6da83d51efd60ecc88fbd387f29186d2f2c3bc01a7b685481c53";
+    "sha256:8a47341c72a1ca31d7f92cd3abdcfe15f9276ecca081f9947301907b1b16ee7b";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced by the #739 cursor wording fix: this PR's previous approval, kept unchanged.
+    "sha256:ea083571589f6da83d51efd60ecc88fbd387f29186d2f2c3bc01a7b685481c53",
     // Displaced by the #739 re-bind onto main 8d403f12: main's own approval (#57 merge-queue reads), kept unchanged.
     "sha256:af4c0cec80238c9475b30cfa542fdfbf918f4f1b892a86332649bd1a90474480",
     // Displaced by the #739 re-bind onto main 8d403f12: this PR's previous approval, kept unchanged.

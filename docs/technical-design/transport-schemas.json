@@ -10644,7 +10644,7 @@
           "bounds": {
             "maxBytes": 512
           },
-          "description": "Opaque continuation token from a previous page of this list, bound to the same search, state and kind filters and to the caller; pass it back verbatim."
+          "description": "Opaque continuation token from a previous page of this list, bound to the same search, state, kind and provider filters and to the caller; pass it back verbatim."
         },
         {
           "name": "limit",
@@ -10700,7 +10700,7 @@
       ],
       "pagination": "pagination",
       "rules": [
-        "Cursor pagination only: reject page, offset and skip. The order is failing, then dropping_data, then everything else by name ignoring case, then id; a cursor is good only with the same search, state and kind."
+        "Cursor pagination only: reject page, offset and skip. The order is failing, then dropping_data, then everything else by name ignoring case, then id; a cursor is good only with the same search, state, kind and provider."
       ],
       "description": "Filters and the page window for the Monitoring destination list; an unknown state or a malformed cursor is rejected."
     },
