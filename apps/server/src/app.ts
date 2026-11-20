@@ -5,6 +5,10 @@ import {
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
 import {
+  type AlertChannelDependencies,
+  createAlertChannelRoutes,
+} from "./modules/monitoring/alert-channels.ts";
+import {
   createTelemetryDestinationRoutes,
   type TelemetryDestinationDependencies,
 } from "./modules/monitoring/telemetry-destinations.ts";
@@ -224,6 +228,8 @@ export function createApp(options: {
    * its telemetry; left out, the routes run on a fan-out nothing feeds.
    */
   telemetryDestinations?: TelemetryDestinationDependencies;
+  /** Where alert messages go and how a send is made; tests inject a receiver. */
+  alertChannels?: AlertChannelDependencies;
   /** Replaces the SMTP exchange of the installation email test (tests only). */
   emailSend?: EmailSettingsDependencies["send"];
   skillSourceAdapter?: SkillSourceAdapter;
@@ -983,6 +989,22 @@ export function createApp(options: {
     createWorkflowActionRoutes({
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
+    }),
+  );
+  app.route(
+    "/",
+    createAlertChannelRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      dependencies: options.alertChannels ?? {
+        secretsKey: options.config.secretsKey,
+        fetch,
+        // A test environment may run its receiver on loopback.
+        addressPolicy: options.config.environment === "test"
+          ? allowAnyAddress
+          : createPublicHttpsPolicy(),
+      },
     }),
   );
   app.route(
