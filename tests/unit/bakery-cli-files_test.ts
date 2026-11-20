@@ -239,6 +239,7 @@ function fakeServer(options: { digest?: string; problem?: number } = {}) {
           items: [{
             source: "files",
             entryId: PLAN,
+            itemId: null,
             path: "/projects/web/plan.md",
             name: "plan.md",
             kind: "document",

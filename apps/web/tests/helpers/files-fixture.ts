@@ -243,6 +243,23 @@ export type FilesOptions = {
   entriesFail?: boolean;
   /** Every folder read after the first page fails. */
   failAfterFirstPage?: boolean;
+  /** More people than one page of 100, to show the Made by filter reads every page. */
+  principalCount?: number;
+  /** An account that was switched off, whose files are still there. */
+  disabledPrincipal?: boolean;
+  /** More kinds than one page of 100, to show the Kind filter reads every page. */
+  kindCount?: number;
+};
+
+/** A list as the server pages it: `limit` at a time, the cursor an offset. */
+const paged = (items: unknown[], url: URL) => {
+  const limit = Number(url.searchParams.get("limit") ?? 100);
+  const offset = Number(url.searchParams.get("cursor") ?? 0);
+  const next = offset + limit;
+  return JSON.stringify({
+    items: items.slice(offset, next),
+    nextCursor: next < items.length ? String(next) : null,
+  });
 };
 
 const page_ = (items: unknown[], nextCursor: string | null = null) =>
@@ -396,10 +413,113 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
     },
   );
   await page.route(
+    (url) => url.pathname === "/v1/files/library",
+    (route) => {
+      const path = new URL(route.request().url()).searchParams.get("path") ??
+        "/library";
+      const item = (
+        section: string,
+        slug: string,
+        name: string,
+        kind: string,
+        id: number,
+      ) => ({
+        type: "item",
+        id: uuid(id),
+        path: `/library/${section}/${slug}`,
+        name,
+        kind,
+        createdAt: STAMP,
+      });
+      const sections: Record<string, unknown[]> = {
+        "/library/kinds": [
+          item("kinds", "plan", "Plan", "kind", 7004),
+          item("kinds", "review", "Review", "kind", 7005),
+          ...Array.from(
+            { length: options.kindCount ?? 0 },
+            (_, n) =>
+              item(
+                "kinds",
+                `kind-${n + 1}`,
+                `Kind ${n + 1}`,
+                "kind",
+                8000 + n + 1,
+              ),
+          ),
+        ],
+        "/library/workflows": [
+          item("workflows", "ship", "Ship a change", "workflow", 7001),
+          item("workflows", "triage", "Triage issues", "workflow", 7002),
+        ],
+        "/library/agents": [item("agents", "coder", "Coder", "agent", 7003)],
+        "/library": ["workflows", "agents"].map((slug) => ({
+          type: "folder",
+          id: null,
+          path: `/library/${slug}`,
+          name: slug,
+          kind: null,
+          createdAt: null,
+        })),
+      };
+      const entries = sections[path];
+      if (entries === undefined) {
+        return route.fulfill({
+          status: 404,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "about:blank",
+            title: "Not Found",
+            status: 404,
+            code: "RESOURCE_NOT_FOUND",
+            retryable: false,
+            detail: "not found",
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
+      }
+      return json(route, paged(entries, new URL(route.request().url())));
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/principals",
+    (route) =>
+      json(
+        route,
+        paged(
+          [
+            { id: 8800, type: "human", name: "Ana Reyes", off: false },
+            { id: 8801, type: "worker", name: "Build worker", off: false },
+            ...(options.disabledPrincipal
+              ? [{ id: 8802, type: "worker", name: "Old Bot", off: true }]
+              : []),
+            ...Array.from({ length: options.principalCount ?? 0 }, (_, n) => ({
+              id: 9000 + n + 1,
+              type: "human",
+              name: `Person ${n + 1}`,
+              off: false,
+            })),
+          ].map((principal) => ({
+            id: uuid(principal.id),
+            principalType: principal.type,
+            displayName: principal.name,
+            createdByPrincipalId: null,
+            disabledAt: principal.off ? STAMP : null,
+            createdAt: STAMP,
+            updatedAt: STAMP,
+            version: 1,
+          })),
+          new URL(route.request().url()),
+        ),
+      ),
+  );
+  await page.route(
     (url) => url.pathname === "/v1/files/search",
     (route) => {
       const url = new URL(route.request().url());
       seen.searches.push(url.search);
+      const kindFilter = url.searchParams.get("kind");
+      const producerFilter = url.searchParams.get("producerId");
       const query = (url.searchParams.get("query") ?? "").toLowerCase();
       const under = url.searchParams.get("path");
       const group = url.searchParams.get("mediaGroup");
@@ -415,14 +535,52 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           : type.startsWith("text/")
           ? "text"
           : "other";
+      if (
+        under !== null &&
+        (under === "/library" || under.startsWith("/library/"))
+      ) {
+        const libraryHits = [
+          ["workflows", "ship", "Ship a change", "workflow", 7001],
+          ["workflows", "triage", "Triage issues", "workflow", 7002],
+          ["agents", "coder", "Coder", "agent", 7003],
+        ]
+          .map(([section, slug, name, kind, id]) => ({
+            source: "library",
+            entryId: null,
+            itemId: uuid(id as number),
+            path: `/library/${section}/${slug}`,
+            name: name!,
+            kind: kind!,
+            mediaType: null,
+            mediaGroup: null,
+            sizeBytes: null,
+            versionId: null,
+            producerId: null,
+            producerKind: null,
+            producerName: null,
+            producerTaskId: null,
+            producerTaskTitle: null,
+            nameMatchStart: null,
+            nameMatchLength: null,
+            createdAt: STAMP,
+          }))
+          .filter((hit) => hit.path.startsWith(`${under}/`))
+          .filter((hit) => hit.name.toLowerCase().includes(query));
+        return json(route, page_(libraryHits));
+      }
       const hits = tree
         .filter((entry) => entry.kind === "file")
         .filter((entry) => entry.name.toLowerCase().includes(query))
         .filter((entry) => under === null || entry.path.startsWith(`${under}/`))
         .filter((entry) => group === null || groupOf(entry.mediaType) === group)
+        .filter((entry) =>
+          kindFilter === null || entry.kindName?.toLowerCase() === kindFilter
+        )
+        .filter(() => producerFilter === null || producerFilter === uuid(8800))
         .map((entry) => ({
           source: "files",
           entryId: uuid(entry.id),
+          itemId: null,
           path: entry.path,
           name: entry.name,
           kind: entry.kindName ?? "File",
