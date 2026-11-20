@@ -3257,7 +3257,8 @@ export function createBakeryApiClient({
             ok: true,
             data: await scoped.actions["storageFiles.probe"]({
               id: fileId,
-              revision,
+              organizationId: org,
+              ...(revision === undefined ? {} : { revision }),
             }, { signal }),
           };
         } catch (error) {

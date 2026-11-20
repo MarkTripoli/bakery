@@ -12584,23 +12584,13 @@ const transportSchemas = {
       "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
     },
     "StorageFilePin": {
-      "description": "Re-open one numbered version of a file, as a link written by someone who saw those bytes carries it. Give both the file's id and the revision number it had; an omitted number reads the latest version instead, which is the wrong answer for a link that meant to pin.",
+      "description": "Record whether one file is kept as a record or treated as working material. A pinned file is the copy a report, check or handover cites, so it must not be overwritten; an unpinned one may be replaced by a later write. Say which one you mean rather than omitting the flag, because the answer is what the file is now, not what it was.",
       "fields": [
         {
-          "name": "entryId",
-          "type": "uuid",
+          "name": "pinned",
+          "type": "boolean",
           "required": true,
-          "description": "The file whose version to open, as the storage listing gives it. Must belong to the organization the caller is acting in, or the answer is not found rather than forbidden, so ids from another organization reveal nothing."
-        },
-        {
-          "name": "revision",
-          "type": "integer",
-          "required": true,
-          "bounds": {
-            "min": 1,
-            "max": 999999999
-          },
-          "description": "The numbered version to open, from storageFileVersions.list at the time the link was written. A number the file never had is not found; it never falls back to the latest version, because a pinned link that quietly moved would show different bytes than its author saw."
+          "description": "True to keep this file as a record that a later write to the same name must not overwrite, false to treat it as working material again. Only a file that is already a record can carry a pin; a working-area file is refused with the reason."
         }
       ]
     },
@@ -13651,8 +13641,18 @@ const transportSchemas = {
       "fields": []
     },
     "StorageFileProbeQuery": {
-      "description": "Ask for the measured facts about one file in the storage tree. The file is named by its id in the path and the organization is named explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing.",
+      "description": "Ask for the measured facts about one storage file, optionally as of one numbered version. Name the organization explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing.",
       "fields": [
+        {
+          "name": "revision",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 999999999
+          },
+          "description": "Which version's bytes to describe, by its revision number from storageFileVersions.list; omit it for the file's current version. Use it to ask about a version a link pinned, so the answer describes the bytes that link will show rather than whatever is current now."
+        },
         {
           "name": "organizationId",
           "type": "uuid",
@@ -34373,79 +34373,49 @@ const transportSchemas = {
       }
     },
     "ArtifactProbeAnswer": {
+      "description": "What a sandboxed probe learned about one stored file's bytes, or that nobody has asked yet. `status` says which: `described` means a probe read the bytes and every field below is what it found, `refused` means a probe read enough to say why it will not describe them, and no answer at all means the file has never been probed, which a client must show as unchecked rather than as unreadable. Every field that a given kind does not have is null rather than zero: a PNG has no duration, and calling that zero seconds would be a lie about the file.",
       "fields": [
-        "state",
-        "size",
-        "digest",
-        "image",
-        "text",
-        "video",
-        "audio"
-      ],
-      "fieldTypes": {
-        "state": "enum(answered|never-probed)",
-        "size": "integer",
-        "digest": "string",
-        "image": "ArtifactProbeImage",
-        "text": "ArtifactProbeText",
-        "video": "ArtifactProbeMedia",
-        "audio": "ArtifactProbeMedia"
-      },
-      "fieldDescriptions": {
-        "state": "Whether an answer exists. `answered` means the prober measured these bytes and the numbers below are what it found; `never-probed` means nobody has asked yet, and every other field is absent, so a client must say the file has not been checked rather than that it is unreadable.",
-        "size": "The byte length the prober measured, not the length the writer claimed. The content route checks the stored bytes against this before serving them, so a disagreement is reported as a mismatch instead of a wrong-length file.",
-        "digest": "The SHA-256 of the bytes as the prober read them. It is what the content route compares stored bytes against, so a consumer that holds bytes of its own can tell whether they are the ones this record describes.",
-        "image": "Present only when the prober measured an image: its pixel size and the type detected from the header.",
-        "text": "Present only when the prober measured text: its length in lines and bytes.",
-        "video": "Present only when the prober measured a video: how long it plays, so a player can state a length before it has read a frame.",
-        "audio": "Present only when the prober measured audio: how long it plays, on the same terms as video."
-      },
-      "description": "The measured facts about one stored file's bytes, or the fact that nobody has asked yet. `state` says which; when it is `never-probed` every other field is absent and a client must say the file has not been checked, never that it is unreadable. When an answer exists, `size` and `digest` are what the prober measured, and the content route compares the stored bytes against them before serving them, so a mismatch means the bytes and the record disagree and no client should display them. The kind-specific blocks appear only for what was measured and say what the bytes are rather than what they look like."
-    },
-    "ArtifactProbeImage": {
-      "fields": [
+        "status",
+        "kind",
+        "mediaType",
+        "byteLength",
         "width",
         "height",
-        "mimeType"
-      ],
-      "fieldTypes": {
-        "width": "integer",
-        "height": "integer",
-        "mimeType": "string"
-      },
-      "fieldDescriptions": {
-        "width": "Width in pixels as the prober read it. Zero means the header could not be read, not that the image is empty; a consumer showing zero is showing a failure.",
-        "height": "Height in pixels on the same terms as width.",
-        "mimeType": "The image type detected from the bytes. It can differ from the type recorded at write time, and when it does, this one is what the bytes are."
-      },
-      "description": "The pixel size and detected type of an image, measured from its header rather than taken from the writer's claim. A consumer uses the size to reserve space before the image arrives and the detected type to decide how to render it, which can differ from what was claimed."
-    },
-    "ArtifactProbeText": {
-      "fields": [
+        "durationMs",
         "lineCount",
-        "byteCount"
+        "utf8",
+        "code",
+        "limit",
+        "probedAt"
       ],
       "fieldTypes": {
-        "lineCount": "integer",
-        "byteCount": "integer"
+        "status": "enum(described|refused)|null",
+        "kind": "string|null",
+        "mediaType": "string|null",
+        "byteLength": "integer|null",
+        "width": "integer|null",
+        "height": "integer|null",
+        "durationMs": "integer|null",
+        "lineCount": "integer|null",
+        "utf8": "boolean|null",
+        "code": "string|null",
+        "limit": "integer|null",
+        "probedAt": "string|null"
       },
       "fieldDescriptions": {
-        "lineCount": "Lines counted in the bytes as stored. A file with no line breaks counts as one line, and a zero means the prober did not measure it.",
-        "byteCount": "Bytes stored, which over counts multibyte text: it is a size, not a character count."
-      },
-      "description": "How long a text file is, measured from its bytes, so a reader can say the length before opening it and decline to render a very large one."
-    },
-    "ArtifactProbeMedia": {
-      "fields": [
-        "durationMs"
-      ],
-      "fieldTypes": {
-        "durationMs": "integer"
-      },
-      "fieldDescriptions": {
-        "durationMs": "Play length in milliseconds. A browser reports zero until it has loaded the media, so this is the only honest length a player can show beforehand. Absent means the container could not be read, which is what a damaged file looks like: do not present it as zero seconds."
-      },
-      "description": "How long a video or audio file plays, measured from its container before anything decodes it, so a player can state a length it has not yet loaded."
+        "status": "Whether a probe described these bytes, refused to, or nobody has asked. Null is the third case and is not a refusal: a client that reads null must say the file has not been checked and must not warn about it.",
+        "kind": "What the bytes are, judged from their signature rather than from the file's name or declared type: image, video, audio, pdf, text, archive, or unknown when nothing was recognised. Unknown is honest; it is not the same as a file that failed to parse.",
+        "mediaType": "The media type the bytes themselves support, which can differ from the type recorded at write time. When it does, this one is what the bytes are, and a client deciding how to render should use it.",
+        "byteLength": "The number of bytes the probe measured, which is what the content route checks stored bytes against before serving them. A disagreement is reported as a mismatch, never as a shorter or longer file.",
+        "width": "Image width in pixels, when the probe can read the format. Null for everything that is not an image.",
+        "height": "Image height in pixels, on the same terms as width. Together with width it lets a page reserve the right space before the image arrives, so nothing shifts when it does.",
+        "durationMs": "How long audio or video plays, in whole milliseconds, when the container states it. A browser reports zero until it has loaded the media, so this is the only honest length a player can show beforehand. Null means either not measured or not that kind of file, so do not present it as zero seconds.",
+        "lineCount": "Lines in a text file, counted from the bytes. A file with no line breaks counts as one line; null means the file is not text or the probe did not measure it.",
+        "utf8": "Whether a text file decodes as strict UTF-8. False means the bytes are text of some other encoding, which a reader must not render as an empty or ruined file.",
+        "code": "Why a probe refused to describe the bytes, in words a reader can act on: too large, timed out, ran out of memory, unreadable, malformed, or the sandbox was unavailable. The last two are limits of this probe rather than defects in the file. Null when a description exists.",
+        "limit": "The byte limit the probe hit, when the code names one, so a reader can say how far over the file is instead of merely that it is too large.",
+        "probedAt": "When the answer was recorded, so a reader can say how fresh it is. Null when nobody has probed the file."
+      }
     }
   },
   "pageEnvelope": {
