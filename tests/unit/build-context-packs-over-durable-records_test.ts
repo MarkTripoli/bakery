@@ -303,6 +303,8 @@ Deno.test("a text artifact in a pack carries its window, redacted, with a citati
   assertEquals(item.text!.includes("hunter2hunter2"), false);
   assertEquals(item.text!.includes("ghp_"), false);
   assertEquals(item.text!.includes("config"), true);
+  assertEquals(item.limits, null);
+  assertEquals(item.redactions, 2);
   // The citation still pins the raw bytes and digest.
   const citation = item.citation as {
     sha256: string;
