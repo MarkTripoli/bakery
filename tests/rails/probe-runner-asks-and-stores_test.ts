@@ -603,3 +603,90 @@ Deno.test("a stored answer is readable for both subject shapes", async () => {
     null,
   );
 });
+
+Deno.test("with no store, the blob subject waits and the inline one is answered", async () => {
+  forgetSandboxPreflight();
+  const dir = await Deno.makeTempDir();
+  const spoolDir = await Deno.makeTempDir();
+  const statements: Statement[] = [];
+  // A queue with one subject of each kind, in that order: the blob first, so a
+  // tick that stopped at the first unreadable row would answer nothing at all.
+  const database = {
+    statements,
+    query: (text: string, values: unknown[] = []) => {
+      statements.push({ text, values });
+      if (text.includes("from bakery.blob_probes")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (text.includes("from bakery.probe_requests")) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: "request-blob",
+              organization_id: "org-1",
+              blob_id: "blob-1",
+              entry_id: null,
+              revision: null,
+              artifact_version_id: null,
+              attempts: 0,
+            },
+            {
+              id: "request-inline",
+              organization_id: "org-1",
+              blob_id: null,
+              entry_id: "entry-1",
+              revision: 3,
+              artifact_version_id: null,
+              attempts: 0,
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    },
+  };
+  try {
+    const launcher = await writeStub(dir, "sealed", {
+      selfTest: SEALED,
+      filesystem: READ_ONLY,
+      probe: `printf '%s' '${PNG_FRAME}'`,
+    });
+    const result = await runProbeTick(
+      database as never,
+      {
+        // The deployment fact: no store, so a blob's bytes cannot be read.
+        readBlobBytes: () => Promise.resolve("unavailable"),
+        readInlineBytes: () =>
+          Promise.resolve({ bytes: PNG, sizeBytes: PNG.byteLength }),
+        readArtifactVersionBytes: () => Promise.resolve(null),
+        probeOptions: { launcherPath: launcher, spoolDir },
+      },
+      { limit: 10 },
+    );
+    // The blob is not the sandbox's fault and not the file's: it says so and waits.
+    assertEquals(result.storeUnavailable, true);
+    assertEquals(result.sandboxUnavailable, false);
+    // The inline version behind it needs no store, and is answered.
+    assertEquals(result.answered, 1);
+    assertEquals(result.deferred, 0);
+    assertEquals(result.abandoned, 0);
+    const clearedIds = statements
+      .filter((statement) =>
+        statement.text.startsWith("delete from bakery.probe_requests")
+      )
+      .map((statement) => statement.values[0]);
+    assertEquals(clearedIds, ["request-inline"]);
+    // Nothing was counted against the blob: no attempt, no give-up.
+    assertEquals(
+      statements.some((statement) =>
+        statement.text.includes("update bakery.probe_requests")
+      ),
+      false,
+      "an unreadable deployment must not spend the blob request's attempts",
+    );
+  } finally {
+    forgetSandboxPreflight();
+    await Deno.remove(dir, { recursive: true });
+    await Deno.remove(spoolDir, { recursive: true });
+  }
+});

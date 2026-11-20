@@ -427,6 +427,7 @@ export async function runProbeTick(
   let answered = 0;
   let deferred = 0;
   let abandoned = 0;
+  let storeUnavailable = false;
   for (const request of claimed) {
     let stored: Awaited<ReturnType<typeof probeOne>>;
     try {
@@ -460,19 +461,13 @@ export async function runProbeTick(
       // row stays, terminal, so the backfill does not queue it again.
       await giveUpProbeRequest(database, request.id);
     } else if (stored === "unavailable") {
-      // No store on this server, so these bytes cannot be read at all. Leaving the
-      // row untouched is the only honest answer: the file is fine, this deployment
-      // is not. The tick stops so the rest of the page keeps its place.
-      return {
-        claimed: claimed.length,
-        answered,
-        deferred,
-        abandoned,
-        queued: page.queued,
-        sandboxUnavailable: false,
-        spoolDirMissing: false,
-        storeUnavailable: true,
-      };
+      // No store on this server, so a blob-backed subject cannot be read at all.
+      // Leaving that row untouched is the only honest answer: the file is fine,
+      // this deployment is not. The tick carries on, because an inline subject --
+      // a storage version's own bytes, or a store-less artifact version -- needs no
+      // store and would otherwise starve behind the first blob in the page.
+      storeUnavailable = true;
+      continue;
     } else {
       // The sandbox stopped answering partway through the tick. That is the same
       // host fact as an unbuildable sandbox, so it stops the tick rather than
@@ -497,7 +492,7 @@ export async function runProbeTick(
     queued: page.queued,
     sandboxUnavailable: false,
     spoolDirMissing: false,
-    storeUnavailable: false,
+    storeUnavailable,
   };
 }
 
