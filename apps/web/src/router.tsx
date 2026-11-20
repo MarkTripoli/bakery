@@ -951,7 +951,6 @@ export const routeCoverage = [
       "skeleton",
       "stale",
       "success",
-      "throttled",
       "unavailable",
       "unsupported",
       "wrong-account",

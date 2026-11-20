@@ -349,6 +349,16 @@ Deno.test("the worker bootstrap package is classified and selects no heavy lane"
   );
 });
 
+Deno.test("the bakery command line package is classified and selects no heavy lane", () => {
+  assertEquals(
+    affectedLanes([
+      entry("A", "packages/cli/src/run.ts"),
+      entry("A", "tests/unit/bakery-cli-files_test.ts"),
+    ]),
+    [],
+  );
+});
+
 Deno.test("affected route depends on the event like the other routes", () => {
   assertEquals(routeForEvent("affected", "push"), "affected");
   assertEquals(routeForEvent("affected", "schedule"), "full");

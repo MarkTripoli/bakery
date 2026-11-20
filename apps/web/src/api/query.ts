@@ -39,6 +39,7 @@ import type {
   InstallationSettings,
   InstallationStatus,
   IntegrationAppRegistration,
+  IntegrationClientCredentials,
   IntegrationConnection,
   IntegrationResource,
   LibraryPage,
@@ -78,6 +79,7 @@ import type {
   RunListResponse,
   RunResponse,
   RunStepListResponse,
+  SavedDataPage,
   ScimConnection,
   SkillStorageSettings,
   StorageFileAtVersion,
@@ -442,6 +444,35 @@ export function pluginInstallsQueryOptions(
     retry: retryNetworkOnce,
   });
 }
+
+/** What one plugin install has saved: the first page, newest first, without the values. */
+export function pluginSavedDataQueryOptions(
+  client: Pick<BakeryApiClient, "plugins">,
+  scope: ApiScope,
+  installId: string,
+) {
+  return queryOptions<SavedDataPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "pluginStateItems.list", { installId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.plugins.savedData({
+          organizationId: scope.organizationId,
+          installId,
+          limit: SAVED_DATA_PAGE,
+          signal,
+        }),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+  });
+}
+
+/** Saved items shown before "Show more". */
+export const SAVED_DATA_PAGE = 10;
 
 export function readinessQueryOptions(
   client: Pick<BakeryApiClient, "readiness">,
@@ -1727,6 +1758,25 @@ export function integrationAppRegistrationQueryOptions(
     ),
     queryFn: async ({ signal }) =>
       unwrap(await client.integrationAppRegistrations.get(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function integrationClientCredentialsQueryOptions(
+  client: Pick<BakeryApiClient, "integrationClientCredentials">,
+  scope: ApiScope,
+  provider: string,
+) {
+  return queryOptions<IntegrationClientCredentials, ApiFailure>({
+    queryKey: protectedQueryKey(
+      scope,
+      "integrationClientCredentials.get",
+      { provider },
+    ),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.integrationClientCredentials.get({ provider, signal }),
+      ),
     retry: retryNetworkOnce,
   });
 }

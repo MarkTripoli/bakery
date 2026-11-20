@@ -5,7 +5,7 @@ const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/).describe(
 );
 
 export const SecretIdentityReadInputSchema = z.object({
-  secretRef: z.string().uuid().describe(
+  identityRef: z.string().uuid().describe(
     "Opaque project credential reference resolved only inside the server trust boundary.",
   ),
 }).strict().describe(

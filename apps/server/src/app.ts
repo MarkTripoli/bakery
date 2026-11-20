@@ -8,6 +8,7 @@ import {
   createEmailSettingsRoutes,
   type EmailSettingsDependencies,
 } from "./modules/work/email-actions.ts";
+import { createClientCredentialsRoutes } from "./modules/integrations/client-credentials.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createProviderReadRoutes } from "./modules/execution/provider-read-routes.ts";
 import { createRouteContinuationRoutes } from "./modules/execution/route-continuations.ts";
@@ -641,6 +642,9 @@ export function createApp(options: {
       telemetry: options.telemetry,
       database: options.pgDatabase,
       browserSession,
+      // Reads of the storage tree and file search accept an access token (the
+      // command line); every write stays on the browser session.
+      tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       secret: options.config.auth.secret,
       skillFileStore,
@@ -970,6 +974,15 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       dependencies: { ...skillStorage, probe: options.skillStorageProbe },
+    }),
+  );
+  app.route(
+    "/",
+    createClientCredentialsRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      secretsKey: options.config.secretsKey,
     }),
   );
   app.route(

@@ -207,7 +207,7 @@ async function querySkill(
         and source.id = skill.source_id
       where skill.organization_id = $1 and skill.id = $2
         and source.source_type = $3
-        and (skill.scope = 'organization'
+        and (skill.scope <> 'personal'
           or skill.owner_principal_id = $4::uuid)
       ${lockRows ? "for update of skill, source" : ""}`,
     [organizationId, skillId, sourceType, principalId],
@@ -218,7 +218,7 @@ async function querySkill(
   // Publishing a local skill's version is authoring it: the owner for a
   // personal skill, an Admin for an organization one. A remote import runs under
   // the authority the Admin who asked for it held at admission.
-  if (sourceType === "local_bundle") {
+  if (sourceType === "local_bundle" || scope === "global") {
     await assertMayAuthorSkill(transaction, organizationId, principalId, {
       scope,
       ownerPrincipalId,
