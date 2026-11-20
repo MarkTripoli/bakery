@@ -230222,10 +230222,9 @@
               "enum": [
                 "unbounded_unknown",
                 "over_budget",
-                "not_authorized",
                 "not_found"
               ],
-              "description": "Why it was not admitted: its size is unknown and unbounded, it did not fit, the caller may not read it, or the version no longer exists."
+              "description": "Why it was not admitted: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed."
             }
           },
           "required": [
@@ -230233,7 +230232,7 @@
             "reason"
           ],
           "additionalProperties": false,
-          "description": "One candidate the pack does not carry, and why: its size is unknown and unbounded, it did not fit, the caller may not read it, or the version no longer exists."
+          "description": "One candidate the pack does not carry, and why: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed."
         },
         "ContextPack": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -230446,10 +230445,9 @@
                     "enum": [
                       "unbounded_unknown",
                       "over_budget",
-                      "not_authorized",
                       "not_found"
                     ],
-                    "description": "Why it was not admitted: its size is unknown and unbounded, it did not fit, the caller may not read it, or the version no longer exists."
+                    "description": "Why it was not admitted: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed."
                   }
                 },
                 "required": [
@@ -241714,7 +241712,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:9d239651c7188ef03822e9c1d2a8e1144bb57fbc24037518d36b0f5869a436c2",
+  "compatibilityDigest": "sha256:c8458319875eac8e5cdc3f9d0897062719bc54f01d8d9217968d0a8fd0016941",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -429552,10 +429550,9 @@
           "enum": [
             "unbounded_unknown",
             "over_budget",
-            "not_authorized",
             "not_found"
           ],
-          "description": "Why it was not admitted: its size is unknown and unbounded, it did not fit, the caller may not read it, or the version no longer exists."
+          "description": "Why it was not admitted: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed."
         }
       },
       "required": [
@@ -429563,7 +429560,7 @@
         "reason"
       ],
       "additionalProperties": false,
-      "description": "One candidate the pack does not carry, and why: its size is unknown and unbounded, it did not fit, the caller may not read it, or the version no longer exists."
+      "description": "One candidate the pack does not carry, and why: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed."
     },
     "ContextPack": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -429776,10 +429773,9 @@
                 "enum": [
                   "unbounded_unknown",
                   "over_budget",
-                  "not_authorized",
                   "not_found"
                 ],
-                "description": "Why it was not admitted: its size is unknown and unbounded, it did not fit, the caller may not read it, or the version no longer exists."
+                "description": "Why it was not admitted: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed."
               }
             },
             "required": [

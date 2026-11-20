@@ -1063,6 +1063,9 @@ export function createArtifactResourceRoutes(
   app.use("/v1/preview-grants/*", session);
   app.use("/v1/preview-availability", session);
   app.use("/v1/artifact-versions/*", session);
+  // Without this a pack is built with no resolved principal and refused as an
+  // anonymous call even for a signed-in Developer.
+  app.use("/v1/context-packs", session);
   // Without this the blob routes run with no resolved principal, and every call
   // is refused as an anonymous one - a 403 that looks like a permission problem
   // and is really a missing middleware.

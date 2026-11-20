@@ -88427,10 +88427,9 @@ export const clientManifest = {
                 "enum": [
                   "unbounded_unknown",
                   "over_budget",
-                  "not_authorized",
                   "not_found"
                 ],
-                "description": "Why it was not admitted: its size is unknown and unbounded, it did not fit, the caller may not read it, or the version no longer exists."
+                "description": "Why it was not admitted: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed."
               }
             },
             "required": [

@@ -116,7 +116,6 @@ export type ContextPackBuildInput = z.input<typeof ContextPackBuildSchema>;
 export type ContextPackOmissionReason =
   | "unbounded_unknown"
   | "over_budget"
-  | "not_authorized"
   | "not_found";
 
 type Planned = Readonly<{
@@ -135,10 +134,13 @@ function refusalCode(error: unknown): string | null {
 /**
  * The item a candidate contributes, or the reason it contributes nothing.
  *
- * An artifact candidate is refused per candidate: unreadable becomes
- * `not_authorized`, gone becomes `not_found`. Anything else is a real failure
- * and propagates, because guessing at it would put an unverified item in a
- * prompt.
+ * An artifact candidate is refused per candidate: a version that is not in the
+ * caller's organization, does not exist or has had its content removed becomes
+ * `not_found`. Who may build a pack at all is the action's permission
+ * (`artifactVersion:read` in the organization); there is no narrower
+ * per-version permission, so there is no separate "not authorized" outcome.
+ * Anything else is a real failure and propagates, because guessing at it
+ * would put an unverified item in a prompt.
  */
 async function planCandidate(
   context: ActionContext,
@@ -176,7 +178,6 @@ async function planCandidate(
     if (code === "RESOURCE_NOT_FOUND" || code === "ARTIFACT_CONTENT_EXPIRED") {
       return "not_found";
     }
-    if (code === "AUTH_FORBIDDEN") return "not_authorized";
     throw error;
   }
 
@@ -225,7 +226,6 @@ async function planCandidate(
     if (code === "RESOURCE_NOT_FOUND" || code === "ARTIFACT_CONTENT_EXPIRED") {
       return "not_found";
     }
-    if (code === "AUTH_FORBIDDEN") return "not_authorized";
     // A window that cannot be produced (not text after all, a stale extract, an
     // unsupported range) falls back to a reference rather than dropping the
     // candidate: the step still learns the version exists and can ask again.
@@ -247,14 +247,16 @@ function planned(
   itemId: string,
 ): Planned {
   const count = projection.item.count;
+  // A projection is bounded by its window or its fixed reference cost, so its
+  // count is never unknown here. If one ever were, reporting it as 0 tokens
+  // would be the bug AC1 exists to prevent, so it stops the build instead.
+  if (count.state === "unknown") throw new Error("PACK_ITEM_COUNT_UNKNOWN");
   return {
     itemId,
     item: { ...projection.item, id: itemId },
     projection,
     countState: count.state,
-    // For an unknown count there is no number to report; the item is only
-    // admitted when its bound was known, and the allocator decides that.
-    tokens: count.state === "unknown" ? 0 : count.tokens,
+    tokens: count.tokens,
   };
 }
 

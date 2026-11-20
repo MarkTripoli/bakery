@@ -11190,7 +11190,7 @@
         }
       ],
       "rules": [
-        "A candidate the caller cannot read is reported in omitted with reason not_authorized, never silently dropped and never allowed to fail the whole build.",
+        "A candidate that is not in the caller's organization, or whose content was removed, is reported in omitted with reason not_found, never silently dropped and never allowed to fail the whole build. Who may build a pack is the action's permission on the organization; there is no narrower per-version permission.",
         "An artifact candidate's version digest is read from the version row rather than accepted from the caller, so a citation cannot name a digest the version does not have.",
         "The same request with the same inputs returns the same packDigest; the digest covers the selection, not the time of the call."
       ],
@@ -30057,12 +30057,12 @@
       ],
       "fieldTypes": {
         "itemId": "string",
-        "reason": "enum(unbounded_unknown|over_budget|not_authorized|not_found)"
+        "reason": "enum(unbounded_unknown|over_budget|not_found)"
       },
-      "description": "One candidate the pack does not carry, and why: its size is unknown and unbounded, it did not fit, the caller may not read it, or the version no longer exists.",
+      "description": "One candidate the pack does not carry, and why: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed.",
       "fieldDescriptions": {
         "itemId": "Caller's identifier for the candidate that was not admitted.",
-        "reason": "Why it was not admitted: its size is unknown and unbounded, it did not fit, the caller may not read it, or the version no longer exists."
+        "reason": "Why it was not admitted: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed."
       }
     },
     "ContextPack": {

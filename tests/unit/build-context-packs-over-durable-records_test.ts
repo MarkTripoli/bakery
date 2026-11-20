@@ -29,15 +29,24 @@ const ENVELOPE = {
 
 type Identity = Record<string, unknown>;
 
-function contextWith(identity: Identity | null) {
+/** The organization the identity row belongs to; a read in another one finds nothing. */
+const ROW_ORG = ORG;
+
+function contextWith(
+  identity: Identity | null,
+  callerOrganization: string = ORG,
+) {
   const queries: { sql: string; values: readonly unknown[] }[] = [];
   const transaction = {
     query: (sql: string, values: readonly unknown[] = []) => {
       queries.push({ sql, values });
       // Only the identity read matters here: a text-only build never touches
       // the database, and an artifact build reads metadata before content.
+      // Like the real lookup, the row is only visible in its own organization:
+      // $1 is the organization, $2 the version.
       if (
-        identity !== null && sql.includes("from bakery.artifact_versions v")
+        identity !== null && sql.includes("from bakery.artifact_versions v") &&
+        values[0] === ROW_ORG
       ) {
         return Promise.resolve({ rows: [identity], rowCount: 1 });
       }
@@ -47,7 +56,7 @@ function contextWith(identity: Identity | null) {
   const context = {
     transaction,
     authority: {
-      organizationId: ORG,
+      organizationId: callerOrganization,
       subject: { principalId: PRINCIPAL },
     },
   } as unknown as ActionContext;
@@ -314,19 +323,84 @@ Deno.test("a non-text version becomes a reference with no text, never a blob", a
   );
 });
 
-Deno.test("an unknown count is never counted as zero", async () => {
+Deno.test("an unknown, unbounded count in the envelope blocks the pack instead of counting as zero", async () => {
+  const pack = await build({
+    envelope: {
+      ...ENVELOPE,
+      counts: {
+        conversation: { state: "unknown", tokens: null, boundTokens: null },
+      },
+    },
+    candidates: [textCandidate("note", "small", { required: true })],
+  }) as Awaited<ReturnType<typeof buildContextPack>>;
+
+  // Treating the unknown as 0 would admit the note as if there were room.
+  assertEquals(pack.decision, "bound-more-before-dispatch");
+  assertEquals(pack.items, []);
+  assertEquals(pack.packDigest, null);
+});
+
+Deno.test("every admitted item says how its count was obtained, and none is unknown", async () => {
   const pack = await build({
     envelope: ENVELOPE,
     candidates: [textCandidate("known", "text")],
   }) as Awaited<ReturnType<typeof buildContextPack>>;
 
-  // Every admitted item carries how its count was obtained, so a total can be
-  // read without assuming it was measured.
-  for (const item of pack.items) {
-    assertEquals(
-      ["measured", "estimated", "unknown"].includes(item.countState),
-      true,
-    );
-    if (item.countState === "unknown") assertEquals(item.tokens, 0);
-  }
+  assertEquals(pack.items.length, 1);
+  for (const item of pack.items) assertEquals(item.countState, "estimated");
+});
+
+Deno.test("the identity read is made in the caller's organization, and another organization's version is not found", async () => {
+  const identity = {
+    id: VERSION,
+    purged_at: null,
+    artifact_id: ARTIFACT,
+    media_type: "image/png",
+    size_bytes: 4_096,
+    sha256: SHA,
+  };
+  const candidates = [
+    textCandidate("kept", "still here"),
+    {
+      itemId: "theirs",
+      kind: "artifact" as const,
+      artifactVersionId: VERSION,
+      startByte: 0,
+      maxBytes: 1_024,
+      priority: 0,
+      required: false,
+    },
+  ];
+
+  // The caller's organization owns the row: found, and the read names it.
+  const own = contextWith(identity, ORG);
+  const found = await buildContextPack(own.context, {
+    envelope: ENVELOPE,
+    candidates,
+  });
+  assertEquals(found.items.map((item) => item.itemId), ["kept", "theirs"]);
+  const reads = own.queries.filter((entry) =>
+    entry.sql.includes("from bakery.artifact_versions v")
+  );
+  assertEquals(reads.length, 1);
+  assertEquals(reads[0].values[0], ORG);
+  assertEquals(reads[0].values[1], VERSION);
+
+  // A caller in another organization asks for the same version id: the lookup
+  // is scoped to the caller's organization, finds nothing, and the rest of the
+  // pack still builds.
+  const OTHER_ORG = "99999999-9999-4999-8999-999999999999";
+  const foreign = contextWith(identity, OTHER_ORG);
+  const refused = await buildContextPack(foreign.context, {
+    envelope: ENVELOPE,
+    candidates,
+  });
+  assertEquals(refused.items.map((item) => item.itemId), ["kept"]);
+  assertEquals(refused.omitted, [{ itemId: "theirs", reason: "not_found" }]);
+  assertEquals(
+    foreign.queries.filter((entry) =>
+      entry.sql.includes("from bakery.artifact_versions v")
+    ).every((entry) => entry.values[0] === OTHER_ORG),
+    true,
+  );
 });
