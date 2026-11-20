@@ -299,8 +299,9 @@ export function verifyCitation(
  *
  * - the window is keyed as the 64 KiB chunk that holds it, so offsets inside one
  *   chunk share a row; and
- * - a version keeps at most 256 rows (16 MiB of stride, the largest start
- *   offset a request may name), oldest evicted first.
+ * - a version keeps at most 256 rows, shared across every authorization scope
+ *   (not 256 per scope), oldest evicted first. A request may name a start
+ *   offset up to 10 MiB, which is 160 chunks.
  */
 export const EXTRACT_CACHE_CHUNK_BYTES = 65_536;
 export const EXTRACT_CACHE_ROWS_PER_VERSION = 256;
@@ -326,7 +327,12 @@ export function cachedExtractWindow(
   };
 }
 
-/** Cache key for a bounded immutable extract; holds no authorization. */
+/**
+ * Cache key for a bounded immutable extract. It carries no authorization
+ * decision: the scope is hashed into it only so another scope cannot find the
+ * row. Whether a caller may read the version is decided by the live read before
+ * any lookup.
+ */
 export async function extractCacheKey(
   organizationId: string,
   citation: ContextCitation,

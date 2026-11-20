@@ -25,7 +25,9 @@
 
 create table bakery.artifact_extracts (
   -- Canonical identity of the extract, from extractCacheKey(): organization,
-  -- version, digest, byte range and extractor. It holds no authorization.
+  -- version, digest, byte range, extractor and a digest of the authorization
+  -- scope, so another scope cannot find the row. It stores no authorization
+  -- decision: whether a caller may read the version is decided by the live read.
   cache_key text primary key,
   organization_id uuid not null
     references bakery.organizations (id) on delete cascade,
