@@ -92,6 +92,14 @@ export async function collectArtifactVersion(
       versionId,
       traceId,
     });
+    await transaction.query(
+      // Cached extracts are copies of the bytes just removed, so they go with
+      // them in the same transaction. The version row itself survives (it is a
+      // tombstone), so the foreign key's `on delete cascade` would never fire
+      // and purged text would stay readable in the cache.
+      "delete from bakery.artifact_extracts where organization_id=$1 and artifact_version_id=$2",
+      [version.organization_id, versionId],
+    );
     await appendAudit(transaction, {
       organizationId: version.organization_id,
       principalId: null,

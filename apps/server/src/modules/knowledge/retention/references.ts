@@ -78,6 +78,16 @@ export const artifactVersionReferences = [
     constraint: "memory_revisions_source_fk",
     protection: "retained-evidence",
   },
+  {
+    // A cached extract is a copy of bytes that already exist elsewhere, so it
+    // never keeps a version alive: the purge deletes the extracts with the
+    // version, and a cache row that outlived its source would be text nobody
+    // can authorize against.
+    kind: "extract-cache",
+    table: "artifact_extracts",
+    constraint: "artifact_extracts_version_fk",
+    protection: "none",
+  },
 ] as const;
 export const declaredArtifactReferenceKinds = [
   "current-pointer",
@@ -91,6 +101,7 @@ export const declaredArtifactReferenceKinds = [
   "external-effect-arguments",
   "run-input-pin",
   "memory-source",
+  "extract-cache",
 ] as const;
 export type ArtifactReferenceKind =
   typeof declaredArtifactReferenceKinds[number];

@@ -486,6 +486,43 @@ for (const text of ["published content", ""]) {
   });
 }
 
+Deno.test("purging a version deletes the extracts cached from its bytes", async () => {
+  // The version row survives a purge as a tombstone, so the extract cache's
+  // `on delete cascade` foreign key never fires: the purge has to delete the
+  // cached copies itself, in the same transaction, or purged text stays
+  // readable through the cache.
+  const fixture = await retentionFixture();
+  try {
+    await fixture.pgDatabase.query(
+      `insert into bakery.artifact_extracts
+         (cache_key, organization_id, artifact_version_id, digest, start_byte,
+          end_byte_exclusive, scope, extractor_version, media_type, text,
+          text_bytes, max_bytes, has_more)
+       values ('key-1',$1,$2,$3,0,10,'p1|org','bakery.text-window@1',
+               'text/plain','cached copy',11,4096,false)`,
+      [fixture.organizationId, fixture.versionId, "a".repeat(64)],
+    );
+    const cached = await fixture.pgDatabase.query(
+      "select count(*)::int as n from bakery.artifact_extracts where artifact_version_id=$1",
+      [fixture.versionId],
+    );
+    assertEquals(cached.rows[0]?.n, 1, "the fixture's extract must be there");
+
+    assertEquals(
+      await collectArtifactVersion(fixture.pgDatabase, fixture.versionId),
+      true,
+    );
+
+    const after = await fixture.pgDatabase.query(
+      "select count(*)::int as n from bakery.artifact_extracts where artifact_version_id=$1",
+      [fixture.versionId],
+    );
+    assertEquals(after.rows[0]?.n, 0, "no cached copy outlives the purge");
+  } finally {
+    await fixture.closeRetention();
+  }
+});
+
 Deno.test("a memory revision citing a version keeps its bytes", async () => {
   const fixture = await retentionFixture();
   try {
