@@ -203,10 +203,16 @@ async function planCandidate(
   }
 
   try {
-    const window = await extractArtifactVersion(context, {
-      startByte: candidate.startByte,
-      maxBytes: candidate.maxBytes,
-    });
+    // The extraction reads its version from the path (`/v1/artifact-versions/:id/extract`);
+    // a pack is built by `POST /v1/context-packs`, which has no such id, so the
+    // candidate's version is put where the extraction looks for it.
+    const window = await extractArtifactVersion(
+      {
+        ...context,
+        params: { ...context.params, id: candidate.artifactVersionId },
+      } as ActionContext,
+      { startByte: candidate.startByte, maxBytes: candidate.maxBytes },
+    );
     const projection = projectArtifactVersion(entry, {
       startByte: window.startByte,
       endByteExclusive: window.endByteExclusive,

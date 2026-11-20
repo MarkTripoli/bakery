@@ -171,6 +171,83 @@ Deno.test("an artifact version that no longer exists is an omission, not a faile
   assertEquals(pack.omitted, [{ itemId: "gone", reason: "not_found" }]);
 });
 
+Deno.test("a text artifact in a pack carries its window, redacted, with a citation of the raw bytes", async () => {
+  const raw = "config\npassword: hunter2hunter2 and ghp_" +
+    "abcdefghijklmnopqrstuvwxyz0123456789" + "\nend\n";
+  const bytes = new TextEncoder().encode(raw);
+  const digest = Array.from(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
+  const identity = {
+    id: VERSION,
+    purged_at: null,
+    artifact_id: ARTIFACT,
+    media_type: "text/plain",
+    size_bytes: bytes.byteLength,
+    sha256: digest,
+  };
+  const transaction = {
+    query: (sql: string, values: readonly unknown[] = []) => {
+      if (sql.includes("sha256(v.content)")) {
+        const [, , probe, windowStart, windowLength] = values as number[];
+        const start = Number(windowStart) - 1;
+        return Promise.resolve({
+          rowCount: 1,
+          rows: [{
+            ...identity,
+            content_size_bytes: bytes.byteLength,
+            validated_text_size: bytes.byteLength,
+            content_sha256: digest,
+            media_probe: bytes.subarray(0, Number(probe)),
+            window: bytes.subarray(start, start + Number(windowLength)),
+          }],
+        });
+      }
+      if (sql.includes("from bakery.artifact_versions v")) {
+        return Promise.resolve({ rowCount: 1, rows: [identity] });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    },
+  } as unknown as PgTransactionClient;
+  const context = {
+    transaction,
+    // A pack is built by POST /v1/context-packs: no :id in the path.
+    params: {},
+    authority: { organizationId: ORG, subject: { principalId: PRINCIPAL } },
+  } as unknown as ActionContext;
+
+  const pack = await buildContextPack(context, {
+    envelope: ENVELOPE,
+    candidates: [{
+      itemId: "log",
+      kind: "artifact" as const,
+      artifactVersionId: VERSION,
+      startByte: 0,
+      maxBytes: 4_096,
+      priority: 0,
+      required: false,
+    }],
+  });
+
+  assertEquals(pack.omitted, []);
+  const [item] = pack.items;
+  assertEquals(item.kind, "text_window");
+  assertEquals(item.text!.includes("hunter2hunter2"), false);
+  assertEquals(item.text!.includes("ghp_"), false);
+  assertEquals(item.text!.includes("config"), true);
+  // The citation still pins the raw bytes and digest.
+  const citation = item.citation as {
+    sha256: string;
+    location: { startByte: number; endByteExclusive: number };
+  };
+  assertEquals(citation.sha256, digest);
+  assertEquals(citation.location, {
+    startByte: 0,
+    endByteExclusive: bytes.byteLength,
+  });
+});
+
 Deno.test("a purged artifact version is reported as not_found", async () => {
   const { context } = contextWith({
     id: VERSION,
