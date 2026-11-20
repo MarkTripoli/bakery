@@ -384,8 +384,8 @@ Deno.test("a published version that only mentions a skill's id is not reported a
   const w = await world();
   const f = w.f;
   try {
-    // The only draft is rewritten to name the skill's id as a step id, and
-    // published: the id appears in the published text but no step uses the skill.
+    // The only draft is rewritten so the skill's id appears in its text without
+    // any step using the skill, and published.
     const base = w.versionsPath + "/" + w.draft.id;
     const rewritten = await f.patch(
       f.ownerCookie,
@@ -393,7 +393,9 @@ Deno.test("a published version that only mentions a skill's id is not reported a
       {
         definition: {
           kind: "fixed",
-          steps: [{ id: w.sv, uses: "workflow.noop" }],
+          // Carries the skill id in a skills list but names no action, so no step
+          // uses it: the id appears in the published text only.
+          steps: [{ id: "first", uses: "workflow.noop", skills: [w.sv] }],
         },
       },
       "pw-mention-edit",
