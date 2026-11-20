@@ -27,6 +27,7 @@ import {
   assertAgentMayTarget,
 } from "../auth/application/agent-power-grants.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { mayActOnQuestion } from "../auth/application/run-grants.ts";
 import {
   approvalPolicyDigest,
   effectiveApprovalPolicy,
@@ -510,6 +511,28 @@ export function createApprovalsListHandler(secret: string) {
   };
 }
 
+/**
+ * An approval private to named principals does not exist for anyone else,
+ * unless they were given the right to decide exactly this one (#456): that
+ * grant replaces the audience check for this row and reaches nothing else.
+ */
+async function assertMayDecide(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  row: ApprovalRow,
+  principalId: string,
+): Promise<void> {
+  if (
+    !await mayActOnQuestion(
+      transaction,
+      organizationId,
+      principalId,
+      { id: row.id, audience: row.audience },
+      "approve",
+    )
+  ) notFound();
+}
+
 /** An approval private to named principals does not exist for anyone else. */
 function assertAudienceMember(row: ApprovalRow, principalId: string): void {
   if (
@@ -525,7 +548,7 @@ export async function getApproval(context: ActionContext) {
   const id = context.params.id;
   if (!id) notFound();
   const row = await loadApproval(transaction, organizationId, id);
-  assertAudienceMember(row, principalId);
+  await assertMayDecide(transaction, organizationId, row, principalId);
   return toApproval(row);
 }
 
@@ -561,7 +584,7 @@ export async function decideApproval(
   // Same refusal as approvals.get, ahead of the archived refusal below: a
   // non-audience caller cannot confirm the approval exists, whatever its
   // conversation state.
-  assertAudienceMember(peek, principalId);
+  await assertMayDecide(transaction, organizationId, peek, principalId);
 
   // An agent decides only where a person granted it (O52), only a step approval
   // (the one path that records who decided), and never the approval of its own
@@ -637,7 +660,7 @@ export async function decideApproval(
     "update",
   );
   const row = await loadApproval(transaction, organizationId, id, true);
-  assertAudienceMember(row, principalId);
+  await assertMayDecide(transaction, organizationId, row, principalId);
   if (
     row.subject_type !== "plan_revision" && row.subject_type !== "run_stage"
   ) {
