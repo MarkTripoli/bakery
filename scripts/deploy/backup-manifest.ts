@@ -125,7 +125,7 @@ async function main(args: string[]): Promise<void> {
         value = JSON.parse(cutoffJson);
       } catch {
         console.error("BACKUP_INCOMPLETE the cutoff is not valid JSON");
-        Deno.exit(70);
+        process.exit(70);
       }
       const parsed = parseCutoff(value);
       if (typeof parsed === "string" || parsed.source !== "database") {
@@ -136,7 +136,7 @@ async function main(args: string[]): Promise<void> {
               : "only a database cutoff may be supplied"
           }`,
         );
-        Deno.exit(70);
+        process.exit(70);
       }
       cutoff = parsed;
     }
