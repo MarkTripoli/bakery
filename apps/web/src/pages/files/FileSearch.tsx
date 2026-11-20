@@ -183,6 +183,7 @@ export function FileSearchResults(
     <UI.Link
       href={hit.path}
       variant="quiet"
+      data-name="true"
       onClick={(event) => {
         event.preventDefault();
         onOpen(hit);
@@ -263,6 +264,7 @@ export function FileSearchResults(
               <UI.Link
                 href={hit.path}
                 variant="quiet"
+                data-name="true"
                 onClick={(event) => {
                   event.preventDefault();
                   onOpen(hit);

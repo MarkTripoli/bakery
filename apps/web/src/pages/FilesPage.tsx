@@ -136,6 +136,7 @@ export function FilesPage({ path }: { readonly path: string }) {
         <UI.Link
           href={filesHref(item.path)}
           variant="quiet"
+          data-name="true"
           onClick={(event) => {
             event.preventDefault();
             open(item.path);
@@ -148,6 +149,7 @@ export function FilesPage({ path }: { readonly path: string }) {
         <UI.Link
           href={`?file=${item.id}`}
           variant="quiet"
+          data-name="true"
           onClick={(event) => {
             event.preventDefault();
             setSearch({ file: item.id, tab: undefined, version: undefined });

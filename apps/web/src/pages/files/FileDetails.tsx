@@ -181,7 +181,7 @@ export function FileDetails(
     <UI.Stack gap="standard">
       {current?.contentRemoved === true && current.removedAt !== null
         ? (
-          <UI.InlineNotice tone="warning">
+          <UI.InlineNotice tone="neutral">
             {translate("files.removed", { date: day(current.removedAt) })}
           </UI.InlineNotice>
         )
@@ -352,7 +352,7 @@ export function FileDetails(
           </UI.Link>
         )
         : null}
-      <UI.Inline variant="between" gap="compact">
+      <UI.Inline variant="between" gap="compact" data-header="named">
         <UI.Stack gap="none">
           <UI.Heading level="section">
             {file.displayName ?? file.name}
@@ -468,6 +468,7 @@ export function FileDetails(
         )
         : null}
       <UI.Tabs
+        variant="route"
         aria-label={translate("files.tab.label")}
         selectedId={tab}
         onSelect={(id) => onTab(id as FileTab)}

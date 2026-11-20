@@ -307,8 +307,50 @@ for (
         .toBeVisible();
       await expect(page.getByRole("button", { name: "Download" }))
         .toHaveCount(0);
+      // Nothing waits on a person, so the notice is not in the warning tone.
+      await expect(
+        page.getByTestId("file-details").locator('[data-variant="warning"]'),
+      ).toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "files-preview-removed");
+    });
+
+    test("a name is the strongest text in its row, and a long path keeps Close at the top right", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto("/files/projects/web-app/media");
+      const link = page.getByTestId("files-page").getByRole("link", {
+        name: "diagram.png",
+      });
+      await expect(link).toBeVisible();
+      const style = await link.evaluate((element) => {
+        const heading = document.querySelector("h1");
+        return {
+          color: getComputedStyle(element).color,
+          weight: getComputedStyle(element).fontWeight,
+          body: heading === null ? "" : getComputedStyle(heading).color,
+        };
+      });
+      expect(style.color).toBe(style.body);
+      expect(style.weight).toBe("500");
+      await link.click();
+      const panel = page.getByTestId("file-details");
+      await expect(panel).toBeVisible();
+      await page.getByRole("tab", { name: "Details" }).click();
+      // The tabs add no rule of their own under the last row.
+      await expect(page.locator(".ui-tabs")).toHaveCSS(
+        "border-bottom-width",
+        "0px",
+      );
+      if (viewport.name === "desktop") {
+        const close = await panel.getByRole("button", { name: "Close" })
+          .boundingBox();
+        const heading = await panel.getByRole("heading", {
+          name: "diagram.png",
+        }).boundingBox();
+        expect(close).not.toBeNull();
+        expect(heading).not.toBeNull();
+        expect(Math.abs(close!.y - heading!.y)).toBeLessThan(16);
+      }
     });
 
     test("a document opens on its artifact page, and its maker links to the work item", async ({ page }) => {
