@@ -121,6 +121,7 @@ export const ExecutionImplementedAction = Object.freeze(
     RunStepsNote: "runSteps.note",
     RunStepsTakeOver: "runSteps.takeOver",
     HandoffManifestsGet: "handoffManifests.get",
+    HandoffManifestsContinue: "handoffManifests.continue",
     TranscriptStatus: "outputStreams.transcript",
   } as const satisfies Record<string, CatalogActionName>,
 );

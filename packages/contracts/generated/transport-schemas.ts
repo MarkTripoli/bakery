@@ -5105,6 +5105,25 @@ const transportSchemas = {
       ],
       "description": "Persists the handoff manifest of an attempt before the source session stops, so a continuation can resume from a verified record or start fresh without replaying uncertain effects."
     },
+    "HandoffContinue": {
+      "fields": [
+        {
+          "name": "runVersion",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The run version the person saw when they chose to hand the step off. If the run changed since, the submission is refused as a failed precondition and nothing is committed."
+        }
+      ],
+      "rules": [
+        "Exactly one submission wins however many handoff, cancel and recovery submissions race: the source attempt is fenced, the job's fence advances and the job is queued again in one transaction, or nothing is written.",
+        "A refusal names why and commits nothing: run_not_active, already_continued, manifest_blocked, source_not_live, fence_moved, job_terminal, cancel_requested, awaiting_reconciliation, attempt_budget_exhausted, effects_unresolved or capture_incomplete.",
+        "The job's input, billing and agent configuration are not changed; the continuation reads the stored manifest by its id."
+      ],
+      "description": "A person's choice to retire a live source attempt that stored a handoff manifest and admit its job again for a continuation, submitted against the run version they saw."
+    },
     "WorkerEnrollmentInspect": {
       "fields": [
         {
@@ -22934,6 +22953,46 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the manifest was stored."
       }
     },
+    "HandoffContinuation": {
+      "fields": [
+        "id",
+        "manifestId",
+        "runId",
+        "runStepId",
+        "jobId",
+        "sourceAttemptId",
+        "previousFence",
+        "newFence",
+        "mode",
+        "admittedAt"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "id": "uuid",
+        "manifestId": "uuid",
+        "runId": "uuid",
+        "runStepId": "uuid",
+        "jobId": "uuid",
+        "sourceAttemptId": "uuid",
+        "previousFence": "decimalString",
+        "newFence": "decimalString",
+        "mode": "enum(fresh_session|exact_harness_resume)",
+        "admittedAt": "timestamp"
+      },
+      "description": "The record that a source attempt was retired and its job admitted again for a continuation. The source is fenced, so it can no longer publish; the job is queued again on the same pin with the same input; the manifest is marked used.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this continuation.",
+        "manifestId": "UUID of the handoff manifest the continuation was admitted from; at most one continuation exists per manifest.",
+        "runId": "UUID of the run the step belongs to.",
+        "runStepId": "UUID of the step that was continued.",
+        "jobId": "UUID of the job that was queued again.",
+        "sourceAttemptId": "UUID of the attempt that was retired.",
+        "previousFence": "Fence of the source attempt before the handoff; decimal string.",
+        "newFence": "The job's fence now; any event, artifact or result under the previous fence is refused as lease-fenced.",
+        "mode": "What the continuation will do: a fresh session now, an exact harness resume only after the server has matched the session, host, version, commit and checkpoint.",
+        "admittedAt": "UTC timestamp when the continuation was admitted."
+      }
+    },
     "MergeEntry": {
       "projection": "merge_entries",
       "fields": [
@@ -34719,6 +34778,15 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "routeContinuations.admitted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "handoffContinuations.admitted": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",

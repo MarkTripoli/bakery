@@ -74,6 +74,7 @@ import {
 } from "./sessions.ts";
 import { createRunStepNote } from "./step-notes.ts";
 import { getHandoffManifest } from "./handoff-manifests.ts";
+import { admitHandoffContinuation } from "./handoff-continuations.ts";
 import { takeOverRunStep } from "./step-takeover.ts";
 import { createSessionFeedHandler } from "./session-feed.ts";
 import { openSessionFeedStream } from "./session-feed-stream.ts";
@@ -652,6 +653,25 @@ export function createRunControlRegistry(
         contractSchemas.HandoffManifestRecord.parse(
           getHandoffManifest(context),
         ),
+      ),
+  });
+  registry.register({
+    name: ExecutionImplementedAction.HandoffManifestsContinue,
+    method: HttpMethod.Post,
+    path: "/v1/handoff-manifests/:id/continuations",
+    input: contractSchemas.HandoffContinue,
+    output: contractSchemas.HandoffContinuation,
+    policy: {
+      type: ActionKind.Command,
+      // The same access as controlling the run: retiring a live attempt to
+      // continue it elsewhere is a decision about that one run, like cancelling.
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: (context, input) =>
+      admitHandoffContinuation(context, input).then((record) =>
+        contractSchemas.HandoffContinuation.parse(record)
       ),
   });
   registry.register({

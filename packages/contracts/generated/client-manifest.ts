@@ -894,6 +894,33 @@ export const clientManifest = {
     },
     {
       "group": "Work",
+      "method": "POST",
+      "path": "/v1/handoff-manifests/{id}/continuations",
+      "action": "handoffManifests.continue",
+      "access": "Developer",
+      "permission": "run:control",
+      "input": "HandoffContinue",
+      "output": "HandoffContinuation",
+      "event": "handoffContinuations.admitted",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
       "method": "GET",
       "path": "/v1/runs/{id}/steps",
       "action": "runSteps.list",
@@ -17106,6 +17133,7 @@ export const clientManifest = {
             "runs.list",
             "runs.get",
             "handoffManifests.get",
+            "handoffManifests.continue",
             "runSteps.list",
             "output.streams.list",
             "output.streams.read",
@@ -20073,6 +20101,23 @@ export const clientManifest = {
           ]
         }
       }
+    },
+    "HandoffContinue": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The run version the person saw when they chose to hand the step off. If the run changed since, the submission is refused as a failed precondition and nothing is committed. HandoffContinue.runVersion must be at least 1."
+        }
+      },
+      "required": [
+        "runVersion"
+      ],
+      "additionalProperties": false,
+      "description": "A person's choice to retire a live source attempt that stored a handoff manifest and admit its job again for a continuation, submitted against the run version they saw."
     },
     "WorkerEnrollmentInspect": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -43077,6 +43122,7 @@ export const clientManifest = {
                   "runs.list",
                   "runs.get",
                   "handoffManifests.get",
+                  "handoffManifests.continue",
                   "runSteps.list",
                   "output.streams.list",
                   "output.streams.read",
@@ -63470,6 +63516,7 @@ export const clientManifest = {
             "runs.list",
             "runs.get",
             "handoffManifests.get",
+            "handoffManifests.continue",
             "runSteps.list",
             "output.streams.list",
             "output.streams.read",
@@ -65870,6 +65917,86 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "HandoffContinuation": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of this continuation."
+        },
+        "manifestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the handoff manifest the continuation was admitted from; at most one continuation exists per manifest."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the run the step belongs to."
+        },
+        "runStepId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the step that was continued."
+        },
+        "jobId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the job that was queued again."
+        },
+        "sourceAttemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the attempt that was retired."
+        },
+        "previousFence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Fence of the source attempt before the handoff; decimal string."
+        },
+        "newFence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "The job's fence now; any event, artifact or result under the previous fence is refused as lease-fenced."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "fresh_session",
+            "exact_harness_resume"
+          ],
+          "description": "What the continuation will do: a fresh session now, an exact harness resume only after the server has matched the session, host, version, commit and checkpoint."
+        },
+        "admittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the continuation was admitted."
+        }
+      },
+      "required": [
+        "id",
+        "manifestId",
+        "runId",
+        "runStepId",
+        "jobId",
+        "sourceAttemptId",
+        "previousFence",
+        "newFence",
+        "mode",
+        "admittedAt"
+      ],
+      "additionalProperties": false,
+      "description": "The record that a source attempt was retired and its job admitted again for a continuation. The source is fenced, so it can no longer publish; the job is queued again on the same pin with the same input; the manifest is marked used."
     },
     "MergeEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -73352,9 +73479,9 @@ export const clientManifest = {
               "run:write",
               "workflowPreset:read",
               "run:read",
+              "run:control",
               "runStep:read",
               "outputStream:read",
-              "run:control",
               "session:read",
               "session:control",
               "conversation:read",
