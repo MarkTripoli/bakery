@@ -297,11 +297,15 @@ Deno.test("the access grant is exchangeable for seconds while the session length
         secret: body.grant,
         sessionSeconds: body.sessionSeconds,
       });
+      // Each preview has its own origin: its route key under the preview host.
       assertEquals(
         body.exchangeUrl,
-        `${previewOrigin}/running-preview/exchange`,
+        "http://preview-0123456789.localhost:8789/_bakery/preview/exchange",
       );
-      assertEquals(body.previewUrl.startsWith(`${previewOrigin}/`), true);
+      assertEquals(
+        body.previewUrl,
+        "http://preview-0123456789.localhost:8789/",
+      );
       // Seconds, never the session length: 30 seconds from issue, whatever
       // session was asked for.
       const lifetime = Date.parse(body.expiresAt) - before;
@@ -686,3 +690,757 @@ Deno.test("availability reports whether the deployment has a preview origin", as
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// A2: the preview's own origin, the one-use exchange and the proxy.
+// ---------------------------------------------------------------------------
+
+type Seen = {
+  method: string;
+  path: string;
+  headers: Headers;
+  body: string;
+};
+
+/** A stand-in for the app a worker runs: a real server on a local port. */
+function startApp(
+  respond: (request: Request, seen: Seen[]) => Response | Promise<Response>,
+) {
+  const seen: Seen[] = [];
+  const server = Deno.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    onListen() {},
+  }, async (request) => {
+    const url = new URL(request.url);
+    seen.push({
+      method: request.method,
+      path: `${url.pathname}${url.search}`,
+      headers: request.headers,
+      body: await request.clone().text(),
+    });
+    return await respond(request, seen);
+  });
+  return {
+    port: (server.addr as Deno.NetAddr).port,
+    seen,
+    close: () => server.shutdown(),
+  };
+}
+
+const ROUTE = "preview-0123456789";
+const previewHost = `${ROUTE}.localhost:8789`;
+
+function atPreview(
+  fixture: WorkerFixture,
+  path: string,
+  init: RequestInit = {},
+  host = previewHost,
+) {
+  return fixture.app.fetch(
+    new Request(`http://${host}${path}`, init),
+  );
+}
+
+/** What the person's browser does: grant from the app, posted to the preview. */
+async function openOrigin(
+  fixture: WorkerFixture,
+  previewId: string,
+  sessionSeconds?: number,
+) {
+  const granted = await person(fixture, `/v1/previews/${previewId}/access`, {
+    method: "POST",
+    body: JSON.stringify(sessionSeconds ? { sessionSeconds } : {}),
+  });
+  assertEquals(granted.status, 201, await granted.clone().text());
+  const grant = await granted.json();
+  const exchanged = await fixture.app.fetch(
+    new Request(grant.exchangeUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        origin: fixture.config.publicBaseUrl,
+      },
+      body: new URLSearchParams({ grant: grant.grant }).toString(),
+    }),
+  );
+  const setCookie = exchanged.headers.get("set-cookie") ?? "";
+  await exchanged.body?.cancel();
+  return {
+    grant,
+    exchanged,
+    setCookie,
+    cookie: setCookie.split(";", 1)[0],
+  };
+}
+
+async function registerAt(
+  fixture: WorkerFixture,
+  name: string,
+  port: number,
+) {
+  const live = await liveAttempt(fixture, name);
+  const registered = await register(fixture, live.worker, live.assignment, {
+    upstreamPort: port,
+  });
+  assertEquals(registered.status, 201, await registered.clone().text());
+  return { ...live, preview: await registered.json() as PreviewBody };
+}
+
+Deno.test("a grant posted to the preview's own origin opens a session that proxies to the registered app", () =>
+  withWorkerFixture(async (fixture) => {
+    const app = startApp((request) => {
+      const url = new URL(request.url);
+      return new Response(`app:${request.method}:${url.pathname}`, {
+        headers: { "content-type": "text/plain" },
+      });
+    });
+    try {
+      const { preview } = await registerAt(fixture, "host-open", app.port);
+      const opened = await openOrigin(fixture, preview.id);
+      assertEquals(opened.exchanged.status, 303);
+      assertEquals(opened.exchanged.headers.get("location"), "/");
+      const cookie = opened.setCookie;
+      assert(cookie.startsWith("bakery_running_preview="), cookie);
+      assert(cookie.includes("HttpOnly"));
+      assert(cookie.includes("SameSite=Lax"));
+      assert(cookie.includes("Path=/"));
+      assert(cookie.includes("Max-Age=3600"));
+      assertEquals(cookie.toLowerCase().includes("domain="), false);
+      assertEquals(opened.exchanged.headers.get("cache-control"), "no-store");
+      const view = await atPreview(fixture, "/hello?x=1", {
+        headers: { cookie: opened.cookie },
+      });
+      assertEquals(view.status, 200);
+      assertEquals(await view.text(), "app:GET:/hello");
+      assertEquals(view.headers.get("referrer-policy"), "no-referrer");
+      assertEquals(view.headers.get("x-content-type-options"), "nosniff");
+      assertEquals(app.seen.length, 1);
+      assertEquals(app.seen[0].path, "/hello?x=1");
+      // The app sees none of Bakery's: no preview cookie, no forwarding hints.
+      assertEquals(app.seen[0].headers.get("cookie"), null);
+      assertEquals(
+        app.seen[0].headers.get("host"),
+        `127.0.0.1:${app.port}`,
+      );
+      // A POST body reaches the app too.
+      const post = await atPreview(fixture, "/save", {
+        method: "POST",
+        headers: { cookie: opened.cookie, "content-type": "text/plain" },
+        body: "payload",
+      });
+      assertEquals(await post.text(), "app:POST:/save");
+      assertEquals(app.seen[1].body, "payload");
+    } finally {
+      await app.close();
+    }
+  }, options));
+
+Deno.test("the session lasts the length that was asked for, separate from the grant", () =>
+  withWorkerFixture(async (fixture) => {
+    const app = startApp(() => new Response("ok"));
+    try {
+      const { preview } = await registerAt(fixture, "host-session", app.port);
+      const opened = await openOrigin(fixture, preview.id, 120);
+      assert(opened.setCookie.includes("Max-Age=120"), opened.setCookie);
+      const row = await fixture.pgDatabase.query(
+        `select extract(epoch from (s.expires_at - s.created_at))::int as ttl
+           from bakery.preview_sessions s where s.grant_id = $1`,
+        [opened.grant.grantId],
+      );
+      assertEquals(row.rows[0].ttl, 120);
+      // An expired session no longer reaches the app.
+      await fixture.pgDatabase.query(
+        "update bakery.preview_sessions set expires_at = now() - interval '1 second' where grant_id = $1",
+        [opened.grant.grantId],
+      );
+      const view = await atPreview(fixture, "/", {
+        headers: { cookie: opened.cookie },
+      });
+      assertEquals(view.status, 404);
+      assertEquals(app.seen.length, 0);
+    } finally {
+      await app.close();
+    }
+  }, options));
+
+Deno.test("a grant is consumed once and an expired, foreign or mis-posted grant opens nothing", () =>
+  withWorkerFixture(async (fixture) => {
+    const app = startApp(() => new Response("ok"));
+    try {
+      const { preview } = await registerAt(fixture, "host-grant", app.port);
+      const grantFor = async () =>
+        await (await person(fixture, `/v1/previews/${preview.id}/access`, {
+          method: "POST",
+          body: "{}",
+        })).json();
+      const post = (
+        grant: string,
+        init: { host?: string; origin?: string | null; path?: string } = {},
+      ) => {
+        const headers = new Headers({
+          "content-type": "application/x-www-form-urlencoded",
+        });
+        if (init.origin !== null) {
+          headers.set("origin", init.origin ?? fixture.config.publicBaseUrl);
+        }
+        return atPreview(
+          fixture,
+          init.path ?? "/_bakery/preview/exchange",
+          {
+            method: "POST",
+            headers,
+            body: new URLSearchParams({ grant }).toString(),
+          },
+          init.host,
+        );
+      };
+      const first = await grantFor();
+      assertEquals((await post(first.grant)).status, 303);
+      const replay = await post(first.grant);
+      assertEquals(replay.status, 404);
+      assertEquals(replay.headers.get("set-cookie"), null);
+      const sessions = await fixture.pgDatabase.query(
+        "select count(*)::int as n from bakery.preview_sessions where grant_id = $1",
+        [first.grantId],
+      );
+      assertEquals(sessions.rows[0].n, 1);
+
+      const expired = await grantFor();
+      await fixture.pgDatabase.query(
+        "update bakery.preview_grants set expires_at = now() - interval '1 second' where id = $1",
+        [expired.grantId],
+      );
+      assertEquals((await post(expired.grant)).status, 404);
+
+      // A grant for this preview posted to another preview's origin is
+      // refused and stays unspent.
+      const spare = await grantFor();
+      const wrongHost = await post(spare.grant, {
+        host: "preview-other-key1.localhost:8789",
+      });
+      assertEquals(wrongHost.status, 404);
+      const unspent = await fixture.pgDatabase.query(
+        "select consumed_at is null as unspent from bakery.preview_grants where id = $1",
+        [spare.grantId],
+      );
+      assertEquals(unspent.rows[0].unspent, true);
+      // Only the Bakery page may post it; other origins and no origin do not.
+      assertEquals(
+        (await post(spare.grant, { origin: "http://evil.example" })).status,
+        404,
+      );
+      assertEquals((await post(spare.grant, { origin: "null" })).status, 404);
+      assertEquals((await post(spare.grant, { origin: null })).status, 404);
+      // Never in a URL, never as JSON.
+      const inUrl = await atPreview(
+        fixture,
+        `/_bakery/preview/exchange?grant=${spare.grant}`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            origin: fixture.config.publicBaseUrl,
+          },
+          body: new URLSearchParams({ grant: spare.grant }).toString(),
+        },
+      );
+      assertEquals(inUrl.status, 404);
+      const json = await atPreview(fixture, "/_bakery/preview/exchange", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: fixture.config.publicBaseUrl,
+        },
+        body: JSON.stringify({ grant: spare.grant }),
+      });
+      assertEquals(json.status, 404);
+      const stillUnspent = await fixture.pgDatabase.query(
+        "select consumed_at is null as unspent from bakery.preview_grants where id = $1",
+        [spare.grantId],
+      );
+      assertEquals(stillUnspent.rows[0].unspent, true);
+      // And the exchange does not exist on the application host.
+      const onApp = await fixture.app.fetch(
+        new Request(
+          `${fixture.config.publicBaseUrl}/_bakery/preview/exchange`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              origin: fixture.config.publicBaseUrl,
+            },
+            body: new URLSearchParams({ grant: spare.grant }).toString(),
+          },
+        ),
+      );
+      assertEquals(onApp.status >= 400, true);
+      assertEquals(app.seen.length, 0);
+    } finally {
+      await app.close();
+    }
+  }, options));
+
+Deno.test("every refusal shows the same page, whatever the reason", () =>
+  withWorkerFixture(async (fixture) => {
+    const app = startApp(() => new Response("secret app"));
+    try {
+      const { preview, assignment, job } = await registerAt(
+        fixture,
+        "host-refusals",
+        app.port,
+      );
+      const bodies = new Map<string, string>();
+      const refuse = async (label: string, response: Response) => {
+        assertEquals(response.status, 404, label);
+        bodies.set(label, await response.text());
+      };
+      const opened = await openOrigin(fixture, preview.id);
+      const view = (cookie?: string, host = previewHost, path = "/") =>
+        atPreview(
+          fixture,
+          path,
+          { headers: cookie ? { cookie } : {} },
+          host,
+        );
+      assertEquals((await view(opened.cookie)).status, 200);
+
+      await refuse("no cookie", await view());
+      await refuse(
+        "garbage cookie",
+        await view("bakery_running_preview=" + "x".repeat(43)),
+      );
+      await refuse("malformed cookie", await view("bakery_running_preview=a"));
+      await refuse(
+        "unknown label",
+        await view(opened.cookie, "preview-nothing-here.localhost:8789"),
+      );
+      await refuse(
+        "invalid label",
+        await view(opened.cookie, "Bad_Label.localhost:8789"),
+      );
+      await refuse(
+        "nested label",
+        await view(opened.cookie, `a.${previewHost}`),
+      );
+      await refuse(
+        "reserved path",
+        await view(opened.cookie, previewHost, "/_bakery/preview/anything"),
+      );
+      await refuse(
+        "exchange by GET",
+        await view(opened.cookie, previewHost, "/_bakery/preview/exchange"),
+      );
+      await refuse(
+        "websocket upgrade",
+        await atPreview(fixture, "/", {
+          headers: { cookie: opened.cookie, upgrade: "websocket" },
+        }),
+      );
+
+      // Time limit, lost machine, cancelled run, stopped, revoked access.
+      const state = async (label: string, sql: string, args: unknown[]) => {
+        await fixture.pgDatabase.query(sql, args);
+        await refuse(label, await view(opened.cookie));
+      };
+      await state(
+        "time limit",
+        "update bakery.previews set expires_at = now() - interval '1 second' where id = $1",
+        [preview.id],
+      );
+      await fixture.pgDatabase.query(
+        "update bakery.previews set expires_at = now() + interval '1 hour' where id = $1",
+        [preview.id],
+      );
+      assertEquals((await view(opened.cookie)).status, 200);
+      await state(
+        "machine lost",
+        "update bakery.job_attempts set lease_expires_at = now() - interval '1 minute' where id = $1",
+        [assignment.attemptId],
+      );
+      await fixture.pgDatabase.query(
+        "update bakery.job_attempts set lease_expires_at = now() + interval '5 minutes' where id = $1",
+        [assignment.attemptId],
+      );
+      assertEquals((await view(opened.cookie)).status, 200);
+      await state(
+        "run cancelled",
+        "update bakery.jobs set cancel_requested_at = now() where id = $1",
+        [job.jobId],
+      );
+      await fixture.pgDatabase.query(
+        "update bakery.jobs set cancel_requested_at = null where id = $1",
+        [job.jobId],
+      );
+      assertEquals((await view(opened.cookie)).status, 200);
+
+      const ended = await person(
+        fixture,
+        `/v1/preview-grants/${opened.grant.grantId}`,
+        {
+          method: "DELETE",
+          headers: { "idempotency-key": crypto.randomUUID() },
+        },
+      );
+      assertEquals(ended.status, 204);
+      await refuse("access revoked", await view(opened.cookie));
+
+      const again = await openOrigin(fixture, preview.id);
+      assertEquals((await view(again.cookie)).status, 200);
+      const stopped = await person(fixture, `/v1/previews/${preview.id}/stop`, {
+        method: "POST",
+        headers: { "idempotency-key": crypto.randomUUID() },
+      });
+      assertEquals(stopped.status, 201);
+      await refuse("stopped", await view(again.cookie));
+
+      const distinct = new Set(bodies.values());
+      assertEquals(distinct.size, 1, JSON.stringify([...bodies.keys()]));
+      const html = [...distinct][0];
+      assert(html.includes("This preview has ended"));
+      // The page is a card on a grey page, in light and dark, with the button's
+      // name in bold, and its one stylesheet fetches nothing.
+      assert(html.includes("<main>") && html.includes("</main>"));
+      assert(html.includes("<strong>Open preview</strong>"));
+      assert(html.includes("color-scheme:light dark"));
+      assert(html.includes("prefers-color-scheme:dark"));
+      for (const fetches of ["url(", "@import", "@font-face", "<link"]) {
+        assertEquals(html.includes(fetches), false, fetches);
+      }
+      assert(html.includes("Bakery preview"));
+      // No script, no outbound link or resource, no id, no route key, no port.
+      for (
+        const forbidden of [
+          "<script",
+          "<a ",
+          "href",
+          "src=",
+          "http",
+          ROUTE,
+          preview.id,
+          String(app.port),
+          "secret app",
+        ]
+      ) {
+        assertEquals(html.includes(forbidden), false, forbidden);
+      }
+      // The app was only ever reached while the preview was running.
+      assertEquals(app.seen.every((item) => item.path === "/"), true);
+    } finally {
+      await app.close();
+    }
+  }, options));
+
+Deno.test("nothing in a request chooses the upstream host, port or path off the origin", () =>
+  withWorkerFixture(async (fixture) => {
+    const app = startApp(() => new Response("ok"));
+    const other = startApp(() => new Response("wrong app"));
+    try {
+      const { preview } = await registerAt(fixture, "host-ssrf", app.port);
+      const opened = await openOrigin(fixture, preview.id);
+      const headers = {
+        cookie: opened.cookie,
+        "x-forwarded-host": "169.254.169.254",
+        "x-forwarded-for": "10.0.0.1",
+        "x-forwarded-port": String(other.port),
+        forwarded: `host=169.254.169.254:${other.port}`,
+        "x-real-ip": "10.0.0.1",
+        "accept-encoding": "br",
+      };
+      for (
+        const path of [
+          `/?host=169.254.169.254&port=${other.port}`,
+          `//169.254.169.254/latest/meta-data`,
+          `//127.0.0.1:${other.port}/x`,
+          `/..%2f..%2fetc/passwd`,
+          `/%2e%2e/%2e%2e/x`,
+          `/\\169.254.169.254/x`,
+        ]
+      ) {
+        const response = await atPreview(fixture, path, { headers });
+        await response.body?.cancel();
+        assertEquals(response.status, 200, path);
+      }
+      assertEquals(other.seen.length, 0);
+      assertEquals(app.seen.length, 6);
+      for (const item of app.seen) {
+        assertEquals(item.headers.get("host"), `127.0.0.1:${app.port}`);
+        for (
+          const name of [
+            "x-forwarded-host",
+            "x-forwarded-for",
+            "x-forwarded-port",
+            "forwarded",
+            "x-real-ip",
+            "cookie",
+          ]
+        ) assertEquals(item.headers.get(name), null, name);
+        assertEquals(item.headers.get("accept-encoding"), "identity");
+      }
+      // A request that names another host is a different (unregistered) origin.
+      const foreign = await atPreview(fixture, "/", {
+        headers: { cookie: opened.cookie },
+      }, `127.0.0.1:${other.port}`);
+      assertNotEquals(foreign.status, 200);
+      await foreign.body?.cancel();
+      assertEquals(other.seen.length, 0);
+    } finally {
+      await app.close();
+      await other.close();
+    }
+  }, options));
+
+Deno.test("a redirect is never followed and may only lead back into the same origin", () =>
+  withWorkerFixture(async (fixture) => {
+    const app = startApp((request) => {
+      const path = new URL(request.url).pathname;
+      const to = (location: string) =>
+        new Response(null, { status: 302, headers: { location } });
+      if (path === "/self") {
+        return to(`http://127.0.0.1:${app.port}/landed?a=1#h`);
+      }
+      if (path === "/relative") return to("/relative-target");
+      if (path === "/other-port") return to("http://127.0.0.1:9/x");
+      if (path === "/metadata") return to("http://169.254.169.254/latest");
+      if (path === "/scheme") return to("https://evil.example/");
+      if (path === "/landed") return new Response("landed");
+      return new Response("ok");
+    });
+    try {
+      const { preview } = await registerAt(fixture, "host-redirect", app.port);
+      const opened = await openOrigin(fixture, preview.id);
+      const get = (path: string) =>
+        atPreview(fixture, path, {
+          headers: { cookie: opened.cookie },
+          redirect: "manual",
+        });
+      const self = await get("/self");
+      assertEquals(self.status, 302);
+      assertEquals(self.headers.get("location"), "/landed?a=1#h");
+      const relative = await get("/relative");
+      assertEquals(relative.headers.get("location"), "/relative-target");
+      await self.body?.cancel();
+      await relative.body?.cancel();
+      for (const path of ["/other-port", "/metadata", "/scheme"]) {
+        const refused = await get(path);
+        assertEquals(refused.status, 502, path);
+        assertEquals(refused.headers.get("location"), null, path);
+        const body = await refused.text();
+        assert(body.includes("The app is not answering"));
+        assertEquals(body.includes("169.254"), false);
+        assertEquals(body.includes("evil.example"), false);
+      }
+      // The server never followed any of them.
+      assertEquals(
+        app.seen.map((item) => item.path),
+        ["/self", "/relative", "/other-port", "/metadata", "/scheme"],
+      );
+    } finally {
+      await app.close();
+    }
+  }, options));
+
+Deno.test("an app's cookie stays on its own origin and cannot reach sibling previews", () =>
+  withWorkerFixture(async (fixture) => {
+    const app = startApp((request) => {
+      if (new URL(request.url).pathname === "/login") {
+        const headers = new Headers();
+        headers.append("set-cookie", "mine=1; Path=/; HttpOnly");
+        headers.append("set-cookie", "toss=1; Domain=localhost; Path=/");
+        headers.append(
+          "set-cookie",
+          "bakery_running_preview=evil; Domain=localhost; Path=/",
+        );
+        return new Response("ok", { headers });
+      }
+      return new Response("ok");
+    });
+    try {
+      const { preview } = await registerAt(fixture, "host-cookies", app.port);
+      const opened = await openOrigin(fixture, preview.id);
+      const login = await atPreview(fixture, "/login", {
+        headers: { cookie: opened.cookie },
+      });
+      await login.body?.cancel();
+      const cookies = login.headers.getSetCookie();
+      assertEquals(cookies, ["mine=1; Path=/; HttpOnly"]);
+      // The app's own cookie reaches it; the preview's session cookie does not.
+      const next = await atPreview(fixture, "/next", {
+        headers: { cookie: `${opened.cookie}; mine=1` },
+      });
+      await next.body?.cancel();
+      assertEquals(app.seen.at(-1)?.headers.get("cookie"), "mine=1");
+    } finally {
+      await app.close();
+    }
+  }, options));
+
+Deno.test("a silent app reads as not answering, never as the refusal and never with its address", () =>
+  withWorkerFixture(async (fixture) => {
+    const app = startApp(() => new Response("ok"));
+    const { preview } = await registerAt(fixture, "host-silent", app.port);
+    const opened = await openOrigin(fixture, preview.id);
+    await app.close();
+    const view = await atPreview(fixture, "/", {
+      headers: { cookie: opened.cookie },
+    });
+    assertEquals(view.status, 502);
+    const body = await view.text();
+    assert(body.includes("The app is not answering"));
+    assertEquals(body.includes(String(app.port)), false);
+    assertEquals(body.includes("127.0.0.1"), false);
+  }, options));
+
+Deno.test("a grantor who is no longer an active developer cannot keep using the preview", () =>
+  withWorkerFixture(async (fixture) => {
+    const app = startApp(() => new Response("ok"));
+    const colleague = await addDeveloper(fixture);
+    try {
+      const { preview } = await registerAt(fixture, "host-member", app.port);
+      // The colleague opens it through their own session.
+      const granted = await person(
+        fixture,
+        `/v1/previews/${preview.id}/access`,
+        { method: "POST", body: "{}" },
+        colleague,
+      );
+      assertEquals(granted.status, 201, await granted.clone().text());
+      const grant = await granted.json();
+      const exchanged = await fixture.app.fetch(
+        new Request(grant.exchangeUrl, {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            origin: fixture.config.publicBaseUrl,
+          },
+          body: new URLSearchParams({ grant: grant.grant }).toString(),
+        }),
+      );
+      const cookie =
+        (exchanged.headers.get("set-cookie") ?? "").split(";", 1)[0];
+      const ok = await atPreview(fixture, "/", { headers: { cookie } });
+      assertEquals(ok.status, 200);
+      await ok.body?.cancel();
+      await fixture.pgDatabase.query(
+        "update bakery.organization_memberships set status = 'inactive' where principal_id = $1",
+        [colleague.principalId],
+      );
+      const refused = await atPreview(fixture, "/", { headers: { cookie } });
+      assertEquals(refused.status, 404);
+      assertEquals(app.seen.length, 1);
+    } finally {
+      await colleague.remove();
+      await app.close();
+    }
+  }, options));
+
+Deno.test("a revoked grant ends its session even if the session row was not touched", () =>
+  withWorkerFixture(async (fixture) => {
+    const app = startApp(() => new Response("ok"));
+    try {
+      const { preview } = await registerAt(
+        fixture,
+        "host-grant-revoked",
+        app.port,
+      );
+      const opened = await openOrigin(fixture, preview.id);
+      const before = await atPreview(fixture, "/", {
+        headers: { cookie: opened.cookie },
+      });
+      assertEquals(before.status, 200);
+      await before.body?.cancel();
+      await fixture.pgDatabase.query(
+        "update bakery.preview_grants set revoked_at = now() where id = $1",
+        [opened.grant.grantId],
+      );
+      const after = await atPreview(fixture, "/", {
+        headers: { cookie: opened.cookie },
+      });
+      assertEquals(after.status, 404);
+      assertEquals(app.seen.length, 1);
+    } finally {
+      await app.close();
+    }
+  }, options));
+
+Deno.test("the grantor is re-authorized on every use: a demoted grantor cannot exchange a grant or keep a session", () =>
+  withWorkerFixture(async (fixture) => {
+    const app = startApp(() => new Response("ok"));
+    const colleague = await addDeveloper(fixture);
+    try {
+      const { preview } = await registerAt(fixture, "host-reauth", app.port);
+      const issue = async () => {
+        const granted = await person(
+          fixture,
+          `/v1/previews/${preview.id}/access`,
+          { method: "POST", body: "{}" },
+          colleague,
+        );
+        assertEquals(granted.status, 201, await granted.clone().text());
+        return await granted.json();
+      };
+      const exchange = (grant: { exchangeUrl: string; grant: string }) =>
+        fixture.app.fetch(
+          new Request(grant.exchangeUrl, {
+            method: "POST",
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              origin: fixture.config.publicBaseUrl,
+            },
+            body: new URLSearchParams({ grant: grant.grant }).toString(),
+          }),
+        );
+      const setRole = (role: string) =>
+        fixture.pgDatabase.query(
+          "update bakery.organization_memberships set role = $2 where principal_id = $1",
+          [colleague.principalId, role],
+        );
+
+      // A live session of a developer works...
+      const first = await issue();
+      const opened = await exchange(first);
+      assertEquals(opened.status, 303);
+      const cookie = (opened.headers.get("set-cookie") ?? "").split(";", 1)[0];
+      const ok = await atPreview(fixture, "/", { headers: { cookie } });
+      assertEquals(ok.status, 200);
+      await ok.body?.cancel();
+
+      // ...and stops the moment the grantor is only a viewer, with no revoke.
+      await setRole("viewer");
+      const demoted = await atPreview(fixture, "/", { headers: { cookie } });
+      assertEquals(demoted.status, 404);
+      assertEquals(app.seen.length, 1);
+
+      // A grant issued while a developer is not spendable once demoted, and it
+      // stays unspent, so it is refused for the right reason.
+      await setRole("developer");
+      const second = await issue();
+      await setRole("viewer");
+      const refused = await exchange(second);
+      assertEquals(refused.status, 404);
+      assertEquals(refused.headers.get("set-cookie"), null);
+      const unspent = await fixture.pgDatabase.query(
+        "select consumed_at is null as unspent from bakery.preview_grants where id = $1",
+        [second.grantId],
+      );
+      assertEquals(unspent.rows[0].unspent, true);
+
+      // Restoring the role restores nothing already refused for good, and a
+      // disabled principal is refused too.
+      await setRole("developer");
+      const third = await issue();
+      await fixture.pgDatabase.query(
+        "update bakery.principals set disabled_at = now() where id = $1",
+        [colleague.principalId],
+      );
+      assertEquals((await exchange(third)).status, 404);
+      await fixture.pgDatabase.query(
+        "update bakery.principals set disabled_at = null where id = $1",
+        [colleague.principalId],
+      );
+      assertEquals(app.seen.length, 1);
+    } finally {
+      await colleague.remove();
+      await app.close();
+    }
+  }, options));
