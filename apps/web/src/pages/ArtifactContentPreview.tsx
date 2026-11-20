@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { SupportedLocale } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import { ArtifactPreviewView } from "./ArtifactRetrievalView.tsx";
 import type { ArtifactVersionResponse } from "../api/client.ts";
@@ -12,6 +13,7 @@ import {
   MAX_TEXT_PREVIEW_BYTES,
 } from "./artifact-media.ts";
 import { previewFacts } from "./preview-facts.ts";
+import { formatFileSize } from "./file-size.ts";
 import { probeFromAnswer } from "./probe-answer.ts";
 import {
   declaredPreviewState,
@@ -68,12 +70,19 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
  * check would be the one path that showed it anyway.
  */
 export function ArtifactPreviewBody(
-  { version, label, onDownload, onViewDetails }: {
+  { version, label, onDownload, onViewDetails, cutText }: {
     readonly version: PreviewVersion | null;
     readonly label: string;
     /** Absent when the surrounding surface already offers these. */
     readonly onDownload?: (() => void) | undefined;
     readonly onViewDetails?: (() => void) | undefined;
+    /**
+     * Show the first lines under a fade, at the panel's cap (#437).
+     *
+     * True in a side pane, where Download and the details must stay above the fold;
+     * false on the artifact page, which is where a person reads the whole file.
+     */
+    readonly cutText?: boolean;
   },
 ): ReactNode {
   const api = useBakeryApi();
@@ -239,6 +248,7 @@ export function ArtifactPreviewBody(
           key,
           values,
         ),
+      { sizeBytes: version.sizeBytes, locale },
     );
     return (
       <ArtifactPreviewView
@@ -248,7 +258,18 @@ export function ArtifactPreviewBody(
         unavailable={{
           title: copy.title,
           description: copy.description,
+          // A host that could not check the file earns both: one asks again, the
+          // other does not depend on the answer. Every other state is text alone,
+          // with Download when this surface has one.
           action: state.kind === "host-unavailable" ? retry : download,
+          ...(state.kind === "host-unavailable" && onDownload !== undefined
+            ? {
+              secondaryAction: {
+                label: t("artifact.retrieval.download"),
+                onClick: onDownload,
+              },
+            }
+            : {}),
         }}
       />
     );
@@ -302,7 +323,11 @@ export function ArtifactPreviewBody(
           alt: t("artifact.preview.image"),
           unavailableLabel: t("artifact.preview.error"),
         }
-        : { kind: textMode, text: new TextDecoder().decode(content.data) }}
+        : {
+          kind: textMode,
+          text: new TextDecoder().decode(content.data),
+          cut: cutText === true,
+        }}
     />
   );
 }
@@ -323,22 +348,25 @@ const textModes: Readonly<
 function stateCopy(
   state: PreviewState,
   t: (key: string, values?: Record<string, string | number>) => string,
+  context: { sizeBytes: number; locale: SupportedLocale },
 ): { title: string; description: string } {
   switch (state.kind) {
     case "too-large":
+      // The file's own size and the limit are different numbers, and naming the
+      // limit twice ("10 MB; the limit is 10 MB") is the kind of copy a reader
+      // stops trusting.
       return {
         title: t("artifact.preview.tooLargeTitle"),
         description: t("files.preview.state.tooLarge", {
-          size: `${Math.round(state.limit / 1024)} KiB`,
-          limit: `${Math.round(state.limit / 1024)} KiB`,
+          size: formatFileSize(context.sizeBytes, context.locale, t),
+          limit: formatFileSize(state.limit, context.locale, t),
         }),
       };
     case "unreadable":
+      // A refusal carries no kind, so the sentence cannot name one.
       return {
         title: t("artifact.view.previewUnavailable"),
-        description: t("files.preview.state.unreadable", {
-          kind: t("files.preview.facts.unknown"),
-        }),
+        description: t("files.preview.state.unreadableUnknown"),
       };
     case "unchecked":
       return {

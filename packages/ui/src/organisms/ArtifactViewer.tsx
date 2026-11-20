@@ -5,6 +5,14 @@ export type ArtifactViewerContent =
   | {
     readonly kind: "text" | "markdown" | "patch" | "log";
     readonly text: string;
+    /**
+     * Show the first lines under a fade, at the panel's cap (#437).
+     *
+     * A side panel is meant to tell a person what a file is, not to become the
+     * reader: forty lines of text push Download and the tabs below the fold. The
+     * artifact page shows the whole file and never sets this.
+     */
+    readonly cut?: boolean;
   }
   | {
     readonly kind: "image";
@@ -115,14 +123,24 @@ function preview(content: ArtifactViewerContent): ReactNode {
   switch (content.kind) {
     case "markdown":
       return (
-        <div className="ui-artifact-viewer__markdown">
+        <div
+          className="ui-artifact-viewer__markdown"
+          data-cut={content.cut === true ? "panel" : undefined}
+        >
           {markdown(content.text)}
         </div>
       );
     case "text":
     case "log":
     case "patch":
-      return <pre data-ui-overflow="wrap"><code>{content.text}</code></pre>;
+      return (
+        <pre
+          data-ui-overflow="wrap"
+          data-cut={content.cut === true ? "panel" : undefined}
+        >
+          <code>{content.text}</code>
+        </pre>
+      );
     case "image":
       return content.src.startsWith("blob:")
         ? (

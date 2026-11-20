@@ -386,7 +386,11 @@ export function FileDetails(
           </UI.Stack>
         )
         : null}
-      <FilePreview file={file} version={shown} />
+      <FilePreview
+        file={file}
+        version={shown}
+        expectedSha256={(shown ?? current)?.sha256 ?? null}
+      />
       <UI.Inline gap="compact">
         {artifactTarget === null ? null : (
           <UI.Button

@@ -402,3 +402,16 @@
 .ui-artifact-layout--unavailable .ui-artifact-layout__description {
   font: var(--type-meta);
 }
+
+/*
+ * A cut preview in a side panel: the first 320px, then a fade (#437). The fade is
+ * a mask rather than an overlay so it works over any surface colour, and the cut
+ * is a max height rather than `line-clamp` so it holds for markdown blocks as well
+ * as plain text.
+ */
+.ui-artifact-viewer__markdown[data-cut="panel"],
+.ui-artifact-viewer pre[data-cut="panel"] {
+  max-block-size: 320px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black calc(100% - 48px), transparent);
+}

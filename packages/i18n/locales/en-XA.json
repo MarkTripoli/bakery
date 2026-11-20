@@ -4753,7 +4753,6 @@
   "files.preview.title": "⟦Þŕëṽïëŵ…⟧",
   "files.preview.error": "⟦Ŧĥë þŕëṽïëŵ ðïð ñôŧ ļôàð. ŧëšŧ ç⟧",
   "files.preview.unsupported": "⟦Ñô þŕëṽïëŵ ƒôŕ ŧĥïš ķïñð ôƒ ƒïļë. ŧëšŧ çôþÿ⟧",
-  "files.preview.tooLarge": "⟦Ŧĥïš ƒïļë ïš ŧôô ļàŕĝë ŧô þŕëṽïëŵ ({size}). ŧëšŧ çôþÿ ŧëš⟧",
   "files.preview.image": "⟦Ïɱàĝë: {name} ŧë⟧",
   "files.action.download": "⟦Ðôŵñļôàð…⟧",
   "files.action.downloadFailed": "⟦Ŧĥë ðôŵñļôàð ðïð ñôŧ šŧàŕŧ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
@@ -4984,10 +4983,10 @@
   "files.preview.facts.lines": "⟦{lines} ļïñëš ŧë⟧",
   "files.preview.state.unsupported": "⟦Ñô þŕëṽïëŵ ƒôŕ ŧĥïš ķïñð ôƒ ƒïļë. ŧëšŧ çôþÿ⟧",
   "files.preview.state.tooLarge": "⟦Ŧĥïš ƒïļë ïš ŧôô ļàŕĝë ŧô þŕëṽïëŵ ({size}; ŧĥë ļïɱïŧ ïš {limit}). ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
-  "files.preview.state.unreadable": "⟦Ŧĥïš ƒïļë çôûļð ñôŧ ƀë ŕëàð àš {kind}. Ïŧ ɱàÿ ƀë ðàɱàĝëð. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "files.preview.state.unchecked": "⟦Ɓàķëŕÿ çôûļð ñôŧ çĥëçķ ŧĥïš ƒïļë ƒôŕ à þŕëṽïëŵ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "files.preview.state.hostUnavailable": "⟦Þŕëṽïëŵš àŕë ñôŧ àṽàïļàƀļë ŕïĝĥŧ ñôŵ. ŧëšŧ çôþÿŧ⟧",
   "files.preview.state.mismatchTitle": "⟦Ŧĥïš ƒïļë ðôëš ñôŧ ɱàŧçĥ ïŧš ŕëçôŕð ŧëšŧ çôþÿŧ⟧",
   "files.preview.state.mismatchDescription": "⟦Ŵĥàŧ ïš šŧôŕëð ïš ñôŧ ŵĥàŧ ŵàš ŕëçôŕðëð, šô Ɓàķëŕÿ ŵïļļ ñôŧ šĥôŵ ôŕ ðôŵñļôàð ïŧ. Àšķ àñ ôŕĝàñïžàŧïôñ Àðɱïñ ŧô çĥëçķ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "files.preview.state.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧"
+  "files.preview.state.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
+  "files.preview.state.unreadableUnknown": "⟦Ŧĥïš ƒïļë çôûļð ñôŧ ƀë ŕëàð. Ïŧ ɱàÿ ƀë ðàɱàĝëð. ŧëšŧ çôþÿ ŧëšŧ⟧"
 }

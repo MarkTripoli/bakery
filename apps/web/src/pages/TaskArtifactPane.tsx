@@ -297,6 +297,9 @@ export function TaskArtifactPane(
   const preview = selected === undefined ? undefined : ArtifactPreviewBody({
     version: selected,
     label: t("tasks.artifactPane.preview"),
+    // The pane caps the text and fades the cut, so its Download and Open stay above
+    // the fold (#437).
+    cutText: true,
   });
   return (
     <UI.ArtifactPane

@@ -188,6 +188,15 @@ type ArtifactUnavailablePreview = {
   readonly title: string;
   readonly description: string;
   readonly action: { readonly label: string; readonly onClick: () => void };
+  /**
+   * A second action beside the first. A host that could not check a file earns
+   * both "Try again" and "Download" (#437, design's rule): one asks again, the
+   * other does not depend on the answer.
+   */
+  readonly secondaryAction?: {
+    readonly label: string;
+    readonly onClick: () => void;
+  };
   readonly expired?: boolean;
 };
 export type ArtifactPreviewViewProps =
@@ -238,6 +247,16 @@ export function ArtifactPreviewView(props: ArtifactPreviewViewProps) {
               >
                 {props.unavailable.action.label}
               </UI.Button>
+              {props.unavailable.secondaryAction === undefined
+                ? null
+                : (
+                  <UI.Button
+                    variant="secondary"
+                    onClick={props.unavailable.secondaryAction.onClick}
+                  >
+                    {props.unavailable.secondaryAction.label}
+                  </UI.Button>
+                )}
             </UI.Inline>
           </UI.Stack>
         ),
