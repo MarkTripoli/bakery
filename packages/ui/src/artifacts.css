@@ -215,6 +215,51 @@
   block-size: 100%;
   object-fit: contain;
 }
+/* Opened full size: the picture and the player take the room they are given. */
+.ui-artifact-viewer[data-size="full"] .ui-artifact-viewer__image {
+  block-size: auto;
+}
+.ui-artifact-viewer[data-size="full"] .ui-artifact-viewer__image img {
+  block-size: auto;
+  inline-size: auto;
+  max-inline-size: 100%;
+}
+.ui-artifact-viewer[data-size="full"] .ui-artifact-viewer__media video {
+  max-block-size: none;
+}
+/* The first lines of a longer file: the last of them fades out, so the cut
+   reads as a cut and not as the end of the file. */
+.ui-artifact-viewer pre[data-cut="true"],
+.ui-artifact-viewer__markdown[data-cut="true"] {
+  /* A mask reads only alpha, so any opaque role does; the last 30% fades out. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    var(--color-fg) 70%,
+    transparent
+  );
+  mask-image: linear-gradient(to bottom, var(--color-fg) 70%, transparent);
+}
+/* A video or audio player: the browser's own controls, the width of the panel,
+   and a target tall enough to touch on a phone. */
+.ui-artifact-viewer__media {
+  display: grid;
+  place-items: center;
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-control);
+}
+.ui-artifact-viewer__media video {
+  max-block-size: calc(var(--space-12) * 5);
+  inline-size: 100%;
+}
+.ui-artifact-viewer__media audio {
+  inline-size: 100%;
+  min-block-size: var(--target-min);
+}
+@media (pointer: coarse) {
+  .ui-artifact-viewer__media audio {
+    min-block-size: var(--target-coarse);
+  }
+}
 .ui-version-picker {
   display: flex;
   flex-wrap: wrap;
