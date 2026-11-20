@@ -5263,5 +5263,16 @@
   "organizationStorage.conflict": "⟦Šôɱëôñë ëļšë çĥàñĝëð ŧĥëšë šëŧŧïñĝš. Ŕëļôàð ŧô šëë ŧĥëɱ; ÿôûŕ çĥàñĝëš àŕë ñôŧ šàṽëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "organizationStorage.reload": "⟦Ŕëļôàð…⟧",
   "organizationStorage.saveError": "⟦Ŧĥë šëŧŧïñĝš ŵëŕë ñôŧ šàṽëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
-  "organizationStorage.readOnly": "⟦Ôñļÿ àñ ôŕĝàñïžàŧïôñ Àðɱïñ çàñ çĥàñĝë ŧĥëšë. ŧëšŧ çôþÿ ŧëš⟧"
+  "organizationStorage.readOnly": "⟦Ôñļÿ àñ ôŕĝàñïžàŧïôñ Àðɱïñ çàñ çĥàñĝë ŧĥëšë. ŧëšŧ çôþÿ ŧëš⟧",
+  "organizationStorage.agent.heading": "⟦Àĝëñŧ šŧëþš ŧ⟧",
+  "organizationStorage.agent.description": "⟦Ĥôŵ ɱûçĥ ôñë àĝëñŧ šŧëþ ɱàÿ ŵŕïŧë ƀëƒôŕë Ɓàķëŕÿ šŧôþš ïŧ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "organizationStorage.field.stepBytes.label": "⟦Ṁôšŧ à šŧëþ ɱàÿ ŵŕïŧë ŧëšŧŧ⟧",
+  "organizationStorage.field.stepFiles.label": "⟦Ṁôšŧ ƒïļëš à šŧëþ ɱàÿ ŵŕïŧë ŧëšŧ çô⟧",
+  "organizationStorage.field.stepFiles.help": "⟦Çôûñŧš ëṽëŕÿ ƒïļë à šŧëþ çŕëàŧëš ôŕ çĥàñĝëš. Ļëàṽë ëɱþŧÿ ŧô ûšë 2,000. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "organizationStorage.unit.mb": "⟦ṀƁ⟧",
+  "organizationStorage.unit.filesWord": "⟦ƒïļëš⟧",
+  "organizationStorage.unit.files": "⟦{value, plural, one {# file} other {# files}} ŧëšŧ çôþÿ ŧëš⟧",
+  "organizationStorage.error.positive": "⟦Ëñŧëŕ à ŵĥôļë ñûɱƀëŕ àƀôṽë 0. ŧëšŧ çôþ⟧",
+  "organizationStorage.error.range": "⟦Ëñŧëŕ à ñûɱƀëŕ ƀëŧŵëëñ {min} àñð {max}. ŧëšŧ çôþÿ ŧ⟧",
+  "organizationStorage.field.stepBytes.help": "⟦Ŧôŧàļ šïžë ôƒ ŧĥë ƒïļëš ôñë šŧëþ ŵŕïŧëš. Ļëàṽë ëɱþŧÿ ŧô ûšë 2 ĜƁ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
 }
