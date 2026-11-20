@@ -460,12 +460,12 @@ async function runPut(
         authorized.signal,
       );
       if (!addresses.ok) throw addressRefusal(addresses);
-      const moved = stored === null ||
-        stored.endpoint !== destination.endpoint ||
-        stored.region !== destination.region ||
-        stored.bucket !== destination.bucket ||
+      // What counts as a move of the host lives in `movesDestination`; a new
+      // folder in the same bucket still gets a test object, with the stored pair.
+      const changed = stored === null ||
+        movesDestination(stored, destination) ||
         stored.prefix !== destination.prefix;
-      if (supplied === null && !moved) return { skip: true };
+      if (supplied === null && !changed) return { skip: true };
       const credentials = supplied ??
         (stored?.secretId == null ? null : await openBackupCredentials(
           value.transaction,
