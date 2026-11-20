@@ -7604,6 +7604,12 @@
      "references": null
     },
     {
+     "name": "blocked_reason",
+     "type": "text",
+     "nullable": true,
+     "references": null
+    },
+    {
      "name": "external_effect_id",
      "type": "uuid?",
      "nullable": true,
