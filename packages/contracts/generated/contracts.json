@@ -9243,6 +9243,7 @@
         "RANGE_NOT_SATISFIABLE"
       ],
       "organizationContext": "required_authenticated_context",
+      "organizationIdQuery": "organizationId",
       "implemented": true
     },
     {
@@ -240300,7 +240301,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:74e07a44116c12c0ce11da1ed60adb6072990b820690e45099bca5a17789b645",
+  "compatibilityDigest": "sha256:595c51a72c9e5bd14b2313a5d86631fef12e5b6d2147439667c70dc1888c8d0c",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

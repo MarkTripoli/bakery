@@ -1190,3 +1190,81 @@ Deno.test("recipient acceptance locks canonical state and returns one member", a
     true,
   );
 });
+
+Deno.test("organizationIdQuery is only for a GET action with required organization context", () => {
+  const base = {
+    name: "storageFiles.content" as const,
+    path: "/v1/storage/files/:id/content",
+    input: contractSchemas.StorageFileContentQuery,
+    output: contractSchemas.BinaryArtifact,
+    handler: () => null as never,
+  };
+  const scoped = {
+    type: ActionKind.Query,
+    access: "Developer",
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+    organizationIdQuery: "organizationId",
+  } as const;
+  new ActionRegistry().register({
+    ...base,
+    method: HttpMethod.Get,
+    policy: scoped,
+  });
+  assertThrows(
+    () =>
+      new ActionRegistry().register({
+        ...base,
+        method: HttpMethod.Post,
+        policy: scoped,
+      }),
+    ActionRegistryError,
+    "organizationIdQuery",
+  );
+  for (
+    const organizationContext of [
+      OrganizationContextPolicy.None,
+      OrganizationContextPolicy.AuthenticatedPrincipalScope,
+    ]
+  ) {
+    assertThrows(
+      () =>
+        new ActionRegistry().register({
+          ...base,
+          method: HttpMethod.Get,
+          policy: { ...scoped, organizationContext },
+        }),
+      ActionRegistryError,
+      "organizationIdQuery",
+    );
+  }
+});
+
+Deno.test("the catalog and the runtime agree on the organization query parameter", () => {
+  const action = {
+    name: "storageFiles.content" as const,
+    method: HttpMethod.Get,
+    path: "/v1/storage/files/:id/content",
+    input: contractSchemas.StorageFileContentQuery,
+    output: contractSchemas.BinaryArtifact,
+    handler: () => null as never,
+  };
+  const policy = {
+    type: ActionKind.Query,
+    access: "Developer",
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+  } as const;
+  assertRegisteredActions(
+    new ActionRegistry().register({
+      ...action,
+      policy: { ...policy, organizationIdQuery: "organizationId" },
+    }),
+  );
+  assertThrows(
+    () =>
+      assertRegisteredActions(
+        new ActionRegistry().register({ ...action, policy }),
+      ),
+    ActionRegistryError,
+    "organization id query parameter",
+  );
+});
