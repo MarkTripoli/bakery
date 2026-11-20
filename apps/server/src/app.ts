@@ -5,6 +5,8 @@ import {
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
 import { createBackupRoutes } from "./modules/backups/actions.ts";
+import type { probeBackupDestination } from "./modules/backups/s3.ts";
+import type { HostResolver } from "./modules/backups/dns.ts";
 import {
   type AlertChannelDependencies,
   createAlertChannelRoutes,
@@ -226,6 +228,10 @@ export function createApp(options: {
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
   skillStorageProbe?: typeof probeSkillStorage;
+  /** Destination test runner; tests inject one so no suite reaches a real bucket. */
+  backupDestinationProbe?: typeof probeBackupDestination;
+  /** Destination host resolver; tests inject one so no suite touches real DNS. */
+  backupDestinationResolver?: HostResolver;
   /**
    * The telemetry destinations the Monitoring settings manage: the adapters the
    * server knows, the fan-out that delivers to them and how to reach a
@@ -1083,6 +1089,12 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       secret: options.config.auth.secret,
+      settings: {
+        secretsKey: options.config.secretsKey,
+        allowLoopbackEndpoint: options.config.environment === "test",
+        probe: options.backupDestinationProbe,
+        resolve: options.backupDestinationResolver,
+      },
     }),
   );
   app.route(

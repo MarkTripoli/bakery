@@ -93,7 +93,9 @@ export async function attemptOrigin(
                 from bakery.agent_sessions as session
                where session.organization_id = job.organization_id
                  and session.run_step_id = job.run_step_id
-               order by session.created_at asc, session.id asc
+               -- The newest session of the step: a retried attempt opens a new
+               -- one, so the earliest would name an earlier attempt's session.
+               order by session.created_at desc, session.id desc
                limit 1
             ) as "agentSessionId"
        from bakery.job_attempts as attempt
@@ -113,6 +115,25 @@ export async function attemptOrigin(
     [organizationId, attemptId],
   );
   return found.rows[0] ?? null;
+}
+
+/**
+ * The agent session an action's audit row names (O50): the session of the
+ * attempt a session call came from, or null for a person's own action, a token
+ * agent's and an attempt that belongs to no run.
+ */
+export async function auditAgentSessionId(
+  transaction: PgTransactionClient,
+  context: Pick<ActionContext, "agentSession">,
+  organizationId: string,
+): Promise<string | null> {
+  if (context.agentSession === undefined) return null;
+  const origin = await attemptOrigin(
+    transaction,
+    organizationId,
+    context.agentSession.attemptId,
+  );
+  return origin?.agentSessionId ?? null;
 }
 
 /**

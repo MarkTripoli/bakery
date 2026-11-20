@@ -1138,6 +1138,32 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Work",
+      "method": "POST",
+      "path": "/v1/runs/{id}/steps/{stepKey}/writes/revert",
+      "action": "runSteps.revertWrites",
+      "access": "Developer",
+      "permission": "run:control",
+      "input": "RunStepRevertWrites",
+      "output": "RunStepWritesReverted",
+      "event": "",
+      "mcp": "bakery_runSteps_revertWrites",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Conversation",
       "method": "GET",
       "path": "/v1/conversations",
@@ -8326,6 +8352,143 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/backup-schedule",
+      "action": "backupSchedule.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "BackupSchedule",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/installation/backup-schedule",
+      "action": "backupSchedule.put",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "BackupSchedulePut",
+      "output": "BackupSchedule",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once settings exist",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/backup-offsite",
+      "action": "backupOffsite.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "BackupOffsite",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/installation/backup-offsite",
+      "action": "backupOffsite.put",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "BackupOffsitePut",
+      "output": "BackupOffsite",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once a destination exists",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/backup-offsite/verification",
+      "action": "backupOffsite.verify",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "Empty",
+      "output": "BackupOffsiteVerification",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
       "group": "Backup runner protocol",
       "method": "POST",
       "path": "/v1/backup-runner/claims",
@@ -8369,6 +8532,27 @@ export const clientManifest = {
         "BODY_TOO_LARGE",
         "UNSUPPORTED_MEDIA_TYPE",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Backup runner protocol",
+      "method": "GET",
+      "path": "/v1/backup-runner/settings",
+      "action": "backupRunner.settings",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "Empty",
+      "output": "BackupRunnerSettings",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; never cached; every read that releases the credentials or refuses to is audited",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "STATE_CONFLICT",
         "INTERNAL"
       ],
       "organizationContext": "none",
@@ -17654,6 +17838,7 @@ export const clientManifest = {
             "sessions.steer",
             "runSteps.note",
             "runSteps.takeOver",
+            "runSteps.revertWrites",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -17982,8 +18167,14 @@ export const clientManifest = {
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
+            "backupSchedule.get",
+            "backupSchedule.put",
+            "backupOffsite.get",
+            "backupOffsite.put",
+            "backupOffsite.verify",
             "backupRunner.claim",
             "backupRunner.report",
+            "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.create",
             "telemetryDestinations.update",
@@ -26454,7 +26645,7 @@ export const clientManifest = {
             "completed",
             "failed"
           ],
-          "description": "What the runner reports: running while it works (also extends the lease), completed when the encrypted backup is written and checked, failed when it gave up. Completed and failed end the run."
+          "description": "What the runner reports: running while it works (also extends the lease), completed when the encrypted backup is written and checked on the host (with a failureCode when the off-site copy then failed), failed when it gave up before or while taking the backup. Completed and failed end the run."
         },
         "progressPercent": {
           "description": "How far along the backup is, from 0 to 100, for a running report; it never goes down between reports. BackupRunReport.progressPercent must be at least 0. BackupRunReport.progressPercent must be at most 100.",
@@ -26469,17 +26660,17 @@ export const clientManifest = {
           "x-bigint-minimum": "0"
         },
         "locations": {
-          "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other. BackupRunReport.locations must contain at most 2 items.",
+          "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other. With a failureCode on a completed report it is exactly server-host: the backup was taken but not copied off-site. BackupRunReport.locations must contain at most 2 items.",
           "maxItems": 2,
           "type": "array",
           "items": {
             "type": "string",
             "maxLength": 65536,
-            "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other. Each array item follows this format."
+            "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other. With a failureCode on a completed report it is exactly server-host: the backup was taken but not copied off-site. Each array item follows this format."
           }
         },
         "failureCode": {
-          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report and refused with any other.",
+          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report. A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site.",
           "type": "string",
           "enum": [
             "disk_full",
@@ -26490,7 +26681,7 @@ export const clientManifest = {
           ]
         },
         "failureDetail": {
-          "description": "The runner's own plain-text answer for the failure, such as what the destination replied, at most 1000 characters; it is shown to administrators and must not contain key material. BackupRunReport.failureDetail must contain at most 1000 characters.",
+          "description": "The runner's own plain-text answer for the failure, such as what the destination replied, at most 1000 characters; it is shown to administrators and must not contain key material. Allowed only together with a failureCode. BackupRunReport.failureDetail must contain at most 1000 characters.",
           "type": "string",
           "maxLength": 1000
         }
@@ -29539,6 +29730,18 @@ export const clientManifest = {
           "minimum": 1,
           "maximum": 1125899906842624,
           "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB. StorageSettingsPut.personalQuotaBytes must be at least 1. StorageSettingsPut.personalQuotaBytes must be at most 1125899906842624."
+        },
+        "stepWriteBytes": {
+          "description": "Bytes one agent step (one run step attempt) may write to Bakery Files through its puts and copies before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason bytes (O49). Left out, the organization follows Bakery's default of 2 GiB. A person's own writes are never limited by it. StorageSettingsPut.stepWriteBytes must be at least 1048576. StorageSettingsPut.stepWriteBytes must be at most 1099511627776.",
+          "type": "integer",
+          "minimum": 1048576,
+          "maximum": 1099511627776
+        },
+        "stepWriteFiles": {
+          "description": "Distinct files and folders one agent step (one run step attempt) may write, make, copy, move or trash before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason files (O49). Left out, the organization follows Bakery's default of 2,000. A person's own writes are never limited by it. StorageSettingsPut.stepWriteFiles must be at least 1. StorageSettingsPut.stepWriteFiles must be at most 1000000.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
         }
       },
       "required": [
@@ -29828,6 +30031,93 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
+    },
+    "BackupSchedulePut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether scheduled backups run. Off keeps the other settings and stops new scheduled runs; a backup a person starts is never affected."
+        },
+        "interval": {
+          "type": "string",
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly"
+          ],
+          "description": "How often a scheduled backup is taken: hourly, daily or weekly. Weekly runs on Monday, UTC."
+        },
+        "timeOfDayUtc": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "description": "Time of the scheduled run as HH:MM on a 24-hour UTC clock. For hourly runs only the minutes count: the backup is due at that minute of every hour. BackupSchedulePut.timeOfDayUtc must contain at least 5 characters. BackupSchedulePut.timeOfDayUtc must contain at most 5 characters."
+        },
+        "daysToKeep": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650,
+          "description": "How many days the host runner keeps a finished backup before it removes it, from 1 to 3650. BackupSchedulePut.daysToKeep must be at least 1. BackupSchedulePut.daysToKeep must be at most 3650."
+        }
+      },
+      "required": [
+        "enabled",
+        "interval",
+        "timeOfDayUtc",
+        "daysToKeep"
+      ],
+      "additionalProperties": false,
+      "description": "The schedule an administrator sets for automatic backups: on or off, how often, at what UTC time and how many days a finished backup is kept."
+    },
+    "BackupOffsitePut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 512,
+          "description": "Address of the S3-compatible service as an https origin such as https://s3.example.com, with no path, query or credentials. Private and loopback addresses are refused. Not a secret. BackupOffsitePut.endpoint must contain at least 8 characters. BackupOffsitePut.endpoint must contain at most 512 characters."
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 63,
+          "description": "Region name the service signs requests for, for example us-east-1; some services accept any value. Not a secret. BackupOffsitePut.region must contain at least 1 characters. BackupOffsitePut.region must contain at most 63 characters."
+        },
+        "bucket": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 63,
+          "description": "Name of the bucket that receives the encrypted backups: lowercase letters, digits, dots and hyphens, starting and ending with a letter or digit. Not a secret. BackupOffsitePut.bucket must contain at least 3 characters. BackupOffsitePut.bucket must contain at most 63 characters."
+        },
+        "prefix": {
+          "description": "Folder inside the bucket where backups are kept, such as bakery/prod; empty means the bucket root. Not a secret. BackupOffsitePut.prefix must contain at most 256 characters.",
+          "type": "string",
+          "maxLength": 256
+        },
+        "accessKeyId": {
+          "description": "Access key id of the account that writes the backups. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save and whenever the endpoint, region or bucket changes (the saved pair is never reused for another host, and a move without it answers 422 credentials_required). Omit both on a later save to keep the stored credentials for the same destination, including a change to the prefix only. BackupOffsitePut.accessKeyId must contain at most 256 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "secretAccessKey": {
+          "description": "Secret access key of that account. Write-only: stored encrypted next to the access key id and never returned, echoed, logged or audited. Supply it together with accessKeyId. BackupOffsitePut.secretAccessKey must contain at most 1024 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "endpoint",
+        "region",
+        "bucket"
+      ],
+      "additionalProperties": false,
+      "description": "The off-site destination an administrator sets for copies of every backup: an S3-compatible bucket with its address, region, folder and a write-only credential pair."
     },
     "PreviewQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -30706,6 +30996,19 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "RunStepRevertWrites": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reason": {
+          "description": "Why the person reverted the step's writes, recorded verbatim in the audit record of the undo. RunStepRevertWrites.reason must contain at most 2000 characters.",
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false,
+      "description": "Reverts the Bakery Files writes the agent of one workflow step made, across all of the step's attempts, newest first and in one transaction (chapter 25 section 17.6, O48): a file or folder the step created goes to trash, a new version gives way to the version before it, a move is moved back and a trashed entry is restored. Writes that leave Bakery are external effects and are not covered."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -44167,6 +44470,7 @@ export const clientManifest = {
                   "sessions.steer",
                   "runSteps.note",
                   "runSteps.takeOver",
+                  "runSteps.revertWrites",
                   "conversations.list",
                   "conversations.get",
                   "conversations.create",
@@ -44495,8 +44799,14 @@ export const clientManifest = {
                   "backups.status",
                   "backups.start",
                   "backupRunnerCredential.issue",
+                  "backupSchedule.get",
+                  "backupSchedule.put",
+                  "backupOffsite.get",
+                  "backupOffsite.put",
+                  "backupOffsite.verify",
                   "backupRunner.claim",
                   "backupRunner.report",
+                  "backupRunner.settings",
                   "telemetryDestinations.list",
                   "telemetryDestinations.create",
                   "telemetryDestinations.update",
@@ -64579,6 +64889,7 @@ export const clientManifest = {
             "sessions.steer",
             "runSteps.note",
             "runSteps.takeOver",
+            "runSteps.revertWrites",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -64907,8 +65218,14 @@ export const clientManifest = {
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
+            "backupSchedule.get",
+            "backupSchedule.put",
+            "backupOffsite.get",
+            "backupOffsite.put",
+            "backupOffsite.verify",
             "backupRunner.claim",
             "backupRunner.report",
+            "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.create",
             "telemetryDestinations.update",
@@ -88984,9 +89301,9 @@ export const clientManifest = {
           "items": {
             "type": "string",
             "maxLength": 65536,
-            "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. Each array item follows this format."
+            "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site. Each array item follows this format."
           },
-          "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed."
+          "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site."
         },
         "failureCode": {
           "anyOf": [
@@ -88999,7 +89316,7 @@ export const clientManifest = {
                 "key_missing",
                 "runner_error"
               ],
-              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise."
+              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
             },
             {
               "type": "null",
@@ -89013,7 +89330,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "The runner's plain-text answer for the failure, or null."
+              "description": "The runner's plain-text answer for the failure or the failed off-site copy, or null."
             },
             {
               "type": "null",
@@ -89192,9 +89509,9 @@ export const clientManifest = {
                 "items": {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. Each array item follows this format."
+                  "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site. Each array item follows this format."
                 },
-                "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed."
+                "description": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site."
               },
               "failureCode": {
                 "anyOf": [
@@ -89207,7 +89524,7 @@ export const clientManifest = {
                       "key_missing",
                       "runner_error"
                     ],
-                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise."
+                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                   },
                   {
                     "type": "null",
@@ -89221,7 +89538,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "The runner's plain-text answer for the failure, or null."
+                    "description": "The runner's plain-text answer for the failure or the failed off-site copy, or null."
                   },
                   {
                     "type": "null",
@@ -89313,10 +89630,11 @@ export const clientManifest = {
           "enum": [
             "protected",
             "running",
+            "not_copied",
             "stale",
             "failed"
           ],
-          "description": "running while a backup is claimed or running; failed when the newest finished attempt failed; stale when the last good backup is older than 7 days or none exists; protected otherwise."
+          "description": "running while a backup is claimed or running; failed when the newest finished attempt failed; not_copied when the newest finished attempt took the backup on the host but could not copy it off-site (a later good full backup replaces it); stale when the last good backup is older than twice the schedule interval (7 days when no schedule is on) or none exists; protected otherwise."
         },
         "lastGoodBackupAt": {
           "anyOf": [
@@ -89324,7 +89642,7 @@ export const clientManifest = {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "When the newest completed backup finished, or null when none has completed."
+              "description": "When the newest completed backup finished, or null when none has completed. A backup taken on the host but not copied off-site counts: the local copy exists."
             },
             {
               "type": "null",
@@ -99936,6 +100254,18 @@ export const clientManifest = {
           "maximum": 9007199254740991,
           "description": "Bytes each member's personal folder may hold."
         },
+        "stepWriteBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Bytes one agent step may write before its writes are refused (O49); the default 2 GiB unless an Admin saved another value."
+        },
+        "stepWriteFiles": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Distinct files and folders one agent step may write before its writes are refused (O49); the default 2,000 unless an Admin saved another value."
+        },
         "organizationUsedBytes": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -99970,6 +100300,8 @@ export const clientManifest = {
         "organizationQuotaBytes",
         "projectQuotaBytes",
         "personalQuotaBytes",
+        "stepWriteBytes",
+        "stepWriteFiles",
         "organizationUsedBytes",
         "organizationQuotaState",
         "customized",
@@ -101521,15 +101853,16 @@ export const clientManifest = {
                 "type": "string",
                 "enum": [
                   "person",
-                  "step"
+                  "step",
+                  "agent"
                 ],
-                "description": "Who made the version: step when a run step published it, person when a member or service wrote it."
+                "description": "Who made the version: step when a run step published it, agent when an agent's session wrote it with a member's access, person when a member or service wrote it."
               },
               "makerPrincipalId": {
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Principal that wrote the version: the member for a person, the run's acting principal for a step."
+                "description": "Principal that wrote the version: the member for a person, the run's acting principal for a step, the member whose access the agent used for an agent."
               },
               "makerName": {
                 "anyOf": [
@@ -101624,7 +101957,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "The step's most recent agent session, for Open the session; null when the step had none or for a person's version."
+                    "description": "The agent session behind the version, for Open the session: the step's most recent session for a step, the session that wrote it for an agent; null when there was none or for a person's version."
                   },
                   {
                     "type": "null",
@@ -101632,6 +101965,20 @@ export const clientManifest = {
                   }
                 ],
                 "description": "StorageFileVersion.sessionId may be null in this transport value."
+              },
+              "agentName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Name of the agent whose session wrote the version, for an agent's version; null otherwise, or when the agent is not recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.agentName may be null in this transport value."
               }
             },
             "required": [
@@ -101652,7 +101999,8 @@ export const clientManifest = {
               "runId",
               "workItemId",
               "workItemTitle",
-              "sessionId"
+              "sessionId",
+              "agentName"
             ],
             "additionalProperties": false,
             "description": "One version of a storage-tree file: its number, when and by whom or which step it was saved, its size, and whether its contents are still there."
@@ -102548,6 +102896,410 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The record that a stalled step was continued on another route. The old attempt is fenced, the job is queued again on the new pin, and the step's one budget reservation is re-priced in place, so no second reservation exists and none is left held. Both the pin the step had and the pin it now has are kept."
+    },
+    "BackupSchedule": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether scheduled backups run."
+        },
+        "interval": {
+          "type": "string",
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly"
+          ],
+          "description": "hourly, daily or weekly; weekly runs on Monday, UTC."
+        },
+        "timeOfDayUtc": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "HH:MM in UTC; for hourly runs only the minutes count."
+        },
+        "daysToKeep": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many days the host runner keeps a finished backup."
+        },
+        "updatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the schedule last changed, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupSchedule.updatedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+        }
+      },
+      "required": [
+        "enabled",
+        "interval",
+        "timeOfDayUtc",
+        "daysToKeep",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "The automatic backup schedule as an installation administrator sees it. Before any save it reads as off with a daily 03:00 UTC default and a 30 day keep."
+    },
+    "BackupOffsite": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "configured": {
+          "type": "boolean",
+          "description": "True when a credential pair is stored encrypted; the values are never returned."
+        },
+        "endpoint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved https origin of the S3-compatible service, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.endpoint may be null in this transport value."
+        },
+        "region": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved region name, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.region may be null in this transport value."
+        },
+        "bucket": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved bucket name, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.bucket may be null in this transport value."
+        },
+        "prefix": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved folder inside the bucket, empty for the bucket root, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.prefix may be null in this transport value."
+        },
+        "credentialUpdatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the stored credentials were last replaced, or null when none are stored."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.credentialUpdatedAt may be null in this transport value."
+        },
+        "credentialRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of the active credential version, or null when none is stored; earlier revisions are kept for audit and never returned."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.credentialRevision may be null in this transport value."
+        },
+        "updatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the destination last changed, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.updatedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+        }
+      },
+      "required": [
+        "configured",
+        "endpoint",
+        "region",
+        "bucket",
+        "prefix",
+        "credentialUpdatedAt",
+        "credentialRevision",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "The off-site backup destination as an installation administrator sees it. The access key id and secret access key are reported only as the configured flag and the active revision; no credential value, ciphertext, key identifier or secret record id is ever returned."
+    },
+    "BackupOffsiteVerification": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "verified",
+            "not_configured",
+            "destination_refused",
+            "destination_unreachable",
+            "destination_private_address",
+            "integrity_failed"
+          ],
+          "description": "verified when the test object round-tripped; not_configured without a saved destination; destination_refused when the service answered and said no (wrong key, no access, missing bucket); destination_unreachable on a network failure, a timeout or a name that cannot be resolved; destination_private_address when the host resolves to an address the server may not connect to (private, loopback, link-local, metadata and similar); integrity_failed when the bytes read back differ."
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The service's own answer text, at most 500 characters and with both credential halves removed, or null when it said nothing or the test passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsiteVerification.detail may be null in this transport value."
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the test finished."
+        }
+      },
+      "required": [
+        "outcome",
+        "detail",
+        "checkedAt"
+      ],
+      "additionalProperties": false,
+      "description": "Result of the bounded test that puts, reads back and deletes one small object in the saved destination with the stored credentials. A failed test still answers 200 with a stable outcome; the credentials are never returned."
+    },
+    "BackupRunnerSettings": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scheduleEnabled": {
+          "type": "boolean",
+          "description": "Whether scheduled backups run."
+        },
+        "scheduleInterval": {
+          "type": "string",
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly"
+          ],
+          "description": "hourly, daily or weekly."
+        },
+        "scheduleTimeOfDayUtc": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "HH:MM in UTC."
+        },
+        "daysToKeep": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many days to keep a finished backup."
+        },
+        "scheduleVersion": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Schedule settings revision, 0 before any save."
+        },
+        "offsiteConfigured": {
+          "type": "boolean",
+          "description": "True when a destination with credentials is saved, whether or not the credentials were released."
+        },
+        "offsiteEndpoint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Https origin of the S3-compatible service, or null when none is saved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteEndpoint may be null in this transport value."
+        },
+        "offsiteRegion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Region name, or null when none is saved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteRegion may be null in this transport value."
+        },
+        "offsiteBucket": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Bucket name, or null when none is saved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteBucket may be null in this transport value."
+        },
+        "offsitePrefix": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Folder inside the bucket, empty for the root, or null when none is saved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsitePrefix may be null in this transport value."
+        },
+        "offsiteAccessKeyId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Access key id, shown only to the runner, or null when none is saved or the credentials were withheld (see offsiteRefusal)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteAccessKeyId may be null in this transport value."
+        },
+        "offsiteSecretAccessKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Secret access key, shown only to the runner and never stored by it, or null when none is saved or the credentials were withheld (see offsiteRefusal)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteSecretAccessKey may be null in this transport value."
+        },
+        "offsiteRefusal": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "destination_private_address",
+                "destination_unresolvable",
+                "destination_invalid"
+              ],
+              "description": "Why the credentials were withheld for a saved destination: destination_private_address when its host now resolves to a private, loopback, link-local, metadata or other refused address, destination_unresolvable when its name cannot be resolved, destination_invalid when the saved destination is not a valid one. Null when the credentials were released or no destination is saved. The runner must not upload while this is set."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteRefusal may be null in this transport value."
+        },
+        "offsiteVersion": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Destination settings revision, 0 before any save."
+        }
+      },
+      "required": [
+        "scheduleEnabled",
+        "scheduleInterval",
+        "scheduleTimeOfDayUtc",
+        "daysToKeep",
+        "scheduleVersion",
+        "offsiteConfigured",
+        "offsiteEndpoint",
+        "offsiteRegion",
+        "offsiteBucket",
+        "offsitePrefix",
+        "offsiteAccessKeyId",
+        "offsiteSecretAccessKey",
+        "offsiteRefusal",
+        "offsiteVersion"
+      ],
+      "additionalProperties": false,
+      "description": "What the host backup runner needs to do its work: the schedule and the off-site destination including its decrypted credential pair. This is the one route that returns the credentials, and only to the runner credential, never to a user session. It carries no backup key material: the operator keeps the age keys on the host. Every read that releases the credentials, or refuses to, is audited. The destination's host is resolved again on each read, so a name re-pointed at a private address is not released."
     },
     "Page<PluginStateItem>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -105824,6 +106576,43 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The receiver's real answer to one signed test message: whether it accepted it, its HTTP status, a short plain reason when it did not, a bounded piece of what it said and how long it took."
+    },
+    "RunStepWritesReverted": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the run whose step was reverted."
+        },
+        "stepKey": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Key of the run step whose writes were reverted."
+        },
+        "reverted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How many of the step's recorded writes this undo reverted; 0 when every write was already reverted or the step wrote nothing."
+        },
+        "entries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How many distinct files and folders those writes touched."
+        }
+      },
+      "required": [
+        "runId",
+        "stepKey",
+        "reverted",
+        "entries"
+      ],
+      "additionalProperties": false,
+      "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert."
     }
   }
 } as const;
