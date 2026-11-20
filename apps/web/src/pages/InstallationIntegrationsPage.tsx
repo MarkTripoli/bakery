@@ -32,6 +32,7 @@ import {
 } from "../screens/ExistingGitHubAppForm.tsx";
 import { InstallationProviderCredentials } from "./InstallationProviderCredentials.tsx";
 import { InstallationSkillStorage } from "./InstallationSkillStorage.tsx";
+import { InstallationSlackApp } from "./InstallationSlackApp.tsx";
 import { WEB_PROVIDERS } from "../integrations/registry.ts";
 import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
 import { InstallationBreadcrumbs } from "../shell/SettingsShellSlots.tsx";
@@ -304,6 +305,7 @@ export function InstallationIntegrationsPage(
               provider={module.manifest.slug}
             />
           ))}
+          slack={<InstallationSlackApp />}
           storage={<InstallationSkillStorage />}
           view={view}
           existingApp={{

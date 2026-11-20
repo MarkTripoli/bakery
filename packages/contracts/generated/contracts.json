@@ -4782,7 +4782,7 @@
       "output": "IntegrationSlackAppCheck",
       "event": "",
       "mcp": "",
-      "idempotency": "key",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_INVALID",
@@ -4809,7 +4809,7 @@
       "output": "IntegrationSlackApp",
       "event": "",
       "mcp": "",
-      "idempotency": "key",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_INVALID",
@@ -4859,7 +4859,7 @@
       "output": "IntegrationSlackApp",
       "event": "",
       "mcp": "",
-      "idempotency": "key",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_INVALID",
@@ -237636,7 +237636,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:747b8cac6c8a4074ceb399b9c879782d6c36b79ed578ce3f4baa2dc0592e9c70",
+  "compatibilityDigest": "sha256:0ea3fea59289d7491970c2a89dfb150089b8fa8a6659c1d4a290cf0de62b0066",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -42,6 +42,7 @@ import type {
   IntegrationClientCredentials,
   IntegrationConnection,
   IntegrationResource,
+  IntegrationSlackApp,
   MemoryEntryResponse,
   MemoryRevisionResponse,
   MergeAttemptListResponse,
@@ -1726,6 +1727,18 @@ export function integrationAppRegistrationQueryOptions(
     ),
     queryFn: async ({ signal }) =>
       unwrap(await client.integrationAppRegistrations.get(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function integrationSlackAppQueryOptions(
+  client: Pick<BakeryApiClient, "integrationSlackApp">,
+  scope: ApiScope,
+) {
+  return queryOptions<IntegrationSlackApp, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "integrationSlackApp.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.integrationSlackApp.get(signal)),
     retry: retryNetworkOnce,
   });
 }

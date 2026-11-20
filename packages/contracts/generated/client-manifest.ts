@@ -3909,7 +3909,7 @@ export const clientManifest = {
       "output": "IntegrationSlackAppCheck",
       "event": "",
       "mcp": "",
-      "idempotency": "key",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_INVALID",
@@ -3936,7 +3936,7 @@ export const clientManifest = {
       "output": "IntegrationSlackApp",
       "event": "",
       "mcp": "",
-      "idempotency": "key",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_INVALID",
@@ -3986,7 +3986,7 @@ export const clientManifest = {
       "output": "IntegrationSlackApp",
       "event": "",
       "mcp": "",
-      "idempotency": "key",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_INVALID",

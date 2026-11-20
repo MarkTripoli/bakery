@@ -4602,7 +4602,7 @@
       "output": "IntegrationSlackAppCheck",
       "event": "",
       "mcp": null,
-      "idempotency": "key",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_INVALID",
@@ -4628,7 +4628,7 @@
       "output": "IntegrationSlackApp",
       "event": "",
       "mcp": null,
-      "idempotency": "key",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_INVALID",
@@ -4676,7 +4676,7 @@
       "output": "IntegrationSlackApp",
       "event": "",
       "mcp": null,
-      "idempotency": "key",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_INVALID",

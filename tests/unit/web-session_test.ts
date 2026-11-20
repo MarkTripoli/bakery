@@ -178,6 +178,12 @@ function fakeApi(
     installationCapabilities: { get: rejecting },
     installationSettings: { get: rejecting, update: rejecting },
     integrationClientCredentials: { get: rejecting, put: rejecting },
+    integrationSlackApp: {
+      get: rejecting,
+      put: rejecting,
+      check: rejecting,
+      remove: rejecting,
+    },
     integrationAppRegistrations: {
       get: rejecting,
       begin: rejecting,

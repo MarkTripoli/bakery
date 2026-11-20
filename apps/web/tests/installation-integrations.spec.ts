@@ -94,6 +94,120 @@ type PutRefusal = {
   issues?: readonly ServerIssue[];
 };
 
+/** The Slack app as the section reads it: not set up, or set up. */
+const slackUnset = {
+  appId: null,
+  clientId: null,
+  configured: false,
+  signingSecretSavedAt: null,
+  clientSecretSavedAt: null,
+  detailsCheckedAt: null,
+  detailsCheckResult: null,
+  lastRequestAt: null,
+  lastRequestFailedAt: null,
+  redirectUrl: "https://bakery.test/v1/integrations/slack/identity/callback",
+  eventsUrl: "https://bakery.test/v1/integrations/slack/events",
+  interactivityUrl: "https://bakery.test/v1/integrations/slack/interactions",
+  version: 0,
+};
+
+const slackSet = {
+  ...slackUnset,
+  appId: "A0123ABCD",
+  clientId: "1234567890.1234567890",
+  configured: true,
+  signingSecretSavedAt: "2026-11-19T09:00:00.000Z",
+  clientSecretSavedAt: "2026-11-19T09:00:00.000Z",
+  version: 1,
+};
+
+/**
+ * Mocks the Slack app's own settings (#415): the read, the put with its version
+ * header, the check and the delete. `slackState` holds what the next read says
+ * and what each write recorded.
+ */
+async function slackFixture(
+  page: Page,
+  initial: Record<string, unknown> | "forbidden" | "error" = slackUnset,
+) {
+  const slack = {
+    current: initial,
+    reads: 0,
+    puts: [] as {
+      body: Record<string, unknown>;
+      headers: Record<string, string>;
+    }[],
+    checks: [] as Record<string, string>[],
+    deletes: [] as Record<string, string>[],
+    putAnswer: "ok" as "ok" | PutRefusal,
+    checkAnswer: "accepted" as "accepted" | "client_id_refused",
+  };
+  await page.route("**/v1/integrations/slack/app", (route) => {
+    const request = route.request();
+    if (request.method() === "PUT") {
+      slack.puts.push({
+        body: request.postDataJSON(),
+        headers: request.headers(),
+      });
+      if (slack.putAnswer !== "ok") {
+        const answer = slack.putAnswer;
+        return route.fulfill(
+          problem(answer.status, answer.code, answer.reason, answer.issues),
+        );
+      }
+      const typed = request.postDataJSON() as Record<string, unknown>;
+      slack.current = {
+        ...slackSet,
+        appId: String(typed.appId),
+        clientId: String(typed.clientId),
+        version: Number((slack.current as { version?: number }).version ?? 0) +
+          1,
+      };
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(slack.current),
+      });
+    }
+    if (request.method() === "DELETE") {
+      slack.deletes.push(request.headers());
+      slack.current = { ...slackUnset };
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(slack.current),
+      });
+    }
+    slack.reads++;
+    if (slack.current === "forbidden") {
+      return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+    }
+    if (slack.current === "error") {
+      return route.fulfill(problem(503, "DEPENDENCY_UNAVAILABLE"));
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(slack.current),
+    });
+  });
+  await page.route("**/v1/integrations/slack/app/check", (route) => {
+    slack.checks.push(route.request().headers());
+    const result = slack.checkAnswer;
+    slack.current = {
+      ...(slack.current as Record<string, unknown>),
+      detailsCheckResult: result,
+      detailsCheckedAt: "2026-11-20T10:00:00.000Z",
+    };
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ result, checkedAt: "2026-11-20T10:00:00.000Z" }),
+    });
+  });
+  return slack;
+}
+
 type Fixture = Awaited<ReturnType<typeof integrationsFixture>>;
 
 /**
@@ -106,6 +220,7 @@ async function integrationsFixture(
   initial: Record<string, unknown> | "forbidden" | "error" = unregistered,
 ) {
   await mockAuthenticatedSession(page);
+  const slack = await slackFixture(page);
   const state = {
     current: initial,
     beginAnswer: "ok" as "ok" | "conflict" | "forbidden" | "error",
@@ -196,7 +311,7 @@ async function integrationsFixture(
       body: "<!doctype html><title>GitHub</title><p>Create GitHub App</p>",
     });
   });
-  return state;
+  return { ...state, slack };
 }
 
 const createButton = (page: Page) =>
@@ -964,4 +1079,138 @@ test("Verify and save is single-flight", async ({ page }) => {
   });
   await expect(page.getByText("Bakery Test 912345")).toBeVisible();
   expect(f.puts).toHaveLength(1);
+});
+
+const slackSection = (page: Page) => page.getByTestId("slack-app");
+
+test("a Slack app that is not set up asks for its details and shows the addresses to paste", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await expect(slack.getByText(/Slack is not set up yet/)).toBeVisible();
+  // The addresses Slack needs are shown before anything is stored: they belong
+  // to this installation, not to the app details that are still missing.
+  await expect(slack.getByTestId("slack-redirect-url"))
+    .toHaveText(slackUnset.redirectUrl);
+  await expect(slack.getByTestId("slack-events-url"))
+    .toHaveText(slackUnset.eventsUrl);
+  await expect(slack.getByTestId("slack-interactivity-url"))
+    .toHaveText(slackUnset.interactivityUrl);
+  await expect(slack.getByRole("button", { name: "Copy redirect URL" }))
+    .toBeVisible();
+  // The read happens at least once; a strict-mode double render may ask again.
+  expect(f.slack.reads).toBeGreaterThanOrEqual(1);
+});
+
+test("saving Slack details sends all four fields and the version it read", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByLabel("App ID").fill("A0123ABCD");
+  await slack.getByLabel("Client ID").fill("1234567890.1234567890");
+  await slack.getByLabel("Client secret").fill("client-secret-value");
+  await slack.getByLabel("Signing secret").fill("signing-secret-value");
+  await slack.getByRole("button", { name: "Save" }).click();
+  await expect(slack.getByText("Slack is set up.")).toBeVisible();
+  expect(f.slack.puts).toHaveLength(1);
+  expect(f.slack.puts[0]!.body).toEqual({
+    appId: "A0123ABCD",
+    clientId: "1234567890.1234567890",
+    clientSecret: "client-secret-value",
+    signingSecret: "signing-secret-value",
+  });
+  // A new app has no version yet, so the write is not conditional.
+  expect(f.slack.puts[0]!.headers["if-match"]).toBeUndefined();
+});
+
+test("an app id that is not one is refused before anything is sent", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByLabel("App ID").fill("1234567890.1234567890");
+  await slack.getByLabel("Client ID").fill("1234567890.1234567890");
+  await slack.getByLabel("Client secret").fill("client-secret-value");
+  await slack.getByLabel("Signing secret").fill("signing-secret-value");
+  await slack.getByRole("button", { name: "Save" }).click();
+  await expect(slack.getByText(/A Slack app ID starts with A/)).toBeVisible();
+  expect(f.slack.puts).toHaveLength(0);
+});
+
+test("replacing the details never refills a secret and keeps one left empty", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  f.slack.current = { ...slackSet };
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByRole("button", { name: "Replace" }).click();
+  // The ids come back; the secrets cannot, because the server never returns them.
+  await expect(slack.getByLabel("App ID")).toHaveValue("A0123ABCD");
+  await expect(slack.getByLabel("Client secret")).toHaveValue("");
+  await expect(slack.getByLabel("Signing secret")).toHaveValue("");
+  await expect(slack.getByText(/Leave empty to keep it/).first())
+    .toBeVisible();
+  await slack.getByLabel("Client secret").fill("a-new-client-secret");
+  await slack.getByRole("button", { name: "Save" }).click();
+  await expect(slack.getByText("Slack is set up.")).toBeVisible();
+  const body = f.slack.puts[0]!.body;
+  expect(body.clientSecret).toBe("a-new-client-secret");
+  // An empty signing secret is not sent at all: the stored one is kept.
+  expect(body.signingSecret).toBeUndefined();
+  // An existing app is written against the version that was read, as the
+  // quoted entity tag the client sends for every conditional write.
+  expect(f.slack.puts[0]!.headers["if-match"]).toBe('"v1"');
+});
+
+test("check now asks Slack and shows what it answered", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  f.slack.current = { ...slackSet };
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await expect(slack.getByTestId("slack-signin-state"))
+    .toHaveText("Not checked yet.");
+  await slack.getByRole("button", { name: "Check now" }).click();
+  await expect(slack.getByTestId("slack-signin-state"))
+    .toHaveText(/Accepted by Slack on/);
+  expect(f.slack.checks).toHaveLength(1);
+  expect(f.slack.checks[0]!["if-match"]).toBe('"v1"');
+});
+
+test("a check Slack refused names the secret to replace", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  f.slack.current = { ...slackSet };
+  f.slack.checkAnswer = "client_id_refused";
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByRole("button", { name: "Check now" }).click();
+  await expect(slack.getByText(/does not recognise this client ID/))
+    .toBeVisible();
+});
+
+test("removing the Slack app asks first and then says it was removed", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  f.slack.current = { ...slackSet };
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByRole("button", { name: "Remove" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  // Nothing is deleted until the dialog is confirmed.
+  expect(f.slack.deletes).toHaveLength(0);
+  await dialog.getByRole("button", { name: "Remove" }).click();
+  await expect(slack.getByText("The Slack app details were removed."))
+    .toBeVisible();
+  expect(f.slack.deletes).toHaveLength(1);
+  expect(f.slack.deletes[0]!["if-match"]).toBe('"v1"');
+});
+
+test("a Slack read that is forbidden shows the same message as the rest of the page", async ({ page }) => {
+  await integrationsFixture(page);
+  // Both reads refuse, so the page has one answer for the whole screen.
+  await page.route(
+    "**/v1/integrations/slack/app",
+    (route) => route.fulfill(problem(403, "AUTH_FORBIDDEN")),
+  );
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await expect(slack.getByText(/administrator/i).first()).toBeVisible();
+  await expect(slack.getByRole("button", { name: "Save" })).toHaveCount(0);
 });
