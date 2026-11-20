@@ -6,20 +6,12 @@ import {
 import type { WorkerContextInput } from "./client.ts";
 import type { ExecutionOutcome, WorkerExecutor } from "./executor.ts";
 import { NativeExecutorError } from "./executor.ts";
+import { type JudgeOptions, runBoundedJudge } from "./bounded-judge.ts";
 import { provenCanceledOutcome } from "./task-brief.ts";
 import type { JobAssignment, JsonValue } from "./types.ts";
 
 export const EVALUATION_CHECK_ACTION = "evaluation.check";
 export const EVALUATION_SCORE_ACTION = "evaluation.score";
-
-/**
- * Reason `evaluation.score` reports until a judge is wired. The worker has no
- * prompt-in, JSON-out model primitive: every model call runs a whole coding
- * harness against a repository worktree (claude-harness.ts, reviewer.ts), so
- * the judge answers unscored rather than inventing a client.
- */
-/** The reason every model-scored result carries until the judge primitive lands (#44). */
-export const MODEL_SCORING_NOT_AVAILABLE = "model scoring not available yet";
 
 export type EvaluationExecutorOptions = {
   /**
@@ -29,7 +21,19 @@ export type EvaluationExecutorOptions = {
   readonly readAttemptContext?: (
     attemptId: string,
   ) => Promise<readonly WorkerContextInput[]>;
+  /**
+   * The bounded judge `evaluation.score` calls. Without a transport every
+   * score is unscored with an explicit "no model provider" reason.
+   */
+  readonly judge?: JudgeOptions;
 };
+
+type ScoreInput = Readonly<{
+  evaluationResultId: string;
+  outputArtifactVersionId: string;
+  rubric: string;
+  outputSchema: unknown;
+}>;
 
 type CheckInput = Readonly<{
   evaluationResultId: string;
@@ -130,25 +134,49 @@ export async function executeEvaluationCheck(
 }
 
 /**
- * Runs `evaluation.score`. No judge is wired yet (see
- * {@link MODEL_SCORING_NOT_AVAILABLE}), so a valid input answers unscored; the
- * server records that as an unmeasured attempt.
+ * Runs `evaluation.score`: reads the pinned output bytes the same way
+ * `evaluation.check` does, then makes one bounded judge call. The server
+ * re-validates the answer against the input's output schema.
  */
-export function executeEvaluationScore(
+export async function executeEvaluationScore(
   assignment: JobAssignment,
   signal: AbortSignal,
-): ExecutionOutcome {
+  options: EvaluationExecutorOptions,
+): Promise<ExecutionOutcome> {
   if (signal.aborted) return provenCanceledOutcome();
+  const scoreError = (reason: string) =>
+    completed({ state: "error", score: null, reason, judgeOutput: null });
   const parsed = registeredWorkerActionInputSchema(EVALUATION_SCORE_ACTION)
     .safeParse(registeredInput(assignment));
-  return completed({
-    state: parsed.success ? "unscored" : "error",
-    score: null,
-    reason: parsed.success
-      ? MODEL_SCORING_NOT_AVAILABLE
-      : "the score input is not valid",
-    judgeOutput: null,
-  });
+  if (!parsed.success) return scoreError("the score input is not valid");
+  const input = parsed.data as ScoreInput;
+  try {
+    const bytes = await readOutputBytes(
+      assignment,
+      input.outputArtifactVersionId,
+      options,
+    );
+    if (signal.aborted) return provenCanceledOutcome();
+    if (typeof bytes === "string") return scoreError(bytes);
+    const judged = await runBoundedJudge(
+      assignment,
+      input,
+      bytes,
+      signal,
+      options.judge ?? {},
+    );
+    if (judged === "canceled") return provenCanceledOutcome();
+    return {
+      status: "completed",
+      result: judged.result,
+      ...(judged.usage ? { usage: judged.usage } : {}),
+    };
+  } catch (error) {
+    if (signal.aborted) return provenCanceledOutcome();
+    return scoreError(
+      `scoring crashed: ${error instanceof Error ? error.message : "unknown"}`,
+    );
+  }
 }
 
 /**
@@ -190,7 +218,7 @@ export function createEvaluationExecutor(
       }
       return assignment.action === EVALUATION_CHECK_ACTION
         ? executeEvaluationCheck(assignment, signal, options)
-        : Promise.resolve(executeEvaluationScore(assignment, signal));
+        : executeEvaluationScore(assignment, signal, options);
     },
   };
 }

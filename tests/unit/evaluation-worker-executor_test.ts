@@ -1,8 +1,6 @@
 import { assertEquals } from "@std/assert";
-import {
-  createEvaluationExecutor,
-  MODEL_SCORING_NOT_AVAILABLE,
-} from "../../apps/worker/src/evaluation-executor.ts";
+import { createEvaluationExecutor } from "../../apps/worker/src/evaluation-executor.ts";
+import { JUDGE_PROVIDER_NOT_CONFIGURED } from "../../apps/worker/src/bounded-judge.ts";
 import type { WorkerContextInput } from "../../apps/worker/src/client.ts";
 import type { WorkerExecutor } from "../../apps/worker/src/executor.ts";
 import type { JobAssignment } from "../../apps/worker/src/types.ts";
@@ -99,8 +97,11 @@ Deno.test("an unpinned version, a digest mismatch or a reader crash is an error,
   }
 });
 
-Deno.test("evaluation.score answers unscored until a judge is wired", async () => {
-  const outcome = await createEvaluationExecutor(inner, {}).execute(
+Deno.test("evaluation.score answers unscored when no judge provider is configured", async () => {
+  const served = [await pinned("all done")];
+  const outcome = await createEvaluationExecutor(inner, {
+    readAttemptContext: () => Promise.resolve(served),
+  }).execute(
     assignment("evaluation.score", {
       evaluationResultId: RESULT,
       outputArtifactVersionId: VERSION,
@@ -114,7 +115,7 @@ Deno.test("evaluation.score answers unscored until a judge is wired", async () =
     result: {
       state: "unscored",
       score: null,
-      reason: MODEL_SCORING_NOT_AVAILABLE,
+      reason: JUDGE_PROVIDER_NOT_CONFIGURED,
       judgeOutput: null,
     },
   });

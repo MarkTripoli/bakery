@@ -11,6 +11,7 @@ import {
   type WorkerConfig,
 } from "./config.ts";
 import { createCheckExecutor } from "./check-runner.ts";
+import { createClaudeJudgeTransport } from "./bounded-judge.ts";
 import { createEvaluationExecutor } from "./evaluation-executor.ts";
 import { createPiHarnessExecutor } from "./pi-harness.ts";
 import { createClaudeHarnessExecutor } from "./claude-harness.ts";
@@ -178,17 +179,6 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         publishFor: publishArtifactFor,
       })
       : nativeExecutor;
-    // `evaluation.check` and `evaluation.score` run in-process on the pinned
-    // output bytes, so every production worker advertises them; an injected
-    // test executor keeps exactly the actions it declares.
-    const executor = options.executor === undefined
-      ? createEvaluationExecutor(baseExecutor, {
-        readAttemptContext: async (attemptId) => {
-          const served = await client.attemptContext(attemptId);
-          return served.value;
-        },
-      })
-      : baseExecutor;
     const codingHarness: CodingHarnessConfig | undefined =
       config.codingHarness ??
         (config.codexHarness
@@ -221,6 +211,30 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     ) {
       throw new Error("HOME_REQUIRED_FOR_CODEX_HARNESS");
     }
+    // `evaluation.check` and `evaluation.score` run in-process on the pinned
+    // output bytes, so every production worker advertises them; an injected
+    // test executor keeps exactly the actions it declares. The score judge
+    // makes its one model call through the configured Claude Code CLI; any
+    // other harness leaves it without a transport, so scores are unscored.
+    const executor = options.executor === undefined
+      ? createEvaluationExecutor(baseExecutor, {
+        readAttemptContext: async (attemptId) => {
+          const served = await client.attemptContext(attemptId);
+          return served.value;
+        },
+        judge: codingHarness?.name === "claude"
+          ? {
+            transport: createClaudeJudgeTransport({
+              authSourceDir: config.claudeAuthSourceDir ??
+                join(home!, ".claude"),
+              claudeExecutable: codingHarness.executable,
+              model: codingHarness.model,
+              stateDir: config.stateDir,
+            }),
+          }
+          : {},
+      })
+      : baseExecutor;
     // Worker credential and state files: no attempt root may sit beside them.
     const credentialPaths = [
       config.registrationPath,
