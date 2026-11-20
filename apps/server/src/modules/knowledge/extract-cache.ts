@@ -11,7 +11,7 @@ import {
 
 /**
  * Durable cache for bounded immutable extracts (issue #14, chapter 17;
- * migrations/bakery/0192_artifact_extracts.sql).
+ * migrations/bakery/0282_artifact_extracts.sql).
  *
  * An extract is a pure function of the artifact version, its digest, the byte
  * range and the extractor version, so it can be reused without re-reading the
