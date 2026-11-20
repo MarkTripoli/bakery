@@ -26,7 +26,14 @@ import type { z } from "zod";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { recordAuthAudit } from "../auth/application/audit.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
+import { sha256Hex } from "../../platform/canonical-json.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
+import {
+  decodeSequenceCursor,
+  decodeSequenceIdCursor,
+  encodeSequenceCursor,
+  encodeSequenceIdCursor,
+} from "../../platform/cursor.ts";
 import type { PgDatabase } from "../../platform/database.ts";
 import {
   POSTGRES_UNIQUE_VIOLATION,
@@ -62,8 +69,8 @@ type TestResult = z.output<
   typeof contractSchemas.TelemetryDestinationTestResult
 >;
 
-/** The most destinations one installation can have, so the page and the list stay small. */
-export const TELEMETRY_DESTINATION_LIMIT = 20;
+/** The most destinations one installation can have, so a list read stays small. */
+export const TELEMETRY_DESTINATION_LIMIT = 200;
 /** How long a test send waits for the destination. */
 export const TELEMETRY_TEST_TIMEOUT_MS = 10_000;
 const SECRET_PROVIDER = "telemetry";
@@ -339,28 +346,177 @@ async function openSecrets(
   ) as Record<string, string>;
 }
 
+type ListQuery = z.output<typeof contractSchemas.TelemetryDestinationListQuery>;
+type DroppedQuery = z.output<
+  typeof contractSchemas.TelemetryDestinationDroppedQuery
+>;
+
+const STATE_COUNT_KEYS = [
+  "working",
+  "not_tested_yet",
+  "failing",
+  "dropping_data",
+  "off",
+] as const;
+
+/** Failing first, then dropping data, then the rest. */
+const stateRank = (state: Destination["state"]): number =>
+  state === "failing" ? 0 : state === "dropping_data" ? 1 : 2;
+
+/** The list's order: state rank, then name ignoring case, then id. */
+function compareDestinations(a: Destination, b: Destination): number {
+  const byRank = stateRank(a.state) - stateRank(b.state);
+  if (byRank !== 0) return byRank;
+  const left = a.name.toLowerCase();
+  const right = b.name.toLowerCase();
+  if (left !== right) return left < right ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+const measurementList = () =>
+  MEASUREMENT_KINDS.map((kind) => ({ kind, ...MEASUREMENT_HELP[kind] }));
+
 /** telemetryDestinations.list */
 export async function listTelemetryDestinations(
   context: ActionContext,
+  query: ListQuery,
   dependencies: TelemetryDestinationDependencies,
+  cursorSecret: string,
 ): Promise<DestinationList> {
-  const { context: value } = installationActor(context);
+  const { context: value, actor } = installationActor(context);
+  // At most TELEMETRY_DESTINATION_LIMIT rows exist, and a destination's state
+  // lives in memory, so the whole set is read, ordered and paged here.
   const rows = await value.transaction.query<Row>(
-    `select ${COLUMNS} from bakery.telemetry_destinations
-      order by created_at, id limit ${TELEMETRY_DESTINATION_LIMIT}`,
+    `select ${COLUMNS} from bakery.telemetry_destinations`,
   );
   const states = dependencies.fanout.states();
+  const all = rows.rows.map((row) =>
+    destinationProjection(row, states.get(row.id))
+  );
+  const stateCounts: Record<string, number> = { all: all.length };
+  for (const key of STATE_COUNT_KEYS) {
+    stateCounts[key] = all.filter((d) => d.state === key).length;
+  }
+  const needle = query.search?.trim().toLowerCase() ?? "";
+  const matching = all.filter((d) =>
+    (needle === "" || d.name.toLowerCase().includes(needle)) &&
+    (query.state === undefined || d.state === query.state) &&
+    (query.kind === undefined || d.kind === query.kind)
+  ).sort(compareDestinations);
+  const cursorBinding = {
+    action: Action.TelemetryDestinationsList,
+    principalId: actor.subject.principalId,
+    ordering: "stateRank:asc,nameFolded:asc,id:asc",
+    filters: await sha256Hex(
+      JSON.stringify([needle, query.state ?? null, query.kind ?? null]),
+    ),
+    schemaVersion: 1,
+  };
+  const after = await decodeSequenceIdCursor(
+    cursorSecret,
+    query.cursor,
+    cursorBinding,
+  );
+  // Continue after the last destination the caller saw; when it is gone, from
+  // as many rows as the caller had already read.
+  const seen = after === null
+    ? -1
+    : matching.findIndex((d) => d.id === after.id);
+  const start = after === null
+    ? 0
+    : seen >= 0
+    ? seen + 1
+    : Math.min(Number(after.sequence), matching.length);
+  const limit = query.limit ?? 25;
+  const page = matching.slice(start, start + limit);
+  const last = page.at(-1);
+  const more = start + page.length < matching.length;
   return contractSchemas.TelemetryDestinationList.parse({
     kinds: dependencies.registry.list().map((provider) => ({
       ...provider.descriptor,
     })),
-    measurements: MEASUREMENT_KINDS.map((kind) => ({
-      kind,
-      ...MEASUREMENT_HELP[kind],
-    })),
-    destinations: rows.rows.map((row) =>
-      destinationProjection(row, states.get(row.id))
+    measurements: measurementList(),
+    destinations: page,
+    destinationLimit: TELEMETRY_DESTINATION_LIMIT,
+    nextCursor: more && last
+      ? await encodeSequenceIdCursor(cursorSecret, cursorBinding, {
+        sequence: String(start + page.length),
+        id: last.id,
+      })
+      : null,
+    total: matching.length,
+    stateCounts,
+  });
+}
+
+/** telemetryDestinations.get */
+export async function getTelemetryDestination(
+  context: ActionContext,
+  dependencies: TelemetryDestinationDependencies,
+): Promise<z.output<typeof contractSchemas.TelemetryDestinationDetail>> {
+  const { context: value } = installationActor(context);
+  const id = context.params.id;
+  if (!id) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const row = await readRow(value.transaction, id);
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const provider = dependencies.registry.get(row.kind);
+  return contractSchemas.TelemetryDestinationDetail.parse({
+    destination: destinationProjection(
+      row,
+      dependencies.fanout.states().get(row.id),
     ),
+    kind: provider === undefined ? null : { ...provider.descriptor },
+    measurements: measurementList(),
+  });
+}
+
+/** telemetryDestinations.dropped */
+export async function listTelemetryDestinationDrops(
+  context: ActionContext,
+  query: DroppedQuery,
+  dependencies: TelemetryDestinationDependencies,
+  cursorSecret: string,
+): Promise<z.output<typeof contractSchemas.TelemetryDestinationDropped>> {
+  const { context: value, actor } = installationActor(context);
+  const id = context.params.id;
+  if (!id) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (!await readRow(value.transaction, id)) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+  const cursorBinding = {
+    action: Action.TelemetryDestinationsDropped,
+    principalId: actor.subject.principalId,
+    ordering: "id:desc",
+    filters: id,
+    schemaVersion: 1,
+  };
+  const after = await decodeSequenceCursor(
+    cursorSecret,
+    query.cursor,
+    cursorBinding,
+  );
+  const newestFirst = dependencies.fanout.drops(id).toReversed();
+  const older = after === null
+    ? newestFirst
+    : newestFirst.filter((report) => report.id < Number(after.sequence));
+  const limit = query.limit ?? 25;
+  const page = older.slice(0, limit);
+  const last = page.at(-1);
+  const runtime = dependencies.fanout.states().get(id);
+  return contractSchemas.TelemetryDestinationDropped.parse({
+    items: page.map((report) => ({
+      id: report.id,
+      at: new Date(report.at).toISOString(),
+      reason: report.reason,
+      count: report.count,
+    })),
+    nextCursor: older.length > page.length && last
+      ? await encodeSequenceCursor(cursorSecret, cursorBinding, {
+        sequence: String(last.id),
+      })
+      : null,
+    droppedTotal: runtime?.dropped ?? 0,
+    droppedSince: iso(runtime?.droppedSince ?? null),
   });
 }
 
@@ -703,6 +859,7 @@ export async function testTelemetryDestination(
 export function createTelemetryDestinationActionRegistry(
   database: PgDatabase,
   dependencies: TelemetryDestinationDependencies,
+  cursorSecret: string,
 ): ActionRegistry {
   const registry = new ActionRegistry(
     new PostgresAuthorityRunner(database),
@@ -718,10 +875,28 @@ export function createTelemetryDestinationActionRegistry(
     name: Action.TelemetryDestinationsList,
     method: HttpMethod.Get,
     path: "/v1/installation/telemetry-destinations",
-    input: contractSchemas.Empty,
+    input: contractSchemas.TelemetryDestinationListQuery,
     output: contractSchemas.TelemetryDestinationList,
     policy: { ...policy, type: ActionKind.Query },
-    handler: (context) => listTelemetryDestinations(context, dependencies),
+    handler: (context, input) =>
+      listTelemetryDestinations(context, input, dependencies, cursorSecret),
+  }).register({
+    name: Action.TelemetryDestinationsGet,
+    method: HttpMethod.Get,
+    path: "/v1/installation/telemetry-destinations/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.TelemetryDestinationDetail,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: (context) => getTelemetryDestination(context, dependencies),
+  }).register({
+    name: Action.TelemetryDestinationsDropped,
+    method: HttpMethod.Get,
+    path: "/v1/installation/telemetry-destinations/:id/dropped",
+    input: contractSchemas.TelemetryDestinationDroppedQuery,
+    output: contractSchemas.TelemetryDestinationDropped,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: (context, input) =>
+      listTelemetryDestinationDrops(context, input, dependencies, cursorSecret),
   }).register({
     name: Action.TelemetryDestinationsCreate,
     method: HttpMethod.Post,
@@ -775,6 +950,8 @@ export function createTelemetryDestinationRoutes(options: {
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
+  /** Signs the list cursors. */
+  cursorSecret: string;
   dependencies: TelemetryDestinationDependencies;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -790,6 +967,7 @@ export function createTelemetryDestinationRoutes(options: {
       registry: createTelemetryDestinationActionRegistry(
         options.database,
         options.dependencies,
+        options.cursorSecret,
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,

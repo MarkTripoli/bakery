@@ -727,6 +727,8 @@ export const backupImplementedActions = Object.freeze(
 export const TelemetryDestinationImplementedAction = Object.freeze(
   {
     TelemetryDestinationsList: "telemetryDestinations.list",
+    TelemetryDestinationsGet: "telemetryDestinations.get",
+    TelemetryDestinationsDropped: "telemetryDestinations.dropped",
     TelemetryDestinationsCreate: "telemetryDestinations.create",
     TelemetryDestinationsUpdate: "telemetryDestinations.update",
     TelemetryDestinationsDelete: "telemetryDestinations.delete",

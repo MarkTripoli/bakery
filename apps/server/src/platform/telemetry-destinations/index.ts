@@ -15,9 +15,12 @@ export {
   type ConfiguredDestination,
   createDestinationFanout,
   DESTINATION_QUEUE_BOUNDS,
+  type DestinationDropReason,
+  type DestinationDropReport,
   type DestinationFanout,
   type DestinationRuntimeState,
   type DestinationState,
+  DROP_REPORTS_KEPT,
 } from "./fanout.ts";
 export {
   isMeasurementKind,
