@@ -10,16 +10,52 @@ page is for the person who runs the host.
   what was asked for, the schedule, the off-site destination and the result. It
   is unprivileged: it never holds backup bytes and never holds an age key.
 - **The host runner** (`bakery-backup-runner.timer`, every minute) asks the API
-  whether a backup is waiting. If one is, it runs `backup.sh` (both databases,
-  the skill and worker files, encrypted to your **public** age recipient),
-  copies the set off-site if you configured that, and reports back. It runs as
+  whether a backup is waiting. If one is, it runs `backup.sh` (every state store
+  listed under "What a backup contains", encrypted to your **public** age
+  recipient), checks the finished set against its manifest, copies the set
+  off-site if you configured that, and reports back. It runs as
   root on the host because `backup.sh` needs Docker and the data directories.
-- **`backup.sh`** is unchanged. It is also run by the older
-  `bakery-backup.timer` (daily, 03:00 UTC), which does not need the API.
+- **`backup.sh`** takes the backup and is also run by the older
+  `bakery-backup.timer` (daily, 03:00 UTC), which does not need the API. Its
+  start, its exit codes and its `BACKUP_COMPLETED <name>` line are unchanged.
+  It now refuses to finish a set that is missing a state store (below).
 
 A backup is a directory `/var/lib/bakery/backups/<UTC time>-<uuid>/` holding
-`bakery.dump.age`, `inngest.dump.age`, `files.tar.gz.age`, `release.json` and
-`SHA256SUMS`. A `latest` file names the newest.
+`bakery.dump.age`, `inngest.dump.age`, `redis.rdb.age`, `files.tar.gz.age`,
+`references.json.age`, `release.json`, `manifest.json` and `SHA256SUMS`. A
+`latest` file names the newest.
+
+## What a backup contains
+
+A backup is complete only when every store Bakery keeps state in is in it. The
+list is declared in `scripts/deploy/backup-runner/manifest.ts`, and
+`manifest.json` records, for each store, whether it was captured (with its file,
+size and SHA-256), excluded (with the reason) or failed.
+
+| store | what it is | in the set |
+| ----- | ---------- | ---------- |
+| `postgres-bakery` | the Bakery database | `bakery.dump.age` |
+| `postgres-inngest` | the workflow engine database | `inngest.dump.age` |
+| `redis` | the workflow engine queue state, a Redis `SAVE` snapshot | `redis.rdb.age` |
+| `files` | `/var/lib/bakery/skills` and `/var/lib/bakery/worker` | `files.tar.gz.age` |
+| `release-journal` | `/var/lib/bakery/deploy/state.json` | `release.json` |
+| `object-references` | every skill file and blob the database refers to, by object key and SHA-256, so a restore can read each one back. The **bytes of an R2 or other object store are not copied**; filesystem skill bytes are in `files`. | `references.json.age` |
+| `secrets-key-identity` | the **id** of the key that protects saved secrets (`BAKERY_SECRETS_KEY_ID`). The key itself is **never** in a backup. | `manifest.json` only |
+
+Left out on purpose, and listed in the manifest with the reason: `incoming`
+(transient upload staging), `host-configuration` (`/etc/bakery`: env files, the
+secrets key and the age identity are operator-managed and secret) and
+`postgres-roles` (recreated when a restore starts a database).
+
+**The secrets key is yours to keep.** The manifest records only its id. Without
+the key file (`BAKERY_SECRETS_KEY_FILE`, `/etc/bakery/secrets.key`) saved
+somewhere separate, saved secrets cannot be read after a restore. A host with no
+secrets key configured records that as an explicit exclusion; a key id without
+its file (or the reverse) makes the backup incomplete.
+
+The references list is read at the same moment as the database dump but not in
+the same transaction, so a write in between can leave it a little newer than the
+dump. Slice B of #64 (a maintenance state) makes the snapshot exact.
 
 ## The age key
 
@@ -37,8 +73,16 @@ then remove it:
 sudo bash /opt/bakery/deploy/restore-check.sh /var/lib/bakery/backups/<set> /path/to/identity
 ```
 
-`restore-check.sh` verifies the checksums, decrypts, restores both databases
-into a throwaway container with no network, and checks the release journal.
+`restore-check.sh` first verifies the set against its manifest (every store
+present, every size and hash matching, nothing unlisted) and stops with exit 70
+before starting any container if it does not. Then it verifies the checksums,
+decrypts, restores both databases into a throwaway container with no network,
+and checks the release journal.
+
+A set taken **before manifests existed** has no manifest, so `restore-check.sh`
+fails closed on it. If you know it is an old set, pass `--allow-legacy` as a
+third argument to run only the older checks; the flag never excuses a set that
+has a manifest and does not match it.
 
 ## Set up the runner
 
@@ -131,6 +175,7 @@ A failed backup keeps a stable code and the runner's plain-text detail:
 | `key_missing`             | `BAKERY_BACKUP_RECIPIENT` is not set in `/etc/bakery/backup.env`, or `age` is not installed or rejects the recipient.                         |
 | `destination_refused`     | only ever the cause of a `not_copied` backup (below): the off-site destination said no. |
 | `destination_unreachable` | only ever the cause of a `not_copied` backup (below): no answer, or an unverifiable copy.                                                       |
+| `incomplete_set`          | the finished set was missing a state store, or did not match its manifest, so it is **not a recoverable backup** and was not kept as `latest`. The detail names the store (for example `redis: store_not_captured`). Fix that store (is the Redis container up and its password right? is the secrets key file in place?) and take another backup. |
 | `runner_error`            | anything else: `journalctl -u bakery-backup-runner` has the script's last lines.                                                               |
 
 ### Taken, but not copied off-site (`not_copied`)
