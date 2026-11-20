@@ -198,7 +198,7 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
         body: {
           kind: "otlp",
           name: "No address",
-          measurements: ["cost"],
+          measurements: ["results"],
           values: {},
         },
       },
@@ -212,7 +212,7 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
         body: {
           kind: "nope",
           name: "Nope",
-          measurements: ["cost"],
+          measurements: ["results"],
           values: {},
         },
       },
@@ -246,7 +246,7 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
         body: {
           kind: "otlp",
           name: "Local collector",
-          measurements: ["cost", "durations", "health"],
+          measurements: ["results", "health"],
           values,
         },
       },
@@ -296,7 +296,7 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
         body: {
           kind: "otlp",
           name: "LOCAL COLLECTOR",
-          measurements: ["cost"],
+          measurements: ["results"],
           values: { address: other.address },
         },
       },
@@ -325,17 +325,22 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
     telemetry.event("usage.settled", { "bakery.outcome": "completed" });
     telemetry.event("job.completed", { "bakery.outcome": "completed" });
     await until(() =>
-      collector.seen.some((s) => s.body.includes("usage.settled"))
+      collector.seen.some((s) => s.body.includes("job.completed"))
+    );
+    // usage.settled carries no amount yet, so no destination receives it.
+    assertEquals(
+      collector.seen.filter((s) => s.body.includes("usage.settled")),
+      [],
     );
     const traces = collector.seen.filter((s) =>
       s.path === "/v1/traces" && s.body.includes("job.completed")
     );
-    assert(traces.length > 0, "durations never arrived");
+    assert(traces.length > 0, "results never arrived");
     assert(traces.every((s) => s.authorization === `Bearer ${TOKEN}`));
     assertEquals(
-      other.seen.filter((s) => s.body.includes("usage.settled")),
+      other.seen.filter((s) => s.body.includes("job.completed")),
       [],
-      "a health-only destination got cost",
+      "a health-only destination got results",
     );
     await until(async () => {
       const d = (await list()).destinations.find((x) =>
@@ -347,7 +352,7 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
     // A destination that starts refusing reads as failing, with its own answer,
     // and the other destination is unaffected.
     answer = 500;
-    telemetry.event("usage.settled", { "bakery.outcome": "completed" });
+    telemetry.event("job.completed", { "bakery.outcome": "completed" });
     await until(async () => {
       const d = (await list()).destinations.find((x) =>
         x.id === destination.id
@@ -372,7 +377,7 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
     assertEquals(off.json.version, destination.version + 1);
     await loader.refresh();
     const before = collector.seen.length;
-    telemetry.event("usage.settled", { "bakery.outcome": "completed" });
+    telemetry.event("job.completed", { "bakery.outcome": "completed" });
     await new Promise((resolve) => setTimeout(resolve, 150));
     assertEquals(
       collector.seen.length,
@@ -410,7 +415,7 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
     );
     assert(!replaced.text.includes("replaced_value_7c1"));
     await loader.refresh();
-    telemetry.event("usage.settled", { "bakery.outcome": "completed" });
+    telemetry.event("job.completed", { "bakery.outcome": "completed" });
     await until(() =>
       collector.seen.some((s) =>
         s.authorization === "Bearer replaced_value_7c1"
