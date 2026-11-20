@@ -10430,7 +10430,7 @@ const transportSchemas = {
             "completed",
             "failed"
           ],
-          "description": "What the runner reports: running while it works (also extends the lease), completed when the encrypted backup is written and checked, failed when it gave up. Completed and failed end the run."
+          "description": "What the runner reports: running while it works (also extends the lease), completed when the encrypted backup is written and checked on the host (with a failureCode when the off-site copy then failed), failed when it gave up before or while taking the backup. Completed and failed end the run."
         },
         {
           "name": "progressPercent",
@@ -10458,7 +10458,7 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 2
           },
-          "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other."
+          "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other. With a failureCode on a completed report it is exactly server-host: the backup was taken but not copied off-site."
         },
         {
           "name": "failureCode",
@@ -10469,9 +10469,10 @@ const transportSchemas = {
             "destination_refused",
             "destination_unreachable",
             "key_missing",
+            "incomplete_set",
             "runner_error"
           ],
-          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report and refused with any other."
+          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report. A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site."
         },
         {
           "name": "failureDetail",
@@ -10480,7 +10481,7 @@ const transportSchemas = {
           "bounds": {
             "maxLength": 1000
           },
-          "description": "The runner's own plain-text answer for the failure, such as what the destination replied, at most 1000 characters; it is shown to administrators and must not contain key material."
+          "description": "The runner's own plain-text answer for the failure, such as what the destination replied, at most 1000 characters; it is shown to administrators and must not contain key material. Allowed only together with a failureCode."
         }
       ],
       "rules": [
@@ -29871,7 +29872,7 @@ const transportSchemas = {
         "progressPercent": "integer|null",
         "sizeBytes": "decimalString|null",
         "locations": "string[]",
-        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|runner_error)|null",
+        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|incomplete_set|runner_error)|null",
         "failureDetail": "string|null"
       },
       "nullableFields": [
@@ -29898,9 +29899,9 @@ const transportSchemas = {
         "leaseExpiresAt": "When the runner's claim lapses unless it reports again, or null when no claim is held.",
         "progressPercent": "Latest reported progress from 0 to 100, or null before any report.",
         "sizeBytes": "Size of the finished encrypted backup set in bytes as a decimal string, or null until completed.",
-        "locations": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed.",
-        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise.",
-        "failureDetail": "The runner's plain-text answer for the failure, or null."
+        "locations": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site.",
+        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise.",
+        "failureDetail": "The runner's plain-text answer for the failure or the failed off-site copy, or null."
       }
     },
     "Page<BackupRun>": {
@@ -29919,7 +29920,7 @@ const transportSchemas = {
         "runnerLastUsedAt"
       ],
       "fieldTypes": {
-        "state": "enum(protected|running|stale|failed)",
+        "state": "enum(protected|running|not_copied|stale|failed)",
         "lastGoodBackupAt": "timestamp|null",
         "lastAttemptAt": "timestamp|null",
         "runningRunId": "uuid|null",
@@ -29938,8 +29939,8 @@ const transportSchemas = {
       ],
       "description": "The one answer to whether this installation is protected: a state word, the last good backup, the run in progress and whether a host runner has been set up and has been heard from.",
       "fieldDescriptions": {
-        "state": "running while a backup is claimed or running; failed when the newest finished attempt failed; stale when the last good backup is older than twice the schedule interval (7 days when no schedule is on) or none exists; protected otherwise.",
-        "lastGoodBackupAt": "When the newest completed backup finished, or null when none has completed.",
+        "state": "running while a backup is claimed or running; failed when the newest finished attempt failed; not_copied when the newest finished attempt took the backup on the host but could not copy it off-site (a later good full backup replaces it); stale when the last good backup is older than twice the schedule interval (7 days when no schedule is on) or none exists; protected otherwise.",
+        "lastGoodBackupAt": "When the newest completed backup finished, or null when none has completed. A backup taken on the host but not copied off-site counts: the local copy exists.",
         "lastAttemptAt": "When the newest finished attempt ended, completed or failed, or null when none has finished.",
         "runningRunId": "Run the runner currently holds, or null.",
         "runningProgressPercent": "Latest progress of the held run, or null.",
@@ -31233,6 +31234,8 @@ const transportSchemas = {
         "citation",
         "text",
         "truncated",
+        "limits",
+        "redactions",
         "tokens",
         "countState"
       ],
@@ -31242,6 +31245,8 @@ const transportSchemas = {
         "citation": "json|null",
         "text": "string|null",
         "truncated": "boolean",
+        "limits": "enum(binary_media|no_text_extractor|extraction_failed)|null",
+        "redactions": "integer",
         "tokens": "integer",
         "countState": "enum(measured|estimated|unknown)"
       },
@@ -31256,6 +31261,8 @@ const transportSchemas = {
         "citation": "Reproducible citation of the version and, for a window, its exact byte range and extractor; null for a caller-supplied text item.",
         "text": "The bounded text admitted to the prompt, or null for every reference kind.",
         "truncated": "Whether the window ends before the version does.",
+        "limits": "Why the item carries no content: binary_media (images, audio, video and unknown binaries are references only), no_text_extractor (PDFs have no text extractor yet) or extraction_failed (a text window could not be produced); null when the item carries text.",
+        "redactions": "How many credentials were replaced by a redaction marker in the text of this item; 0 for a reference or for text with none.",
         "tokens": "What the item counted as under countState.",
         "countState": "Whether tokens was measured, estimated from bounded metadata, or unknown."
       }
