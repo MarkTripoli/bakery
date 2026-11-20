@@ -7,6 +7,8 @@ body {
 body {
   margin: 0;
   display: grid;
+  /* One full-width column, so a panel narrower than the window centres in the window. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   background: var(--color-canvas);
   color: var(--color-fg);
@@ -159,7 +161,8 @@ body {
 /* Under 480 wide the panel fills the window and the buttons are 44 high. */
 @media (max-width: 479px) {
   .panel {
-    inline-size: calc(100% - var(--space-4));
+    /* The window's width less 16 on each side. */
+    inline-size: calc(100% - var(--space-8));
     padding: var(--space-6);
   }
 
