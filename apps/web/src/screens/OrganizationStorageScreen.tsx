@@ -90,7 +90,10 @@ export function OrganizationStorageScreen(
   const { translate } = useI18n();
   const { async, organizationName, settings } = props;
   return (
-    <UI.SettingsContent data-testid="organization-storage">
+    <UI.SettingsContent
+      data-page="organization-storage"
+      data-testid="organization-storage"
+    >
       <UI.AuthHeading
         description={organizationName === ""
           ? translate("organizationStorage.description")
@@ -144,7 +147,7 @@ function UsedNow({ settings }: { readonly settings: StorageSettings }) {
       variant="stack"
     >
       <UI.Inline gap="standard">
-        <UI.Heading level="subsection">{reading}</UI.Heading>
+        <UI.Heading level="page" rank={3}>{reading}</UI.Heading>
         <UI.Badge
           tone={state === "ok"
             ? "success"
@@ -179,15 +182,34 @@ function UsedNow({ settings }: { readonly settings: StorageSettings }) {
   );
 }
 
+/** The unit beside a field: GB, versions or days. */
+function unitWord(
+  field: StorageField,
+  translate: ReturnType<typeof useI18n>["translate"],
+): string {
+  return FIELD_RULES[field].unit === "gigabytes"
+    ? translate("organizationStorage.unit.gb")
+    : field === "workingVersionsKept"
+    ? translate("organizationStorage.unit.versionsWord")
+    : translate("organizationStorage.unit.daysWord");
+}
+
+/** A saved value with its unit, for the read-only list: "100 GB", "20 versions", "30 days". */
 function valueWords(
   field: StorageField,
   settings: StorageSettings,
   translate: ReturnType<typeof useI18n>["translate"],
 ): string {
   const text = fieldText(field, settings[field]);
-  return FIELD_RULES[field].unit === "gigabytes"
-    ? translate("organizationStorage.unit.gigabytes", { value: text })
-    : text;
+  if (FIELD_RULES[field].unit === "gigabytes") {
+    return translate("organizationStorage.unit.gigabytes", { value: text });
+  }
+  return translate(
+    field === "workingVersionsKept"
+      ? "organizationStorage.unit.versions"
+      : "organizationStorage.unit.days",
+    { value: Number(text) },
+  );
 }
 
 function ReadOnly({ settings }: { readonly settings: StorageSettings }) {
@@ -255,19 +277,22 @@ function EditForm(
           label={translate(LABEL[name])}
           layout="inline"
         >
-          <UI.TextInput
-            autoComplete="off"
-            describedBy={undefined}
-            disabled={isDisconnected(async)}
-            id={storageFieldId(name)}
-            inputMode="numeric"
-            invalid={error !== undefined}
-            name={name}
-            onBlur={() => props.onFieldBlur(name)}
-            onChange={(value) => props.onDraftChange(name, value)}
-            type="text"
-            value={draft[name]}
-          />
+          <div className="ui-storage-field">
+            <UI.TextInput
+              autoComplete="off"
+              describedBy={undefined}
+              disabled={isDisconnected(async)}
+              id={storageFieldId(name)}
+              inputMode="numeric"
+              invalid={error !== undefined}
+              name={name}
+              onBlur={() => props.onFieldBlur(name)}
+              onChange={(value) => props.onDraftChange(name, value)}
+              type="text"
+              value={draft[name]}
+            />
+            <UI.Text variant="muted">{unitWord(name, translate)}</UI.Text>
+          </div>
         </UI.Field>
         {warn
           ? (
@@ -317,7 +342,7 @@ function EditForm(
           >
             {KEPT.map(field)}
           </UI.SettingsSection>
-          <UI.Inline gap="standard">
+          <UI.Inline data-form-actions gap="standard">
             <UI.Button
               disabled={isDisconnected(async) || props.unchanged}
               loading={props.pending}

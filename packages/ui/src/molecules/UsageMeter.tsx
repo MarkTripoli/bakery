@@ -54,10 +54,12 @@ export function UsageMeter(
         className="ui-usage-meter__track"
         role="meter"
       >
-        <span
-          className="ui-usage-meter__fill"
-          style={{ inlineSize: `${share * 100}%` }}
-        />
+        <div className="ui-usage-meter__bar">
+          <span
+            className="ui-usage-meter__fill"
+            style={{ inlineSize: `${share * 100}%` }}
+          />
+        </div>
         {marks.map((mark) => (
           <span
             aria-hidden="true"
