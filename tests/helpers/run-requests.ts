@@ -9,6 +9,14 @@ import type { SocketFixture } from "./events-socket.ts";
  * member of the fixture's organization; a guest holds no permission at all.
  */
 
+/** What the member and request helpers need of a fixture: the socket fixture and the worker fixture both fit. */
+export type ApiHost = {
+  pgDatabase: SocketFixture["pgDatabase"];
+  organizationId: string;
+  app: { fetch(request: Request): Response | Promise<Response> };
+  config: { auth?: { secret: string } };
+};
+
 export type Member = {
   principalId: string;
   cookie: string;
@@ -17,7 +25,7 @@ export type Member = {
 };
 
 export async function addMember(
-  fixture: SocketFixture,
+  fixture: ApiHost,
   label: string,
   role: "guest" | "developer" | "viewer" | "admin",
 ): Promise<Member> {
@@ -66,9 +74,15 @@ export type SeededRun = { runId: string; taskId: string; stepKey: string };
 
 /** A run (and one step) on the given task, started by the fixture's admin. */
 export async function seedRun(
-  fixture: SocketFixture,
+  fixture: {
+    pgDatabase: SocketFixture["pgDatabase"];
+    organizationId: string;
+    principalId: string;
+    taskId?: string;
+  },
   taskId = fixture.taskId,
 ): Promise<SeededRun> {
+  if (taskId === undefined) throw new Error("seedRun needs a task");
   const db = fixture.pgDatabase;
   const workflowId = crypto.randomUUID();
   const versionId = crypto.randomUUID();
@@ -121,7 +135,7 @@ export async function seedOtherTask(fixture: SocketFixture): Promise<string> {
 }
 
 export function api(
-  fixture: SocketFixture,
+  fixture: ApiHost,
   cookie: string,
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
