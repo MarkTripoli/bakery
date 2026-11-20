@@ -2923,6 +2923,209 @@ export const clientManifest = {
     },
     {
       "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/draft",
+      "action": "skillDrafts.open",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": "",
+      "idempotency": "natural; the same draft comes back",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skills/{id}/draft",
+      "action": "skillDrafts.get",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "PATCH",
+      "path": "/v1/skills/{id}/draft",
+      "action": "skillDrafts.update",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftUpdate",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "DELETE",
+      "path": "/v1/skills/{id}/draft",
+      "action": "skillDrafts.discard",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/draft/check",
+      "action": "skillDrafts.check",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "SkillDraftCheck",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/draft/files",
+      "action": "skillDraftFiles.save",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftFileSave",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "BODY_TOO_LARGE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skills/{id}/draft/files/{fileId}",
+      "action": "skillDraftFiles.get",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftFilePath",
+      "output": "SkillDraftFile",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "DELETE",
+      "path": "/v1/skills/{id}/draft/files/{fileId}",
+      "action": "skillDraftFiles.delete",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftFilePath",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "GET",
       "path": "/v1/skills/{id}/use-grants",
       "action": "skills.useGrants.list",
@@ -16965,6 +17168,14 @@ export const clientManifest = {
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skillDrafts.open",
+            "skillDrafts.get",
+            "skillDrafts.update",
+            "skillDrafts.discard",
+            "skillDrafts.check",
+            "skillDraftFiles.save",
+            "skillDraftFiles.get",
+            "skillDraftFiles.delete",
             "skills.useGrants.list",
             "skills.useGrants.delete",
             "skillVersions.list",
@@ -18979,6 +19190,98 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published, as an organization skill or as a personal skill that belongs to the calling person."
+    },
+    "SkillDraftUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill whose draft to change; supplied via the request's {id} path segment."
+        },
+        "license": {
+          "description": "The license the published version declares, printable ASCII; omit to keep the draft's current one. A draft started from a version keeps that version's license. SkillDraftUpdate.license must contain at most 200 characters.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "entryPath": {
+          "description": "The file a worker reads first, usually SKILL.md; it must be one of the draft's files when the draft is checked. Omit to keep the current one. SkillDraftUpdate.entryPath must contain at most 500 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Changes the settings of a skill's draft that are not files: its license and its entry file."
+    },
+    "SkillDraftFileSave": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill whose draft receives the file; supplied via the request's {id} path segment."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Relative path of the file inside the skill, such as SKILL.md or scripts/build.sh. Saving a path the draft already has replaces that file; a path that matches another file ignoring capitals is refused. SkillDraftFileSave.path must contain at most 500 characters."
+        },
+        "mediaType": {
+          "type": "string",
+          "maxLength": 255,
+          "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+\\/[!#$%&'*+\\-.^_`|~0-9A-Za-z]+(?:[ \\t]*;[ \\t]*[!#$%&'*+\\-.^_`|~0-9A-Za-z]+(?:[ \\t]*=[ \\t]*(?:\"(?:[\\t\\x20-\\x21\\x23-\\x5b\\x5d-\\x7e]|\\\\[\\t\\x20-\\x7e])*\"|[!#$%&'*+\\-.^_`|~0-9A-Za-z]+))?)*$",
+          "description": "MIME media type of the file's content, for example text/markdown."
+        },
+        "isExecutable": {
+          "description": "Whether the file is marked runnable on a worker; defaults to false and only a script may be marked.",
+          "type": "boolean"
+        },
+        "contentBase64": {
+          "type": "string",
+          "description": "The file's complete bytes, base64-encoded; all files of the draft together are capped at 10MiB and 256 files."
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "mediaType",
+        "contentBase64"
+      ],
+      "additionalProperties": false,
+      "description": "Adds a file to a skill's draft or replaces the one at the same path."
+    },
+    "SkillDraftFilePath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
+        },
+        "fileId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the file inside the draft, as listed by the draft; supplied via the request's {fileId} path segment."
+        }
+      },
+      "required": [
+        "id",
+        "fileId"
+      ],
+      "additionalProperties": false,
+      "description": "Addresses one file of a skill's draft by the id the draft lists it under."
     },
     "SkillCopy": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -42834,6 +43137,14 @@ export const clientManifest = {
                   "skills.get",
                   "skills.update",
                   "skills.usedBy",
+                  "skillDrafts.open",
+                  "skillDrafts.get",
+                  "skillDrafts.update",
+                  "skillDrafts.discard",
+                  "skillDrafts.check",
+                  "skillDraftFiles.save",
+                  "skillDraftFiles.get",
+                  "skillDraftFiles.delete",
                   "skills.useGrants.list",
                   "skills.useGrants.delete",
                   "skillVersions.list",
@@ -63217,6 +63528,14 @@ export const clientManifest = {
             "skills.get",
             "skills.update",
             "skills.usedBy",
+            "skillDrafts.open",
+            "skillDrafts.get",
+            "skillDrafts.update",
+            "skillDrafts.discard",
+            "skillDrafts.check",
+            "skillDraftFiles.save",
+            "skillDraftFiles.get",
+            "skillDraftFiles.delete",
             "skills.useGrants.list",
             "skills.useGrants.delete",
             "skillVersions.list",
@@ -97104,6 +97423,499 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
+    },
+    "SkillDraft": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the draft."
+        },
+        "skillId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the skill the draft belongs to."
+        },
+        "baseVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The published version the draft started from, or null for an empty draft."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillDraft.baseVersionId may be null in this transport value."
+        },
+        "baseRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of that version, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillDraft.baseRevision may be null in this transport value."
+        },
+        "entryPath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The file a worker reads first."
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The license the published version will declare, or null before one is set."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillDraft.license may be null in this transport value."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "The draft's files in name order, each with id, path, mediaType, isExecutable, sizeBytes and sha256; contents are never listed. Each array item follows this format."
+          },
+          "description": "The draft's files in name order, each with id, path, mediaType, isExecutable, sizeBytes and sha256; contents are never listed."
+        },
+        "totalBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Decoded bytes of all files together; the limit is 10MiB."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision of the draft; submit it as If-Match when changing it."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the draft was started."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time it last changed."
+        }
+      },
+      "required": [
+        "id",
+        "skillId",
+        "baseVersionId",
+        "baseRevision",
+        "entryPath",
+        "license",
+        "files",
+        "totalBytes",
+        "version",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "description": "A skill's authoring draft: the files being edited, where it started from, and the version to submit as If-Match when changing it. It changes nothing for agents or workflows until it is published; contents are read one file at a time.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "SkillDraftFile": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the file inside the draft."
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Relative path of the file inside the skill."
+        },
+        "mediaType": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "MIME media type of the content."
+        },
+        "isExecutable": {
+          "type": "boolean",
+          "description": "Whether the file is marked runnable."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Decoded size in bytes."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 of the decoded bytes, lowercase hex."
+        },
+        "contentBase64": {
+          "type": "string",
+          "description": "The complete bytes, base64-encoded."
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "mediaType",
+        "isExecutable",
+        "sizeBytes",
+        "sha256",
+        "contentBase64"
+      ],
+      "additionalProperties": false,
+      "description": "One file of a skill's draft with its complete contents."
+    },
+    "SkillDraftCheck": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True when the draft can be published as it is."
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "Each problem with file (the file's path, or null when it is about the skill as a whole), line (or null), code and message in plain words; at most 50. Each array item follows this format."
+          },
+          "description": "Each problem with file (the file's path, or null when it is about the skill as a whole), line (or null), code and message in plain words; at most 50."
+        },
+        "draftVersion": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The draft version that was checked; a later change makes the result stale."
+        }
+      },
+      "required": [
+        "ok",
+        "problems",
+        "draftVersion"
+      ],
+      "additionalProperties": false,
+      "description": "The result of checking a skill's draft as a publish would: whether it can be published, and each problem as a sentence tied to its file and, where known, its line.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "Page<SkillUsage>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

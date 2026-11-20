@@ -81,6 +81,7 @@ export function createCatalogRoutes(options: {
       : undefined);
   const handlers = createCatalogHandlers(options.cursorSecret, {
     normalizeSourceLocator: options.normalizeSourceLocator,
+    skillFileStore: store,
   });
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
   const postgresCommandRunner = createPostgresCommandRunner();

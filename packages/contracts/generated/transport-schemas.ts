@@ -3981,6 +3981,101 @@ const transportSchemas = {
       ],
       "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published, as an organization skill or as a personal skill that belongs to the calling person."
     },
+    "SkillDraftUpdate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose draft to change; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "license",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The license the published version declares, printable ASCII; omit to keep the draft's current one. A draft started from a version keeps that version's license."
+        },
+        {
+          "name": "entryPath",
+          "type": "relativePath",
+          "required": false,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "The file a worker reads first, usually SKILL.md; it must be one of the draft's files when the draft is checked. Omit to keep the current one."
+        }
+      ],
+      "rules": [
+        "Skill author (the owner of a personal skill, an Admin for an organization skill; a skill shared by Bakery has no draft). Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft)."
+      ],
+      "description": "Changes the settings of a skill's draft that are not files: its license and its entry file."
+    },
+    "SkillDraftFileSave": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose draft receives the file; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "path",
+          "type": "relativePath",
+          "required": true,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "Relative path of the file inside the skill, such as SKILL.md or scripts/build.sh. Saving a path the draft already has replaces that file; a path that matches another file ignoring capitals is refused."
+        },
+        {
+          "name": "mediaType",
+          "type": "mediaType",
+          "required": true,
+          "description": "MIME media type of the file's content, for example text/markdown."
+        },
+        {
+          "name": "isExecutable",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether the file is marked runnable on a worker; defaults to false and only a script may be marked."
+        },
+        {
+          "name": "contentBase64",
+          "type": "base64",
+          "required": true,
+          "description": "The file's complete bytes, base64-encoded; all files of the draft together are capped at 10MiB and 256 files."
+        }
+      ],
+      "rules": [
+        "Skill author. Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft). The answer is the draft with its new version."
+      ],
+      "description": "Adds a file to a skill's draft or replaces the one at the same path."
+    },
+    "SkillDraftFilePath": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "fileId",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the file inside the draft, as listed by the draft; supplied via the request's {fileId} path segment."
+        }
+      ],
+      "rules": [],
+      "description": "Addresses one file of a skill's draft by the id the draft lists it under."
+    },
     "SkillCopy": {
       "fields": [
         {
@@ -31953,6 +32048,103 @@ const transportSchemas = {
         "revision": "Revision number of that workflow or agent version.",
         "skillVersionIds": "The versions of this skill the workflow or agent version pins, oldest first; at least one.",
         "createdAt": "UTC time that workflow or agent version was created, which orders the list newest first."
+      }
+    },
+    "SkillDraft": {
+      "fields": [
+        "id",
+        "skillId",
+        "baseVersionId",
+        "baseRevision",
+        "entryPath",
+        "license",
+        "files",
+        "totalBytes",
+        "version",
+        "createdAt",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "skillId": "uuid",
+        "baseVersionId": "uuid|null",
+        "baseRevision": "integer|null",
+        "entryPath": "string",
+        "license": "string|null",
+        "files": "json[]",
+        "totalBytes": "integer",
+        "version": "integer",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      },
+      "nullableFields": [
+        "baseVersionId",
+        "baseRevision",
+        "license"
+      ],
+      "description": "A skill's authoring draft: the files being edited, where it started from, and the version to submit as If-Match when changing it. It changes nothing for agents or workflows until it is published; contents are read one file at a time.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the draft.",
+        "skillId": "Stable UUID of the skill the draft belongs to.",
+        "baseVersionId": "The published version the draft started from, or null for an empty draft.",
+        "baseRevision": "Revision number of that version, or null.",
+        "entryPath": "The file a worker reads first.",
+        "license": "The license the published version will declare, or null before one is set.",
+        "files": "The draft's files in name order, each with id, path, mediaType, isExecutable, sizeBytes and sha256; contents are never listed.",
+        "totalBytes": "Decoded bytes of all files together; the limit is 10MiB.",
+        "version": "Monotonic revision of the draft; submit it as If-Match when changing it.",
+        "createdAt": "UTC time the draft was started.",
+        "updatedAt": "UTC time it last changed."
+      }
+    },
+    "SkillDraftFile": {
+      "fields": [
+        "id",
+        "path",
+        "mediaType",
+        "isExecutable",
+        "sizeBytes",
+        "sha256",
+        "contentBase64"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "path": "string",
+        "mediaType": "string",
+        "isExecutable": "boolean",
+        "sizeBytes": "integer",
+        "sha256": "sha256",
+        "contentBase64": "base64"
+      },
+      "nullableFields": [],
+      "description": "One file of a skill's draft with its complete contents.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the file inside the draft.",
+        "path": "Relative path of the file inside the skill.",
+        "mediaType": "MIME media type of the content.",
+        "isExecutable": "Whether the file is marked runnable.",
+        "sizeBytes": "Decoded size in bytes.",
+        "sha256": "SHA-256 of the decoded bytes, lowercase hex.",
+        "contentBase64": "The complete bytes, base64-encoded."
+      }
+    },
+    "SkillDraftCheck": {
+      "fields": [
+        "ok",
+        "problems",
+        "draftVersion"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "problems": "json[]",
+        "draftVersion": "integer"
+      },
+      "nullableFields": [],
+      "description": "The result of checking a skill's draft as a publish would: whether it can be published, and each problem as a sentence tied to its file and, where known, its line.",
+      "fieldDescriptions": {
+        "ok": "True when the draft can be published as it is.",
+        "problems": "Each problem with file (the file's path, or null when it is about the skill as a whole), line (or null), code and message in plain words; at most 50.",
+        "draftVersion": "The draft version that was checked; a later change makes the result stale."
       }
     },
     "Page<SkillUsage>": {
