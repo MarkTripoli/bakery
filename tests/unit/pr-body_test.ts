@@ -214,3 +214,60 @@ Deno.test("CRLF bodies keep their line endings through a verify edit", () => {
   });
   assert(!/[^\r]\n/.test(ticked));
 });
+
+/**
+ * #780 AC1: publish refuses a body with a format error before anything is sent.
+ * The real CLI runs with a fake `gh` first on PATH that records every call; a
+ * refused spec must make none.
+ */
+async function publishWithFakeGh(spec: unknown, ...args: string[]) {
+  const dir = await Deno.makeTempDir();
+  try {
+    const calls = dir + "/calls.txt";
+    await Deno.writeTextFile(
+      dir + "/gh",
+      '#!/bin/sh\necho "$@" >> ' + calls + "\nexit 1\n",
+    );
+    await Deno.chmod(dir + "/gh", 0o755);
+    await Deno.writeTextFile(dir + "/spec.json", JSON.stringify(spec));
+    const out = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "-A",
+        "scripts/authoring/pr-body.ts",
+        "publish",
+        dir + "/spec.json",
+        ...args,
+      ],
+      env: { PATH: dir + ":" + Deno.env.get("PATH") },
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    return {
+      code: out.code,
+      text: new TextDecoder().decode(out.stderr) +
+        new TextDecoder().decode(out.stdout),
+      calls: await Deno.readTextFile(calls).catch(() => ""),
+    };
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+}
+
+const overlongPurpose = Array.from({ length: 45 }, (_, n) => "word" + n)
+  .join(" ");
+
+for (const args of [["--pr", "123"], ["--create", "--title", "t"]]) {
+  Deno.test(`publish ${args[0]} refuses a body with a format error and calls gh zero times`, async () => {
+    const result = await publishWithFakeGh(
+      spec({ purpose: overlongPurpose }),
+      ...args,
+    );
+    assertEquals(result.code, 1, result.text);
+    assert(
+      result.text.includes("purpose prose must be at most 40 words"),
+      result.text,
+    );
+    assertEquals(result.calls, "", "gh must not be called");
+  });
+}
