@@ -5280,7 +5280,6 @@
   "installation.monitoring.form.name": "⟪Name⟫",
   "installation.monitoring.form.nameHelp": "⟪Shown in the list and in alerts.⟫",
   "installation.monitoring.form.reenter": "⟪Enter the value again. A saved value is never sent to a different address.⟫",
-  "installation.monitoring.form.removeSecret": "⟪Remove⟫",
   "installation.monitoring.form.replace": "⟪Replace⟫",
   "installation.monitoring.form.save": "⟪Save⟫",
   "installation.monitoring.form.saveAdd": "⟪Save and turn on⟫",
@@ -5367,5 +5366,8 @@
   "installation.monitoring.row.lineDropped": "⟪{line} · {count} dropped⟫",
   "installation.monitoring.empty.body": "⟪Add one to see timings and health in Grafana or any OpenTelemetry tool.⟫",
   "installation.monitoring.empty.title": "⟪No destinations yet⟫",
-  "installation.monitoring.form.addTitle": "⟪Add {kind} destination⟫"
+  "installation.monitoring.form.addTitle": "⟪Add {kind} destination⟫",
+  "installation.monitoring.form.removeSecret": "⟪Remove value⟫",
+  "installation.monitoring.test.answer": "⟪Answer from the destination⟫",
+  "installation.monitoring.test.needsValues": "⟪Fill in the required settings to send a test.⟫"
 }

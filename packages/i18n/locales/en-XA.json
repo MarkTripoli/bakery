@@ -5280,7 +5280,6 @@
   "installation.monitoring.form.name": "⟦Ñàɱë⟧",
   "installation.monitoring.form.nameHelp": "⟦Šĥôŵñ ïñ ŧĥë ļïšŧ àñð ïñ àļëŕŧš. ŧëšŧ çôþÿ⟧",
   "installation.monitoring.form.reenter": "⟦Ëñŧëŕ ŧĥë ṽàļûë àĝàïñ. À šàṽëð ṽàļûë ïš ñëṽëŕ šëñŧ ŧô à ðïƒƒëŕëñŧ àððŕëšš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "installation.monitoring.form.removeSecret": "⟦Ŕëɱôṽë…⟧",
   "installation.monitoring.form.replace": "⟦Ŕëþļàçë…⟧",
   "installation.monitoring.form.save": "⟦Šàṽë⟧",
   "installation.monitoring.form.saveAdd": "⟦Šàṽë àñð ŧûŕñ ôñ ŧëš⟧",
@@ -5367,5 +5366,8 @@
   "installation.monitoring.row.lineDropped": "⟦{line} · {count} ðŕôþþëð ŧëšŧ ç⟧",
   "installation.monitoring.empty.body": "⟦Àðð ôñë ŧô šëë ŧïɱïñĝš àñð ĥëàļŧĥ ïñ Ĝŕàƒàñà ôŕ àñÿ ÔþëñŦëļëɱëŧŕÿ ŧôôļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "installation.monitoring.empty.title": "⟦Ñô ðëšŧïñàŧïôñš ÿëŧ ŧëšŧ⟧",
-  "installation.monitoring.form.addTitle": "⟦Àðð {kind} ðëšŧïñàŧïôñ ŧëšŧŧ⟧"
+  "installation.monitoring.form.addTitle": "⟦Àðð {kind} ðëšŧïñàŧïôñ ŧëšŧŧ⟧",
+  "installation.monitoring.form.removeSecret": "⟦Ŕëɱôṽë ṽàļûë ŧë⟧",
+  "installation.monitoring.test.answer": "⟦Àñšŵëŕ ƒŕôɱ ŧĥë ðëšŧïñàŧïôñ ŧëšŧ çô⟧",
+  "installation.monitoring.test.needsValues": "⟦Ƒïļļ ïñ ŧĥë ŕëǫûïŕëð šëŧŧïñĝš ŧô šëñð à ŧëšŧ. ŧëšŧ çôþÿ ŧëš⟧"
 }

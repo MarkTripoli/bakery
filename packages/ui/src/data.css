@@ -2344,6 +2344,14 @@
 .ui-settings-content[data-page="installation-monitoring"] .ui-data-table--ruled td .ui-button {
   min-inline-size: calc(var(--space-6) * 3);
 }
+/* On a phone the search takes the whole line, and the State filter and the count
+   sit under it. */
+@media (max-width: 743px) {
+  .ui-settings-content[data-page="installation-monitoring"] .ui-search-field {
+    flex: 1 1 100%;
+    inline-size: 100%;
+  }
+}
 /* A phone row: the detail line takes the width and the switch sits at the end
    of it, on the same line. */
 .ui-settings-content[data-page="installation-monitoring"] .ui-stacked-row .ui-inline {

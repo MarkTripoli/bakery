@@ -116,6 +116,11 @@ export function MonitoringDestinationScreen(
 
   const problem = formProblem(editing, kind, draft);
   const again = reenterNeeded(editing, kind, draft);
+  // A new destination has nothing to test until its required settings are in.
+  const missingValues = editing === null &&
+    kind.fields.some((field) =>
+      field.required && (draft.values[field.name] ?? "").trim() === ""
+    );
   const words = editing === null ? null : stateWords(editing.state);
 
   const fieldInput = (field: KindField) => {
@@ -429,6 +434,7 @@ export function MonitoringDestinationScreen(
             <UI.Inline gap="standard">
               <UI.Button
                 disabled={props.test?.state === "sending" ||
+                  missingValues ||
                   (again && problem === "reenter")}
                 onClick={props.onTest}
                 type="button"
@@ -441,6 +447,13 @@ export function MonitoringDestinationScreen(
                 )}
               </UI.Button>
             </UI.Inline>
+            {missingValues
+              ? (
+                <UI.Text variant="muted">
+                  {translate("installation.monitoring.test.needsValues")}
+                </UI.Text>
+              )
+              : null}
             <TestResult test={props.test} />
           </UI.SettingsSection>
         </UI.Stack>
@@ -515,7 +528,14 @@ function TestResult({ test }: { readonly test: MonitoringTest }) {
               }`}
             </UI.InlineNotice>
             {result.answer !== null
-              ? <UI.DataText>{result.answer}</UI.DataText>
+              ? (
+                <UI.Stack gap="none">
+                  <UI.Text variant="muted">
+                    {translate("installation.monitoring.test.answer")}
+                  </UI.Text>
+                  <UI.DataText>{result.answer}</UI.DataText>
+                </UI.Stack>
+              )
               : null}
           </UI.Stack>
         )}

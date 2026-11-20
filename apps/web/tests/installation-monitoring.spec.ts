@@ -114,10 +114,18 @@ for (
       const seen = await monitoringFixture(page, { empty: true });
       await page.goto(LIST);
       await page.getByRole("button", { name: "Add OpenTelemetry" }).click();
+      // Nothing to test until the required settings are in.
+      await expect(page.getByRole("button", { name: "Send a test" }))
+        .toBeDisabled();
+      await expect(
+        page.getByText("Fill in the required settings to send a test."),
+      ).toBeVisible();
       await page.getByLabel("Name", { exact: true }).fill("Grafana");
       await page.getByLabel("Address", { exact: true }).fill(
         "https://otel.example.com",
       );
+      await expect(page.getByRole("button", { name: "Send a test" }))
+        .toBeEnabled();
       await page.getByRole("button", { name: "Save and turn on" }).click();
       await expect(page).toHaveURL(/\/installation\/monitoring$/);
       await expect(page.getByText("Grafana", { exact: true })).toBeVisible();
@@ -181,6 +189,7 @@ for (
         .click();
       await page.getByRole("button", { name: "Send a test" }).click();
       await expect(page.getByText("Test failed.")).toBeVisible();
+      await expect(page.getByText("Answer from the destination")).toBeVisible();
       await expect(page.getByText("invalid token")).toBeVisible();
       await expect(page.getByText(/It took 120 ms\./)).toBeVisible();
       await page.mouse.move(700, 700);
