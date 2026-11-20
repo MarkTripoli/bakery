@@ -685,11 +685,75 @@ for (
       await expect(sheet.getByTestId("memory-source")).toContainText(
         "This source could not be checked right now.",
       );
+      // Hold the next reads, so the in-flight state can be seen.
+      let hold = true;
+      await page.route("**/v1/memories**", async (route) => {
+        if (hold) await new Promise((resolve) => setTimeout(resolve, 3000));
+        await route.fallback();
+      });
       seen.recover(6);
       await sheet.getByRole("button", { name: "Try again" }).click();
+      const checking = sheet.getByRole("button", { name: "Checking…" });
+      await expect(checking).toBeVisible();
+      await expect(checking).toBeDisabled();
+      await shot(page, "library-memory-source-checking", [], {
+        windowOnly: true,
+        only: viewport.name === "desktop" ? "desktop" : "mobile",
+      });
+      hold = false;
       await expect(sheet.getByTestId("memory-source")).toHaveText(
         "Runbook, version 3",
+        { timeout: 15000 },
       );
+    });
+
+    test("a failed read of one fact says it could not be loaded; Try again reads it again", async ({ page }) => {
+      await memoryFixture(page, [
+        ...WORLD,
+        { n: 7, body: "Hidden from the list, fetched by id.", unlisted: true },
+      ]);
+      let fail = true;
+      let reads = 0;
+      await page.route(`**/v1/memories/${uuid(7)}`, (route) => {
+        reads += 1;
+        return fail
+          ? route.fulfill({
+            status: 500,
+            contentType: "application/problem+json",
+            body: JSON.stringify({
+              type: "https://bakery.example/problems/test",
+              title: "INTERNAL_ERROR",
+              detail: "INTERNAL_ERROR",
+              status: 500,
+              code: "INTERNAL_ERROR",
+              retryable: false,
+              requestId: crypto.randomUUID(),
+              traceId: crypto.randomUUID(),
+            }),
+          })
+          : route.fallback();
+      });
+      await page.goto(`/library?tab=memory&fact=${uuid(7)}`);
+      await expect(page.getByText("This fact could not be loaded")).toHaveCount(
+        1,
+        { timeout: 30000 },
+      );
+      await expect(page.getByTestId("memory-fact-missing")).toContainText(
+        "Check your connection, then try again.",
+      );
+      await shot(page, "library-memory-load-failed", [], {
+        windowOnly: true,
+        only: viewport.name === "desktop" ? "desktop" : "mobile",
+      });
+      fail = false;
+      const before = reads;
+      await page.getByTestId("memory-fact-missing").getByRole("button", {
+        name: "Try again",
+      }).click();
+      await expect(page.getByTestId("memory-fact-body")).toHaveText(
+        "Hidden from the list, fetched by id.",
+      );
+      expect(reads).toBeGreaterThan(before);
     });
 
     test("a link to a fact the list does not hold opens it; one that is gone or not yours says it was not found", async ({ page }) => {
@@ -705,9 +769,8 @@ for (
       for (const id of [99, 98]) {
         await page.goto(`/library?tab=memory&fact=${uuid(id)}`);
         const missing = page.getByTestId("memory-fact-missing");
-        await expect(
-          page.getByText("This fact was not found").first(),
-        ).toBeVisible();
+        // The title shows once: a doubled one would read as a layout bug.
+        await expect(page.getByText("This fact was not found")).toHaveCount(1);
         await expect(missing).toContainText(
           "It may have been removed, or you may not have access to it.",
         );
