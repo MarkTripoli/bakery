@@ -61,7 +61,7 @@ const revisionOf = (fact: Fact, revision: number) => {
   };
 };
 
-const entryOf = (fact: Fact) => {
+const entryOf = (fact: Fact, version = 1) => {
   const last = fact.revisions ?? 1;
   const current = revisionOf(fact, last);
   return {
@@ -75,7 +75,7 @@ const entryOf = (fact: Fact) => {
     status: fact.status ?? "active",
     createdAt: STAMP,
     updatedAt: STAMP,
-    version: 1,
+    version: version,
   };
 };
 
@@ -124,24 +124,111 @@ const WORLD: Fact[] = [
   { n: 5, body: "Feature flags are read once at start-up.", status: "retired" },
 ];
 
+type FixtureOptions = {
+  fail?: boolean;
+  role?: "admin" | "developer";
+  /** Every change to a fact is refused with this rule slug (409). */
+  refuse?: string;
+};
+
+const DOCUMENTS = [
+  { n: 7100, name: "Deploy runbook" },
+  { n: 7110, name: "Release checklist" },
+].map(({ n, name }) => ({
+  id: uuid(n),
+  taskId: uuid(7200),
+  artifactType: "plan",
+  name,
+  currentVersionId: uuid(n + 1),
+  createdAt: STAMP,
+  updatedAt: STAMP,
+  version: 1,
+  pinnedAt: null,
+  pinnedBy: null,
+}));
+
 async function memoryFixture(
   page: Page,
   facts: Fact[] = WORLD,
-  options: { fail?: boolean } = {},
+  options: FixtureOptions = {},
 ) {
-  await libraryFixture(page, {});
-  const seen = { revisionReads: [] as string[], listReads: 0 };
+  await libraryFixture(page, { role: options.role });
+  // The facts and their versions change as the page changes them.
+  const live = facts.map((fact) => ({ ...fact }));
+  const versions = new Map<string, number>();
+  const versionOf = (id: string) => versions.get(id) ?? 1;
+  const bump = (id: string) => versions.set(id, versionOf(id) + 1);
+  const seen = {
+    revisionReads: [] as string[],
+    listReads: 0,
+    updates: [] as {
+      id: string;
+      ifMatch: string | null;
+      key: string | null;
+      body: { status?: string };
+    }[],
+    revisions: [] as {
+      id: string;
+      key: string | null;
+      body: {
+        content: string;
+        reason: string;
+        sourceArtifactVersionId: string;
+      };
+    }[],
+  };
+  const refused = () =>
+    options.refuse === undefined ? null : {
+      status: 409,
+      contentType: "application/problem+json",
+      body: JSON.stringify({
+        type: "https://bakery.example/problems/test",
+        title: "STATE_CONFLICT",
+        detail: "STATE_CONFLICT",
+        status: 409,
+        code: "STATE_CONFLICT",
+        retryable: false,
+        requestId: crypto.randomUUID(),
+        traceId: crypto.randomUUID(),
+        reason: options.refuse,
+      }),
+    };
   await page.route("**/v1/repositories**", (route) =>
     route.fulfill(json({
       items: [repository(API, "api-service"), repository(WEB, "web-app")],
       nextCursor: null,
     })));
+  await page.route(
+    "**/v1/artifacts**",
+    (route) => route.fulfill(json({ items: DOCUMENTS, nextCursor: null })),
+  );
   await page.route("**/v1/memories**", (route) => {
-    const url = new URL(route.request().url());
+    const request = route.request();
+    const url = new URL(request.url());
     const revisions = url.pathname.match(/\/v1\/memories\/([^/]+)\/revisions$/);
+    const one = url.pathname.match(/\/v1\/memories\/([^/]+)$/);
     if (revisions) {
+      const fact = live.find((item) => uuid(item.n) === revisions[1]);
+      if (request.method() === "POST") {
+        seen.revisions.push({
+          id: revisions[1],
+          key: request.headers()["idempotency-key"] ?? null,
+          body: request.postDataJSON(),
+        });
+        const refusal = refused();
+        if (refusal) return route.fulfill(refusal);
+        if (!fact) return route.fulfill(json({}, 404));
+        const input = request.postDataJSON() as { content: string };
+        fact.revisions = (fact.revisions ?? 1) + 1;
+        fact.body = input.content;
+        fact.source = "available";
+        bump(revisions[1]);
+        return route.fulfill({
+          ...json(revisionOf(fact, fact.revisions)),
+          status: 201,
+        });
+      }
       seen.revisionReads.push(revisions[1]);
-      const fact = facts.find((item) => uuid(item.n) === revisions[1]);
       return route.fulfill(json({
         items: fact
           ? Array.from(
@@ -151,6 +238,26 @@ async function memoryFixture(
           : [],
         nextCursor: null,
       }));
+    }
+    if (one) {
+      const fact = live.find((item) => uuid(item.n) === one[1]);
+      if (!fact) return route.fulfill(json({}, 404));
+      if (request.method() === "PATCH") {
+        const body = request.postDataJSON() as { status?: string };
+        seen.updates.push({
+          id: one[1],
+          ifMatch: request.headers()["if-match"] ?? null,
+          key: request.headers()["idempotency-key"] ?? null,
+          body,
+        });
+        const refusal = refused();
+        if (refusal) return route.fulfill(refusal);
+        if (body.status === "active" || body.status === "retired") {
+          fact.status = body.status;
+        }
+        bump(one[1]);
+      }
+      return route.fulfill(json(entryOf(fact, versionOf(one[1]))));
     }
     seen.listReads += 1;
     if (options.fail) {
@@ -169,7 +276,10 @@ async function memoryFixture(
         }),
       });
     }
-    return route.fulfill(json({ items: facts.map(entryOf), nextCursor: null }));
+    return route.fulfill(json({
+      items: live.map((fact) => entryOf(fact, versionOf(uuid(fact.n)))),
+      nextCursor: null,
+    }));
   });
   return seen;
 }
@@ -295,6 +405,195 @@ for (
         "Someone who can open it can check this fact.",
       );
       await expect(denied).not.toContainText("Runbook");
+    });
+
+    const open = async (page: Page, n: number) => {
+      await page.goto("/library?tab=memory");
+      await row(page, n).getByRole("button", { name: /^Open fact:/ }).click();
+      return page.getByTestId("memory-fact");
+    };
+
+    test("approving a suggested fact puts it in use, sending the fact's version, and there is no Reject", async ({ page }) => {
+      const seen = await memoryFixture(page);
+      const sheet = await open(page, 2);
+      await expect(sheet).toContainText(
+        "Agents are not given a suggested fact. Read the source, then decide.",
+      );
+      await expect(sheet.getByRole("button", { name: "Approve", exact: true }))
+        .toBeVisible();
+      await expect(
+        sheet.getByRole("button", { name: "Correct, then approve" }),
+      ).toBeVisible();
+      await expect(sheet.getByRole("button", { name: "Don't use" }))
+        .toBeVisible();
+      await expect(sheet.getByRole("button", { name: /reject/i })).toHaveCount(
+        0,
+      );
+      await shot(page, "library-memory-review", [], { windowOnly: true });
+      await sheet.getByRole("button", { name: "Approve", exact: true }).click();
+      await expect(sheet.getByTestId("memory-toast")).toContainText(
+        "Approved. Agents are given this fact from their next run.",
+      );
+      await expect(row(page, 2)).toContainText("In use");
+      expect(seen.updates).toHaveLength(1);
+      expect(seen.updates[0]).toMatchObject({
+        id: uuid(2),
+        ifMatch: '"v1"',
+        body: { status: "active" },
+      });
+      expect(seen.updates[0].key).toBeTruthy();
+      await expect(sheet.getByRole("button", { name: "Approve", exact: true }))
+        .toHaveCount(
+          0,
+        );
+      await expect(sheet.getByRole("button", { name: "Stop using" }))
+        .toBeVisible();
+    });
+
+    test("a correction needs the wording, the reason and a source; saving it adds a wording and approves it", async ({ page }) => {
+      const seen = await memoryFixture(page);
+      const sheet = await open(page, 2);
+      await sheet.getByRole("button", { name: "Correct, then approve" })
+        .click();
+      const form = sheet.getByTestId("memory-correct");
+      const wording = form.getByLabel("What should agents be told instead?");
+      await expect(wording).toHaveValue(
+        "The staging database is reset every Monday.",
+      );
+      await form.getByRole("button", { name: "Save and approve" }).click();
+      await expect(form).toContainText("Say why it is changing.");
+      await expect(form).toContainText("Choose the source.");
+      await expect(form).not.toContainText("Enter the new wording.");
+      await wording.fill("");
+      await form.getByRole("button", { name: "Save and approve" }).click();
+      await expect(form).toContainText("Enter the new wording.");
+      expect(seen.revisions).toEqual([]);
+      await wording.fill("The staging database is reset every Tuesday.");
+      await form.getByLabel("Why is this changing?").fill(
+        "The reset moved.",
+      );
+      await form.locator("select").selectOption({ label: "Deploy runbook" });
+      await shot(page, "library-memory-correct", [], { windowOnly: true });
+      await form.getByRole("button", { name: "Save and approve" }).click();
+      await expect(sheet.getByTestId("memory-toast")).toContainText(
+        "Correction saved and approved.",
+      );
+      await expect(form).toHaveCount(0);
+      expect(seen.revisions).toHaveLength(1);
+      expect(seen.revisions[0].body).toEqual({
+        content: "The staging database is reset every Tuesday.",
+        reason: "The reset moved.",
+        sourceArtifactVersionId: uuid(7101),
+      });
+      // The correction changed the fact, so approval is sent against its new version.
+      expect(seen.updates).toHaveLength(1);
+      expect(seen.updates[0]).toMatchObject({
+        id: uuid(2),
+        ifMatch: '"v2"',
+        body: { status: "active" },
+      });
+      await expect(row(page, 2)).toContainText("In use");
+      await expect(row(page, 2)).toContainText("corrected once");
+      await expect(sheet.getByTestId("memory-fact-body")).toHaveText(
+        "The staging database is reset every Tuesday.",
+      );
+    });
+
+    test("stopping use asks first; Undo puts the fact back, against the version it then has", async ({ page }) => {
+      const seen = await memoryFixture(page);
+      const sheet = await open(page, 1);
+      await sheet.getByRole("button", { name: "Stop using" }).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText("Stop using this fact?");
+      await expect(dialog).toContainText("you can use it again");
+      expect(seen.updates).toEqual([]);
+      await dialog.getByRole("button", { name: "Stop using" }).click();
+      await expect(sheet.getByTestId("memory-toast")).toContainText(
+        "Stopped using this fact.",
+      );
+      await expect(row(page, 1)).toContainText("No longer used");
+      await sheet.getByRole("button", { name: "Undo" }).click();
+      await expect(row(page, 1)).toContainText("In use");
+      expect(seen.updates.map((update) => [update.ifMatch, update.body]))
+        .toEqual([
+          ['"v1"', { status: "retired" }],
+          ['"v2"', { status: "active" }],
+        ]);
+    });
+
+    test("declining a suggestion keeps it as No longer used, and a retired fact offers only Use again", async ({ page }) => {
+      const seen = await memoryFixture(page);
+      const sheet = await open(page, 2);
+      await sheet.getByRole("button", { name: "Don't use" }).click();
+      await expect(sheet.getByTestId("memory-toast")).toContainText(
+        "Not used. It stays in the list as No longer used.",
+      );
+      expect(seen.updates[0].body).toEqual({ status: "retired" });
+      await expect(row(page, 2)).toContainText("No longer used");
+      await expect(sheet.getByRole("button", { name: "Use again" }))
+        .toBeVisible();
+      await expect(sheet.getByRole("button", { name: "Correct" })).toHaveCount(
+        0,
+      );
+      await expect(sheet.getByRole("button", { name: "Approve", exact: true }))
+        .toHaveCount(
+          0,
+        );
+      await sheet.getByRole("button", { name: "Use again" }).click();
+      await expect(row(page, 2)).toContainText("In use");
+    });
+
+    test("a refusal is said in plain words and nothing is claimed as done", async ({ page }) => {
+      const seen = await memoryFixture(page, WORLD, {
+        refuse: "conflict_detected",
+      });
+      const sheet = await open(page, 2);
+      await sheet.getByRole("button", { name: "Approve", exact: true }).click();
+      await expect(sheet.getByTestId("memory-failure")).toContainText(
+        "Another fact on the same topic is already in use. Stop using that one first.",
+      );
+      await expect(sheet.getByTestId("memory-toast")).toHaveCount(0);
+      await expect(row(page, 2)).toContainText("Suggested");
+      expect(seen.updates).toHaveLength(1);
+    });
+
+    test("a refused correction keeps what was typed and says why nothing changed", async ({ page }) => {
+      const seen = await memoryFixture(page, WORLD, {
+        refuse: "source_artifact_unknown",
+      });
+      const sheet = await open(page, 1);
+      await sheet.getByRole("button", { name: "Correct", exact: true })
+        .click();
+      const form = sheet.getByTestId("memory-correct");
+      await form.getByLabel("What should agents be told instead?").fill(
+        "Deploys run from main after review.",
+      );
+      await form.getByLabel("Why is this changing?").fill("Review is new.");
+      await form.locator("select").selectOption({ label: "Release checklist" });
+      await form.getByRole("button", { name: "Save correction" }).click();
+      await expect(sheet.getByTestId("memory-failure")).toContainText(
+        "The source could not be found, so nothing was changed.",
+      );
+      await expect(form.getByLabel("What should agents be told instead?"))
+        .toHaveValue("Deploys run from main after review.");
+      await expect(form.getByLabel("Why is this changing?")).toHaveValue(
+        "Review is new.",
+      );
+      expect(seen.revisions).toHaveLength(1);
+      await expect(sheet.getByTestId("memory-toast")).toHaveCount(0);
+    });
+
+    test("only an administrator is offered changes; a developer is told so", async ({ page }) => {
+      await memoryFixture(page, WORLD, { role: "developer" });
+      const sheet = await open(page, 2);
+      await expect(sheet.getByTestId("memory-admin-only")).toContainText(
+        "Only an administrator can change remembered facts.",
+      );
+      for (
+        const name of ["Approve", "Correct, then approve", "Don't use"]
+      ) {
+        await expect(sheet.getByRole("button", { name })).toHaveCount(0);
+      }
     });
   });
 }

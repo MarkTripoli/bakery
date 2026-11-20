@@ -3775,7 +3775,7 @@
   "library.memory.refusal.unscanned": "Bakery could not check whether another fact covers the same topic, so nothing was changed.",
   "library.memory.refusal.weak": "Bakery is not sure enough of this fact to put it in use.",
   "library.memory.refusal.scope": "This fact's repository is not available to your organization.",
-  "library.memory.refusal.source": "This fact's source could not be found, so it cannot be put in use. Correct it with a new source.",
+  "library.memory.refusal.source": "The source could not be found, so nothing was changed. Choose another source, or correct the fact with a new one.",
   "library.memory.refusal.other": "The change did not go through. Nothing was changed. Try again.",
   "library.memory.refusal.forbidden": "Only an administrator can change remembered facts.",
   "library.memory.correct.savedNotApproved": "The correction was saved, but the fact was not put in use.",
