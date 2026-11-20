@@ -146,16 +146,6 @@ export function FilePreview(
   // A version whose bytes do not hash to its recorded digest is not shown at all:
   // the stored record and the bytes disagree, and this panel is the only place that
   // holds both. Decided on the bytes actually received, never on the probe's word.
-  const [mismatch, setMismatch] = useState(false);
-  // A refused read outranks the answer: the bytes are not the bytes the record
-  // describes, so what they would have looked like is not a fact about this file.
-  const state: PreviewState = mismatch || downloadRefused
-    ? { kind: "mismatch" }
-    : answer !== null
-    ? previewState(answer)
-    : probe.isPending
-    ? { kind: "pending" }
-    : declaredPreviewState(mediaType);
   const facts = answer === null
     ? ""
     : previewFacts(answer, locale, (key, values) =>
@@ -241,9 +231,20 @@ export function FilePreview(
   // one yet: the two are the same fact, and the panel's own Download found it.
   const mismatchKnown = refusedAsMismatch || downloadRefused;
   useEffect(() => {
-    setMismatch(refusedAsMismatch);
     onMismatch?.(mismatchKnown);
-  }, [refusedAsMismatch, mismatchKnown, onMismatch]);
+  }, [mismatchKnown, onMismatch]);
+  // A refused read outranks the answer: the bytes are not the bytes the record
+  // describes, so what they would have looked like is not a fact about this file.
+  // Read straight from the refusal rather than through state an effect sets: a
+  // frame that drew the old state would show "The preview did not load." before
+  // the banner replaced it (#437 review).
+  const state: PreviewState = mismatchKnown
+    ? { kind: "mismatch" }
+    : answer !== null
+    ? previewState(answer)
+    : probe.isPending
+    ? { kind: "pending" }
+    : declaredPreviewState(mediaType);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!image || !content.data) return;

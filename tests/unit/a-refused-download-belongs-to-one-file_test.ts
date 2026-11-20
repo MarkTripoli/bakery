@@ -48,6 +48,26 @@ Deno.test("without that refusal the same probe is played", () => {
   });
 });
 
+Deno.test("the refusal is read on the frame that draws it", () => {
+  // The preview derives its state from the refusal directly, not from state an
+  // effect sets afterwards: a frame in between showed "The preview did not load."
+  // before the banner replaced it (#437 review).
+  const source = Deno.readTextFileSync(
+    new URL(
+      "../../apps/web/src/pages/files/FilePreview.tsx",
+      import.meta.url,
+    ),
+  );
+  assert(
+    source.includes("const state: PreviewState = mismatchKnown"),
+    "the preview must read the refusal, not state an effect sets",
+  );
+  assert(
+    !source.includes("setMismatch("),
+    "a second copy of the refusal in state is the one-frame flash",
+  );
+});
+
 Deno.test("a refusal stays on the file and version that was refused", () => {
   const refused = mismatchSelection("file-a", undefined);
   // The same subject keeps it: re-rendering the panel must not clear the state.
