@@ -1,13 +1,63 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "536ca2f627dbd9fdb8ba2500830bd8b508645b40"
+    "8d403f1221dc327bbb871c1eebc0b41b99b31619"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:af4c0cec80238c9475b30cfa542fdfbf918f4f1b892a86332649bd1a90474480",
-  "reason": "#57 slice 2 merge-queue reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 536ca2f627dbd9fdb8ba2500830bd8b508645b40 (#788 and handoff manifests merged): PullRequest gains targetBranch, required and not nullable; MergeEntry gains blockedReason, nullable. This PR's previous approval is kept unchanged first below, then main's own.",
+  "targetCompatibilityDigest": "sha256:8a47341c72a1ca31d7f92cd3abdcfe15f9276ecca081f9947301907b1b16ee7b",
+  "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8d403f1221dc327bbb871c1eebc0b41b99b31619: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged first below, then this PR's previous ones. The cursor description now names the provider filter, which the cursor was already bound to.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8d403f1221dc327bbb871c1eebc0b41b99b31619"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:ea083571589f6da83d51efd60ecc88fbd387f29186d2f2c3bc01a7b685481c53",
+      "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8d403f1221dc327bbb871c1eebc0b41b99b31619: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged first below, then this PR's previous ones. [Displaced by the #739 cursor wording fix: this PR's previous approval, kept unchanged otherwise.]"
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "536ca2f627dbd9fdb8ba2500830bd8b508645b40"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:af4c0cec80238c9475b30cfa542fdfbf918f4f1b892a86332649bd1a90474480",
+      "reason": "#57 slice 2 merge-queue reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 536ca2f627dbd9fdb8ba2500830bd8b508645b40 (#788 and handoff manifests merged): PullRequest gains targetBranch, required and not nullable; MergeEntry gains blockedReason, nullable. This PR's previous approval is kept unchanged first below, then main's own."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "49a52678dd508066cbaf33db1178a066945a87f6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:78b2f8ca7fbaddc4dad1b5aa7aa413fc35aa31bfd8480a2839765308b1d021f2",
+      "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 49a52678dd508066cbaf33db1178a066945a87f6: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged below, then this PR's previous ones."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "168b504d36e82f366c73d7931d4b9c82afe389da"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b6340fefd73f1155f0b70b57f61530f9a538d482b7816f4588851b78f52c1123",
+      "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 168b504d36e82f366c73d7931d4b9c82afe389da: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged below, then this PR's previous one."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "283ceeaf7750a9d6bfac79dce642a0b0bdf28224"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a2990005fe2611b63e5122a6bea9699a1d73c4030c7f11b2c4e1cfe541674f77",
+      "reason": "#739 Monitoring list server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 283ceeaf7750a9d6bfac79dce642a0b0bdf28224: TelemetryDestinationList gains destinationLimit, nextCursor, total and stateCounts, all required, and the list now takes search, state, kind, cursor and limit; telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
