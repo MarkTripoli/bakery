@@ -2,6 +2,8 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   fields,
   relatedIssue,
+  splitMessages,
+  staleVerification,
   validateDescription,
   validateReview,
 } from "../../scripts/authoring/validate.ts";
@@ -51,7 +53,7 @@ const pr = [
   "## Change outline\n\n```text\nTemplates -> authoring skill -> shared validator -> GitHub feedback/status\n```",
   "## Decisions\n\n- None.",
   "## Evidence\n\n- New test `authoring_test.ts`: rejects a PR body over 300 words.",
-  "## Verification\n\n- [x] Backend verified (reviewer): ok.\n- [x] UI verified (design-ux): ok.\n- [x] Implementation clean (reviewer): ok.\n- [ ] Tests cover the change (qa) N/A: docs-only change.",
+  "## Verification\n\n- [x] Backend verified (reviewer) @ aaaaaaaa: ok.\n- [x] UI verified (design-ux) @ aaaaaaaa: ok.\n- [x] Implementation clean (reviewer) @ aaaaaaaa: ok.\n- [ ] Tests cover the change (qa) N/A: docs-only change.",
 ].join("\n\n");
 const head = "a".repeat(40);
 const base = "b".repeat(40);
@@ -711,4 +713,111 @@ Deno.test("N/A cannot stand in for work that has not happened yet", () => {
     validateDescription("pr", fine).filter((e) => e.includes("ui verified")),
     [],
   );
+});
+
+/** #780: a verification line nobody has ticked is pending, never a failed check. */
+Deno.test("an unticked verification line passes the check and is reported as pending", async () => {
+  const f = fixture();
+  f.data.pull.body = pr.replace("- [x] UI verified", "- [ ] UI verified");
+  const checked = await checkLive(f.api, "pr", 170);
+  assertEquals(checked.ok, true, checked.errors.join(" "));
+  assertEquals(checked.errors, []);
+  assertEquals(checked.pending.length, 1);
+  assert(checked.pending[0].includes('"ui verified"'));
+  assertEquals(f.writes, [], "the check itself writes nothing");
+});
+
+Deno.test("every line ticked or N/A at the head leaves nothing open, and a new head opens the old ticks again", async () => {
+  const f = fixture();
+  const checked = await checkLive(f.api, "pr", 170);
+  // The workflow runs the `verification` job only when this list is empty.
+  assertEquals([checked.ok, checked.pending], [true, []]);
+  assertEquals(f.writes, []);
+  // A push moves the head: the ticks name an older one, whatever the body says.
+  f.data.pull.head = { sha: "d".repeat(40) };
+  const moved = await checkLive(f.api, "pr", 170);
+  assertEquals(moved.ok, true, moved.errors.join(" "));
+  assertEquals(moved.pending.length, 3);
+});
+
+Deno.test("a broken body still fails the check with the message the validator prints", async () => {
+  const f = fixture();
+  const broken = pr.replace(
+    "- New test `authoring_test.ts`: rejects a PR body over 300 words.",
+    "- `pnpm lint` passed and `pnpm fmt` is clean.",
+  );
+  f.data.pull.body = broken;
+  const checked = await checkLive(f.api, "pr", 170);
+  const direct = splitMessages(validateDescription("pr", broken));
+  assertEquals(checked.ok, false);
+  assert(direct.errors.length > 0, "the body really has a format error");
+  assertEquals(checked.errors, direct.errors, "the same messages as the tool");
+  assertEquals(checked.pending, direct.pending);
+});
+
+Deno.test("a Head: line under the metadata line is not part of the Walkthrough", () => {
+  const withHead = pr.replace(
+    "Walkthrough: not requested\n",
+    "Walkthrough: not requested\nHead: `" + head + "`\n",
+  );
+  assert(withHead !== pr, "the fixture really gained a Head line");
+  assertEquals(
+    validateDescription("pr", withHead),
+    validateDescription("pr", pr),
+  );
+  const bold = pr.replace(
+    "Walkthrough: not requested\n",
+    "Walkthrough: not requested\n**Head:** " + head.slice(0, 8) + "\n",
+  );
+  assertEquals(validateDescription("pr", bold), validateDescription("pr", pr));
+  // Anything else under the metadata line is still the Walkthrough value.
+  const stray = pr.replace(
+    "Walkthrough: not requested\n",
+    "Walkthrough: not requested\nHead: soon\n",
+  );
+  assert(
+    validateDescription("pr", stray).some((e) =>
+      e.startsWith("Walkthrough must")
+    ),
+  );
+});
+
+Deno.test("a tick at an older head is pending again, so a later edit cannot turn verification green", async () => {
+  // Ticked at the head: nothing stale.
+  assertEquals(staleVerification(pr, head), []);
+  // The branch moved on: every tick now names code that is gone.
+  const moved = "c".repeat(40);
+  const stale = staleVerification(pr, moved);
+  assertEquals(stale.length, 3);
+  assert(
+    stale[0].includes('"backend verified"') && stale[0].includes("aaaaaaaa"),
+  );
+  // A tick with no commit at all says nothing about the code either.
+  assertEquals(
+    staleVerification(
+      pr.replaceAll("(reviewer) @ aaaaaaaa: ok.", "(reviewer): ok."),
+      head,
+    )
+      .length,
+    2,
+  );
+  // N/A is about whether the item applies, not a commit.
+  assert(!stale.some((m) => m.includes("tests cover")));
+
+  // End to end: an edit after a push (headChanged false) must stay pending.
+  const f = fixture();
+  f.data.pull.head = { sha: moved };
+  const checked = await checkLive(f.api, "pr", 170);
+  assertEquals(checked.ok, true, checked.errors.join(" "));
+  assertEquals(checked.pending.length, 3);
+});
+
+Deno.test("format errors and pending lines are split by one rule", () => {
+  const split = splitMessages([
+    'Verification pending: "backend verified" is not ticked or marked N/A: <reason>.',
+    "The description is too long.",
+    `Verification pending: "ui verified" says N/A but means not done yet.`,
+  ]);
+  assertEquals(split.errors, ["The description is too long."]);
+  assertEquals(split.pending.length, 2);
 });

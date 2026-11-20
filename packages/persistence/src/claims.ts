@@ -189,6 +189,8 @@ export type ClaimsRepository = {
     principalId: string | null;
     requestId: string;
     traceId: string;
+    /** The attempt's W3C span context, kept so later events can join its trace. */
+    traceparent: string;
     fence: bigint;
     encryptReplay: () => Promise<string>;
   }): Promise<void>;
@@ -773,6 +775,11 @@ export function createClaimsRepository(
       return await prepareIdentityOperationInternal(transaction, input);
     },
     async recordAssignment(options) {
+      await transaction.query(
+        `update bakery.job_attempts set traceparent = $3
+          where organization_id = $1 and id = $2`,
+        [options.organizationId, options.attemptId, options.traceparent],
+      );
       const scope = await transaction.query<{
         applicationId: string;
         repositoryId: string | null;

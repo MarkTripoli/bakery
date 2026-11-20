@@ -135,7 +135,8 @@ function bindingRowCursorKind(binding: CursorBinding): RowCursorKind {
     binding.ordering === "countedAt:asc,id:asc" ||
     binding.ordering === "createdAt:desc,id:desc" ||
     binding.ordering === "openedAt:desc,id:desc" ||
-    binding.ordering === "trashedAt:desc,id:desc"
+    binding.ordering === "trashedAt:desc,id:desc" ||
+    binding.ordering === "requestedAt:desc,id:desc"
   ) return "timestamp";
   // A storage folder lists folders first, then by name: the ordinal carries
   // the kind rank and the server reads the name key back from the row id.
