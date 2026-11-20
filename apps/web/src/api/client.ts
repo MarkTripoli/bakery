@@ -247,6 +247,12 @@ export type DefinitionUpdate = ClientInputMap["DefinitionUpdate"];
 export type AgentVersionResponse = ClientOutputMap["AgentVersion"];
 export type AgentVersionListResponse = ClientOutputMap["Page<AgentVersion>"];
 export type AgentDefinitionResponse = ClientOutputMap["AgentDefinition"];
+export type MemoryEntryResponse = ClientOutputMap["MemoryEntry"];
+export type MemoryEntryListResponse = ClientOutputMap["Page<MemoryEntry>"];
+export type MemoryRevisionResponse = ClientOutputMap["MemoryRevision"];
+export type MemoryRevisionCreateInput = ClientInputMap["MemoryRevisionCreate"];
+export type MemoryRevisionListResponse =
+  ClientOutputMap["Page<MemoryRevision>"];
 export type AgentDefinitionListResponse =
   ClientOutputMap["Page<AgentDefinition>"];
 export type RepositoryResponse = ClientOutputMap["Repository"];
@@ -1581,6 +1587,48 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<AgentVersionListResponse>>;
+  /** The organization's remembered facts, one page of a cursor list; each entry carries its current revision. */
+  readonly listMemories: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryListResponse>>;
+  /** One remembered fact with its current revision. */
+  readonly getMemory: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryResponse>>;
+  /** A fact's wordings, newest first: the history shown under it. */
+  readonly listMemoryRevisions: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryRevisionListResponse>>;
+  /**
+   * Puts a fact in use (approving a suggestion, or using it again) or stops
+   * using it. `version` is the fact's own, sent as If-Match; the server may
+   * refuse with a reason (a source it cannot hold, a conflicting fact).
+   */
+  readonly updateMemory: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly status: "active" | "retired";
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryResponse>>;
+  /** Corrects a fact: a new wording with the reason and the source version that says so. */
+  readonly createMemoryRevision: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: MemoryRevisionCreateInput;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryRevisionResponse>>;
   /** The organization's agent definitions, one page of a cursor list. */
   readonly listAgents: (options: {
     readonly organizationId: string;
@@ -5318,6 +5366,104 @@ export function createBakeryApiClient({
           },
           { signal: options.signal },
         );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMemories(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.list"](
+          options.cursor === undefined && options.limit === undefined ? {} : {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getMemory(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMemoryRevisions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memoryRevisions.list"](
+          {
+            id: options.id,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateMemory(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.update"](
+          { id: options.id, status: options.status },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createMemoryRevision(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memoryRevisions.create"](
+          { id: options.id, ...options.input },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.memoryId !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
         return { ok: true, data };
       } catch (error) {
         return failed(error);

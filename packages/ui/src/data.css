@@ -1866,6 +1866,9 @@
 .ui-stacked-row[data-inset="none"] {
   padding-inline: var(--space-0);
 }
+.ui-stacked-row[data-selected="true"] {
+  background: var(--color-surface-subtle);
+}
 
 /* Notification row: fixed lanes for the unread dot, the actor, the time and
    the menu. Because every lane but the text is a fixed width, line 1 can wrap
