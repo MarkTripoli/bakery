@@ -191,18 +191,19 @@ async function resolveReferencedSkills(
       )
       .map((row) => row.version_id);
     if (mine.length > 0) {
-      const used = await transaction.query<{ version_id: string }>(
-        `select candidate as version_id
-           from unnest($3::uuid[]) as candidate
-          where exists (
-            select 1 from bakery.workflow_versions as published
-             where published.organization_id = $1
-               and published.workflow_id = $2
-               and position(candidate::text in published.normalized_spec::text) > 0
-          )`,
-        [organizationId, workflowId, mine],
+      // What a published version uses is read from its steps' skill lists, the
+      // way a save reads them, never from the text of the whole definition.
+      const specs = await transaction.query<{ definition: unknown }>(
+        `select normalized_spec as definition from bakery.workflow_versions
+          where organization_id = $1 and workflow_id = $2`,
+        [organizationId, workflowId],
       );
-      for (const row of used.rows) publishedUse.add(row.version_id);
+      const wanted = new Set(mine);
+      for (const spec of specs.rows) {
+        for (const ref of collectStepSkills(spec.definition)) {
+          if (wanted.has(ref.versionId)) publishedUse.add(ref.versionId);
+        }
+      }
     }
   }
   const items = refs.map((ref) => {

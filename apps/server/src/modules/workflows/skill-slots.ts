@@ -61,8 +61,16 @@ export async function stripPersonalSkills(
     if (kept.length === 0) delete step.skills;
     else step.skills = kept;
     const pointer = stepPointer(ref.segments);
-    if (!slots.has(pointer)) {
+    // One slot per step: a step that named two personal skills keeps both names,
+    // so the copier learns that each of them was dropped.
+    const known = slots.get(pointer);
+    if (known === undefined) {
       slots.set(pointer, { stepPath: pointer, originalName: name });
+    } else if (!known.originalName.split(", ").includes(name)) {
+      slots.set(pointer, {
+        stepPath: pointer,
+        originalName: `${known.originalName}, ${name}`,
+      });
     }
   }
   return { definition: copy, slots: [...slots.values()] };

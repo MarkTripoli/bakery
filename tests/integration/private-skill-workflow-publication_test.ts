@@ -313,3 +313,104 @@ Deno.test("a workflow copied by someone other than the owner carries no personal
     await f.close();
   }
 });
+
+Deno.test("a copy of a step that names two personal skills keeps both names in its slot", async () => {
+  const f = await openPersonalSkillFixture();
+  try {
+    const make = async (slug: string, name: string) => {
+      const response = await f.post(
+        f.ownerCookie,
+        "/v1/skills",
+        { slug, name, scope: "personal" },
+        "pw-" + slug,
+      );
+      assertEquals(response.status, 201, await response.clone().text());
+      const skill = await response.json() as { id: string };
+      return await f.insertSkillVersion(skill.id);
+    };
+    const first = await make("my-notes", "My notes");
+    const second = await make("my-drafts", "My drafts");
+    const workflow = await f.post(f.ownerCookie, "/v1/workflows", {
+      slug: "two-skills",
+      name: "Two skills",
+      description: "Two skills",
+    }, "pw-two-wf");
+    assertEquals(workflow.status, 201, await workflow.clone().text());
+    const wf = await workflow.json() as { id: string };
+    const versionsPath = "/v1/workflows/" + wf.id + "/versions";
+    const skills = [first, second].sort();
+    const created = await f.post(f.ownerCookie, versionsPath, {
+      definition: {
+        kind: "fixed",
+        steps: [{
+          id: "first",
+          uses: "workflow.noop",
+          action: "agent.run",
+          skills,
+        }],
+      },
+      confirmPersonalSkillUse: skills,
+    }, "pw-two-draft");
+    assertEquals(created.status, 201, await created.clone().text());
+    const draft = await created.json() as { id: string };
+    const { copy, copyDraft } = await copyOf(
+      f,
+      f.ownerCookie,
+      wf.id,
+      draft.id,
+      "pw-two-copy",
+    );
+    const slots = await items(
+      f,
+      f.ownerCookie,
+      "/v1/workflows/" + copy.id + "/versions/" + copyDraft.id + "/skills",
+    );
+    assertEquals(slots.length, 1);
+    assertEquals(slots[0].status, "missing");
+    assert(
+      slots[0].skillName?.includes("My notes"),
+      String(slots[0].skillName),
+    );
+    assert(
+      slots[0].skillName?.includes("My drafts"),
+      String(slots[0].skillName),
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+Deno.test("a published version that only mentions a skill's id is not reported as using it", async () => {
+  const w = await world();
+  const f = w.f;
+  try {
+    const mention = await f.post(f.ownerCookie, w.versionsPath, {
+      definition: {
+        kind: "fixed",
+        steps: [{ id: w.sv, uses: "workflow.noop" }],
+      },
+    }, "pw-mention");
+    assertEquals(mention.status, 201, await mention.clone().text());
+    const other = await mention.json() as { id: string; version: number };
+    const published = await send(
+      f,
+      f.ownerCookie,
+      "POST",
+      w.versionsPath + "/" + other.id + "/publish",
+      {},
+      {
+        "If-Match": '"' + other.version + '"',
+        "Idempotency-Key": "pw-mention-publish",
+      },
+    );
+    assertEquals(published.status, 200, await published.clone().text());
+    const [mine] = await items(
+      f,
+      f.ownerCookie,
+      w.versionsPath + "/" + w.draft.id + "/skills",
+    );
+    assertEquals(mine.publishedVersionUsesIt, false);
+  } finally {
+    await f.close();
+  }
+});
