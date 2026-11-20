@@ -112,6 +112,7 @@ async function readRouteCoverage(page: Page): Promise<RouteCoverage> {
 const AUTH_FIXTURE_SCREENS = [
   "setup",
   "login",
+  "forgot",
   "expired",
   "join",
   "register",

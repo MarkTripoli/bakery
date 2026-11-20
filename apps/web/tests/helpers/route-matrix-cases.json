@@ -108,6 +108,10 @@
     "path": "/sign-in"
   },
   {
+    "id": "forgot-password",
+    "path": "/sign-in/forgot-password"
+  },
+  {
     "id": "totp-challenge",
     "path": "/sign-in/two-factor"
   },
@@ -420,6 +424,14 @@
     "path": "/__fixtures__/auth/login-loading"
   },
   {
+    "id": "fixture-auth:login-rate-limited",
+    "path": "/__fixtures__/auth/login-rate-limited"
+  },
+  {
+    "id": "fixture-auth:login-blocked",
+    "path": "/__fixtures__/auth/login-blocked"
+  },
+  {
     "id": "fixture-auth:login-offline",
     "path": "/__fixtures__/auth/login-offline"
   },
@@ -428,8 +440,8 @@
     "path": "/__fixtures__/auth/login-unavailable"
   },
   {
-    "id": "fixture-auth:login-throttled",
-    "path": "/__fixtures__/auth/login-throttled"
+    "id": "fixture-auth:forgot-default",
+    "path": "/__fixtures__/auth/forgot-default"
   },
   {
     "id": "fixture-auth:expired-default",
@@ -438,6 +450,10 @@
   {
     "id": "fixture-auth:join-default",
     "path": "/__fixtures__/auth/join-default"
+  },
+  {
+    "id": "fixture-auth:join-disabled",
+    "path": "/__fixtures__/auth/join-disabled"
   },
   {
     "id": "fixture-auth:register-default",
@@ -622,18 +638,6 @@
   {
     "id": "fixture-auth:section-index-default",
     "path": "/__fixtures__/auth/section-index-default"
-  },
-  {
-    "id": "fixture-auth:security-default",
-    "path": "/__fixtures__/auth/security-default"
-  },
-  {
-    "id": "fixture-auth:security-saved",
-    "path": "/__fixtures__/auth/security-saved"
-  },
-  {
-    "id": "fixture-auth:security-protected",
-    "path": "/__fixtures__/auth/security-protected"
   },
   {
     "id": "fixture-auth:sessions-default",
