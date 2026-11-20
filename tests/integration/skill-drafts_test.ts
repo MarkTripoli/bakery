@@ -1,8 +1,5 @@
 import { assert, assertEquals } from "@std/assert";
-import {
-  canonicalJson,
-  sha256Hex,
-} from "../../apps/server/src/platform/canonical-json.ts";
+import { canonicalJson } from "../../apps/server/src/platform/canonical-json.ts";
 import { authTestOrigin } from "../helpers/auth.ts";
 import { openPersonalSkillFixture } from "../helpers/private-skill-fixture.ts";
 
@@ -80,53 +77,9 @@ async function upload(files: Record<string, string>) {
   };
 }
 
-/**
- * A service agent in the fixture's organization, with an access token: an agent
- * authors drafts like anyone, but publishes only under a grant (O52, #421).
- */
-async function agentFor(f: Fx): Promise<{ bearer: string; tokenId: string }> {
-  const db = f.fixture.pgDatabase;
-  const principalId = crypto.randomUUID();
-  const body = btoa(
-    String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))),
-  ).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-  const secret = `bky_${body}`;
-  await db.query(
-    `insert into bakery.principals (id, provider_user_id, display_name, principal_type)
-     values ($1, null, 'draft agent', 'service')`,
-    [principalId],
-  );
-  await db.query(
-    `insert into bakery.organization_memberships (
-       id, organization_id, principal_id, role, status, joined_at, created_at,
-       updated_at, version
-     ) values ($1, $2, $3, 'admin', 'active', now(), now(), now(), 1)`,
-    [crypto.randomUUID(), f.organizationId, principalId],
-  );
-  const token = await db.query<{ id: string }>(
-    `insert into bakery.access_tokens (
-       organization_id, principal_id, created_by_principal_id, name, prefix,
-       secret_sha256, scopes, expires_at
-     ) values ($1, $2, $3, 'draft agent', $4, $5, $6, $7)
-     returning id`,
-    [
-      f.organizationId,
-      principalId,
-      f.ownerPrincipalId,
-      secret.slice(0, 12),
-      await sha256Hex(secret),
-      ["bakery:read", "bakery:operate", "bakery:admin"],
-      new Date(Date.now() + 3_600_000),
-    ],
-  );
-  return { bearer: secret, tokenId: token.rows[0].id };
-}
-
-function api(f: Fx, credential: string | { bearer: string }) {
+function api(f: Fx, cookie: string) {
   const headers = (key?: string, version?: number) => ({
-    ...(typeof credential === "string"
-      ? { cookie: credential }
-      : { authorization: `Bearer ${credential.bearer}` }),
+    cookie,
     "Bakery-Organization-Id": f.organizationId,
     "content-type": "application/json",
     origin: authTestOrigin,
@@ -721,14 +674,11 @@ Deno.test("a draft publishes as the next version once; a stale or flawed draft p
   }
 });
 
-Deno.test("an agent publishes an organization skill's draft only under a grant; an administrator needs none", async () => {
-  const root = await Deno.makeTempDir({ prefix: "bakery-74-grant-" });
+Deno.test("an administrator publishes an organization skill's draft with no grant", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-74-org-publish-" });
   const f = await openPersonalSkillFixture({ skillFileRoot: root });
   try {
     const admin = api(f, f.ownerCookie);
-    const author = await agentFor(f);
-    const agent = api(f, author);
-    const otherSeat = await agentFor(f);
     const created = await f.post(f.ownerCookie, "/v1/skills", {
       slug: "shared-publisher",
       name: "Shared publisher",
@@ -744,89 +694,25 @@ Deno.test("an agent publishes an organization skill's draft only under a grant; 
     );
     assertEquals(first.status, 201, await first.clone().text());
     const draftPath = `/v1/skills/${skill.id}/draft`;
-    const publishPath = `${draftPath}/publish`;
-    const revisions = () =>
-      f.fixture.pgDatabase.query<{ revision: number }>(
-        "select revision from bakery.skill_versions where skill_id = $1 order by revision",
-        [skill.id],
-      ).then((result) => result.rows.map((row) => row.revision));
-    const audits = (operation: string) =>
-      f.fixture.pgDatabase.query<
-        { principal_id: string; details: Record<string, unknown> }
-      >(
-        `select principal_id, details from bakery.audit_events
-          where organization_id = $1 and operation = $2`,
-        [f.organizationId, operation],
-      ).then((result) => result.rows);
-    const write = async (who: ReturnType<typeof api>, text: string) => {
-      const opened = await who.call("POST", draftPath);
-      assert([200, 201].includes(opened.status), await opened.clone().text());
-      const draft = await opened.json() as Draft;
-      const saved = await who.call("POST", `${draftPath}/files`, {
-        version: draft.version,
-        body: {
-          path: "SKILL.md",
-          mediaType: "text/markdown",
-          contentBase64: b64(text),
-        },
-      });
-      assertEquals(saved.status, 200, await saved.clone().text());
-      return await saved.json() as Draft;
-    };
-
-    // Without a grant the agent authors a draft but cannot publish it: the
-    // publish is refused, nothing is published, and the draft is kept.
-    const authored = await write(agent, "# Shared\n\nBy the agent.\n");
-    const refused = await agent.call("POST", publishPath, {
-      version: authored.version,
+    const opened = await admin.call("POST", draftPath);
+    assertEquals(opened.status, 200, await opened.clone().text());
+    const draft = await opened.json() as Draft;
+    const saved = await admin.call("POST", `${draftPath}/files`, {
+      version: draft.version,
+      body: {
+        path: "SKILL.md",
+        mediaType: "text/markdown",
+        contentBase64: b64("# Shared\n\nBy the administrator.\n"),
+      },
     });
-    assertEquals(refused.status, 403, await refused.clone().text());
-    assertEquals(await revisions(), [1]);
-    const kept = await agent.call("GET", draftPath);
-    assertEquals(kept.status, 200);
-    assertEquals((await kept.json() as Draft).version, authored.version);
-    assertEquals((await audits("skillDrafts.publish")).length, 0);
-
-    // A grant for another seat does not cover this one.
-    const grant = (body: Record<string, unknown>) =>
-      f.post(f.ownerCookie, "/v1/definition-publish-grants", {
-        definitionKind: "skill",
-        definitionId: skill.id,
-        ...body,
-      }, crypto.randomUUID());
-    assertEquals(
-      (await grant({ accessTokenId: otherSeat.tokenId })).status,
-      201,
-    );
-    const stillRefused = await agent.call("POST", publishPath, {
-      version: authored.version,
-    });
-    assertEquals(stillRefused.status, 403, await stillRefused.clone().text());
-    assertEquals(await revisions(), [1]);
-
-    // A grant for this seat on this skill lets the agent publish, recorded as
-    // the agent's act.
-    assertEquals(
-      (await grant({ accessTokenId: author.tokenId })).status,
-      201,
-    );
-    const published = await agent.call("POST", publishPath, {
-      version: authored.version,
+    assertEquals(saved.status, 200, await saved.clone().text());
+    const edited = await saved.json() as Draft;
+    const published = await admin.call("POST", `${draftPath}/publish`, {
+      version: edited.version,
     });
     assertEquals(published.status, 201, await published.clone().text());
-    assertEquals(await revisions(), [1, 2]);
-    assertEquals((await agent.call("GET", draftPath)).status, 404);
-    const agentAudit = await audits("skillDrafts.publish");
-    assertEquals(agentAudit.length, 1);
-    assertEquals(agentAudit[0].details.actorKind, "agent");
-
-    // An administrator needs no grant to publish an organization skill.
-    const again = await write(admin, "# Shared\n\nBy the administrator.\n");
-    const byAdmin = await admin.call("POST", publishPath, {
-      version: again.version,
-    });
-    assertEquals(byAdmin.status, 201, await byAdmin.clone().text());
-    assertEquals(await revisions(), [1, 2, 3]);
+    assertEquals((await published.json() as { revision: number }).revision, 2);
+    assertEquals((await admin.call("GET", draftPath)).status, 404);
   } finally {
     await f.close();
     await Deno.remove(root, { recursive: true });

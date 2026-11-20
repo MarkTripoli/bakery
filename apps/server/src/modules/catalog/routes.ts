@@ -61,6 +61,33 @@ type StagedActionContext = ActionContext & {
   [publicationExecutionStage]?: PublicationExecutionStage;
 };
 
+/**
+ * skillDrafts.publish: publishing a draft is publishing a version, so an agent
+ * needs the same grant (O52, #421) before anything is finalized. A person is
+ * never asked for one. Exported so a test can drive an agent's context: the
+ * routes mounted here take a session, not an access token.
+ */
+export async function publishSkillDraft(context: ActionContext) {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  await assertMayPublishDefinition(transaction, context, {
+    organizationId,
+    principalId,
+    kind: DefinitionKind.Skill,
+    definitionId: context.params.id ?? null,
+  });
+  const stage = (context as StagedActionContext)[publicationExecutionStage];
+  if (!stage?.draft || !stage.proof) {
+    throw new Error("SKILL_DRAFT_PUBLISH_PROOF_MISSING");
+  }
+  return await commitSkillDraftPublish({
+    context,
+    preparation: stage.draft,
+    proof: stage.proof,
+  });
+}
+
 class PublicationPreflightRollbackError extends Error {
   constructor() {
     super("SKILL_VERSION_PUBLICATION_PREFLIGHT_ROLLBACK");
@@ -269,29 +296,7 @@ export function createCatalogRoutes(options: {
     "/",
     createApiRouter({
       registry: createSkillDraftPublishActionRegistry({
-        publishSkillDraft: async (context) => {
-          const { transaction, organizationId, principalId } =
-            requireWorkTransaction(context);
-          // Publishing a draft is publishing a version: an agent needs the same
-          // grant (O52, #421) before anything is finalized.
-          await assertMayPublishDefinition(transaction, context, {
-            organizationId,
-            principalId,
-            kind: DefinitionKind.Skill,
-            definitionId: context.params.id ?? null,
-          });
-          const stage = (context as StagedActionContext)[
-            publicationExecutionStage
-          ];
-          if (!stage?.draft || !stage.proof) {
-            throw new Error("SKILL_DRAFT_PUBLISH_PROOF_MISSING");
-          }
-          return await commitSkillDraftPublish({
-            context,
-            preparation: stage.draft,
-            proof: stage.proof,
-          });
-        },
+        publishSkillDraft,
       }, {
         authorityRunner: publicationAuthority,
         commandRunner: publicationCommandRunner,
