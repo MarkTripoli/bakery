@@ -172,7 +172,6 @@ Deno.test("each status needs its own figures and refuses the others", () => {
       failureCode: "disk_full",
     },
     { sequence: 1, status: "failed" },
-    { sequence: 1, status: "failed", failureCode: "runner_lost" },
     { sequence: 1, status: "failed", failureCode: "disk_full", sizeBytes: "1" },
     {
       sequence: 1,
@@ -260,6 +259,17 @@ Deno.test("the report schema is strict and has no field for bytes or keys", () =
       extra,
     );
   }
+  // There is no server-set cause a runner could claim: the closed code list
+  // holds only the causes a runner reports, so anything else is refused.
+  assertEquals(
+    contractSchemas.BackupRunReport.safeParse({
+      leaseToken: valid.leaseToken,
+      sequence: 1,
+      status: "failed",
+      failureCode: "runner_lost",
+    }).success,
+    false,
+  );
   assertEquals(
     contractSchemas.BackupRunReport.safeParse({ ...valid, leaseToken: "short" })
       .success,

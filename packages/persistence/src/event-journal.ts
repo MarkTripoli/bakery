@@ -37,10 +37,22 @@ function activeAttempt(status: string): boolean {
   return status === "leased" || status === "running" || status === "canceling";
 }
 
+/**
+ * How the attempt and job rows are locked. `update` blocks every other
+ * locker. `no key update` blocks every writer of the rows just as well (each
+ * update takes at least that lock), so the fence still cannot move, but it lets
+ * a foreign-key check on another connection take its key-share lock. A caller
+ * that runs work on another connection while it holds the lock, such as the
+ * session gateway, must use it: with `update`, that work's insert of a row
+ * referencing the attempt waits for this transaction, which waits for the work.
+ */
+export type AttemptLockMode = "update" | "no key update";
+
 export async function lockAttempt(
   transaction: PgTransactionClient,
   identity: WorkerIdentity,
   attemptId: string,
+  mode: AttemptLockMode = "update",
 ): Promise<AttemptRow> {
   const result = await transaction.query<AttemptRow>(
     `select attempt.id,
@@ -60,7 +72,7 @@ export async function lockAttempt(
        on job.organization_id = attempt.organization_id
       and job.id = attempt.job_id
      where attempt.organization_id = $1 and attempt.id = $2
-     for update of attempt, job`,
+     for ${mode === "update" ? "update" : "no key update"} of attempt, job`,
     [identity.host.organizationId, attemptId],
   );
   const attempt = result.rows[0];

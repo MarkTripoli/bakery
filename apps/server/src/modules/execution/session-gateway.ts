@@ -129,10 +129,15 @@ async function openSessionCall(input: SessionGatewayInput): Promise<{
     throw new SessionOperationError("SESSION_CREDENTIAL_INVALID");
   }
 
+  // The operation runs on its own connection while this transaction holds the
+  // attempt, and its writes reference the attempt (the step write set's
+  // foreign key). `no key update` still stops the fence moving but lets that
+  // key-share check through; `update` would leave each waiting on the other.
   const claimed = await claimAttempt({
     transaction: input.transaction,
     identity: input.identity,
     attemptId: input.attemptId,
+    lock: "no key update",
     proof: {
       tokenHash: claim.leaseTokenHash,
       fence: claim.fence.toString(),

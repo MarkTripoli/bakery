@@ -102,6 +102,18 @@ function isCount(value: unknown): value is number {
     value >= 0 && value <= MAX_COUNT;
 }
 
+/** Tokens in one call can pass a million, so they get a wider bound than a count. */
+const MAX_TOKENS = 1_000_000_000_000;
+function isTokenCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) &&
+    value >= 0 && value <= MAX_TOKENS;
+}
+
+/** A value that is exactly one of a few fixed words. */
+function isOneOf(words: readonly string[]): (value: unknown) => boolean {
+  return (value) => typeof value === "string" && words.includes(value);
+}
+
 function isDuration(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 &&
     value <= MAX_DURATION_MS;
@@ -234,6 +246,12 @@ function registryFor(sets: Sets): ReadonlyMap<string, Validator> {
     ["bakery.retry.count", isCount],
     ["bakery.logical_attempt", isCount],
     ["bakery.lease.lost", isFlag],
+    // What one attempt's settled usage says, as counts and closed words. Never an
+    // amount in money, a model or provider call id, or anything the worker wrote.
+    ["bakery.usage.input_tokens", isTokenCount],
+    ["bakery.usage.output_tokens", isTokenCount],
+    ["bakery.usage.measurement", isOneOf(["reported", "estimated", "unknown"])],
+    ["bakery.usage.route", isOneOf(["api", "subscription"])],
   ]);
 }
 

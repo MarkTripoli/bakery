@@ -27,6 +27,7 @@ import type { PgTransactionClient } from "../../platform/database.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
+import { auditAgentSessionId } from "../auth/application/agent-power-grants.ts";
 import {
   pinDeclaredRunInputs,
   recordInputPaths,
@@ -545,6 +546,8 @@ async function appendRunFacts(
     taskVersion: number;
     status: RunStatus;
     reason: string | null;
+    /** The agent session that made the call (O50), or null. */
+    agentSessionId: string | null;
     requestId: string;
     traceId: string;
   },
@@ -552,8 +555,8 @@ async function appendRunFacts(
   await transaction.query(
     `insert into bakery.audit_events (
        organization_id, principal_id, operation, resource_type, resource_id,
-       outcome, request_id, trace_id, details
-     ) values ($1, $2, 'runs.create', 'workflow_run', $3, 'succeeded', $4, $5, $6::jsonb)`,
+       outcome, request_id, trace_id, details, agent_session_id
+     ) values ($1, $2, 'runs.create', 'workflow_run', $3, 'succeeded', $4, $5, $6::jsonb, $7)`,
     [
       options.organizationId,
       options.principalId,
@@ -561,6 +564,7 @@ async function appendRunFacts(
       options.requestId,
       options.traceId,
       JSON.stringify({ status: options.status, reason: options.reason }),
+      options.agentSessionId,
     ],
   );
   if (options.status === "queued") {
@@ -1307,6 +1311,11 @@ export async function createRunCommand(
     taskVersion: taskUpdate.rows[0].version,
     status,
     reason,
+    agentSessionId: await auditAgentSessionId(
+      transaction,
+      context,
+      organizationId,
+    ),
     requestId: context.requestId,
     traceId: context.traceId,
   });
