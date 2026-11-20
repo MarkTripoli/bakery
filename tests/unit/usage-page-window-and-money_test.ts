@@ -139,7 +139,6 @@ Deno.test("money is shown with its unit", () => {
   assertEquals(usd("-0.004", less), "Less than $0.01");
   assertEquals(usd("-0.005", less), "-$0.01");
   assertEquals(usd("-3.4", less), "-$3.40");
-  assertEquals(usd("-3.4", less), "-$3.40");
 });
 
 Deno.test("a provider id is not a name, and an unknown id stays itself", () => {
