@@ -801,6 +801,32 @@ Deno.test("admit: spend in flight is refused, because it stays reserved and reco
         );
       },
     ],
+    // The two conditions that make a call "not spent" are checked apart, because a
+    // dispatched call trips both at once and so cannot tell them apart: a status that
+    // moved on with no call id recorded, and a call id recorded while the status still
+    // reads pending. Each alone is spend that may be in flight.
+    [
+      "a call that moved past pending with no call id",
+      async (seeded) => {
+        await database(seeded.fixture).query(
+          `update bakery.provider_call_intents
+              set status = 'bound'
+            where run_step_id = $1 and provider_call_id is null`,
+          [seeded.job.runStepId],
+        );
+      },
+    ],
+    [
+      "a call id recorded while the call still reads pending",
+      async (seeded) => {
+        await database(seeded.fixture).query(
+          `update bakery.provider_call_intents
+              set provider_call_id = 'call-recorded'
+            where run_step_id = $1 and status = 'pending'`,
+          [seeded.job.runStepId],
+        );
+      },
+    ],
     [
       "a usage record",
       async (seeded) => {
