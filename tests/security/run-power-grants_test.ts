@@ -139,7 +139,7 @@ Deno.test("an approve power is not an answer power, and cannot undo an approval"
       (await api(
         o.fixture,
         o.guest.cookie,
-        "POST",
+        "PUT",
         `/v1/questions/${o.question}/answer`,
         {
           text: "main",
@@ -256,6 +256,21 @@ Deno.test("an answer power reaches exactly its one question", async () => {
       (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
       404,
     );
+    // It answers its own question and no other, and that ends the request.
+    const answer = (id: string) =>
+      api(o.fixture, o.guest.cookie, "PUT", `/v1/questions/${id}/answer`, {
+        text: "main",
+      });
+    assertEquals((await answer(other)).status, 404);
+    const answered = await answer(o.question);
+    assertEquals(answered.status, 200, await answered.clone().text());
+    const mine = await (await api(
+      o.fixture,
+      o.guest.cookie,
+      "GET",
+      `/v1/runs/${o.run.runId}/requests/mine`,
+    )).json() as { requests: { status: string }[] };
+    assertEquals(mine.requests.map((r) => r.status), ["answered"]);
   } finally {
     await o.finish();
   }

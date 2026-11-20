@@ -72,10 +72,8 @@ async function open() {
 
 async function refusal(response: Response): Promise<string> {
   assertEquals(response.status, 422, await response.clone().text());
-  const problem = await response.json() as {
-    params?: { issues?: Issue[] };
-  };
-  return problem.params?.issues?.[0]?.code ?? "";
+  const problem = await response.json() as { issues?: Issue[] };
+  return problem.issues?.[0]?.code ?? "";
 }
 
 Deno.test("an approve or answer request must name a row that exists, is open and is the right kind", async () => {
