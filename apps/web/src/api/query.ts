@@ -94,6 +94,7 @@ import type {
   TaskListResponse,
   TaskRepositoryListResponse,
   TaskResponse,
+  TelemetryDestinationList,
   TicketRequestViewListResponse,
   TicketRoutingRuleSetResponse,
   TicketSourceLabelListResponse,
@@ -1731,6 +1732,26 @@ export function scimConnectionQueryOptions(
       );
     },
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The telemetry destinations, kinds and measurements. No event is sent when a
+ * destination's state changes, so the page reads again every 15 seconds while
+ * it is visible and when the tab regains focus.
+ */
+export function telemetryDestinationsQueryOptions(
+  client: Pick<BakeryApiClient, "telemetryDestinations">,
+  scope: ApiScope,
+) {
+  return queryOptions<TelemetryDestinationList, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "telemetryDestinations.list", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.telemetryDestinations.list(signal)),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
     retry: retryNetworkOnce,
   });
 }

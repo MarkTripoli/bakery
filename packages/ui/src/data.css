@@ -2155,3 +2155,31 @@
   grid-column: 1 / -1;
   grid-row: 2;
 }
+
+/* A destination row: the name, state and what it receives take the width, the
+   button and the switch sit at the end, and on a phone they drop under it. */
+.ui-monitoring-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding-block: var(--space-3);
+}
+.ui-monitoring-row__copy {
+  display: grid;
+  flex: 1 1 0;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+.ui-monitoring-row__actions {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: var(--space-3);
+}
+@media (max-width: 743px) {
+  .ui-monitoring-row__copy {
+    flex-basis: 100%;
+  }
+}

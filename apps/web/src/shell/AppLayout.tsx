@@ -625,6 +625,7 @@ function ShellFrame() {
     pathname.startsWith("/__fixtures__/settings/");
   const installationSettings = pathname === "/installation/settings" ||
     pathname === "/installation/audit" ||
+    pathname === "/installation/monitoring" ||
     pathname === INSTALLATION_INTEGRATIONS_PATH ||
     pathname === "/__fixtures__/installation/settings";
   const organizationSettings = ORGANIZATION_FIXTURE_PATHS.includes(pathname);
@@ -710,6 +711,7 @@ function ShellFrame() {
         ? (
           <InstallationSettingsNavigation
             currentPath={pathname === "/installation/audit" ||
+                pathname === "/installation/monitoring" ||
                 pathname === INSTALLATION_INTEGRATIONS_PATH
               ? pathname
               : "/installation/settings"}

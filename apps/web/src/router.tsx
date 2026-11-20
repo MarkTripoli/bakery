@@ -86,6 +86,7 @@ import {
 import { ConnectionPage } from "./pages/integrations/ConnectionPage.tsx";
 import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
+import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
 import { SettingsIndexPage } from "./pages/SettingsIndexPage.tsx";
 import { ProfilePage } from "./pages/ProfilePage.tsx";
@@ -605,6 +606,12 @@ export const routeCoverage = [
   {
     id: "installation-audit",
     path: "/installation/audit",
+    classification: "production",
+    states: ["loading", "default", "empty", "error", "forbidden"],
+  },
+  {
+    id: "installation-monitoring",
+    path: "/installation/monitoring",
     classification: "production",
     states: ["loading", "default", "empty", "error", "forbidden"],
   },
@@ -1599,6 +1606,19 @@ const installationIntegrationsRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const installationMonitoringRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/monitoring",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="shell.navigation.monitoring">
+      <InstallationMonitoringPage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const installationAuditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/installation/audit",
@@ -2440,6 +2460,7 @@ const routeTree = rootRoute.addChildren([
   organizationSettingsRoute,
   installationSettingsRoute,
   installationAuditRoute,
+  installationMonitoringRoute,
   installationIntegrationsRoute,
   organizationAccessRoute,
   organizationInvitationsRoute,

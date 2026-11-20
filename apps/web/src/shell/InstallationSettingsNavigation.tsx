@@ -30,6 +30,10 @@ export function InstallationSettingsNavigation(
         href: "/installation/settings",
         label: translate("settings.installation.title"),
       }, {
+        id: "installation-monitoring",
+        href: "/installation/monitoring",
+        label: translate("shell.navigation.monitoring"),
+      }, {
         id: "installation-audit",
         href: "/installation/audit",
         label: translate("settings.audit.section"),
