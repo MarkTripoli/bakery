@@ -2319,15 +2319,16 @@
   grid-row: 2;
 }
 
-/* A destination's page: the form takes up to 620px and a side column of 300px
-   holds its status and the test. Below 1024px there is one column and the
+/* A destination's page: the form takes up to 620px and a side column holds its
+   status and the test. Below the rail width there is one column and the
    side column comes first, so a failing destination's test is the first thing
    seen. */
 .ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--split {
   align-items: start;
-  grid-template-columns: minmax(0, 620px) 300px;
+  grid-template-columns: minmax(0, var(--layout-message))
+    var(--layout-inspector);
 }
-@media (max-width: 1023px) {
+@media (max-width: 1279px) {
   .ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--split {
     grid-template-columns: minmax(0, 1fr);
   }
