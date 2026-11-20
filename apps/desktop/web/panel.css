@@ -1,0 +1,178 @@
+/* One panel with different words (design-ux, #77 slice 3). Every value is a web token. */
+html,
+body {
+  block-size: 100%;
+}
+
+body {
+  margin: 0;
+  display: grid;
+  place-items: center;
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font: var(--type-body);
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.panel {
+  box-sizing: border-box;
+  inline-size: 420px;
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+}
+
+.panel__notice {
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-control);
+  font: var(--type-notice);
+  color: var(--color-fg-muted);
+}
+
+.panel__heading {
+  margin: 0;
+  font: var(--type-heading-page);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.panel__heading:focus {
+  outline: none;
+}
+
+.panel__heading:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+
+.panel__text {
+  margin: 0;
+  color: var(--color-fg-muted);
+  font: var(--type-auth-lead);
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  font: var(--type-body);
+  overflow-wrap: anywhere;
+}
+
+.detail__label {
+  color: var(--color-fg-muted);
+  font: var(--type-label);
+}
+
+.detail__value {
+  user-select: all;
+}
+
+.detail--waiting {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.detail--warning {
+  background: var(--color-status-warning-surface);
+  color: var(--color-status-warning);
+  border-color: transparent;
+}
+
+.spinner {
+  flex: none;
+  box-sizing: border-box;
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  border: 2px solid var(--color-border-strong);
+  border-block-start-color: var(--color-fg);
+  border-radius: var(--radius-circle);
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 0s;
+  }
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.btn {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--size-control);
+  padding: 0 var(--space-4);
+  font: var(--type-auth-button);
+  color: var(--color-fg);
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.btn--primary {
+  color: var(--color-primary-foreground);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.btn--primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.btn:disabled {
+  color: var(--color-fg-disabled);
+  cursor: default;
+}
+
+/* Under 480 wide the panel fills the window and the buttons are 44 high. */
+@media (max-width: 479px) {
+  .panel {
+    inline-size: calc(100% - var(--space-4));
+    padding: var(--space-6);
+  }
+
+  .btn {
+    min-block-size: 44px;
+  }
+}
+
+/* "Sign in again" is a dialog over the kept page, which stays visible but dimmed. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-canvas) 70%, transparent);
+}
