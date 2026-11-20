@@ -16,6 +16,7 @@ import {
   useSingleFlightSubmit,
 } from "../app/auth-form.ts";
 import {
+  isDesktopSignInReturn,
   postSignInDestination,
   rememberReturnTo,
   safeSessionStorage,
@@ -335,7 +336,13 @@ export function SignInPage(
     if (signal.aborted) return;
     // Keep accepted-credential recovery visible until the destination commits.
     // Its identity loader may still be pending after scope resolution succeeds.
-    await navigate({ to: postSignInDestination({ outcome }) });
+    const destination = postSignInDestination({ outcome });
+    // A desktop sign-in question is a server page: leave the app for it.
+    if (isDesktopSignInReturn(destination)) {
+      globalThis.location.assign(destination);
+      return;
+    }
+    await navigate({ to: destination });
   };
 
   const continueAfterAuthentication = async () => {

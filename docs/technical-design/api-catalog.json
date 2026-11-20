@@ -3906,6 +3906,47 @@
       ]
     },
     {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-sign-ins",
+      "action": "desktopSignIns.start",
+      "access": "Public",
+      "permission": null,
+      "input": "DesktopSignInStart",
+      "output": "DesktopSignInStarted",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; every call opens a new ten-minute request",
+      "errors": [
+        "VALIDATION_FAILED",
+        "UNPROCESSABLE",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-sign-ins/{id}/credential",
+      "action": "desktopSignIns.exchange",
+      "access": "Public",
+      "permission": null,
+      "input": "DesktopSignInExchange",
+      "output": "DesktopSignInCredential",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; a request is exchanged at most once and a replay ends the sign-in it issued",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ]
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/installation/audit-events",
@@ -8519,6 +8560,57 @@
         "MALFORMED_REQUEST",
         "RESOURCE_NOT_FOUND",
         "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/agent-file-grants",
+      "action": "agentFileGrants.create",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "organizationContext": "required_authenticated_context",
+      "input": "AgentFileGrantCreate",
+      "output": "AgentFileGrant",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/agent-file-grants/{id}/revoke",
+      "action": "agentFileGrants.revoke",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "organizationContext": "required_authenticated_context",
+      "input": "IdPath",
+      "output": "AgentFileGrant",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT"
       ]
