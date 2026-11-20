@@ -31,7 +31,12 @@
       "icons/icon.png"
     ],
     "category": "Productivity",
-    "shortDescription": "Bakery desktop app"
+    "shortDescription": "Bakery desktop app",
+    "linux": {
+      "deb": {
+        "desktopTemplate": "bakery.desktop"
+      }
+    }
   },
   "plugins": {
     "deep-link": {
