@@ -22,11 +22,13 @@ import {
   createRunReviewsListHandler,
 } from "./postgres.ts";
 import { acceptReview } from "./review-accept.ts";
+import { createMetricSourcesLister, getMetricSeries } from "./metrics.ts";
 
 export function createDeliveryHandlers(
   secret: string,
   merge: MergeDispatchDependencies,
 ): DeliveryActionHandlers {
+  const metricSources = createMetricSourcesLister(secret);
   return {
     checksList: createChecksListHandler(secret),
     runReviewsList: createRunReviewsListHandler(secret),
@@ -35,6 +37,12 @@ export function createDeliveryHandlers(
     reviewFindingsList: createReviewFindingsListHandler(secret),
     runDeliveryDecisionsList: createRunDeliveryDecisionsListHandler(secret),
     pullRequestsList: createPullRequestsListHandler(secret),
+    metricsGet: async (context, input) =>
+      contractSchemas.MetricSeries.parse(await getMetricSeries(context, input)),
+    metricsSources: async (context, input) =>
+      contractSchemas["Page<MetricSource>"].parse(
+        await metricSources(context, input),
+      ),
     mergeEntriesList: async (context, input) => {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
