@@ -26791,6 +26791,7 @@ export const clientManifest = {
             "destination_refused",
             "destination_unreachable",
             "key_missing",
+            "incomplete_set",
             "runner_error"
           ]
         },
@@ -89488,9 +89489,10 @@ export const clientManifest = {
                 "destination_refused",
                 "destination_unreachable",
                 "key_missing",
+                "incomplete_set",
                 "runner_error"
               ],
-              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
             },
             {
               "type": "null",
@@ -89696,9 +89698,10 @@ export const clientManifest = {
                       "destination_refused",
                       "destination_unreachable",
                       "key_missing",
+                      "incomplete_set",
                       "runner_error"
                     ],
-                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                   },
                   {
                     "type": "null",

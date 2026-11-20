@@ -72999,6 +72999,7 @@
                 "destination_refused",
                 "destination_unreachable",
                 "key_missing",
+                "incomplete_set",
                 "runner_error"
               ]
             },
@@ -236970,9 +236971,10 @@
                     "destination_refused",
                     "destination_unreachable",
                     "key_missing",
+                    "incomplete_set",
                     "runner_error"
                   ],
-                  "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+                  "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                 },
                 {
                   "type": "null",
@@ -237178,9 +237180,10 @@
                           "destination_refused",
                           "destination_unreachable",
                           "key_missing",
+                          "incomplete_set",
                           "runner_error"
                         ],
-                        "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+                        "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                       },
                       {
                         "type": "null",
@@ -261516,7 +261519,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:0c4ca2e88ad12db523e087e1256968d97583f2c61bcac812abfcaf5db87ce449",
+  "compatibilityDigest": "sha256:9e87b53284a1dd50f2156b4ae3ce2b11ec3c6a94b7752946f304357ada5bdd8b",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -287595,6 +287598,7 @@
             "destination_refused",
             "destination_unreachable",
             "key_missing",
+            "incomplete_set",
             "runner_error"
           ]
         },
@@ -451946,9 +451950,10 @@
                 "destination_refused",
                 "destination_unreachable",
                 "key_missing",
+                "incomplete_set",
                 "runner_error"
               ],
-              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
             },
             {
               "type": "null",
@@ -452154,9 +452159,10 @@
                       "destination_refused",
                       "destination_unreachable",
                       "key_missing",
+                      "incomplete_set",
                       "runner_error"
                     ],
-                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                   },
                   {
                     "type": "null",
