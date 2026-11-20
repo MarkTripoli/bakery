@@ -15,6 +15,7 @@ import {
 } from "../helpers/github-app-registration.ts";
 import { fakeRepositories } from "../helpers/fake-github-app.ts";
 import { call, orgHeader } from "../helpers/account-settings.ts";
+import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-job.ts";
 
 const SHA = "0123456789abcdef0123456789abcdef01234567";
 type Json = Record<string, unknown>;
@@ -336,6 +337,130 @@ Deno.test("another organization's pull requests never count, and a guest is refu
       String(refused.status),
     );
     await refused.body?.cancel();
+  } finally {
+    await f.finish();
+  }
+});
+
+async function otherOrganization(f: GitHubAppFixture): Promise<string> {
+  const created = await call(f, "POST", "/v1/organizations", f.adminCookie, {
+    body: {
+      name: "Other Org",
+      slug: "other-" + crypto.randomUUID().slice(0, 8),
+    },
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+  });
+  assertEquals(created.status, 201, await created.clone().text());
+  return (await created.json() as { id: string }).id;
+}
+
+Deno.test("another organization's delivered task never counts toward my lead time", async () => {
+  const f = await openGitHubAppFixture();
+  try {
+    const other = await otherOrganization(f);
+    const principalId = (await f.pgDatabase.query<{ id: string }>(
+      "select principal_id as id from bakery.organization_memberships where organization_id = $1 order by created_at, id limit 1",
+      [other],
+    )).rows[0]!.id;
+    const job = await seedEligibleNonmodelJob(f.pgDatabase, other, principalId);
+    await f.pgDatabase.query(
+      "update bakery.workflow_runs set created_at = $2, status = 'completed', finished_at = $3 where id = $1",
+      [
+        job.runId,
+        new Date("2026-06-10T00:00:00Z"),
+        new Date("2026-06-10T10:00:00Z"),
+      ],
+    );
+    await f.pgDatabase.query(
+      "update bakery.tasks set status = 'completed' where id = $1",
+      [job.taskId],
+    );
+    const known = (s: Json) =>
+      (s.points as { value: number | null }[]).filter((p) => p.value !== null)
+        .length;
+    const path = "/v1/metrics?metric=tasks.leadTimeHours&" + june;
+    assertEquals(
+      known(await ok(await get(f, path, other))),
+      1,
+      "control: it counts in its own organization",
+    );
+    assertEquals(
+      known(await ok(await get(f, path))),
+      0,
+      "a foreign task counted in mine",
+    );
+    const sources = "/v1/metrics/sources?metric=tasks.leadTimeHours&" +
+      june.replace("&resolution=day", "");
+    assertEquals(
+      ((await ok(await get(f, sources, other))).items as Json[]).length,
+      1,
+    );
+    assertEquals(((await ok(await get(f, sources))).items as Json[]).length, 0);
+  } finally {
+    await f.finish();
+  }
+});
+
+Deno.test("a later read without totals or merge time does not erase what is known", async () => {
+  const f = await openGitHubAppFixture();
+  try {
+    const { connectionId, selected } = await enabledConnection(f, {
+      repositories: fakeRepositories(1, ["admin"]),
+      selected: 1,
+    });
+    const repo = await seedRepository(
+      f,
+      f.organizationId,
+      connectionId,
+      selected[0].external_id,
+    );
+    const id = await seedPullRequest(f, f.organizationId, repo, 1);
+    const mergedRead = read(f.organizationId, 1, {
+      state: "closed",
+      merged: true,
+      mergedSha: SHA,
+      providerUpdatedAt: new Date("2026-06-03T12:00:00Z"),
+      closedAt: new Date("2026-06-03T12:00:00Z"),
+      mergedAt: new Date("2026-06-03T12:00:00Z"),
+      additions: 5,
+      deletions: 2,
+      changedFiles: 1,
+    });
+    assertEquals(await observe(f, repo.repositoryId, mergedRead), "written");
+    // The same state read again later, without diff totals: totals stay.
+    await observe(f, repo.repositoryId, {
+      ...mergedRead,
+      additions: null,
+      deletions: null,
+      changedFiles: null,
+      observedStartedAt: new Date(Date.now() + 1000),
+    });
+    assertEquals(
+      sum(
+        await ok(await get(f, "/v1/metrics?metric=prs.changedLines&" + june)),
+      ),
+      7,
+    );
+    // A newer read without a merge time never clears the recorded merge.
+    await observe(
+      f,
+      repo.repositoryId,
+      read(f.organizationId, 1, {
+        state: "closed",
+        merged: false,
+        providerUpdatedAt: new Date("2026-06-04T12:00:00Z"),
+        closedAt: new Date("2026-06-04T12:00:00Z"),
+        mergedAt: null,
+      }),
+    );
+    const stored = (await f.pgDatabase.query<
+      { merged_at: Date | null; additions: number | null }
+    >(
+      "select merged_at, additions from bakery.pull_requests where id = $1",
+      [id],
+    )).rows[0];
+    assertEquals(stored.merged_at?.toISOString(), "2026-06-03T12:00:00.000Z");
+    assertEquals(stored.additions, 5);
   } finally {
     await f.finish();
   }
