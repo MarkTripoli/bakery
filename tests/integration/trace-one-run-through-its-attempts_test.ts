@@ -271,7 +271,7 @@ Deno.test("one run keeps one trace across a restart retry, and no secret reaches
         ofAttempt("lease.renewed", second.attemptId)[0],
         "bakery.retry.count",
       ),
-      { intValue: "1" },
+      { doubleValue: 1 },
     );
 
     // No secret, and no unregistered field, reached any span.
