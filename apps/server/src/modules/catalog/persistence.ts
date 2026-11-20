@@ -29,6 +29,7 @@ import {
   updateSkillDraft,
 } from "./skill-drafts.ts";
 import type { SkillFileStoreOperations } from "./storage.ts";
+import { checkSkillSourceUpdate } from "./skill-source-update.ts";
 import { listSkillUsage } from "./skill-usage.ts";
 import { deleteSkillUseGrant, listSkillUseGrants } from "./skill-use-grants.ts";
 import {
@@ -40,6 +41,7 @@ import {
   normalizeSkillSourceLocator,
   normalizeSkillSourcePath,
   normalizeSkillSourceRevision,
+  type SkillSourceAdapter,
   SkillSourceAdapterError,
 } from "./source-adapters.ts";
 
@@ -435,6 +437,8 @@ export function createCatalogHandlers(
     normalizeSourceLocator?: typeof normalizeSkillSourceLocator;
     /** Where a published version's files are read back from, to start a draft. */
     skillFileStore?: SkillFileStoreOperations;
+    /** Where a source is looked at again to see whether it has something newer. */
+    sourceAdapter?: SkillSourceAdapter;
   }> = {},
 ) {
   const normalizeSourceLocator = options.normalizeSourceLocator ??
@@ -825,6 +829,13 @@ export function createCatalogHandlers(
 
     checkSkillDraft(context: ActionContext) {
       return checkSkillDraft(context);
+    },
+
+    checkSkillSourceUpdate(context: ActionContext) {
+      return checkSkillSourceUpdate(context, {
+        adapter: options.sourceAdapter,
+        store: options.skillFileStore,
+      });
     },
 
     saveSkillDraftFile(context: ActionContext, input: SkillDraftFileSaveInput) {

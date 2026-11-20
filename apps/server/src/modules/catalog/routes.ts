@@ -32,7 +32,10 @@ import {
   storeLocalSkillVersionPublication,
 } from "./publication.ts";
 import { SkillFileStore, type SkillFileStoreOperations } from "./storage.ts";
-import type { normalizeSkillSourceLocator } from "./source-adapters.ts";
+import type {
+  normalizeSkillSourceLocator,
+  SkillSourceAdapter,
+} from "./source-adapters.ts";
 import type { LocalSkillVersionInput } from "./validation.ts";
 import {
   commitSkillCopy,
@@ -102,6 +105,7 @@ export function createCatalogRoutes(options: {
   cursorSecret: string;
   skillFileRoot?: string;
   skillFileStore?: SkillFileStoreOperations;
+  sourceAdapter?: SkillSourceAdapter;
   normalizeSourceLocator?: typeof normalizeSkillSourceLocator;
   /**
    * A registry built by the caller, so the same catalog operations can be
@@ -117,6 +121,7 @@ export function createCatalogRoutes(options: {
   const handlers = createCatalogHandlers(options.cursorSecret, {
     normalizeSourceLocator: options.normalizeSourceLocator,
     skillFileStore: store,
+    sourceAdapter: options.sourceAdapter,
   });
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
   const postgresCommandRunner = createPostgresCommandRunner();

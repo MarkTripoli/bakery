@@ -821,6 +821,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillDraftsUpdate: "skillDrafts.update",
     SkillDraftsDiscard: "skillDrafts.discard",
     SkillDraftsCheck: "skillDrafts.check",
+    SkillsSourceUpdate: "skills.sourceUpdate",
     SkillDraftsPublish: "skillDrafts.publish",
     SkillDraftFilesSave: "skillDraftFiles.save",
     SkillDraftFilesGet: "skillDraftFiles.get",

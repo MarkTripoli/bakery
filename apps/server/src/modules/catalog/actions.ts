@@ -82,6 +82,10 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.IdPath>,
   ) => Promise<z.output<typeof contractSchemas.SkillDraftCheck>>;
+  checkSkillSourceUpdate: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillSourceUpdateCheck>>;
   saveSkillDraftFile: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.SkillDraftFileSave>,
@@ -363,6 +367,16 @@ export function createCatalogActionRegistry(
     successStatus: 200,
     policy: { ...commandPolicy, access: draftAccess },
     handler: handlers.checkSkillDraft,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillsSourceUpdate,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/source-update",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.SkillSourceUpdateCheck,
+    successStatus: 200,
+    policy: { ...commandPolicy, access: draftAccess },
+    handler: handlers.checkSkillSourceUpdate,
   });
   registry.register({
     name: CatalogImplementedAction.SkillDraftFilesSave,
