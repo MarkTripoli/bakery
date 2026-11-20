@@ -94830,6 +94830,30 @@ export const clientManifest = {
                 "type": "boolean",
                 "description": "Whether the window ends before the version does."
               },
+              "limits": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "binary_media",
+                      "no_text_extractor",
+                      "extraction_failed"
+                    ],
+                    "description": "Why the item carries no content: binary_media (images, audio, video and unknown binaries are references only), no_text_extractor (PDFs have no text extractor yet) or extraction_failed (a text window could not be produced); null when the item carries text."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ContextPackItem.limits may be null in this transport value."
+              },
+              "redactions": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many credentials were replaced by a redaction marker in the text of this item; 0 for a reference or for text with none."
+              },
               "tokens": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -94852,6 +94876,8 @@ export const clientManifest = {
               "citation",
               "text",
               "truncated",
+              "limits",
+              "redactions",
               "tokens",
               "countState"
             ],

@@ -36,3 +36,27 @@ export async function installDenoWrapper(bin: string): Promise<void> {
     { mode: 0o755 },
   );
 }
+
+/**
+ * A directory of wrappers for every system tool except `deno`, so a test that
+ * needs "Deno is not installed" does not depend on whether the host has
+ * /usr/bin/deno (a dev or CI host may). Scripts, not links, for the reason
+ * above.
+ */
+export async function toolsWithoutDeno(dir: string): Promise<string> {
+  const tools = join(dir, "tools-without-deno");
+  await Deno.mkdir(tools);
+  const seen = new Set<string>(["deno"]);
+  for (const source of ["/usr/bin", "/bin"]) {
+    for await (const entry of Deno.readDir(source)) {
+      if (seen.has(entry.name)) continue;
+      seen.add(entry.name);
+      await Deno.writeTextFile(
+        join(tools, entry.name),
+        `#!/bin/sh\nexec ${JSON.stringify(join(source, entry.name))} "$@"\n`,
+        { mode: 0o755 },
+      );
+    }
+  }
+  return tools;
+}

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   installDenoWrapper,
   installReleaseManifestShim,
+  toolsWithoutDeno,
 } from "../helpers/backup-sandbox-release.ts";
 import {
   INCOMPLETE_FILE,
@@ -456,9 +457,9 @@ Deno.test("with the release checkout missing the dumps are still taken, kept as 
 
 Deno.test("with Deno missing the dumps are still taken, kept as an incomplete set, never latest", async () => {
   await withSandbox({}, async (box) => {
-    // Neither the shim dir nor /usr/bin:/bin has a deno.
     await Deno.remove(join(box.bin, "deno"));
-    const result = await box.run();
+    const tools = await toolsWithoutDeno(box.dir);
+    const result = await box.run({ PATH: `${box.bin}:${tools}` });
     await assertKeptIncomplete(box, result, null);
   });
 });

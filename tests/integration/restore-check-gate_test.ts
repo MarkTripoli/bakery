@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   installDenoWrapper,
   installReleaseManifestShim,
+  toolsWithoutDeno,
 } from "../helpers/backup-sandbox-release.ts";
 import {
   INCOMPLETE_FILE,
@@ -64,6 +65,12 @@ async function withCheck(
       env: string | null,
       ...extra: string[]
     ) => Promise<{ code: number; stderr: string }>;
+    /** Like run, with PATH set to `path` (a directory list). */
+    readonly runWithPath: (
+      path: string,
+    ) => Promise<{ code: number; stderr: string }>;
+    readonly bin: string;
+    readonly opt: string;
   }) => Promise<void>,
 ): Promise<void> {
   const dir = await Deno.makeTempDir({ prefix: "bakery-restore-gate-" });
@@ -84,9 +91,13 @@ async function withCheck(
     const identity = join(dir, "identity.txt");
     await Deno.writeTextFile(identity, "AGE-SECRET-KEY-FAKE\n");
     const set = join(dir, "set");
-    const launch = async (env: string | null, extra: string[]) => {
+    const launch = async (
+      env: string | null,
+      extra: string[],
+      path = `${bin}:/usr/bin:/bin`,
+    ) => {
       const variables: Record<string, string> = {
-        PATH: `${bin}:/usr/bin:/bin`,
+        PATH: path,
         HOME: dir,
         BAKERY_BACKUP_SANDBOX: dir,
         TMPDIR: dir,
@@ -121,6 +132,9 @@ async function withCheck(
       },
       run: (...extra) => launch("test", extra),
       runWithEnv: (env, ...extra) => launch(env, extra),
+      runWithPath: (path) => launch("test", [], path),
+      bin,
+      opt,
     });
   } finally {
     await Deno.remove(dir, { recursive: true });
@@ -233,5 +247,30 @@ Deno.test("a set that declares itself incomplete is refused with its cause, even
       assert(!result.stderr.includes("BACKUP_LEGACY_SET"));
       assertEquals(await check.dockerCalls(), 0);
     }
+  });
+});
+
+Deno.test("on a host without Deno it says what to install, exits 70 and starts nothing", async () => {
+  await withCheck(async (check) => {
+    await writeSet(check.set);
+    await Deno.remove(join(check.bin, "deno"));
+    const tools = await toolsWithoutDeno(check.dir);
+    const result = await check.runWithPath(`${check.bin}:${tools}`);
+    assertEquals(result.code, 70, result.stderr);
+    assert(result.stderr.includes("deno"), result.stderr);
+    assert(result.stderr.includes("Nothing was restored"), result.stderr);
+    assertEquals(await check.dockerCalls(), 0);
+  });
+});
+
+Deno.test("on a host without the release checkout it names the checkout, exits 70 and starts nothing", async () => {
+  await withCheck(async (check) => {
+    await writeSet(check.set);
+    await Deno.remove(join(check.opt, "background"), { recursive: true });
+    const result = await check.run();
+    assertEquals(result.code, 70, result.stderr);
+    assert(result.stderr.includes("release checkout"), result.stderr);
+    assert(!result.stderr.includes("deno ("), result.stderr);
+    assertEquals(await check.dockerCalls(), 0);
   });
 });
