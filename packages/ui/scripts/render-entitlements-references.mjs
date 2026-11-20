@@ -26,7 +26,9 @@
 // It also re-renders the cases of entitlements-baselines.json when that file
 // exists (it is created with the first entitlements cases). Renders run under the
 // hermetic fontconfig the enterprise manifest uses (same pinned Geist files).
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative, resolve } from "node:path";
@@ -104,6 +106,49 @@ export async function checkEntitlementsReferences({ baseline, browser }) {
       )
     ),
     results,
+  };
+}
+
+// A ux-ruling refresh pins a stronger identity (ruling, app commit, inputs and
+// ruled cases) than the renderer's inputs-only digest, so that digest does not
+// apply to it: drop that one issue and verify the ruling identity itself with
+// the verifier the parity gate uses (compare-paper.mjs filters the same issue
+// for the same reason). Only the `--check` command calls this. It must not run
+// inside the parity gate: compare-paper.mjs loads this module while it is still
+// evaluating, so importing it back from here would wait on itself.
+export async function applyRulingIdentity(baseline, outcome) {
+  if (!String(baseline.source?.revision ?? "").startsWith("ux-ruling:")) {
+    return outcome;
+  }
+  const { uxRulingRefreshIssue } = await import("./compare-paper.mjs");
+  const read = (path) => readFileSync(join(root, path));
+  const rulingIssue = uxRulingRefreshIssue(baseline, {
+    readRulingBody: () => {
+      const bodyPath = baseline.source?.rulingBodyPath;
+      if (typeof bodyPath !== "string" || !bodyPath) return undefined;
+      return read(bodyPath).toString("utf8");
+    },
+    readInput: (input) => sha256(read(input)),
+    commitExists: (sha) => {
+      try {
+        execFileSync("git", ["cat-file", "-e", `${sha}^{commit}`], {
+          cwd: root,
+          stdio: "ignore",
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  });
+  return {
+    ...outcome,
+    issues: [
+      ...outcome.issues.filter((issue) =>
+        !issue.startsWith("source.digest mismatch")
+      ),
+      ...(rulingIssue ? [`ruling identity: ${rulingIssue}`] : []),
+    ],
   };
 }
 
@@ -227,6 +272,14 @@ export const referencePathFor = (screen) => {
     "installation-settings--save-conflict--light--desktop",
     "installation-settings--save-error--light--desktop",
   ]);
+  // v4 re-anchors all eight frames to the shipped shell under the UX ruling
+  // 248#7034723312, revision 2 (bell and its ring, section control, live
+  // navigation, Integrations, and the mark with no tile behind it).
+  const successorV4 =
+    `${REFERENCE_DIRECTORY}/installation-settings-v4/${key}.png`;
+  if (successorKeys.has(key) && screen.referencePath === successorV4) {
+    return successorV4;
+  }
   const successorV3 =
     `${REFERENCE_DIRECTORY}/installation-settings-v3/${key}.png`;
   if (successorV3Keys.has(key) && screen.referencePath === successorV3) {
@@ -579,10 +632,13 @@ async function main() {
         },
       );
       if (hasBaseline) {
-        const cases = await checkEntitlementsReferences({
-          baseline: hasBaseline,
-          browser,
-        });
+        const cases = await applyRulingIdentity(
+          hasBaseline,
+          await checkEntitlementsReferences({
+            baseline: hasBaseline,
+            browser,
+          }),
+        );
         report(cases);
       } else {
         console.log(
