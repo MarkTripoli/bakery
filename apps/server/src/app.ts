@@ -1079,6 +1079,7 @@ export function createApp(options: {
       database: options.pgDatabase,
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
       dependencies: options.telemetryDestinations ?? {
         registry: createProviderRegistry([otlpProvider]),
         fanout: createDestinationFanout({
