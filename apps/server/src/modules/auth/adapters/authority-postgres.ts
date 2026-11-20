@@ -140,13 +140,28 @@ function assertOrganizationPathMatches(
   }
 }
 
+/**
+ * The organization header, or, for an action that declares
+ * `organizationIdQuery`, that query parameter when the header is absent. Both
+ * go through the same parsing. When both are present they must agree; a
+ * disagreement is reported as not found, like a header and path mismatch.
+ */
 function requiredOrganizationId(
   action: ActionDefinition,
   context: ActionContext,
 ): OrganizationId {
-  const organizationId = requireOrganizationIdValue(
-    context.request.headers.get(ORGANIZATION_HEADER),
-  );
+  const header = context.request.headers.get(ORGANIZATION_HEADER);
+  const queryName = action.policy.organizationIdQuery;
+  const query = queryName === undefined
+    ? null
+    : new URL(context.request.url).searchParams.get(queryName);
+  const organizationId = requireOrganizationIdValue(header ?? query);
+  if (
+    header !== null && query !== null &&
+    requireOrganizationIdValue(query) !== organizationId
+  ) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
   assertOrganizationPathMatches(action, context, organizationId);
   return organizationId;
 }

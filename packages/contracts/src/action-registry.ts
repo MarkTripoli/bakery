@@ -83,6 +83,14 @@ export type ActionPolicy = {
    */
   organizationIdParam?: string;
   /**
+   * Query parameter that may carry the organization when the request cannot
+   * send the organization header, as a `<video>` or `<audio>` src cannot.
+   * The header wins when present; a header and query that differ are refused.
+   * The value goes through the same parsing and membership check as the
+   * header. Only valid on a GET action with `RequiredAuthenticatedContext`.
+   */
+  organizationIdQuery?: string;
+  /**
    * Access-management mutation that changes who has access or mints a durable
    * credential. The authority runner refuses it with `SESSION_REQUIRED` when
    * the request was authenticated by an access token.
@@ -562,6 +570,18 @@ export class ActionRegistry {
         `action ${definition.name} declares organizationIdParam ${organizationIdParam} that is not a route parameter of a required-context action`,
       );
     }
+    const { organizationIdQuery } = definition.policy;
+    if (
+      organizationIdQuery !== undefined &&
+      (organizationContext !==
+          OrganizationContextPolicy.RequiredAuthenticatedContext ||
+        method !== HttpMethod.Get ||
+        !/^[A-Za-z][A-Za-z0-9]*$/.test(organizationIdQuery))
+    ) {
+      throw new ActionRegistryError(
+        `action ${definition.name} declares organizationIdQuery ${organizationIdQuery} but only a GET required-context action may name an organization query parameter`,
+      );
+    }
     const binding = `${method} ${normalizeRoutePath(definition.path)}`;
     const existing = this.#bindings.get(binding);
     if (existing) {
@@ -813,6 +833,16 @@ export function assertRegisteredActions(
         "organization id route parameter",
         action.policy.organizationIdParam,
         catalog.organizationIdParam,
+      ]);
+    }
+    if (
+      action.policy.organizationIdQuery !== undefined ||
+      catalog.organizationIdQuery !== undefined
+    ) {
+      fields.push([
+        "organization id query parameter",
+        action.policy.organizationIdQuery,
+        catalog.organizationIdQuery,
       ]);
     }
     for (const [field, actual, expected] of fields) {
