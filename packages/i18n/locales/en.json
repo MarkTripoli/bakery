@@ -1541,6 +1541,8 @@
   "tasks.run.output.savedState": "{state} · sequence {sequence}",
   "problems.ARTIFACT_CONTENT_EXPIRED.title": "Artifact content expired",
   "problems.ARTIFACT_CONTENT_EXPIRED.description": "Retention collection removed these bytes. Version metadata remains available.",
+  "problems.ARTIFACT_CONTENT_MISMATCH.title": "This file does not match its record",
+  "problems.ARTIFACT_CONTENT_MISMATCH.description": "What is stored is not what was recorded, so Bakery will not show or download it. Ask an organization Admin to check it.",
   "problems.RANGE_NOT_SATISFIABLE.title": "Range not served",
   "problems.RANGE_NOT_SATISFIABLE.description": "This object is too large to serve a partial range. Request the whole file instead.",
   "problems.STORAGE_AREA_REFUSED.title": "Change not allowed",

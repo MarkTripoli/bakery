@@ -311,6 +311,13 @@ const transportSchemas = {
       "retryable": false,
       "slug": "artifact-content-expired"
     },
+    "ARTIFACT_CONTENT_MISMATCH": {
+      "status": 409,
+      "retryable": false,
+      "slug": "artifact-content-mismatch",
+      "title": "Artifact content does not match its record",
+      "detail": "The stored bytes are not the bytes this version's digest describes."
+    },
     "RANGE_NOT_SATISFIABLE": {
       "status": 416,
       "retryable": false,
