@@ -8,12 +8,14 @@ export function seedEligibleNonmodelJob(
   principalId: string,
   options: {
     action?: "quality.check";
+    compilable?: boolean;
     priority?: number;
     input?: Record<string, unknown>;
   } = {},
 ) {
   return seedEligibleJob(database, organizationId, principalId, {
     action: "quality.check",
+    compilable: options.compilable,
     priority: options.priority,
     input: options.input ?? {
       repositoryId: crypto.randomUUID(),

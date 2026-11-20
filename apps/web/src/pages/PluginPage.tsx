@@ -17,6 +17,7 @@ import {
   type PluginActor,
   type PluginVersion,
   publishedVersions,
+  shortFingerprint,
   updateFailureOf,
 } from "../app/plugins.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
@@ -26,6 +27,9 @@ import { useSession } from "../app/session-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { SETTINGS_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
+import { CopyValueButton } from "./CopyValueButton.tsx";
+import { OriginDialog } from "./plugins/PluginOrigin.tsx";
+import { SavedData } from "./plugins/SavedData.tsx";
 import {
   CapabilityList,
   RemoveDialog,
@@ -78,6 +82,8 @@ export function PluginPage({ installId }: { readonly installId: string }) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [failure, setFailure] = useState<ChangeFailure | null>(null);
   const [notice, setNotice] = useState<"on" | null>(null);
+  /** The version whose "Where it came from" is open. */
+  const [origin, setOrigin] = useState<PluginVersion | null>(null);
   /** Versions this page tried to move to and that did not start. */
   const [didNotStart, setDidNotStart] = useState<ReadonlySet<string>>(
     new Set(),
@@ -212,28 +218,39 @@ export function PluginPage({ installId }: { readonly installId: string }) {
               href: SETTINGS_HOME,
               label: translate("shell.states.settingsTitle"),
             },
-            {
-              href: PLUGINS_PATH,
-              label: translate("shell.navigation.plugins"),
-            },
-            { label: name || translate("shell.navigation.plugins") },
+            ...(name === ""
+              ? [{ label: translate("shell.navigation.plugins") }]
+              : [
+                {
+                  href: PLUGINS_PATH,
+                  label: translate("shell.navigation.plugins"),
+                },
+                { label: name },
+              ]),
           ]}
         />
       </ShellSlot>
       <UI.SettingsContent data-testid="plugin">
-        {loading ? <UI.Skeleton shape="row" /> : notFound
+        {loading
+          ? <UI.Skeleton shape="row" />
+          : notFound
           ? (
-            <UI.ErrorState
-              title={translate("settings.plugins.page.notFound")}
-              action={
-                <UI.Button
-                  variant="secondary"
-                  onClick={() => void navigate({ to: PLUGINS_PATH })}
-                >
-                  {translate("settings.plugins.page.back")}
-                </UI.Button>
-              }
-            />
+            <UI.Stack gap="standard">
+              <UI.Heading level="page">
+                {translate("shell.navigation.plugins")}
+              </UI.Heading>
+              <UI.ErrorState
+                title={translate("settings.plugins.page.notFound")}
+                action={
+                  <UI.Button
+                    variant="secondary"
+                    onClick={() => void navigate({ to: PLUGINS_PATH })}
+                  >
+                    {translate("settings.plugins.page.back")}
+                  </UI.Button>
+                }
+              />
+            </UI.Stack>
           )
           : row === undefined
           ? null
@@ -396,6 +413,8 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                   )}
               </UI.Stack>
 
+              <SavedData installId={installId} name={name} phone={phone} />
+
               {current === undefined
                 ? null
                 : (
@@ -403,32 +422,56 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                     <UI.Heading level="section">
                       {translate("settings.plugins.page.about")}
                     </UI.Heading>
-                    {current.publishedAt === null ? null : (
-                      <UI.Text>
-                        {translate("settings.plugins.install.published", {
-                          when: date(current.publishedAt),
-                        })}
+                    <UI.Stack gap="none">
+                      <UI.Text variant="caption">
+                        {translate("settings.plugins.about.version")}
                       </UI.Text>
+                      <UI.Text>{current.versionName}</UI.Text>
+                    </UI.Stack>
+                    {current.publishedAt === null ? null : (
+                      <UI.Stack gap="none">
+                        <UI.Text variant="caption">
+                          {translate("settings.plugins.about.published")}
+                        </UI.Text>
+                        <UI.Text>{date(current.publishedAt)}</UI.Text>
+                      </UI.Stack>
                     )}
                     <UI.Stack gap="none">
                       <UI.Inline gap="compact">
                         <UI.Text variant="caption">
-                          {translate("settings.plugins.install.fingerprint")}
+                          {translate("settings.plugins.about.fingerprint")}
                         </UI.Text>
                         <UI.HelpTip
                           label={translate(
-                            "settings.plugins.install.fingerprint",
+                            "settings.plugins.about.fingerprint",
                           )}
                         >
-                          {translate(
-                            "settings.plugins.install.fingerprintHelp",
-                          )}
+                          {translate("settings.plugins.about.fingerprintHelp")}
                         </UI.HelpTip>
                       </UI.Inline>
-                      <UI.DataText>
-                        {current.bundleDigest.slice(0, 19)}
-                      </UI.DataText>
+                      <UI.Inline gap="compact">
+                        <UI.DataText fit>
+                          {shortFingerprint(current.bundleDigest)}
+                        </UI.DataText>
+                        <CopyValueButton
+                          label={translate("settings.plugins.about.copy")}
+                          value={current.bundleDigest}
+                        />
+                      </UI.Inline>
                     </UI.Stack>
+                    <UI.Text variant="hint">
+                      {translate("settings.plugins.about.checked")}
+                    </UI.Text>
+                    <UI.Link
+                      href="#where-it-came-from"
+                      variant="sentence"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setOrigin(current);
+                      }}
+                    >
+                      {translate("settings.plugins.about.link")}
+                    </UI.Link>
                   </UI.Stack>
                 )}
 
@@ -621,8 +664,16 @@ export function PluginPage({ installId }: { readonly installId: string }) {
             failure={failure}
             onCancel={close}
             onConfirm={() => moveTo(dialog.version)}
+            onShowOrigin={() => setOrigin(dialog.version)}
           />
         )}
+      {origin === null || row === undefined ? null : (
+        <OriginDialog
+          version={origin}
+          installedOn={origin.id === row.versionId}
+          onClose={() => setOrigin(null)}
+        />
+      )}
     </>
   );
 }

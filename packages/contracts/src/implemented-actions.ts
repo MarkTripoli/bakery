@@ -758,6 +758,7 @@ export const PluginInstallImplementedAction = Object.freeze(
     PluginInstallsGet: "pluginInstalls.get",
     PluginInstallsUpdate: "pluginInstalls.update",
     PluginStateGet: "pluginState.get",
+    PluginStateItemsList: "pluginStateItems.list",
     PluginStatePut: "pluginState.put",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -878,6 +879,7 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     Review: "review.independent",
     Freeform: "agent.freeform",
     TaskBrief: "task.brief",
+    SecretIdentityRead: "secret.identity.read",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 

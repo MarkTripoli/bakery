@@ -10754,6 +10754,29 @@
     },
     {
       "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/state-items",
+      "action": "pluginStateItems.list",
+      "access": "Authorized owner/member",
+      "permission": "pluginState:read",
+      "input": "CursorQuery",
+      "output": "Page<PluginStateItem>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
       "method": "PUT",
       "path": "/v1/plugin-installs/{id}/state/{namespace}/{key}",
       "action": "pluginState.put",
@@ -12408,6 +12431,7 @@
     "pluginInstalls.get",
     "pluginInstalls.update",
     "pluginState.get",
+    "pluginStateItems.list",
     "pluginState.put",
     "skillStorageSettings.get",
     "skillStorageSettings.put",
@@ -17845,7 +17869,8 @@
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
-                  "task.brief"
+                  "task.brief",
+                  "secret.identity.read"
                 ],
                 "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
               }
@@ -31042,9 +31067,10 @@
                   "conversation",
                   "worker_enrollment",
                   "worker",
-                  "inbox"
+                  "inbox",
+                  "memory"
                 ],
-                "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
+                "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it. \"memory\" is events-only too: its id must be the organization's own id, only a caller who may read memory may subscribe (anyone else is told it does not exist), and it carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals, which no other scope delivers; snapshots reject it."
               }
             },
             {
@@ -39597,6 +39623,82 @@
                 "application/json": {
                   "schema": {
                     "$ref": "#/components/schemas/Page<PluginState>"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/plugin-installs/{id}/state-items": {
+        "get": {
+          "operationId": "pluginStateItems.list",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. CursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 512
+              }
+            },
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. CursorQuery.limit must be at least 1. CursorQuery.limit must be at most 100.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Page<PluginStateItem>"
                   }
                 }
               }
@@ -50316,6 +50418,7 @@
                 "pluginInstalls.get",
                 "pluginInstalls.update",
                 "pluginState.get",
+                "pluginStateItems.list",
                 "pluginState.put",
                 "userPreferences.get",
                 "userPreferences.update",
@@ -53442,9 +53545,10 @@
                 "conversation",
                 "worker_enrollment",
                 "worker",
-                "inbox"
+                "inbox",
+                "memory"
               ],
-              "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
+              "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it. \"memory\" is events-only too: its id must be the organization's own id, only a caller who may read memory may subscribe (anyone else is told it does not exist), and it carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals, which no other scope delivers; snapshots reject it."
             },
             "scopeId": {
               "type": "string",
@@ -66080,7 +66184,8 @@
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
-                "task.brief"
+                "task.brief",
+                "secret.identity.read"
               ],
               "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
             },
@@ -67076,7 +67181,7 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
-            "secretRef": {
+            "identityRef": {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -67084,7 +67189,7 @@
             }
           },
           "required": [
-            "secretRef"
+            "identityRef"
           ],
           "additionalProperties": false,
           "description": "Workflow-owned fixed identity read input. The server may add only its frozen repository execution context after authenticated admission."
@@ -96797,6 +96902,7 @@
                 "pluginInstalls.get",
                 "pluginInstalls.update",
                 "pluginState.get",
+                "pluginStateItems.list",
                 "pluginState.put",
                 "userPreferences.get",
                 "userPreferences.update",
@@ -97386,6 +97492,7 @@
                 "pluginInstalls.get",
                 "pluginInstalls.update",
                 "pluginState.get",
+                "pluginStateItems.list",
                 "pluginState.put",
                 "userPreferences.get",
                 "userPreferences.update",
@@ -97975,6 +98082,7 @@
                 "pluginInstalls.get",
                 "pluginInstalls.update",
                 "pluginState.get",
+                "pluginStateItems.list",
                 "pluginState.put",
                 "userPreferences.get",
                 "userPreferences.update",
@@ -102225,6 +102333,20 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Principal who created the record."
             },
+            "createdByName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "MemoryRevision.createdByName may be null in this transport value."
+            },
             "createdAt": {
               "type": "string",
               "format": "date-time",
@@ -102257,6 +102379,7 @@
             "confidence",
             "expiresAt",
             "createdBy",
+            "createdByName",
             "createdAt",
             "updatedAt",
             "version"
@@ -125971,6 +126094,12 @@
                 }
               ],
               "description": "Measured value recorded at the metric point."
+            },
+            "sizeBytes": {
+              "description": "Size in bytes of the stored value's JSON text, so a caller can say how much a plugin has saved without holding the value. Read from the stored row, never from a caller.",
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
             }
           },
           "required": [
@@ -125988,7 +126117,7 @@
             "value"
           ],
           "additionalProperties": false,
-          "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration."
+          "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration. sizeBytes is the size of the stored value."
         },
         "PluginState____schema0": {
           "anyOf": [
@@ -143210,6 +143339,7 @@
                       "pluginInstalls.get",
                       "pluginInstalls.update",
                       "pluginState.get",
+                      "pluginStateItems.list",
                       "pluginState.put",
                       "userPreferences.get",
                       "userPreferences.update",
@@ -143982,6 +144112,20 @@
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                             "description": "Principal who created the record."
                           },
+                          "createdByName": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 65536,
+                                "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "MemoryRevision.createdByName may be null in this transport value."
+                          },
                           "createdAt": {
                             "type": "string",
                             "format": "date-time",
@@ -144014,6 +144158,7 @@
                           "confidence",
                           "expiresAt",
                           "createdBy",
+                          "createdByName",
                           "createdAt",
                           "updatedAt",
                           "version"
@@ -144389,6 +144534,20 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "Principal who created the record."
                   },
+                  "createdByName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "MemoryRevision.createdByName may be null in this transport value."
+                  },
                   "createdAt": {
                     "type": "string",
                     "format": "date-time",
@@ -144421,6 +144580,7 @@
                   "confidence",
                   "expiresAt",
                   "createdBy",
+                  "createdByName",
                   "createdAt",
                   "updatedAt",
                   "version"
@@ -161304,6 +161464,20 @@
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                       "description": "Principal who created the record."
                     },
+                    "createdByName": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "MemoryRevision.createdByName may be null in this transport value."
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time",
@@ -161336,6 +161510,7 @@
                     "confidence",
                     "expiresAt",
                     "createdBy",
+                    "createdByName",
                     "createdAt",
                     "updatedAt",
                     "version"
@@ -162316,7 +162491,8 @@
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
-                "task.brief"
+                "task.brief",
+                "secret.identity.read"
               ],
               "description": "Registered workflow action name."
             },
@@ -162350,7 +162526,8 @@
                   "reviewer",
                   "integration",
                   "delivery",
-                  "storage"
+                  "storage",
+                  "secret.identity"
                 ],
                 "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
               },
@@ -162475,7 +162652,8 @@
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
-                      "task.brief"
+                      "task.brief",
+                      "secret.identity.read"
                     ],
                     "description": "Registered workflow action name."
                   },
@@ -162509,7 +162687,8 @@
                         "reviewer",
                         "integration",
                         "delivery",
-                        "storage"
+                        "storage",
+                        "secret.identity"
                       ],
                       "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
                     },
@@ -162687,7 +162866,8 @@
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
-                "task.brief"
+                "task.brief",
+                "secret.identity.read"
               ],
               "description": "Registered workflow action the step runs."
             },
@@ -162759,7 +162939,8 @@
                   "reviewer",
                   "integration",
                   "delivery",
-                  "storage"
+                  "storage",
+                  "secret.identity"
                 ],
                 "description": "Capabilities the step's action requires of its agent. Each array item follows this format."
               },
@@ -162958,7 +163139,8 @@
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
-                      "task.brief"
+                      "task.brief",
+                      "secret.identity.read"
                     ],
                     "description": "Registered workflow action the step runs."
                   },
@@ -163030,7 +163212,8 @@
                         "reviewer",
                         "integration",
                         "delivery",
-                        "storage"
+                        "storage",
+                        "secret.identity"
                       ],
                       "description": "Capabilities the step's action requires of its agent. Each array item follows this format."
                     },
@@ -186578,7 +186761,7 @@
                 {
                   "type": "object",
                   "properties": {
-                    "secretRef": {
+                    "identityRef": {
                       "type": "string",
                       "format": "uuid",
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -188756,7 +188939,7 @@
                     }
                   },
                   "required": [
-                    "secretRef"
+                    "identityRef"
                   ],
                   "additionalProperties": false,
                   "description": "Workflow-owned fixed identity read input. The server may add only its frozen repository execution context after authenticated admission."
@@ -197384,9 +197567,10 @@
                             "repository",
                             "task",
                             "conversation",
-                            "inbox"
+                            "inbox",
+                            "memory"
                           ],
-                          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                         },
                         "id": {
                           "type": "string",
@@ -198885,9 +199069,10 @@
                           "repository",
                           "task",
                           "conversation",
-                          "inbox"
+                          "inbox",
+                          "memory"
                         ],
-                        "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                        "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                       },
                       "id": {
                         "type": "string",
@@ -204442,9 +204627,10 @@
                 "repository",
                 "task",
                 "conversation",
-                "inbox"
+                "inbox",
+                "memory"
               ],
-              "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+              "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
             },
             "id": {
               "type": "string",
@@ -204458,7 +204644,7 @@
             "id"
           ],
           "additionalProperties": false,
-          "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, or the caller's own inbox) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
+          "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, the caller's own inbox, or the organization's remembered-fact signals) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
         },
         "Problem": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -213144,6 +213330,12 @@
                       }
                     ],
                     "description": "Measured value recorded at the metric point."
+                  },
+                  "sizeBytes": {
+                    "description": "Size in bytes of the stored value's JSON text, so a caller can say how much a plugin has saved without holding the value. Read from the stored row, never from a caller.",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
                   }
                 },
                 "required": [
@@ -213161,7 +213353,7 @@
                   "value"
                 ],
                 "additionalProperties": false,
-                "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration."
+                "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration. sizeBytes is the size of the stored value."
               },
               "description": "PluginState items in this cursor page. Page<PluginState>.items must contain at most 100 items."
             },
@@ -237569,6 +237761,180 @@
           "additionalProperties": false,
           "description": "What the host backup runner needs to do its work: the schedule and the off-site destination including its decrypted credential pair. This is the one route that returns the credentials, and only to the runner credential, never to a user session. It carries no backup key material: the operator keeps the age keys on the host."
         },
+        "PluginStateItem": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Identifier of the saved item."
+            },
+            "pluginInstallId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The install that saved it."
+            },
+            "namespace": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The group the plugin keeps it under, one the plugin's manifest declared."
+            },
+            "key": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The name the plugin saved it under, within its namespace."
+            },
+            "sizeBytes": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Size in bytes of the stored value's JSON text."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC time the item was first saved."
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC time the item was last saved."
+            }
+          },
+          "required": [
+            "id",
+            "pluginInstallId",
+            "namespace",
+            "key",
+            "sizeBytes",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": false,
+          "description": "What one plugin install has saved under one namespaced key, without the saved value: where it is kept, how big it is and when it was created and last saved. For a caller that needs to say what a plugin keeps without being shown, or sent, the data itself. Authorized exactly like the full state read."
+        },
+        "Page<PluginStateItem>": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "items": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Identifier of the saved item."
+                  },
+                  "pluginInstallId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The install that saved it."
+                  },
+                  "namespace": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The group the plugin keeps it under, one the plugin's manifest declared."
+                  },
+                  "key": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The name the plugin saved it under, within its namespace."
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Size in bytes of the stored value's JSON text."
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC time the item was first saved."
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC time the item was last saved."
+                  }
+                },
+                "required": [
+                  "id",
+                  "pluginInstallId",
+                  "namespace",
+                  "key",
+                  "sizeBytes",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "additionalProperties": false,
+                "description": "What one plugin install has saved under one namespaced key, without the saved value: where it is kept, how big it is and when it was created and last saved. For a caller that needs to say what a plugin keeps without being shown, or sent, the data itself. Authorized exactly like the full state read."
+              },
+              "description": "PluginStateItem items in this cursor page. Page<PluginStateItem>.items must contain at most 100 items."
+            },
+            "nextCursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Opaque continuation cursor value."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that no continuation page remains."
+                }
+              ],
+              "description": "Opaque continuation cursor, or null at the end."
+            },
+            "prevCursor": {
+              "description": "Page<PluginStateItem>.prevCursor may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PluginStateItem>.prevCursor must contain at most 512 UTF-8 bytes.",
+                  "x-utf8-max-bytes": 512
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "highwater": {
+              "description": "Page<PluginStateItem>.highwater may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9][0-9]*)$",
+                  "description": "Page<PluginStateItem>.highwater is a bounded decimal string.",
+                  "x-bigint-minimum": "0"
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "items",
+            "nextCursor"
+          ],
+          "additionalProperties": false,
+          "description": "Cursor page of PluginStateItem."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -237969,6 +238335,44 @@
           ],
           "additionalProperties": false,
           "description": "HealthOutput is the pinned worker action output contract."
+        },
+        "SecretIdentityOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "completed",
+                "denied",
+                "uncertain"
+              ],
+              "description": "How the one fixed identity read ended: completed, denied before the provider was asked, or uncertain."
+            },
+            "accountId": {
+              "description": "SecretIdentityOutput.accountId output may be omitted by adapters that do not expose it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16
+            },
+            "login": {
+              "description": "SecretIdentityOutput.login output may be omitted by adapters that do not expose it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 39
+            },
+            "code": {
+              "description": "SecretIdentityOutput.code output may be omitted by adapters that do not expose it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "SecretIdentityOutput is the pinned worker action output contract."
         },
         "MemoryOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -239122,7 +239526,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:ba4d208163f2d751f13f293fd48d5831e7c2a5f839e78aeac3996e9072c52128",
+  "compatibilityDigest": "sha256:dd37d21f4da5a533fdd19a76f1281e6fa88df9ac29a3e198c9410ea3fa27b181",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -246807,6 +247211,7 @@
             "pluginInstalls.get",
             "pluginInstalls.update",
             "pluginState.get",
+            "pluginStateItems.list",
             "pluginState.put",
             "userPreferences.get",
             "userPreferences.update",
@@ -249939,9 +250344,10 @@
             "conversation",
             "worker_enrollment",
             "worker",
-            "inbox"
+            "inbox",
+            "memory"
           ],
-          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
+          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it. \"memory\" is events-only too: its id must be the organization's own id, only a caller who may read memory may subscribe (anyone else is told it does not exist), and it carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals, which no other scope delivers; snapshots reject it."
         },
         "scopeId": {
           "type": "string",
@@ -262627,7 +263033,8 @@
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
-            "task.brief"
+            "task.brief",
+            "secret.identity.read"
           ],
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -263623,7 +264030,7 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "secretRef": {
+        "identityRef": {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -263631,7 +264038,7 @@
         }
       },
       "required": [
-        "secretRef"
+        "identityRef"
       ],
       "additionalProperties": false,
       "description": "Workflow-owned fixed identity read input. The server may add only its frozen repository execution context after authenticated admission."
@@ -293440,6 +293847,7 @@
             "pluginInstalls.get",
             "pluginInstalls.update",
             "pluginState.get",
+            "pluginStateItems.list",
             "pluginState.put",
             "userPreferences.get",
             "userPreferences.update",
@@ -294029,6 +294437,7 @@
             "pluginInstalls.get",
             "pluginInstalls.update",
             "pluginState.get",
+            "pluginStateItems.list",
             "pluginState.put",
             "userPreferences.get",
             "userPreferences.update",
@@ -294618,6 +295027,7 @@
             "pluginInstalls.get",
             "pluginInstalls.update",
             "pluginState.get",
+            "pluginStateItems.list",
             "pluginState.put",
             "userPreferences.get",
             "userPreferences.update",
@@ -298880,6 +299290,20 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Principal who created the record."
         },
+        "createdByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryRevision.createdByName may be null in this transport value."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -298912,6 +299336,7 @@
         "confidence",
         "expiresAt",
         "createdBy",
+        "createdByName",
         "createdAt",
         "updatedAt",
         "version"
@@ -322724,6 +323149,12 @@
             }
           ],
           "description": "Measured value recorded at the metric point."
+        },
+        "sizeBytes": {
+          "description": "Size in bytes of the stored value's JSON text, so a caller can say how much a plugin has saved without holding the value. Read from the stored row, never from a caller.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         }
       },
       "required": [
@@ -322741,7 +323172,7 @@
         "value"
       ],
       "additionalProperties": false,
-      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration.",
+      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration. sizeBytes is the size of the stored value.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -340003,6 +340434,7 @@
                   "pluginInstalls.get",
                   "pluginInstalls.update",
                   "pluginState.get",
+                  "pluginStateItems.list",
                   "pluginState.put",
                   "userPreferences.get",
                   "userPreferences.update",
@@ -340775,6 +341207,20 @@
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                         "description": "Principal who created the record."
                       },
+                      "createdByName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MemoryRevision.createdByName may be null in this transport value."
+                      },
                       "createdAt": {
                         "type": "string",
                         "format": "date-time",
@@ -340807,6 +341253,7 @@
                       "confidence",
                       "expiresAt",
                       "createdBy",
+                      "createdByName",
                       "createdAt",
                       "updatedAt",
                       "version"
@@ -341184,6 +341631,20 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Principal who created the record."
               },
+              "createdByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryRevision.createdByName may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -341216,6 +341677,7 @@
               "confidence",
               "expiresAt",
               "createdBy",
+              "createdByName",
               "createdAt",
               "updatedAt",
               "version"
@@ -358125,6 +358587,20 @@
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                   "description": "Principal who created the record."
                 },
+                "createdByName": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MemoryRevision.createdByName may be null in this transport value."
+                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time",
@@ -358157,6 +358633,7 @@
                 "confidence",
                 "expiresAt",
                 "createdBy",
+                "createdByName",
                 "createdAt",
                 "updatedAt",
                 "version"
@@ -359141,7 +359618,8 @@
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
-            "task.brief"
+            "task.brief",
+            "secret.identity.read"
           ],
           "description": "Registered workflow action name."
         },
@@ -359175,7 +359653,8 @@
               "reviewer",
               "integration",
               "delivery",
-              "storage"
+              "storage",
+              "secret.identity"
             ],
             "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
           },
@@ -359300,7 +359779,8 @@
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
-                  "task.brief"
+                  "task.brief",
+                  "secret.identity.read"
                 ],
                 "description": "Registered workflow action name."
               },
@@ -359334,7 +359814,8 @@
                     "reviewer",
                     "integration",
                     "delivery",
-                    "storage"
+                    "storage",
+                    "secret.identity"
                   ],
                   "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
                 },
@@ -359512,7 +359993,8 @@
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
-            "task.brief"
+            "task.brief",
+            "secret.identity.read"
           ],
           "description": "Registered workflow action the step runs."
         },
@@ -359584,7 +360066,8 @@
               "reviewer",
               "integration",
               "delivery",
-              "storage"
+              "storage",
+              "secret.identity"
             ],
             "description": "Capabilities the step's action requires of its agent. Each array item follows this format."
           },
@@ -359783,7 +360266,8 @@
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
-                  "task.brief"
+                  "task.brief",
+                  "secret.identity.read"
                 ],
                 "description": "Registered workflow action the step runs."
               },
@@ -359855,7 +360339,8 @@
                     "reviewer",
                     "integration",
                     "delivery",
-                    "storage"
+                    "storage",
+                    "secret.identity"
                   ],
                   "description": "Capabilities the step's action requires of its agent. Each array item follows this format."
                 },
@@ -383427,7 +383912,7 @@
             {
               "type": "object",
               "properties": {
-                "secretRef": {
+                "identityRef": {
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -385605,7 +386090,7 @@
                 }
               },
               "required": [
-                "secretRef"
+                "identityRef"
               ],
               "additionalProperties": false,
               "description": "Workflow-owned fixed identity read input. The server may add only its frozen repository execution context after authenticated admission."
@@ -394237,9 +394722,10 @@
                         "repository",
                         "task",
                         "conversation",
-                        "inbox"
+                        "inbox",
+                        "memory"
                       ],
-                      "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                      "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                     },
                     "id": {
                       "type": "string",
@@ -395740,9 +396226,10 @@
                       "repository",
                       "task",
                       "conversation",
-                      "inbox"
+                      "inbox",
+                      "memory"
                     ],
-                    "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                    "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                   },
                   "id": {
                     "type": "string",
@@ -401303,9 +401790,10 @@
             "repository",
             "task",
             "conversation",
-            "inbox"
+            "inbox",
+            "memory"
           ],
-          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
         },
         "id": {
           "type": "string",
@@ -401319,7 +401807,7 @@
         "id"
       ],
       "additionalProperties": false,
-      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, or the caller's own inbox) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
+      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, the caller's own inbox, or the organization's remembered-fact signals) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
     },
     "Problem": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -410033,6 +410521,12 @@
                   }
                 ],
                 "description": "Measured value recorded at the metric point."
+              },
+              "sizeBytes": {
+                "description": "Size in bytes of the stored value's JSON text, so a caller can say how much a plugin has saved without holding the value. Read from the stored row, never from a caller.",
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               }
             },
             "required": [
@@ -410050,7 +410544,7 @@
               "value"
             ],
             "additionalProperties": false,
-            "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration."
+            "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration. sizeBytes is the size of the stored value."
           },
           "description": "PluginState items in this cursor page. Page<PluginState>.items must contain at most 100 items."
         },
@@ -434482,6 +434976,180 @@
       "additionalProperties": false,
       "description": "What the host backup runner needs to do its work: the schedule and the off-site destination including its decrypted credential pair. This is the one route that returns the credentials, and only to the runner credential, never to a user session. It carries no backup key material: the operator keeps the age keys on the host."
     },
+    "PluginStateItem": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifier of the saved item."
+        },
+        "pluginInstallId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The install that saved it."
+        },
+        "namespace": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The group the plugin keeps it under, one the plugin's manifest declared."
+        },
+        "key": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The name the plugin saved it under, within its namespace."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Size in bytes of the stored value's JSON text."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the item was first saved."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the item was last saved."
+        }
+      },
+      "required": [
+        "id",
+        "pluginInstallId",
+        "namespace",
+        "key",
+        "sizeBytes",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "description": "What one plugin install has saved under one namespaced key, without the saved value: where it is kept, how big it is and when it was created and last saved. For a caller that needs to say what a plugin keeps without being shown, or sent, the data itself. Authorized exactly like the full state read."
+    },
+    "Page<PluginStateItem>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Identifier of the saved item."
+              },
+              "pluginInstallId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The install that saved it."
+              },
+              "namespace": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The group the plugin keeps it under, one the plugin's manifest declared."
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The name the plugin saved it under, within its namespace."
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Size in bytes of the stored value's JSON text."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the item was first saved."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the item was last saved."
+              }
+            },
+            "required": [
+              "id",
+              "pluginInstallId",
+              "namespace",
+              "key",
+              "sizeBytes",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false,
+            "description": "What one plugin install has saved under one namespaced key, without the saved value: where it is kept, how big it is and when it was created and last saved. For a caller that needs to say what a plugin keeps without being shown, or sent, the data itself. Authorized exactly like the full state read."
+          },
+          "description": "PluginStateItem items in this cursor page. Page<PluginStateItem>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<PluginStateItem>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PluginStateItem>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<PluginStateItem>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<PluginStateItem>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of PluginStateItem."
+    },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -434882,6 +435550,44 @@
       ],
       "additionalProperties": false,
       "description": "HealthOutput is the pinned worker action output contract."
+    },
+    "SecretIdentityOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "denied",
+            "uncertain"
+          ],
+          "description": "How the one fixed identity read ended: completed, denied before the provider was asked, or uncertain."
+        },
+        "accountId": {
+          "description": "SecretIdentityOutput.accountId output may be omitted by adapters that do not expose it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "login": {
+          "description": "SecretIdentityOutput.login output may be omitted by adapters that do not expose it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 39
+        },
+        "code": {
+          "description": "SecretIdentityOutput.code output may be omitted by adapters that do not expose it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "SecretIdentityOutput is the pinned worker action output contract."
     },
     "MemoryOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

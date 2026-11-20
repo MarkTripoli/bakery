@@ -113,7 +113,6 @@ Deno.test("existing transport-only builtins retain registered admission without 
     const action of [
       "mcp.discover",
       "repository.inspect",
-      "secret.identity.read",
     ]
   ) {
     const binding = workflowActionBinding(action);

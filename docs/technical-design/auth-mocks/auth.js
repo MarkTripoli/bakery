@@ -350,8 +350,13 @@ function field(label, name, type = "text", options = {}) {
     hint = options.hint || "",
     error = options.error || "",
     password = type === "password";
-  return '<div class="field"><label for="' + id + '">' + label +
-    '</label><div class="input-wrap"><input id="' + id + '" name="' + name +
+  /* packages/ui/src/molecules/Field.tsx labelEnd + controls.css .ui-field--label-end:
+     an action on the label's row, after the control in the DOM (SignInScreen.tsx L201 Forgot password?). */
+  const labelEnd = options.labelEnd || "";
+  return '<div class="field' + (labelEnd ? " field--label-end" : "") +
+    '"><label for="' + id + '">' + label + "</label>" +
+    (labelEnd ? '<div class="field-label-end">' + labelEnd + "</div>" : "") +
+    '<div class="input-wrap"><input id="' + id + '" name="' + name +
     '" type="' + type + '" ' + (options.readonly ? "readonly " : "required ") +
     (options.value ? 'value="' + escapeHTML(options.value) + '" ' : "") +
     'autocomplete="' +
@@ -411,14 +416,20 @@ const themeButton = () =>
 const prototypeFooter = () =>
   '<span class="prototype-mark">Design preview · actions simulated</span>' +
   themeButton();
-function authShell(body) {
+/* packages/ui/src/templates/AuthEntry.tsx: the brand variant puts the theme toggle first in the form
+   pane, at its top end corner (navigation.css .ui-auth-entry__theme), and has no bottom row. `entry` is the
+   shipped sign-in presentation; every other screen keeps the Paper bottom row. */
+function authShell(body, entry = false) {
   return '<div class="auth-layout"><aside class="brand-pane" aria-label="Bakery"><div class="brand-content"><img class="full-logo logo-light" src="logo.png" alt="Bakery"><img class="full-logo logo-dark" src="logo-dark.png" alt=""><h2>Fresh commits,<br>coming right up.</h2><div class="brand-steps">' +
     identity("chat", "Start with an idea", "") +
     identity("activity", "Watch your agents work", "") +
     identity("document", "Ship the next batch", "") +
-    '</div></div><p class="brand-footer">Your software, made together.</p></aside><section class="form-pane"><img class="full-logo mobile-logo logo-light" src="logo.png" alt="Bakery"><img class="full-logo mobile-logo logo-dark" src="logo-dark.png" alt=""><div class="form-content">' +
-    body + '</div><div class="form-bottom">' + prototypeFooter() +
-    "</div></section></div>";
+    '</div></div><p class="brand-footer">Your software, made together.</p></aside><section class="form-pane' +
+    (entry ? " form-pane--entry" : "") + '">' + (entry ? themeButton() : "") +
+    '<img class="full-logo mobile-logo logo-light" src="logo.png" alt="Bakery"><img class="full-logo mobile-logo logo-dark" src="logo-dark.png" alt=""><div class="form-content">' +
+    body + "</div>" +
+    (entry ? "" : '<div class="form-bottom">' + prototypeFooter() + "</div>") +
+    "</section></div>";
 }
 function contextShell(body, consent = false) {
   const summary = consent
@@ -883,7 +894,10 @@ function renderScreen(id, s) {
     ].includes(id)
   ) return protectionScreen(id, s);
   const invalid = s === "invalid";
-  if (s === "offline" || s === "unavailable" && id !== "verify") {
+  if (
+    (s === "offline" || s === "unavailable" && id !== "verify") &&
+    id !== "login"
+  ) {
     return authShell(
       heading(
         s === "offline" ? "You’re offline" : "Sign-in is unavailable",
@@ -916,15 +930,22 @@ function renderScreen(id, s) {
     )
     : "";
   switch (id) {
-    case "login":
+    case "login": {
+      /* Mirrors the shipped sign-in, apps/web/src/screens/SignInScreen.tsx, under UX ruling 241#7034092486:
+         Forgot password? on the Password label row (L201-L210), the failure notice under the fields and above
+         the submit button (L232-L238: wrong credentials are an error, offline and unreachable are warnings;
+         copy from packages/i18n/locales/en.json auth.signIn.genericFailure / offlineNotice / unreachable),
+         and the "No account?" line with its How to get one link in place of "New to Bakery?" (L254-L262). */
+      const failure = invalid
+        ? ["That email and password do not match. Try again.", "error"]
+        : s === "offline"
+        ? ["You are offline. Reconnect, then sign in.", "warning"]
+        : s === "unavailable"
+        ? ["Bakery could not be reached. Try again.", "warning"]
+        : null;
       return authShell(
         heading("Welcome back", "Sign in to your Bakery account.") +
-          (invalid
-            ? notice(
-              "Email or password is incorrect. Please try again.",
-              "error",
-            )
-            : s === "unverified"
+          (s === "unverified"
             ? notice(
               "Verify your email before continuing. " +
                 link("View verification step", "verify"),
@@ -937,16 +958,17 @@ function renderScreen(id, s) {
             }) +
               field("Password", "current-password", "password", {
                 placeholder: "Enter your password",
+                labelEnd: link("Forgot password?", "forgot"),
               }) +
-              (core
-                ? ""
-                : '<div class="row spread">' + forgotLink() + "</div>"),
+              (failure ? notice(failure[0], failure[1]) : ""),
             "Sign in",
             "organizations",
           ) + (s === "github-disabled" ? "" : social()) +
-          '<p class="hint">New to Bakery? ' +
-          link("Join through an invitation", "join") + "</p>",
+          '<p class="hint">No account? Bakery accounts start from an invitation. ' +
+          link("How to get one", "join") + "</p>",
+        true,
       );
+    }
     case "join":
       return authShell(
         heading(
