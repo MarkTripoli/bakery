@@ -190,6 +190,9 @@ function withoutPreviewCookie(header: string | null, name: string) {
   return kept.length === 0 ? null : kept.join("; ");
 }
 
+/** `RequestInit` plus the `duplex` option a streamed body needs. */
+type StreamingRequestInit = RequestInit & { readonly duplex: "half" };
+
 /**
  * The name of one cookie attribute as a browser reads it: what comes before the
  * first `=`, with the space and tabs around it removed (RFC 6265 section 5.2),
@@ -328,7 +331,7 @@ export function createRunningPreviewHandler(
 
     let upstream: Response;
     try {
-      upstream = await fetch(target, {
+      const init: StreamingRequestInit = {
         method: request.method,
         headers,
         body: request.method === "GET" || request.method === "HEAD"
@@ -340,9 +343,10 @@ export function createRunningPreviewHandler(
           request.signal,
           AbortSignal.timeout(timeoutMs),
         ]),
-        // deno-lint-ignore no-explicit-any
-        ...({ duplex: "half" } as any),
-      });
+        // A streamed request body must say so; the DOM type does not list it yet.
+        duplex: "half",
+      };
+      upstream = await fetch(target, init);
     } catch (_error) {
       return silent();
     }

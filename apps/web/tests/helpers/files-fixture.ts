@@ -1,10 +1,79 @@
 import { createHash } from "node:crypto";
+import { deflateSync } from "node:zlib";
+import { DEMO_WEBM, STANDUP_WEBM } from "./media-fixtures.ts";
 import type { Page } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
 } from "./mock-session.ts";
 import { uuid } from "./issues-fixture.ts";
+
+/** A table of the CRC-32 the PNG format asks for each chunk. */
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const byte of bytes) c = CRC_TABLE[(c ^ byte) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type: string, data: Uint8Array): Buffer {
+  const body = Buffer.concat([Buffer.from(type, "ascii"), Buffer.from(data)]);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([length, body, crc]);
+}
+
+/**
+ * A 720x405 picture of three boxes joined by lines, built here so the fixture
+ * carries no binary: opening it full size has to look like something.
+ */
+function diagramPng(): Buffer {
+  const width = 720;
+  const height = 405;
+  const boxes = [
+    { x: 60, y: 140, w: 170, h: 120, color: [91, 110, 225] },
+    { x: 275, y: 140, w: 170, h: 120, color: [74, 160, 140] },
+    { x: 490, y: 140, w: 170, h: 120, color: [225, 150, 80] },
+  ];
+  const row = Buffer.alloc(1 + width * 3);
+  const raw = Buffer.alloc((1 + width * 3) * height);
+  for (let y = 0; y < height; y++) {
+    row.fill(0);
+    for (let x = 0; x < width; x++) {
+      let color = [244, 246, 250];
+      if (y >= 196 && y <= 203 && x >= 230 && x <= 490) color = [150, 158, 175];
+      for (const box of boxes) {
+        if (
+          x >= box.x && x < box.x + box.w && y >= box.y && y < box.y + box.h
+        ) {
+          color = box.color;
+        }
+      }
+      row[1 + x * 3] = color[0]!;
+      row[2 + x * 3] = color[1]!;
+      row[3 + x * 3] = color[2]!;
+    }
+    row.copy(raw, y * (1 + width * 3));
+  }
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8; // bit depth
+  header[9] = 2; // truecolor
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(raw)),
+    pngChunk("IEND", new Uint8Array()),
+  ]);
+}
 
 const STAMP = "2026-01-01T00:00:00.000Z";
 
@@ -117,12 +186,12 @@ export const TREE: Entry[] = [
   {
     id: 41,
     parent: 20,
-    path: "/projects/web-app/demo.mp4",
-    name: "demo.mp4",
+    path: "/projects/web-app/demo.webm",
+    name: "demo.webm",
     kind: "file",
     policy: "record",
     kindName: null,
-    mediaType: "video/mp4",
+    mediaType: "video/webm",
     sizeBytes: 3_400_000,
     updatedAt: "2026-01-03T10:00:00.000Z",
   },
@@ -222,6 +291,23 @@ export type FilesOptions = {
   entriesFail?: boolean;
   /** Every folder read after the first page fails. */
   failAfterFirstPage?: boolean;
+  /** More people than one page of 100, to show the Made by filter reads every page. */
+  principalCount?: number;
+  /** An account that was switched off, whose files are still there. */
+  disabledPrincipal?: boolean;
+  /** More kinds than one page of 100, to show the Kind filter reads every page. */
+  kindCount?: number;
+};
+
+/** A list as the server pages it: `limit` at a time, the cursor an offset. */
+const paged = (items: unknown[], url: URL) => {
+  const limit = Number(url.searchParams.get("limit") ?? 100);
+  const offset = Number(url.searchParams.get("cursor") ?? 0);
+  const next = offset + limit;
+  return JSON.stringify({
+    items: items.slice(offset, next),
+    nextCursor: next < items.length ? String(next) : null,
+  });
 };
 
 const page_ = (items: unknown[], nextCursor: string | null = null) =>
@@ -257,6 +343,10 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
     contents: [] as (string | null)[],
     /** The query string of each search read. */
     searches: [] as string[],
+    /** The query string of each facts read. */
+    facts: [] as string[],
+    /** The Range header of each content read that sent one: what a player asked for. */
+    ranges: [] as string[],
   };
   const json = (route: import("@playwright/test").Route, body: string) =>
     route.fulfill({ status: 200, contentType: "application/json", body });
@@ -374,10 +464,134 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
     },
   );
   await page.route(
+    (url) => url.pathname === "/v1/files/library",
+    (route) => {
+      const path = new URL(route.request().url()).searchParams.get("path") ??
+        "/library";
+      const item = (
+        section: string,
+        slug: string,
+        name: string,
+        kind: string,
+        id: number,
+      ) => ({
+        type: "item",
+        id: uuid(id),
+        path: `/library/${section}/${slug}`,
+        name,
+        kind,
+        createdAt: STAMP,
+      });
+      const sections: Record<string, unknown[]> = {
+        "/library/kinds": [
+          item("kinds", "plan", "Plan", "kind", 7004),
+          item("kinds", "review", "Review", "kind", 7005),
+          ...Array.from(
+            { length: options.kindCount ?? 0 },
+            (_, n) =>
+              item(
+                "kinds",
+                `kind-${n + 1}`,
+                `Kind ${n + 1}`,
+                "kind",
+                8000 + n + 1,
+              ),
+          ),
+        ],
+        "/library/workflows": [
+          item("workflows", "ship", "Ship a change", "workflow", 7001),
+          item("workflows", "triage", "Triage issues", "workflow", 7002),
+        ],
+        "/library/agents": [item("agents", "coder", "Coder", "agent", 7003)],
+        "/library": ["workflows", "agents"].map((slug) => ({
+          type: "folder",
+          id: null,
+          path: `/library/${slug}`,
+          name: slug,
+          kind: null,
+          createdAt: null,
+        })),
+      };
+      const entries = sections[path];
+      if (entries === undefined) {
+        return route.fulfill({
+          status: 404,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "about:blank",
+            title: "Not Found",
+            status: 404,
+            code: "RESOURCE_NOT_FOUND",
+            retryable: false,
+            detail: "not found",
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
+      }
+      return json(route, paged(entries, new URL(route.request().url())));
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/principals",
+    (route) =>
+      json(
+        route,
+        paged(
+          [
+            { id: 8800, type: "human", name: "Ana Reyes", off: false },
+            { id: 8801, type: "worker", name: "Build worker", off: false },
+            ...(options.disabledPrincipal
+              ? [{ id: 8802, type: "worker", name: "Old Bot", off: true }]
+              : []),
+            ...Array.from({ length: options.principalCount ?? 0 }, (_, n) => ({
+              id: 9000 + n + 1,
+              type: "human",
+              name: `Person ${n + 1}`,
+              off: false,
+            })),
+          ].map((principal) => ({
+            id: uuid(principal.id),
+            principalType: principal.type,
+            displayName: principal.name,
+            createdByPrincipalId: null,
+            disabledAt: principal.off ? STAMP : null,
+            createdAt: STAMP,
+            updatedAt: STAMP,
+            version: 1,
+          })),
+          new URL(route.request().url()),
+        ),
+      ),
+  );
+  // What the plan files record, as the facts list answers it: each key with
+  // each value it holds and how many files hold it. plan.md holds risk:high.
+  const FACTS = [
+    { kind: "plan", key: "risk", value: "high", files: 1 },
+    { kind: "plan", key: "risk", value: "low", files: 2 },
+    { kind: "plan", key: "team", value: "web", files: 1 },
+  ];
+  await page.route(
+    (url) => url.pathname === "/v1/files/facts",
+    (route) => {
+      const url = new URL(route.request().url());
+      seen.facts.push(url.search);
+      const kind = url.searchParams.get("kind");
+      return json(
+        route,
+        page_(FACTS.filter((fact) => kind === null || fact.kind === kind)),
+      );
+    },
+  );
+  await page.route(
     (url) => url.pathname === "/v1/files/search",
     (route) => {
       const url = new URL(route.request().url());
       seen.searches.push(url.search);
+      const kindFilter = url.searchParams.get("kind");
+      const producerFilter = url.searchParams.get("producerId");
+      const factKey = url.searchParams.get("factKey");
+      const factValue = url.searchParams.get("factValue");
       const query = (url.searchParams.get("query") ?? "").toLowerCase();
       const under = url.searchParams.get("path");
       const group = url.searchParams.get("mediaGroup");
@@ -393,14 +607,58 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           : type.startsWith("text/")
           ? "text"
           : "other";
+      if (
+        under !== null &&
+        (under === "/library" || under.startsWith("/library/"))
+      ) {
+        const libraryHits = [
+          ["workflows", "ship", "Ship a change", "workflow", 7001],
+          ["workflows", "triage", "Triage issues", "workflow", 7002],
+          ["agents", "coder", "Coder", "agent", 7003],
+        ]
+          .map(([section, slug, name, kind, id]) => ({
+            source: "library",
+            entryId: null,
+            itemId: uuid(id as number),
+            path: `/library/${section}/${slug}`,
+            name: name!,
+            kind: kind!,
+            mediaType: null,
+            mediaGroup: null,
+            sizeBytes: null,
+            versionId: null,
+            producerId: null,
+            producerKind: null,
+            producerName: null,
+            producerTaskId: null,
+            producerTaskTitle: null,
+            nameMatchStart: null,
+            nameMatchLength: null,
+            createdAt: STAMP,
+          }))
+          .filter((hit) => hit.path.startsWith(`${under}/`))
+          .filter((hit) => hit.name.toLowerCase().includes(query));
+        return json(route, page_(libraryHits));
+      }
       const hits = tree
         .filter((entry) => entry.kind === "file")
         .filter((entry) => entry.name.toLowerCase().includes(query))
         .filter((entry) => under === null || entry.path.startsWith(`${under}/`))
         .filter((entry) => group === null || groupOf(entry.mediaType) === group)
+        .filter((entry) =>
+          kindFilter === null || entry.kindName?.toLowerCase() === kindFilter
+        )
+        .filter(() => producerFilter === null || producerFilter === uuid(8800))
+        // Only plan.md records a fact in this tree: risk is high.
+        .filter((entry) =>
+          factKey === null ||
+          (entry.name === "plan.md" && factKey === "risk" &&
+            factValue === "high")
+        )
         .map((entry) => ({
           source: "files",
           entryId: uuid(entry.id),
+          itemId: null,
           path: entry.path,
           name: entry.name,
           kind: entry.kindName ?? "File",
@@ -444,12 +702,78 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           }),
         });
       }
-      if (fileId === uuid(43)) {
-        // A 1x1 transparent PNG.
-        const png = Buffer.from(
-          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-          "base64",
+      // A player's reads: the whole file, or the Range it asked for, as a real
+      // server answers it (206 with Content-Range; 416 past the end).
+      const media = fileId === uuid(41)
+        ? { bytes: DEMO_WEBM, type: "video/webm" }
+        : fileId === uuid(47)
+        ? { bytes: STANDUP_WEBM, type: "audio/webm" }
+        // A file that says it is video and is not: no player can decode it.
+        : fileId === uuid(48)
+        ? {
+          bytes: Buffer.from(
+            "This is not a video, so no player can decode it.",
+          ),
+          type: "video/webm",
+        }
+        : null;
+      if (media !== null) {
+        const range = route.request().headers()["range"];
+        const total = media.bytes.length;
+        const common = {
+          "content-type": media.type,
+          "accept-ranges": "bytes",
+        };
+        if (range === undefined) {
+          return route.fulfill({
+            status: 200,
+            body: media.bytes,
+            headers: { ...common, "content-length": String(total) },
+          });
+        }
+        seen.ranges.push(range);
+        const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+        const start = match?.[1] ? Number(match[1]) : 0;
+        const end = match?.[2]
+          ? Math.min(Number(match[2]), total - 1)
+          : total - 1;
+        if (start >= total || start > end) {
+          return route.fulfill({
+            status: 416,
+            headers: { ...common, "content-range": `bytes */${total}` },
+          });
+        }
+        const slice = media.bytes.subarray(start, end + 1);
+        return route.fulfill({
+          status: 206,
+          body: slice,
+          headers: {
+            ...common,
+            "content-length": String(slice.length),
+            "content-range": `bytes ${start}-${end}/${total}`,
+          },
+        });
+      }
+      if (fileId === uuid(49)) {
+        // Forty lines: more than the panel shows, so opening it has something to add.
+        const text = Buffer.from(
+          Array.from({ length: 40 }, (_, index) => `Line ${index + 1}`).join(
+            "\n",
+          ),
         );
+        return route.fulfill({
+          status: 200,
+          body: text,
+          headers: {
+            "content-type": "text/plain",
+            "content-length": String(text.length),
+            etag: `"${createHash("sha256").update(text).digest("hex")}"`,
+          },
+        });
+      }
+      if (fileId === uuid(43)) {
+        // A real picture, wide enough that opening it full size is visible.
+        const png = diagramPng();
         return route.fulfill({
           status: 200,
           body: png,

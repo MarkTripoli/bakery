@@ -577,8 +577,20 @@ export type FileSearchPage = ClientOutputMap["Page<FileSearchHit>"];
 export type FileSearchHit = FileSearchPage["items"][number];
 export type FileSearchInput = Pick<
   ClientInputMap["FileSearchQuery"],
-  "query" | "path" | "kind" | "mediaGroup" | "cursor"
+  | "query"
+  | "path"
+  | "kind"
+  | "mediaGroup"
+  | "producerId"
+  | "factKey"
+  | "factValue"
+  | "cursor"
 >;
+/** What the files of one kind record: each key with each value it holds and how many files hold it. */
+export type FileFactPage = ClientOutputMap["Page<FileFact>"];
+export type FileFact = FileFactPage["items"][number];
+export type LibraryPage = ClientOutputMap["Page<LibraryEntry>"];
+export type LibraryEntry = LibraryPage["items"][number];
 
 export type BakeryApiClient = {
   /** The stored files and their folders: the read-only files browser's reads. */
@@ -619,6 +631,29 @@ export type BakeryApiClient = {
       input: FileSearchInput,
       signal?: AbortSignal,
     ) => Promise<ApiResult<FileSearchPage>>;
+    /**
+     * The address a video or audio element plays a file from. A media element
+     * cannot send the organization header, so the organization is in the query,
+     * which the server checks against the caller's membership.
+     */
+    readonly mediaUrl: (
+      organizationId: string,
+      fileId: string,
+      revision?: number,
+    ) => string;
+    /** The facts the files of one kind record, for the Fact filter. */
+    readonly facts: (
+      organizationId: string,
+      kind: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<FileFactPage>>;
+    /** One folder of the read-only library mirror (`/library`, `/library/kinds`). */
+    readonly library: (
+      organizationId: string,
+      path: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<LibraryPage>>;
     /** A file's bytes: its current version, or the one at `revision`. */
     readonly content: (
       organizationId: string,
@@ -1165,6 +1200,8 @@ export type BakeryApiClient = {
     /** `GET /v1/principals`: the organization's members, service accounts and workers. */
     readonly list: (options: {
       readonly organizationId: string;
+      /** The page after this cursor; omitted for the first. */
+      readonly cursor?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<PrincipalPage>>;
   };
@@ -3162,6 +3199,47 @@ export function createBakeryApiClient({
           return failed(error);
         }
       },
+      mediaUrl(org, fileId, revision) {
+        const query = new URLSearchParams({ organizationId: org });
+        if (revision !== undefined) query.set("revision", String(revision));
+        return `${baseUrl.replace(/\/$/, "")}/v1/storage/files/${
+          encodeURIComponent(fileId)
+        }/content?${query.toString()}`;
+      },
+      async facts(org, kind, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["files.facts"]({ kind }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async library(org, path, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["files.library"]({
+              path,
+              cursor,
+              limit: 100,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
       async content(org, fileId, revision, signal) {
         const scoped = createBakeryClient({
           baseUrl,
@@ -3566,9 +3644,15 @@ export function createBakeryApiClient({
         try {
           return {
             ok: true,
-            data: await client.actions["principals.list"]({ limit: 100 }, {
-              signal: options.signal,
-            }),
+            data: await client.actions["principals.list"](
+              {
+                limit: 100,
+                ...(options.cursor === undefined
+                  ? {}
+                  : { cursor: options.cursor }),
+              },
+              { signal: options.signal },
+            ),
           };
         } catch (error) {
           return failed(error);
