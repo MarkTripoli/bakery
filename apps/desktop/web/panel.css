@@ -15,6 +15,11 @@ body {
   font: var(--type-body);
 }
 
+/* The wrapper takes no part in layout: the panel, or the dialog's scrim, is the grid item. */
+#root {
+  display: contents;
+}
+
 .visually-hidden {
   position: absolute;
   inline-size: 1px;
@@ -176,6 +181,7 @@ body {
   position: fixed;
   inset: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   background: color-mix(in srgb, var(--color-canvas) 70%, transparent);
 }
