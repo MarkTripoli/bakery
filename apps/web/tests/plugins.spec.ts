@@ -102,6 +102,7 @@ const version = (
   versionName: string,
   publishedAt: string,
   requestedCapabilities: string[],
+  evidence: { source?: unknown; build?: unknown } = {},
 ) => ({
   id: versionId,
   organizationId: MOCK_ORGANIZATION_ID,
@@ -110,8 +111,8 @@ const version = (
   sdkRange: "^1",
   manifest: { requestedCapabilities },
   bundleDigest: `sha256:${"ab".repeat(32)}`,
-  sourceEvidence: {},
-  buildEvidence: {},
+  sourceEvidence: evidence.source ?? {},
+  buildEvidence: evidence.build ?? {},
   publishedAt,
   createdAt: publishedAt,
   updatedAt: publishedAt,
@@ -142,6 +143,18 @@ type Fixture = {
   refuseNextWrite: { status: number; code: string; reason?: string } | null;
   /** The next version change is refused the way the server does: answered as the install, failure recorded. */
   failNextUpdate: boolean;
+  /** What the plugin has saved, and the status the read answers with. */
+  saved: SavedItem[];
+  savedStatus: number;
+  /** Requests the page made to the full state read, which returns the values. */
+  valuesReads: number;
+};
+type SavedItem = {
+  id: string;
+  namespace: string;
+  key: string;
+  sizeBytes: number;
+  updatedAt: string;
 };
 
 async function pluginsFixture(
@@ -165,6 +178,24 @@ async function pluginsFixture(
     writes: [],
     refuseNextWrite: null,
     failNextUpdate: false,
+    saved: [
+      {
+        id: id(401),
+        namespace: "settings",
+        key: "theme",
+        sizeBytes: 412,
+        updatedAt: "2026-11-18T10:00:00.000Z",
+      },
+      {
+        id: id(402),
+        namespace: "drafts",
+        key: "welcome-note",
+        sizeBytes: 1126,
+        updatedAt: "2026-11-17T09:30:00.000Z",
+      },
+    ],
+    savedStatus: 200,
+    valuesReads: 0,
   };
   await mockAuthenticatedSession(page);
   const empty = (route: Route) =>
@@ -205,7 +236,14 @@ async function pluginsFixture(
         "state.read",
         "state.write",
         "ui.page",
-      ]),
+      ], {
+        source: {
+          repository: "example/notes",
+          commit: "deadbeef",
+          notes: "n".repeat(300),
+        },
+        build: { checks: ["typecheck", "lint"], status: "passed" },
+      }),
       version(NOTES_V2, NOTES, "1.1.0", "2026-11-10T00:00:00.000Z", [
         "state.read",
         "ui.page",
@@ -221,7 +259,13 @@ async function pluginsFixture(
     [DASH]: [
       version(DASH_V1, DASH, "2.0.0", "2026-11-05T00:00:00.000Z", [
         "commands.run",
-      ]),
+      ], {
+        // One part given, one not, and a long value: the other dialog state.
+        source: {
+          repository: "example/dash",
+          notes: "d".repeat(300),
+        },
+      }),
     ],
   };
   await page.route("**/v1/plugin-packages/*/versions**", (route) => {
@@ -289,6 +333,39 @@ async function pluginsFixture(
     }
     target.version += 1;
     return route.fulfill(json(target));
+  });
+  // What the plugin has saved: the values-free read the page uses.
+  await page.route("**/v1/plugin-installs/*/state-items**", (route) => {
+    if (state.savedStatus !== 200) {
+      return route.fulfill(problem(state.savedStatus, "INTERNAL"));
+    }
+    const url = new URL(route.request().url());
+    const limit = Number(url.searchParams.get("limit") ?? 25);
+    const offset = Number(url.searchParams.get("cursor") ?? 0);
+    const page = state.saved.slice(offset, offset + limit);
+    return route.fulfill(json({
+      items: page.map((item) => ({
+        id: item.id,
+        pluginInstallId: NOTES_INSTALL,
+        namespace: item.namespace,
+        key: item.key,
+        sizeBytes: item.sizeBytes,
+        createdAt: item.updatedAt,
+        updatedAt: item.updatedAt,
+      })),
+      nextCursor: offset + limit < state.saved.length
+        ? String(offset + limit)
+        : null,
+    }));
+  });
+  // The full state read returns the saved values. The page must never ask for
+  // it, so it counts the asks and would hand back a secret.
+  await page.route(/\/v1\/plugin-installs\/[^/]+\/state(\?.*)?$/, (route) => {
+    state.valuesReads += 1;
+    return route.fulfill(json({
+      items: [{ key: "theme", value: { secret: "TOPSECRET-VALUE" } }],
+      nextCursor: null,
+    }));
   });
   return state;
 }
@@ -424,6 +501,245 @@ for (
       await expect(page.getByRole("button", { name: /install|upload/i }))
         .toHaveCount(0);
       await shot(page, `plugins-empty-${viewport.name}`);
+    });
+
+    test("where a version came from: what Bakery checked, then what the publisher says, never mixed", async ({ page }) => {
+      await pluginsFixture(page);
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      const about = page.getByTestId("plugin-about");
+      await expect(
+        about.getByText(
+          "Bakery checked the plugin's files against this fingerprint when the version was published.",
+        ),
+      ).toBeVisible();
+      await expect(about.getByRole("button", { name: "Copy fingerprint" }))
+        .toBeVisible();
+      await about.getByRole("link", { name: "Where it came from" }).click();
+
+      const dialog = page.getByTestId("plugin-origin");
+      await expect(dialog.getByText("Where version 1.0.0 came from"))
+        .toBeVisible();
+      const checked = dialog.getByTestId("origin-checked");
+      await expect(
+        checked.getByText(
+          "The files matched the fingerprint abababab…abab when this version was published.",
+        ),
+      ).toBeVisible();
+      // The installed version also says it works with this Bakery.
+      await expect(
+        checked.getByText(
+          "It works with this version of Bakery. Checked when Bakery switched to it.",
+        ),
+      ).toBeVisible();
+
+      // The publisher's words, as written, with the caption that says they are
+      // not checked, and no pass mark anywhere in the group.
+      const stated = dialog.getByTestId("origin-stated");
+      await expect(stated.getByText("Stated by the publisher")).toBeVisible();
+      await expect(
+        stated.getByText(
+          "Bakery keeps these details as they were given and does not check them.",
+        ),
+      ).toBeVisible();
+      await expect(stated.getByText("repository", { exact: true }))
+        .toBeVisible();
+      await expect(stated.getByText("example/notes", { exact: true }))
+        .toBeVisible();
+      await expect(stated.getByText("typecheck, lint", { exact: true }))
+        .toBeVisible();
+      // A publisher writing "passed" is still only a claim.
+      await expect(stated.getByText("passed", { exact: true })).toBeVisible();
+      // The check mark is Bakery's alone: an icon on each proven line, none
+      // anywhere in what the publisher says.
+      await expect(checked.getByTestId("origin-checked-line")).toHaveCount(2);
+      const checkMark = 'path[d="m5 12 4 4L19 6"]';
+      await expect(checked.locator(checkMark)).toHaveCount(2);
+      await expect(stated.locator(checkMark)).toHaveCount(0);
+      expect(await stated.innerText()).not.toContain("✓");
+
+      // A long value is cut, and "Show all" gives the rest.
+      await expect(stated.getByRole("button", { name: "Show all" }))
+        .toBeVisible();
+      const cut = await stated.getByTestId("stated-row").filter({
+        hasText: /^notes/,
+      }).innerText();
+      expect(cut.length).toBeLessThan(260);
+      await stated.getByRole("button", { name: "Show all" }).click();
+      await expect(stated.getByText("n".repeat(300))).toBeVisible();
+      await shot(page, `plugin-origin-${viewport.name}`, [], {
+        windowOnly: true,
+        scrollToEnd: dialog,
+      });
+      await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(page.getByTestId("plugin-origin")).toHaveCount(0);
+    });
+
+    test("the publisher's details sit in one labelled box; an empty part and a long value stay inside it", async ({ page }) => {
+      await pluginsFixture(page);
+      await page.goto(`/settings/organization/plugins/${DASH_INSTALL}`);
+      await page.getByTestId("plugin-about")
+        .getByRole("link", { name: "Where it came from" }).click();
+      const dialog = page.getByTestId("plugin-origin");
+      const stated = dialog.getByTestId("origin-stated");
+      // One group, named by its heading, not a live region; the caption is its
+      // first line and the Source and Build labels are not headings.
+      const box = stated.getByRole("group", {
+        name: "Stated by the publisher",
+      });
+      await expect(box).toBeVisible();
+      await expect(box.getByText(
+        "Bakery keeps these details as they were given and does not check them.",
+      )).toBeVisible();
+      await expect(stated.getByRole("heading")).toHaveCount(1);
+      await expect(box.getByText("Source", { exact: true })).toBeVisible();
+      await expect(box.getByText("Build", { exact: true })).toBeVisible();
+      await expect(box.getByText("example/dash", { exact: true }))
+        .toBeVisible();
+      // The part that was not given says so inside the box.
+      await expect(box.getByText("The publisher gave no build details."))
+        .toBeVisible();
+      // A long value is cut; Show all is the quietest button and gives the rest.
+      await expect(box.getByRole("button", { name: "Show all" }))
+        .toBeVisible();
+      expect(
+        await box.getByTestId("stated-row").filter({ hasText: /^notes/ })
+          .innerText(),
+      ).not.toContain("d".repeat(300));
+      await box.getByRole("button", { name: "Show all" }).click();
+      await expect(box.getByText("d".repeat(300))).toBeVisible();
+      // Nothing green inside the box: the check mark is Bakery's alone.
+      await expect(box.locator('path[d="m5 12 4 4L19 6"]')).toHaveCount(0);
+      await shot(page, `plugin-origin-partial-${viewport.name}`, [], {
+        windowOnly: true,
+        scrollToEnd: dialog,
+      });
+    });
+
+    test("the update dialog links to where the new version came from, without claiming it works yet", async ({ page }) => {
+      await pluginsFixture(page);
+      await page.goto("/settings/organization/plugins");
+      await page.getByRole("button", { name: "Review update of Notes" })
+        .click();
+      await page.getByRole("button", { name: "Where 1.1.0 came from" }).click();
+      const dialog = page.getByTestId("plugin-origin");
+      await expect(dialog.getByText("Where version 1.1.0 came from"))
+        .toBeVisible();
+      // The first line only: a version the install is not on has not been checked
+      // against this Bakery yet, and no details were given for it.
+      await expect(dialog.getByText(/The files matched the fingerprint/))
+        .toBeVisible();
+      await expect(dialog.getByText(/It works with this version of Bakery/))
+        .toHaveCount(0);
+      await expect(
+        dialog.getByText("The publisher gave no source details."),
+      ).toBeVisible();
+      await expect(
+        dialog.getByText("The publisher gave no build details."),
+      ).toBeVisible();
+    });
+
+    test("saved data lists group, name, size and last saved, and never shows a value", async ({ page }) => {
+      const state = await pluginsFixture(page);
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      const saved = page.getByTestId("plugin-saved");
+      await expect(saved.getByRole("heading", { name: "Saved data" }))
+        .toBeVisible();
+      await expect(saved.getByText("theme", { exact: true })).toBeVisible();
+      await expect(saved.getByText("welcome-note", { exact: true }))
+        .toBeVisible();
+      if (viewport.name === "desktop") {
+        await expect(saved.getByText("settings", { exact: true }))
+          .toBeVisible();
+        await expect(saved.getByText("drafts", { exact: true })).toBeVisible();
+        await expect(saved.getByText("412 B", { exact: true })).toBeVisible();
+        await expect(saved.getByText("1.1 KB", { exact: true })).toBeVisible();
+      } else {
+        // On a phone each item is one stacked row: group, size and when.
+        await expect(saved.getByText(/^settings · 412 B · saved /))
+          .toBeVisible();
+        await expect(saved.getByText(/^drafts · 1.1 KB · saved /))
+          .toBeVisible();
+      }
+      await expect(
+        saved.getByText(
+          "2 items, 1.5 KB. Only Notes reads and changes these. Bakery does not show what is inside, and nothing here can be edited. Turning it off keeps them.",
+        ),
+      ).toBeVisible();
+      // The page reads what is saved without the values, and never asks for the
+      // full read that carries them.
+      expect(await page.content()).not.toContain("TOPSECRET");
+      expect(state.valuesReads).toBe(0);
+      // Read only: nothing to edit, add or delete in this section.
+      await expect(
+        saved.getByRole("button", { name: /^(edit|add|delete|remove)/i }),
+      ).toHaveCount(0);
+      if (viewport.name === "desktop") {
+        for (const header of ["Group", "Name", "Size", "Last saved"]) {
+          await expect(saved.getByRole("columnheader", { name: header }))
+            .toBeVisible();
+        }
+      }
+      await shot(page, `plugin-saved-${viewport.name}`);
+    });
+
+    test("saved data pages by ten, and says when there is more", async ({ page }) => {
+      const state = await pluginsFixture(page);
+      state.saved = Array.from({ length: 12 }, (_, index) => ({
+        id: id(500 + index),
+        namespace: "settings",
+        key: `item-${String(index).padStart(2, "0")}`,
+        sizeBytes: 100,
+        updatedAt: "2026-11-18T10:00:00.000Z",
+      }));
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      const saved = page.getByTestId("plugin-saved");
+      await expect(saved.getByText("item-09", { exact: true })).toBeVisible();
+      await expect(saved.getByText("item-10", { exact: true })).toHaveCount(0);
+      await expect(saved.getByText(/^10 items so far, 1,000 B\./))
+        .toBeVisible();
+      await saved.getByRole("button", { name: "Show more" }).click();
+      await expect(saved.getByText("item-11", { exact: true })).toBeVisible();
+      await expect(saved.getByText(/^12 items, 1.2 KB\./)).toBeVisible();
+      await expect(saved.getByRole("button", { name: "Show more" }))
+        .toHaveCount(0);
+    });
+
+    test("saved data says so when empty, unreadable, or not loaded, and keeps the rest of the page", async ({ page }) => {
+      const state = await pluginsFixture(page);
+      state.saved = [];
+      await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
+      await expect(
+        page.getByTestId("plugin-saved").getByText(
+          "It has not saved anything yet.",
+        ),
+      ).toBeVisible();
+
+      state.savedStatus = 403;
+      await page.reload();
+      await expect(
+        page.getByTestId("plugin-saved").getByText(
+          "You do not have access to this plugin's saved data.",
+        ),
+      ).toBeVisible();
+      // The rest of the page is still there.
+      await expect(page.getByRole("heading", { name: "What it can do" }))
+        .toBeVisible();
+
+      state.savedStatus = 500;
+      await page.reload();
+      const saved = page.getByTestId("plugin-saved");
+      await expect(saved.getByText("Saved data could not be loaded."))
+        .toBeVisible();
+      state.savedStatus = 200;
+      state.saved = [{
+        id: id(600),
+        namespace: "settings",
+        key: "back",
+        sizeBytes: 10,
+        updatedAt: "2026-11-18T10:00:00.000Z",
+      }];
+      await saved.getByRole("button", { name: "Try again" }).click();
+      await expect(saved.getByText("back", { exact: true })).toBeVisible();
     });
 
     test("a plugin that is not found says so, with a way back", async ({ page }) => {
@@ -616,9 +932,9 @@ for (
       const about = page.getByTestId("plugin-about");
       await expect(about.getByRole("heading", { name: "About this version" }))
         .toBeVisible();
-      await expect(about.getByText("Published Nov 2, 2026")).toBeVisible();
+      await expect(about.getByText("Nov 2, 2026")).toBeVisible();
       await expect(about.getByText("Fingerprint").first()).toBeVisible();
-      await expect(about.getByText("sha256:abababababab")).toBeVisible();
+      await expect(about.getByText("abababab…abab")).toBeVisible();
       await expect(
         versions.getByRole("button", { name: "Update to 1.1.0" }),
       ).toHaveText("Review update");
