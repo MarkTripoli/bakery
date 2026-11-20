@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a3a5a3400dc79a9ad646fc8631cf184dc8642d05"
+    "8476585c20880e34f6d9d6b0395ab4a0fee86e41"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:766a91a3406a6ef488de878590269f396d6b646fb70be95418e27e01a7071c2c",
-  "reason": "#445 pin re-bind by dev-web on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a3a5a3400dc79a9ad646fc8631cf184dc8642d05: StorageFolderItem gains pinned, required and not nullable, whether an administrator pinned the file's artifact, so the file browser and the command line's stat show it; storageFiles.pin is a new action. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:05f631705f720c449f1122e2c40c0b36de43b8aa3fd0fe7d5b74e7fd173e3124",
+  "reason": "#57 slice 2 merge-queue reads by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8476585c20880e34f6d9d6b0395ab4a0fee86e41: PullRequest gains targetBranch, required and not nullable, the repository's default branch that mergeEntries.create takes; MergeEntry gains blockedReason, nullable. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "a3a5a3400dc79a9ad646fc8631cf184dc8642d05"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:766a91a3406a6ef488de878590269f396d6b646fb70be95418e27e01a7071c2c",
+      "reason": "#445 pin re-bind by dev-web on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a3a5a3400dc79a9ad646fc8631cf184dc8642d05: StorageFolderItem gains pinned, required and not nullable, whether an administrator pinned the file's artifact, so the file browser and the command line's stat show it; storageFiles.pin is a new action. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
