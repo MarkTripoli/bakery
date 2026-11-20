@@ -233,20 +233,12 @@ export async function listStorageRoots(
     requireWorkTransaction(context);
   await ensureOrganizationTree(storageQueryOf(tx), organizationId);
   await ensurePersonalFolder(tx, organizationId, principalId);
-  const connections = await tx.query<{ present: boolean }>(
-    "select exists (select 1 from bakery.storage_entries child" +
-      " join bakery.storage_entries top" +
-      " on top.organization_id = child.organization_id" +
-      " and top.id = child.parent_id" +
-      " where child.organization_id = $1 and top.system_key = 'connections'" +
-      " and child.purged_at is null) as present",
-    [organizationId],
-  );
-  const keys = visibleRootKeys({
+  const keys = await rootKeysFor(
+    tx,
+    organizationId,
     principalId,
-    isAdmin: reader.isAdmin,
-    hasConnections: connections.rows[0].present,
-  });
+    reader.isAdmin,
+  );
   const found = await tx.query<ListedRow>(
     LISTED_SELECT +
       " where e.organization_id = $1 and e.system_key = any($2::text[])",
@@ -263,6 +255,29 @@ export async function listStorageRoots(
     items.push(listed(row, path));
   }
   return { items, nextCursor: null };
+}
+
+/** The top-level folder keys this caller sees (see visibleRootKeys). */
+async function rootKeysFor(
+  tx: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  isAdmin: boolean,
+): Promise<string[]> {
+  const connections = await tx.query<{ present: boolean }>(
+    "select exists (select 1 from bakery.storage_entries child" +
+      " join bakery.storage_entries top" +
+      " on top.organization_id = child.organization_id" +
+      " and top.id = child.parent_id" +
+      " where child.organization_id = $1 and top.system_key = 'connections'" +
+      " and child.purged_at is null) as present",
+    [organizationId],
+  );
+  return visibleRootKeys({
+    principalId,
+    isAdmin,
+    hasConnections: connections.rows[0].present,
+  });
 }
 
 /** The entries of a folder the caller may see: folders first, by name. */
@@ -320,6 +335,9 @@ export function createFolderLister(secret: string) {
         " and ($4::int is null or" +
         " (case when e.kind = 'folder' then 0 else 1 end, e.name_key, e.id)" +
         " > ($4::int, $5::text, $6::uuid))" +
+        // At the top of the tree only the folders storageRoots.list shows are
+        // listed: never /users itself, /system for Admins only.
+        " and ($8::text[] is null or e.system_key = any($8::text[]))" +
         " order by case when e.kind = 'folder' then 0 else 1 end," +
         " e.name_key, e.id limit $7",
       [
@@ -330,6 +348,9 @@ export function createFolderLister(secret: string) {
         after?.nameKey ?? null,
         after?.id ?? null,
         limit + 1,
+        folder.parent_id === null
+          ? await rootKeysFor(tx, organizationId, principalId, reader.isAdmin)
+          : null,
       ],
     );
     const rows = found.rows.slice(0, limit);

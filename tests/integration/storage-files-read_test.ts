@@ -144,6 +144,25 @@ Deno.test("the top of the tree lists my own folder, never /users, and /system on
         await ok(await call(fixture, "GET", "/v1/storage/roots")),
       );
       assertEquals(asDeveloper.some((root) => root.path === "/system"), false);
+      // Listing the organization root directly shows the same top-level set:
+      // no /system for a Developer, and never /users itself.
+      const top = roots.find((root) => root.path === "/projects")!;
+      const atRoot = items(
+        await ok(
+          await call(
+            fixture,
+            "GET",
+            "/v1/storage/folders/" + top.parentId + "/entries",
+          ),
+        ),
+      );
+      assertEquals(
+        atRoot.map((entry) => entry.path).filter((p) =>
+          p === "/system" || p === "/users"
+        ),
+        [],
+      );
+      assertEquals(atRoot.some((entry) => entry.path === "/projects"), true);
       const system = roots.find((root) => root.path === "/system")!;
       await status(
         await call(
