@@ -22,7 +22,7 @@ import {
   previewState,
 } from "../preview-state.ts";
 import { formatFileSize } from "../file-size.ts";
-import { isArtifactContentMismatch } from "../artifact-mismatch.ts";
+import { mediaFailureIsMismatch } from "./media-failure.ts";
 
 const textModes: Readonly<Record<string, "text" | "markdown" | "patch">> = {
   "text/plain": "text",
@@ -183,17 +183,45 @@ export function FilePreview(
       return data.content;
     },
   });
+  // A player the browser could not play: it says so, and offers the download.
+  const [playFailed, setPlayFailed] = useState(false);
+  useEffect(() => setPlayFailed(false), [file.id, version?.revision]);
+  // A player reads its address, never these bytes, so a file that does not match
+  // its record reaches the player as a failure to play. Once it has failed, one
+  // content read says which fault it is: a refusal is the answer, and the panel
+  // says so rather than blaming the browser beside a Download of the same bytes.
+  const mediaCheck = useQuery({
+    queryKey: protectedQueryKey(scope, "storageFiles.mediaCheck", {
+      fileId: file.id,
+      revision: version?.revision ?? null,
+    }),
+    enabled: media !== null && playFailed && scope.organizationId !== null &&
+      !contentRemoved,
+    retry: false,
+    staleTime: Infinity,
+    queryFn: async ({ signal }) => {
+      if (scope.organizationId === null) {
+        throw new Error("ORGANIZATION_REQUIRED");
+      }
+      const result = await api.files.content(
+        scope.organizationId,
+        file.id,
+        version?.revision,
+        signal,
+      );
+      if (!result.ok) throw result.error;
+      return null;
+    },
+  });
   // The read answers `ARTIFACT_CONTENT_MISMATCH` when the stored bytes are not the
-  // bytes the version recorded; that refusal is the answer, and the panel says so
-  // rather than showing a generic error beside a Download of the same bytes.
-  const refusedAsMismatch = isArtifactContentMismatch(content.error);
+  // bytes the version recorded; that refusal is the answer.
+  const refusedAsMismatch = mediaFailureIsMismatch(
+    media !== null ? mediaCheck.error : content.error,
+  );
   useEffect(() => {
     setMismatch(refusedAsMismatch);
     onMismatch?.(refusedAsMismatch);
   }, [refusedAsMismatch, onMismatch]);
-  // A player the browser could not play: it says so, and offers the download.
-  const [playFailed, setPlayFailed] = useState(false);
-  useEffect(() => setPlayFailed(false), [file.id, version?.revision]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!image || !content.data) return;
@@ -207,7 +235,10 @@ export function FilePreview(
     };
   }, [content.data, image, mediaType]);
 
-  const openable = !contentRemoved &&
+  const refused = state.kind === "mismatch" || state.kind === "unreadable" ||
+    state.kind === "unchecked" || state.kind === "host-unavailable" ||
+    state.kind === "too-large";
+  const openable = !contentRemoved && !refused &&
     (media !== null ? !playFailed : supported && !tooLarge && !content.isError);
   useEffect(() => onOpenable?.(openable), [onOpenable, openable]);
 
@@ -271,6 +302,7 @@ export function FilePreview(
       <ArtifactPreviewView
         size={full ? "full" : "panel"}
         state="content"
+        footer={footer}
         label={translate("files.preview.title")}
         content={{
           kind: media,
@@ -332,6 +364,7 @@ export function FilePreview(
   }
   return (
     <ArtifactPreviewView
+      size={full ? "full" : "panel"}
       state="content"
       footer={footer}
       label={translate("files.preview.title")}
