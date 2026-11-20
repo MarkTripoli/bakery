@@ -733,7 +733,12 @@ export function createFileProbeReader() {
   ): Promise<StorageFileProbeAnswer> => {
     const { transaction: tx, organizationId, principalId } =
       requireWorkTransaction(context);
+    // `readableEntry` takes the context for the agent guard main added (#770): a
+    // person's read is unaffected, an agent's is judged by its step's files
+    // section. This reader was written before that parameter existed and the
+    // merge left it out, so every probe answered "not found".
     const file = await readableEntry(
+      context,
       tx,
       organizationId,
       principalId,
