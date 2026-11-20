@@ -191721,9 +191721,10 @@
                             "repository",
                             "task",
                             "conversation",
-                            "inbox"
+                            "inbox",
+                            "memory"
                           ],
-                          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                         },
                         "id": {
                           "type": "string",
@@ -193222,9 +193223,10 @@
                           "repository",
                           "task",
                           "conversation",
-                          "inbox"
+                          "inbox",
+                          "memory"
                         ],
-                        "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                        "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                       },
                       "id": {
                         "type": "string",
@@ -198779,9 +198781,10 @@
                 "repository",
                 "task",
                 "conversation",
-                "inbox"
+                "inbox",
+                "memory"
               ],
-              "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+              "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
             },
             "id": {
               "type": "string",
@@ -198795,7 +198798,7 @@
             "id"
           ],
           "additionalProperties": false,
-          "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, or the caller's own inbox) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
+          "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, the caller's own inbox, or the organization's remembered-fact signals) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
         },
         "Problem": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -228339,7 +228342,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:cfaec16803b937177aa6b172c4a95a37faef48ebfbeacdd38bb2f949b83277fd",
+  "compatibilityDigest": "sha256:335a4f467acfea025da98b202c57c8322444ade3aa085a267030433324190d8d",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -381956,9 +381959,10 @@
                         "repository",
                         "task",
                         "conversation",
-                        "inbox"
+                        "inbox",
+                        "memory"
                       ],
-                      "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                      "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                     },
                     "id": {
                       "type": "string",
@@ -383459,9 +383463,10 @@
                       "repository",
                       "task",
                       "conversation",
-                      "inbox"
+                      "inbox",
+                      "memory"
                     ],
-                    "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                    "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                   },
                   "id": {
                     "type": "string",
@@ -389022,9 +389027,10 @@
             "repository",
             "task",
             "conversation",
-            "inbox"
+            "inbox",
+            "memory"
           ],
-          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
         },
         "id": {
           "type": "string",
@@ -389038,7 +389044,7 @@
         "id"
       ],
       "additionalProperties": false,
-      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, or the caller's own inbox) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
+      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, the caller's own inbox, or the organization's remembered-fact signals) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
     },
     "Problem": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

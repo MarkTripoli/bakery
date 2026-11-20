@@ -211,7 +211,7 @@ Deno.test("a member who may read the events stream but not memory cannot subscri
     );
     await fixture.pgDatabase.query(
       `update bakery.organization_memberships
-          set role = null, custom_role_id = $3
+          set role = 'guest', custom_role_id = $3
         where organization_id = $1 and principal_id = $2`,
       [fixture.organizationId, fixture.principalId, role.rows[0]!.id],
     );
