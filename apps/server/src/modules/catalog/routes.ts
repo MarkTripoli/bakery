@@ -20,6 +20,7 @@ import {
 import {
   createCatalogActionRegistry,
   createSkillCopyActionRegistry,
+  createSkillDraftPublishActionRegistry,
   createSkillVersionActionRegistry,
 } from "./actions.ts";
 import { createCatalogHandlers } from "./persistence.ts";
@@ -38,6 +39,11 @@ import {
   prepareSkillCopy,
   type SkillCopyPreparation,
 } from "./skill-copy.ts";
+import {
+  commitSkillDraftPublish,
+  prepareSkillDraftPublish,
+  type SkillDraftPublishPreparation,
+} from "./skill-drafts.ts";
 import { CatalogImplementedAction } from "@bakery/contracts/implemented-actions";
 
 const publicationExecutionStage = Symbol("publicationExecutionStage");
@@ -46,6 +52,8 @@ type PublicationExecutionStage = {
   preparation?: LocalSkillVersionPublicationPreparation;
   /** Set for a skill copy: the new skill whose version-1 `preparation` this is. */
   copy?: SkillCopyPreparation;
+  /** Set for a draft publish: the draft whose next-revision `preparation` this is. */
+  draft?: SkillDraftPublishPreparation;
   proof?: LocalSkillVersionPublicationProof;
 };
 
@@ -111,6 +119,11 @@ export function createCatalogRoutes(options: {
               store,
             });
             stage.preparation = stage.copy.publication;
+          } else if (
+            request.action.name === CatalogImplementedAction.SkillDraftsPublish
+          ) {
+            stage.draft = await prepareSkillDraftPublish(request.context);
+            stage.preparation = stage.draft.publication;
           } else {
             stage.preparation = await prepareLocalSkillVersionPublication({
               transaction,
@@ -234,6 +247,41 @@ export function createCatalogRoutes(options: {
             organizationId,
             principalId,
             preparation: stage.copy,
+            proof: stage.proof,
+          });
+        },
+      }, {
+        authorityRunner: publicationAuthority,
+        commandRunner: publicationCommandRunner,
+      }),
+      publicBaseUrl: options.publicBaseUrl,
+      createContext: createActionContext,
+    }),
+  );
+  app.route(
+    "/",
+    createApiRouter({
+      registry: createSkillDraftPublishActionRegistry({
+        publishSkillDraft: async (context) => {
+          const { transaction, organizationId, principalId } =
+            requireWorkTransaction(context);
+          // Publishing a draft is publishing a version: an agent needs the same
+          // grant (O52, #421) before anything is finalized.
+          await assertMayPublishDefinition(transaction, context, {
+            organizationId,
+            principalId,
+            kind: DefinitionKind.Skill,
+            definitionId: context.params.id ?? null,
+          });
+          const stage = (context as StagedActionContext)[
+            publicationExecutionStage
+          ];
+          if (!stage?.draft || !stage.proof) {
+            throw new Error("SKILL_DRAFT_PUBLISH_PROOF_MISSING");
+          }
+          return await commitSkillDraftPublish({
+            context,
+            preparation: stage.draft,
             proof: stage.proof,
           });
         },

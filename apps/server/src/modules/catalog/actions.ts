@@ -106,6 +106,10 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.SkillCopy>,
   ) => Promise<z.output<typeof contractSchemas.Skill>>;
+  publishSkillDraft: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillVersion>>;
   createSkillVersion: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.LocalSkillVersion>,
@@ -160,6 +164,30 @@ function skillCopyDefinition(
     policy: {
       ...commandPolicy,
       access: ActionAccess.DeveloperForPersonalAdminForOrganization,
+    },
+    handler,
+  } as const;
+}
+
+/**
+ * Publishing a draft writes object bytes like publishing a version, so it runs
+ * its handler only behind the staged publication runners in routes.ts. The
+ * caller says which draft version it saw (If-Match), so a draft someone else
+ * changed since is not published.
+ */
+function skillDraftPublishDefinition(
+  handler: CatalogActionHandlers["publishSkillDraft"],
+) {
+  return {
+    name: CatalogImplementedAction.SkillDraftsPublish,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/draft/publish",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.SkillVersion,
+    explicitIdempotency: "key-and-if-match",
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
     },
     handler,
   } as const;
@@ -391,6 +419,7 @@ export function createCatalogActionRegistry(
   });
   if (options.includeSkillVersionPublication !== false) {
     registry.register(skillCopyDefinition(handlers.copySkill));
+    registry.register(skillDraftPublishDefinition(handlers.publishSkillDraft));
     registry.register({
       name: CatalogImplementedAction.SkillVersionsCreate,
       method: HttpMethod.Post,
@@ -429,6 +458,25 @@ export function createSkillCopyActionRegistry(
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     CatalogImplementedAction.SkillsCopy,
+  ]);
+  return registry;
+}
+
+export function createSkillDraftPublishActionRegistry(
+  handlers: Pick<CatalogActionHandlers, "publishSkillDraft">,
+  options: {
+    authorityRunner?: ActionAuthorityRunner;
+    commandRunner?: CommandRunner;
+  } = {},
+): ActionRegistry {
+  const registry = new ActionRegistry(
+    options.authorityRunner,
+    options.commandRunner,
+  );
+  registry.register(skillDraftPublishDefinition(handlers.publishSkillDraft));
+  assertRegisteredActions(registry);
+  assertImplementedActionRegistry(registry, [
+    CatalogImplementedAction.SkillDraftsPublish,
   ]);
   return registry;
 }

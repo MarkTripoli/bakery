@@ -557,3 +557,119 @@ Deno.test("a stray percent sign in a link is a problem the check reports, not a 
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("a draft publishes as the next version once; a stale or flawed draft publishes nothing", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-74-publish-" });
+  const f = await openPersonalSkillFixture({ skillFileRoot: root });
+  try {
+    const owner = api(f, f.ownerCookie);
+    const created = await f.post(f.ownerCookie, "/v1/skills", {
+      slug: "publisher",
+      name: "Publisher",
+    }, "skill-publisher");
+    assertEquals(created.status, 201, await created.clone().text());
+    const skill = await created.json() as { id: string };
+    const draftPath = `/v1/skills/${skill.id}/draft`;
+    const publishPath = `${draftPath}/publish`;
+    const first = await f.post(
+      f.ownerCookie,
+      `/v1/skills/${skill.id}/versions`,
+      await upload({
+        "SKILL.md": "# Publisher\n\nRead [the notes](notes.md).\n",
+        "notes.md": "The notes.\n",
+      }),
+      "publisher-v1",
+    );
+    assertEquals(first.status, 201, await first.clone().text());
+    const versionOne = await first.json() as { id: string; digest: string };
+    const versions = () =>
+      f.fixture.pgDatabase.query<
+        { id: string; revision: number; digest: string }
+      >(
+        "select id, revision, digest from bakery.skill_versions where skill_id = $1 order by revision",
+        [skill.id],
+      ).then((result) => result.rows);
+
+    const opened = await (await owner.call("POST", draftPath)).json() as Draft;
+    // The draft's version is required, and a stale one is refused.
+    assertEquals((await owner.call("POST", publishPath)).status, 428);
+    assertEquals(
+      (await owner.call("POST", publishPath, { version: opened.version + 5 }))
+        .status,
+      412,
+    );
+
+    // A draft with a problem is refused with it, and nothing is published.
+    const save = async (content: string, version: number) => {
+      const saved = await owner.call("POST", `${draftPath}/files`, {
+        version,
+        body: {
+          path: "SKILL.md",
+          mediaType: "text/markdown",
+          contentBase64: b64(content),
+        },
+      });
+      assertEquals(saved.status, 200, await saved.clone().text());
+      return await saved.json() as Draft;
+    };
+    const flawed = await save(
+      "# Publisher 2\n\nRead [the notes](notes.md) and [gone](gone.md).\n",
+      opened.version,
+    );
+    const refused = await owner.call("POST", publishPath, {
+      version: flawed.version,
+    });
+    assertEquals(refused.status, 422, await refused.clone().text());
+    assert((await refused.text()).includes("gone.md"));
+    assertEquals((await versions()).length, 1);
+    assertEquals(
+      (await (await owner.call("GET", draftPath)).json() as Draft).version,
+      flawed.version,
+    );
+
+    // The corrected draft publishes as revision 2, and the draft is gone.
+    const fixed = await save(
+      "# Publisher 2\n\nRead [the notes](notes.md).\n",
+      flawed.version,
+    );
+    const key = "publisher-v2";
+    const published = await owner.call("POST", publishPath, {
+      version: fixed.version,
+      key,
+    });
+    assertEquals(published.status, 201, await published.clone().text());
+    const versionTwo = await published.json() as {
+      id: string;
+      revision: number;
+      digest: string;
+    };
+    assertEquals(versionTwo.revision, 2);
+    assert(versionTwo.digest !== versionOne.digest);
+    assertEquals((await owner.call("GET", draftPath)).status, 404);
+    const rows = await versions();
+    assertEquals(rows.map((row) => row.revision), [1, 2]);
+    // The first version is exactly as it was published.
+    assertEquals(rows[0], {
+      id: versionOne.id,
+      revision: 1,
+      digest: versionOne.digest,
+    });
+    const active = await f.fixture.pgDatabase.query<
+      { active_version_id: string }
+    >("select active_version_id from bakery.skills where id = $1", [skill.id]);
+    assertEquals(active.rows[0].active_version_id, versionTwo.id);
+
+    // The same request again is the same answer, not a third version.
+    const replay = await owner.call("POST", publishPath, {
+      version: fixed.version,
+      key,
+    });
+    assertEquals(replay.status, 201, await replay.clone().text());
+    assertEquals(replay.headers.get("idempotent-replayed"), "true");
+    assertEquals((await replay.json() as { id: string }).id, versionTwo.id);
+    assertEquals((await versions()).length, 2);
+  } finally {
+    await f.close();
+    await Deno.remove(root, { recursive: true });
+  }
+});
