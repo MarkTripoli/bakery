@@ -6,7 +6,9 @@ import {
   durationWords,
   type Figure,
   type Freshness,
+  type LeadTime,
   type RecordRow,
+  type TimePartId,
 } from "./delivery/delivery-display.ts";
 import {
   DELIVERY_PERIODS,
@@ -59,6 +61,8 @@ export type DeliveryScreenProps = {
   readonly show: DeliveryShow | null;
   readonly missingOnly: boolean;
   readonly records: DeliveryRecords;
+  /** How long tasks took and where the time went; null when no task was delivered. */
+  readonly leadTime: LeadTime | null;
   /** Admins are sent to reconnect; everyone else is told who can. */
   readonly canReconnect: boolean;
   readonly reconnectHref: string;
@@ -368,7 +372,117 @@ function Ready(props: DeliveryScreenProps) {
           </UI.Text>
         )
         : null}
+      {props.leadTime === null ? null : <TimeWent lead={props.leadTime} />}
       <RecordsSection {...props} figureText={figureText} />
+    </UI.Stack>
+  );
+}
+
+/** Fewer tasks than this are listed, not summarised: a typical time of three tasks says little. */
+const MIN_TASKS_TO_SUMMARISE = 5;
+
+const PART_TONES: Readonly<
+  Record<TimePartId, "first" | "second" | "third" | "fourth" | "unknown">
+> = {
+  agentWorking: "first",
+  queue: "second",
+  review: "third",
+  person: "fourth",
+  blocked: "fourth",
+  unaccounted: "unknown",
+};
+
+/**
+ * How long a task took, and where the time went.
+ *
+ * The bar's parts add up to the total. Time no record covers is its own hatched
+ * part, "Not accounted for", and Blocked is one line under the bar while Bakery
+ * keeps no history of it: unknown, never a part of zero width.
+ */
+function TimeWent({ lead }: { readonly lead: LeadTime }) {
+  const { translate } = useI18n();
+  const words = (hours: number) => {
+    const text = durationWords(hours);
+    return translate(text.key, text.params);
+  };
+  const tooFew = lead.count < MIN_TASKS_TO_SUMMARISE;
+  const sentence = lead.point === "merge"
+    ? translate("delivery.time.sentence.merge")
+    : lead.point === "run"
+    ? translate("delivery.time.sentence.run")
+    : translate("delivery.time.sentence.mixed", {
+      runs: lead.runCount,
+      count: lead.count,
+    });
+  const parts = lead.parts.map((part) => ({
+    id: part.id,
+    label: translate(`delivery.time.part.${part.id}` as never),
+    value: part.hours,
+    tone: PART_TONES[part.id],
+    detail: words(part.hours),
+  }));
+  const hasUnaccounted = lead.parts.some((part) => part.id === "unaccounted");
+  return (
+    <UI.Stack gap="standard" data-testid="delivery-time">
+      <UI.Inline gap="compact">
+        <UI.Heading level="subsection" rank={2}>
+          {translate("delivery.time.heading")}
+        </UI.Heading>
+        <UI.HelpTip label={translate("delivery.time.helpLabel")}>
+          {translate("delivery.time.help")}
+        </UI.HelpTip>
+      </UI.Inline>
+      {tooFew
+        ? (
+          <UI.Text>
+            {translate("delivery.time.tooFew", { count: lead.count })}
+          </UI.Text>
+        )
+        : (
+          <UI.Inline gap="standard">
+            {lead.median === null ? null : (
+              <UI.Text>
+                {translate("delivery.time.typical", {
+                  time: words(lead.median),
+                })}
+              </UI.Text>
+            )}
+            {lead.p90 === null ? null : (
+              <UI.Text>
+                {translate("delivery.time.p90", { time: words(lead.p90) })}
+              </UI.Text>
+            )}
+          </UI.Inline>
+        )}
+      <UI.Text variant="muted">{sentence}</UI.Text>
+      <UI.Text variant="muted">
+        {translate("delivery.time.counts", { count: lead.count })}
+        {lead.leftOut > 0
+          ? ` ${translate("delivery.time.leftOut", { count: lead.leftOut })}`
+          : ""}
+      </UI.Text>
+      {parts.length === 0 ? null : (
+        <UI.SegmentedBar
+          label={translate("delivery.time.bar.label", {
+            parts: parts.map((part) => `${part.label} ${part.detail}`).join(
+              ", ",
+            ),
+          })}
+          parts={parts}
+        />
+      )}
+      {hasUnaccounted
+        ? (
+          <UI.Text variant="muted">
+            {translate("delivery.time.unaccounted")}
+          </UI.Text>
+        )
+        : null}
+      {lead.blockedKnown ? null : (
+        <UI.Text variant="muted">
+          {translate("delivery.time.blockedUnknown")}
+        </UI.Text>
+      )}
     </UI.Stack>
   );
 }
@@ -594,13 +708,28 @@ function RecordsSection(
         {
           id: "delivered",
           header: translate("delivery.records.column.delivered"),
-          cell: (row: RecordRow) => day(row.deliveredAt),
+          cell: (row: RecordRow) => (
+            <UI.Stack gap="none">
+              {day(row.deliveredAt)}
+              {row.deliveryPoint === null ? null : (
+                <UI.Text variant="muted">
+                  {translate(`delivery.point.${row.deliveryPoint}` as never)}
+                </UI.Text>
+              )}
+            </UI.Stack>
+          ),
         },
         {
           id: "total",
           header: translate("delivery.records.column.total"),
           align: "end" as const,
           cell: (row: RecordRow) => duration(row.value),
+        },
+        {
+          id: "notAccounted",
+          header: translate("delivery.records.column.notAccounted"),
+          align: "end" as const,
+          cell: (row: RecordRow) => duration(row.unaccountedHours),
         },
       ]
       : [

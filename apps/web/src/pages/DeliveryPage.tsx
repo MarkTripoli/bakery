@@ -20,6 +20,7 @@ import {
   type DeliveryShow,
   freshnessOf,
   isDeliveryShow,
+  leadTimeOf,
   openFigure,
   recordRow,
   SHOW_METRIC,
@@ -185,6 +186,7 @@ export function DeliveryPage() {
           })
           : null}
         hiddenCount={hiddenCount}
+        leadTime={leadTimeOf(tasks.data)}
         missingOnly={missingOnly}
         onCustomChange={(range) =>
           write({ [FROM]: range.from, [TO]: range.to })}

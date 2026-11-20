@@ -189,6 +189,10 @@ export type RecordRow = {
   readonly closedAt: string | null;
   readonly requestedAt: string | null;
   readonly deliveredAt: string | null;
+  /** Where a task's time stopped: a merged pull request or a completed run. */
+  readonly deliveryPoint: "merged_pull_request" | "completed_run" | null;
+  /** Hours of a task's lead time no record covers; null for a pull request or when unknown. */
+  readonly unaccountedHours: number | null;
   /** Hours from open to merge, when both are known. */
   readonly openToMergeHours: number | null;
   /** Lines for a line-count row; hours for a task row; null when unknown. */
@@ -209,6 +213,10 @@ export function recordRow(source: MetricSource): RecordRow {
     closedAt: source.closedAt,
     requestedAt: source.requestedAt,
     deliveredAt: source.deliveredAt,
+    deliveryPoint: source.deliveryPoint,
+    unaccountedHours:
+      source.waits?.find((share) => share.category === "unaccounted")?.hours ??
+        null,
     openToMergeHours: hoursBetween(source.openedAt, source.mergedAt),
     value: source.value,
     missing: missingKey(source.missingReason),
@@ -308,6 +316,8 @@ export type LeadTime = {
   readonly point: "merge" | "run" | "mixed";
   /** Tasks that reached a completed run with no pull request. */
   readonly runCount: number;
+  /** Tasks left out of the summary because their time is missing. */
+  readonly leftOut: number;
 };
 
 /**
@@ -344,5 +354,6 @@ export function leadTimeOf(series: MetricSeries | undefined): LeadTime | null {
     blockedKnown: (hoursOf.get("blocked") ?? null) !== null,
     point: runs === 0 ? "merge" : merged === 0 ? "run" : "mixed",
     runCount: runs,
+    leftOut: series?.missingCount ?? 0,
   };
 }
