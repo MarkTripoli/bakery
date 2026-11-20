@@ -1,4 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert";
+import { chmod, lstat, readdir } from "node:fs/promises";
 import { REPOSITORY_INSPECTION_LIMITS as LIMITS } from "../../packages/config/src/env.ts";
 import {
   deriveRepositoryInspectionConfig,
@@ -80,11 +81,11 @@ async function git(
  * private group), so the fixture drops group and other write before it is read.
  */
 async function ownerOnlyWritable(path: string): Promise<void> {
-  const info = await Deno.lstat(path);
-  await Deno.chmod(path, (info.mode ?? 0o755) & ~0o022);
-  if (info.isDirectory) {
-    for await (const entry of Deno.readDir(path)) {
-      await ownerOnlyWritable(`${path}/${entry.name}`);
+  const info = await lstat(path);
+  await chmod(path, (info.mode & 0o7777) & ~0o022);
+  if (info.isDirectory()) {
+    for (const name of await readdir(path)) {
+      await ownerOnlyWritable(`${path}/${name}`);
     }
   }
 }
