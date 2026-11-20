@@ -124,9 +124,11 @@ for (
     test("Load more adds the next page of a long folder", async ({ page }) => {
       await filesFixture(page, { pageSize: 2 });
       await page.goto("/files/projects/web-app");
-      await expect(page.getByRole("link", { name: "demo.mp4" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "demo.webm" })).toHaveCount(
+        0,
+      );
       await page.getByRole("button", { name: "Load more" }).click();
-      await expect(page.getByRole("link", { name: "demo.mp4" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "demo.webm" })).toBeVisible();
     });
 
     test("a link to a file past the first page opens its details", async ({ page }) => {
@@ -264,7 +266,7 @@ for (
       const results = page.getByTestId("files-results");
       await expect(results.getByRole("link", { name: "plan.md" }))
         .toBeVisible();
-      await expect(results.getByRole("link", { name: "demo.mp4" }))
+      await expect(results.getByRole("link", { name: "demo.webm" }))
         .toHaveCount(0);
       await expect(page).toHaveURL(/q=plan/);
       expect(
@@ -291,7 +293,9 @@ for (
       );
       await expect(page).toHaveURL(/kind=plan/);
       await expect(page.getByRole("link", { name: "plan.md" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "demo.mp4" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "demo.webm" })).toHaveCount(
+        0,
+      );
       expect(seen.searches.some((search) => search.includes("kind=plan")))
         .toBe(true);
       await withFilters(page, async (filters) => {
@@ -314,7 +318,13 @@ for (
           filters.getByLabel("Made by").selectOption({ label: "Build worker" }),
       );
       await expect(page.getByText("Nothing matches")).toBeVisible();
-      await page.getByRole("button", { name: "Clear search" }).click();
+      // Only a filter is set, so the hint names filters, not letters.
+      await expect(page.getByText("Try another filter, or All files."))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-empty-filters");
+      await page.getByRole("button", { name: /^Clear (search|filters)/ })
+        .click();
       await expect(page).not.toHaveURL(/kind=|by=/);
       await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
     });
@@ -368,7 +378,8 @@ for (
       await expect(results.getByRole("link", { name: "Coder" })).toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "files-library-search");
-      await page.getByRole("button", { name: "Clear search" }).click();
+      await page.getByRole("button", { name: /^Clear (search|filters)/ })
+        .click();
       await page.getByRole("button", { name: "Open the Library" }).click();
       await expect(page).toHaveURL(/\/library$/);
     });
@@ -490,8 +501,63 @@ for (
       // Read at once, before any pause could have committed the text: the
       // filter's own change carries it, so one write holds both.
       expect(new URL(page.url()).searchParams.get("q")).toBe("plan");
-      await page.getByRole("button", { name: "Clear search" }).click();
+      // Text and a filter are both set, and the button says so.
+      const clearBoth = page.getByRole("button", {
+        name: "Clear search and filters",
+      });
+      await expect(clearBoth).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-clear-both");
+      await clearBoth.click();
       await expect(page).not.toHaveURL(/kind=|q=/);
+    });
+
+    test("a fact in the address without a kind narrows nothing", async ({ page }) => {
+      const { seen } = await filesFixture(page);
+      await page.goto("/files/projects/web-app?fact=risk:high");
+      // Nothing is searching: the folder shows as it is, and no search was asked.
+      await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "demo.webm" })).toBeVisible();
+      expect(seen.searches.every((search) => !search.includes("factKey")))
+        .toBe(true);
+    });
+
+    test("the Fact filter waits for a kind, lists that kind's facts, lives in the address, and goes when the kind changes", async ({ page }) => {
+      const { seen } = await filesFixture(page);
+      await page.goto("/files/projects/web-app");
+      await withFilters(page, async (filters) => {
+        const fact = filters.getByRole("combobox", { name: "Fact" });
+        // Facts belong to a kind: nothing to choose until one is set.
+        await expect(fact).toBeDisabled();
+        await expect(fact.locator("option")).toHaveText([
+          "Choose a kind first",
+        ]);
+        await filters.getByRole("combobox", { name: "Kind" })
+          .selectOption("plan");
+        await expect(fact).toBeEnabled();
+        await fact.selectOption({ label: "Risk is high" });
+        if (viewport.name === "phone") await still(page, "files-fact-sheet");
+      });
+      await expect(page).toHaveURL(/fact=risk(%3A|:)high/);
+      await expect(page.getByRole("link", { name: "plan.md" })).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-fact-filter");
+      await expect(page.getByRole("link", { name: "demo.webm" })).toHaveCount(
+        0,
+      );
+      expect(
+        seen.searches.some((search) =>
+          search.includes("factKey=risk") && search.includes("factValue=high")
+        ),
+      ).toBe(true);
+      expect(seen.facts.every((read) => read.includes("kind=plan"))).toBe(true);
+      // Changing the kind drops the fact, which belonged to the old one.
+      await withFilters(
+        page,
+        (filters) =>
+          filters.getByRole("combobox", { name: "Kind" }).selectOption(""),
+      );
+      await expect(page).not.toHaveURL(/fact=|kind=/);
     });
 
     test("Made by and Kind list every page, an inactive account is marked, and an unlisted one is not shown as an id", async ({ page }) => {
@@ -554,11 +620,12 @@ for (
         (filters) => filters.getByLabel("File type").selectOption("video"),
       );
       const results = page.getByTestId("files-results");
-      await expect(results.getByRole("link", { name: "demo.mp4" }))
+      await expect(results.getByRole("link", { name: "demo.webm" }))
         .toBeVisible();
       await expect(results.getByRole("link", { name: "plan.md" }))
         .toHaveCount(0);
-      await page.getByRole("button", { name: "Clear search" }).click();
+      await page.getByRole("button", { name: /^Clear (search|filters)/ })
+        .click();
       await expect(page.getByTestId("files-results")).toHaveCount(0);
       await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
     });
@@ -581,6 +648,8 @@ for (
       await page.getByRole("searchbox", { name: "Search files by name" })
         .fill("zzzz");
       await expect(page.getByText("Nothing matches")).toBeVisible();
+      await expect(page.getByText("Try fewer letters.", { exact: true }))
+        .toBeVisible();
     });
 
     test("a link to a saved version opens its file in its folder at that version", async ({ page }) => {
@@ -611,7 +680,16 @@ for (
     });
 
     test("each kind of preview has its state", async ({ page }) => {
-      await filesFixture(page);
+      // A zip is a kind the page has no preview for; the shared tree has none.
+      const zip = {
+        ...TREE.find((entry) => entry.id === 43)!,
+        id: 46,
+        name: "bundle.zip",
+        path: "/projects/web-app/media/bundle.zip",
+        mediaType: "application/zip",
+        kindName: null,
+      };
+      await filesFixture(page, { tree: [...TREE, zip] });
       const open = async (id: number) => {
         await page.goto(`/files/projects/web-app/media?file=${uuid(id)}`);
         await expect(page.getByTestId("file-details")).toBeVisible();
@@ -627,8 +705,18 @@ for (
       await page.mouse.move(700, 700);
       await still(page, "files-preview-too-large");
       await page.goto(`/files/projects/web-app?file=${uuid(41)}`);
+      await expect(page.locator("video")).toBeVisible();
+      await open(46);
       await expect(page.getByText("No preview for this kind of file."))
         .toBeVisible();
+      // Nothing to open: no Open, and Download is the main action.
+      const zipDetails = page.getByTestId("file-details");
+      await expect(
+        zipDetails.getByRole("button", { name: "Open", exact: true }),
+      )
+        .toHaveCount(0);
+      await expect(zipDetails.getByRole("button", { name: "Download" }))
+        .toHaveAttribute("data-variant", "primary");
       await page.mouse.move(700, 700);
       await still(page, "files-preview-none");
       await open(45);
@@ -637,6 +725,192 @@ for (
         .toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "files-preview-failed");
+    });
+
+    test("Open shows a picture full size beside the panel, once, and Back to the folder returns; a phone has no Open for a picture", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(`/files/projects/web-app/media?file=${uuid(43)}`);
+      const details = page.getByTestId("file-details");
+      await expect(details).toBeVisible();
+      if (viewport.name === "phone") {
+        // The file page already shows the picture at full width: nothing to open.
+        await expect(page.getByRole("img", { name: "Image: diagram.png" }))
+          .toBeVisible();
+        await expect(details.getByRole("button", { name: "Open", exact: true }))
+          .toHaveCount(0);
+        await expect(details.getByRole("button", { name: "Download" }))
+          .toHaveAttribute("data-variant", "primary");
+        await page.mouse.move(700, 700);
+        await still(page, "files-picture-page");
+        return;
+      }
+      await details.getByRole("button", { name: "Open", exact: true }).click();
+      await expect(page).toHaveURL(/view=open/);
+      const opened = page.getByTestId("file-opened");
+      await expect(opened.getByRole("img", { name: "Image: diagram.png" }))
+        .toBeVisible();
+      // The folder's rows give way to the file; the panel stays beside it, but
+      // without a second copy of the picture and without a second way back.
+      await expect(page.locator("[data-entry-id]")).toHaveCount(0);
+      await expect(details).toBeVisible();
+      await expect(details.getByRole("img")).toHaveCount(0);
+      await expect(details.getByRole("button", { name: "Open", exact: true }))
+        .toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Back to the folder" }))
+        .toHaveCount(1);
+      // The file is the heading's subject: the card carries no "Preview" title.
+      await expect(opened.getByRole("heading", { name: "Preview" }))
+        .toBeHidden();
+      await expect(details.getByRole("button", { name: "Download" }))
+        .toBeVisible();
+      await expect(details.getByRole("button", { name: /Copy the path of/ }))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-open-image");
+      await opened.getByRole("button", { name: "Back to the folder" }).click();
+      await expect(page).not.toHaveURL(/view=open/);
+      await expect(details).toBeVisible();
+    });
+
+    test("a text file shows its first lines in the panel, all of it when opened, and a phone toggles with Show less", async ({ page }) => {
+      const long = {
+        ...TREE.find((entry) => entry.id === 43)!,
+        id: 49,
+        name: "long.txt",
+        path: "/projects/web-app/media/long.txt",
+        mediaType: "text/plain",
+        kindName: null,
+        sizeBytes: 300,
+      };
+      await filesFixture(page, { tree: [...TREE, long] });
+      await page.goto(`/files/projects/web-app/media?file=${uuid(49)}`);
+      const details = page.getByTestId("file-details");
+      const shown = details.locator("pre");
+      await expect(shown).toContainText("Line 20");
+      await expect(shown).not.toContainText("Line 21");
+      if (viewport.name === "phone") {
+        await details.getByRole("button", { name: "Open", exact: true })
+          .click();
+        await expect(shown).toContainText("Line 40");
+        await page.mouse.move(700, 700);
+        await still(page, "files-open-text");
+        await details.getByRole("button", { name: "Show less" }).click();
+        await expect(shown).not.toContainText("Line 21");
+        await expect(details.getByRole("button", { name: "Open", exact: true }))
+          .toBeVisible();
+        return;
+      }
+      await details.getByRole("button", { name: "Open", exact: true }).click();
+      const opened = page.getByTestId("file-opened");
+      await expect(opened.locator("pre")).toContainText("Line 40");
+      await page.mouse.move(700, 700);
+      await still(page, "files-open-text");
+    });
+
+    test("a video no player can decode says so and offers Download", async ({ page }) => {
+      const broken = {
+        ...TREE.find((entry) => entry.id === 41)!,
+        id: 48,
+        name: "broken.webm",
+        path: "/projects/web-app/broken.webm",
+      };
+      await filesFixture(page, { tree: [...TREE, broken] });
+      await page.goto(`/files/projects/web-app?file=${uuid(48)}`);
+      const player = page.locator("video");
+      await expect(player).toBeVisible();
+      await player.evaluate(async (element) => {
+        const video = element as HTMLVideoElement;
+        video.muted = true;
+        await video.play().catch(() => undefined);
+      });
+      const details = page.getByTestId("file-details");
+      await expect(details.getByText("This file could not be played here."))
+        .toBeVisible();
+      // One Download, the main action, and no Open: there is nothing to open.
+      await expect(details.getByRole("button", { name: "Download" }))
+        .toHaveCount(1);
+      await expect(details.getByRole("button", { name: "Download" }))
+        .toHaveAttribute("data-variant", "primary");
+      await expect(details.getByRole("button", { name: "Open", exact: true }))
+        .toHaveCount(0);
+      await expect(details.getByRole("alert")).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "files-video-unplayable");
+    });
+
+    test("a video shows a player that is not autoplayed and loads nothing until it is played", async ({ page }) => {
+      const { seen } = await filesFixture(page);
+      await page.goto(`/files/projects/web-app?file=${uuid(41)}`);
+      const player = page.locator("video");
+      await expect(player).toBeVisible();
+      await expect(player).toHaveAttribute("controls", "");
+      await expect(player).toHaveAttribute("preload", "none");
+      await expect(player).not.toHaveAttribute("autoplay", /.*/);
+      // The browser plays from the address, which names the organization in its
+      // query because a media element cannot send the header.
+      await expect(player).toHaveAttribute(
+        "src",
+        new RegExp(
+          `/v1/storage/files/${uuid(41)}/content\\?organizationId=`,
+        ),
+      );
+      // Nothing was read into the page: no bytes until someone presses play.
+      expect(seen.contents).toHaveLength(0);
+      // Pressing play (muted, which the browser allows) makes it ask for what it
+      // plays, by Range, and decode a real frame.
+      await player.evaluate(async (element) => {
+        const video = element as HTMLVideoElement;
+        video.muted = true;
+        await video.play();
+      });
+      await expect.poll(() =>
+        player.evaluate((element) => (element as HTMLVideoElement).readyState)
+      ).toBeGreaterThanOrEqual(2);
+      await player.evaluate((element) => (element as HTMLVideoElement).pause());
+      await expect.poll(() =>
+        player.evaluate((element) => (element as HTMLVideoElement).videoWidth)
+      ).toBe(320);
+      expect(seen.ranges.length).toBeGreaterThan(0);
+      await page.mouse.move(700, 700);
+      await still(page, "files-video-player");
+    });
+
+    test("an audio file shows a player that is not autoplayed and plays from its address", async ({ page }) => {
+      // An audio-only WebM beside the others; the shared tree has none.
+      const audio = {
+        ...TREE.find((entry) => entry.id === 41)!,
+        id: 47,
+        name: "standup.webm",
+        path: "/projects/web-app/standup.webm",
+        mediaType: "audio/webm",
+        sizeBytes: 5132,
+      };
+      const { seen } = await filesFixture(page, { tree: [...TREE, audio] });
+      await page.goto(`/files/projects/web-app?file=${uuid(47)}`);
+      const player = page.locator("audio");
+      await expect(player).toBeVisible();
+      await expect(player).toHaveAttribute("controls", "");
+      await expect(player).toHaveAttribute("preload", "none");
+      await expect(player).not.toHaveAttribute("autoplay", /.*/);
+      await expect(player).toHaveAttribute(
+        "src",
+        new RegExp(
+          `/v1/storage/files/${uuid(47)}/content\\?organizationId=`,
+        ),
+      );
+      expect(seen.contents).toHaveLength(0);
+      await player.evaluate(async (element) => {
+        const sound = element as HTMLAudioElement;
+        sound.muted = true;
+        await sound.play();
+      });
+      await expect.poll(() =>
+        player.evaluate((element) => (element as HTMLAudioElement).readyState)
+      ).toBeGreaterThanOrEqual(2);
+      await player.evaluate((element) => (element as HTMLAudioElement).pause());
+      expect(seen.ranges.length).toBeGreaterThan(0);
+      await page.mouse.move(700, 700);
+      await still(page, "files-audio-player");
     });
 
     test("a file whose contents were removed says so and offers no Download", async ({ page }) => {

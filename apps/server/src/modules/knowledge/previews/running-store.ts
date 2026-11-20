@@ -1,4 +1,7 @@
-import type { PgTransactionClient } from "../../../platform/database.ts";
+import type {
+  PgDatabase,
+  PgTransactionClient,
+} from "../../../platform/database.ts";
 import { sha256Hex } from "../../../platform/canonical-json.ts";
 import {
   type CursorBinding,
@@ -63,7 +66,7 @@ const iso = (column: string) => `to_char(${column} at time zone 'UTC', ${ISO})`;
  * limit, then the run being cancelled, a newer attempt, the machine's lease,
  * and the attempt having ended.
  */
-const STATE = `
+export const STATE = `
   case
     when p.status in ('stopped', 'expired') then p.status
     when p.expires_at <= now() then 'expired'
@@ -112,7 +115,7 @@ const PREVIEW_COLUMNS = `
   ${iso("p.updated_at")} as updated_at,
   p.version`;
 
-const PREVIEW_FROM = `
+export const PREVIEW_FROM = `
   from bakery.previews p
   join bakery.job_attempts a
     on a.organization_id = p.organization_id and a.id = p.attempt_id
@@ -453,4 +456,143 @@ export async function revokeAccessGrant(
       where organization_id = $1 and grant_id = $2 and revoked_at is null`,
     [organizationId, grantId],
   );
+}
+
+/** The route key of a preview the caller can already read, for building its URL. */
+export async function readRouteKey(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  previewId: string,
+): Promise<string | null> {
+  const result = await transaction.query<{ route_key: string }>(
+    `select route_key from bakery.previews
+      where organization_id = $1 and id = $2`,
+    [organizationId, previewId],
+  );
+  return result.rows[0]?.route_key ?? null;
+}
+
+export type ExchangedRunningSession = {
+  readonly secret: string;
+  readonly sessionSeconds: number;
+};
+
+/**
+ * One statement consumes an unexpired, unrevoked, unconsumed grant that was
+ * issued for THIS preview (the route key of the host it was posted to) and
+ * opens its session, so a replayed or racing exchange can win at most once and
+ * a grant for one preview never opens another.
+ */
+export async function exchangeRunningGrant(
+  database: PgDatabase,
+  routeKey: string,
+  grantSecret: string,
+): Promise<ExchangedRunningSession | null> {
+  const secret = randomPreviewSecret();
+  const result = await database.query<{ session_seconds: number }>(
+    `with consumed as (
+       update bakery.preview_grants g
+          set consumed_at = now()
+         from bakery.previews p
+        where g.token_hash = $1
+          and g.consumed_at is null
+          and g.revoked_at is null
+          and g.expires_at > now()
+          and p.organization_id = g.organization_id
+          and p.id = g.preview_id
+          and p.route_key = $2
+        returning g.id, g.organization_id, g.session_seconds
+     )
+     insert into bakery.preview_sessions
+       (organization_id, grant_id, session_hash, expires_at)
+     select organization_id, id, $3, now() + make_interval(secs => session_seconds)
+       from consumed
+     returning (select session_seconds from consumed) as session_seconds`,
+    [await sha256Hex(grantSecret), routeKey, await sha256Hex(secret)],
+  );
+  const row = result.rows[0];
+  return row ? { secret, sessionSeconds: row.session_seconds } : null;
+}
+
+export type RunningSession = {
+  readonly previewId: string;
+  readonly upstreamPort: number;
+  /** Whose authority the preview is served under: the grantor's. */
+  readonly organizationId: string;
+  readonly principalId: string;
+};
+
+/**
+ * The preview a cookie may reach on this host, or null for every reason it may
+ * not: unknown cookie, another preview's cookie, expired or revoked session or
+ * grant, a preview that is not running now, or a grantor who is no longer an
+ * active Developer or Admin of the organization. The reasons are not
+ * distinguished, so nothing here tells a stranger what exists.
+ */
+export async function readRunningSession(
+  database: PgDatabase,
+  routeKey: string,
+  cookieSecret: string,
+): Promise<RunningSession | null> {
+  const result = await database.query<
+    {
+      id: string;
+      upstream_port: number;
+      organization_id: string;
+      principal_id: string;
+    }
+  >(
+    `select p.id, p.upstream_port, p.organization_id, g.principal_id
+       from bakery.preview_sessions s
+       join bakery.preview_grants g
+         on g.organization_id = s.organization_id and g.id = s.grant_id
+       join bakery.previews p
+         on p.organization_id = g.organization_id and p.id = g.preview_id
+       join bakery.job_attempts a
+         on a.organization_id = p.organization_id and a.id = p.attempt_id
+       join bakery.jobs j
+         on j.organization_id = a.organization_id and j.id = a.job_id
+      where s.session_hash = $1
+        and p.route_key = $2
+        and s.revoked_at is null and s.expires_at > now()
+        and g.revoked_at is null
+        and (${STATE}) = 'ready'`,
+    [await sha256Hex(cookieSecret), routeKey],
+  );
+  const row = result.rows[0];
+  return row
+    ? {
+      previewId: row.id,
+      upstreamPort: row.upstream_port,
+      organizationId: row.organization_id,
+      principalId: row.principal_id,
+    }
+    : null;
+}
+
+/**
+ * Whose grant this is, for a grant that could still be exchanged on this
+ * preview's origin, so the grantor can be re-authorized before it is spent.
+ */
+export async function readExchangeableGrantOwner(
+  database: PgDatabase,
+  routeKey: string,
+  grantSecret: string,
+): Promise<{ organizationId: string; principalId: string } | null> {
+  const result = await database.query<
+    { organization_id: string; principal_id: string }
+  >(
+    `select g.organization_id, g.principal_id
+       from bakery.preview_grants g
+       join bakery.previews p
+         on p.organization_id = g.organization_id and p.id = g.preview_id
+      where g.token_hash = $1 and p.route_key = $2
+        and g.consumed_at is null and g.revoked_at is null
+        and g.expires_at > now()`,
+    [await sha256Hex(grantSecret), routeKey],
+  );
+  const row = result.rows[0];
+  return row
+    ? { organizationId: row.organization_id, principalId: row.principal_id }
+    : null;
 }

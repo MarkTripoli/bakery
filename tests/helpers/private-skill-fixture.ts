@@ -13,8 +13,10 @@ import {
  * creates, the second edits workflows and is never their owner. Every call
  * goes through the real app.
  */
-export async function openPersonalSkillFixture() {
-  const fixture = await openAuthFixture();
+export async function openPersonalSkillFixture(
+  options: Parameters<typeof openAuthFixture>[0] = {},
+) {
+  const fixture = await openAuthFixture(options);
   const suffix = crypto.randomUUID();
   const ownerEmail = `skill-owner-${suffix}@example.test`;
   const adminEmail = `skill-admin-${suffix}@example.test`;
