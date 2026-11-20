@@ -90,6 +90,10 @@ export type ReviewFindingListResponse = ClientOutputMap["Page<ReviewFinding>"];
 export type DeliveryDecisionListResponse =
   ClientOutputMap["Page<DeliveryDecision>"];
 export type PullRequestListResponse = ClientOutputMap["Page<PullRequest>"];
+export type MergeAttemptListResponse = ClientOutputMap["Page<MergeAttempt>"];
+export type MergeAttemptResponse = ClientOutputMap["MergeAttempt"];
+export type MergeReconciliationResponse =
+  ClientOutputMap["MergeReconciliation"];
 export type SyncQuery = ClientInputMap["SyncQuery"];
 export type SyncResponse = ClientOutputMap["SyncSnapshot"];
 export type PrincipalIdentity = ClientOutputMap["PrincipalIdentity"];
@@ -1357,6 +1361,36 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<PullRequestListResponse>>;
+  /**
+   * One pull request's merge attempts, newest first. An attempt whose outcome
+   * Bakery does not know reads as `unknown`, so the answer survives a reload.
+   */
+  readonly listMergeAttempts: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeAttemptListResponse>>;
+  /**
+   * Asks Bakery to merge a pull request at the exact head the person saw. The
+   * server re-reads GitHub, checks the results and records the attempt; the
+   * page never chooses the method (it sends the one the pull request served).
+   */
+  readonly mergePullRequest: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly expectedHeadSha: string;
+    readonly expectedBaseSha?: string;
+    readonly mergeMethod: "merge" | "squash" | "rebase";
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeAttemptResponse>>;
+  /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
+  readonly reconcileMergeAttempts: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeReconciliationResponse>>;
   readonly sync: (
     options: SyncQuery & {
       readonly organizationId: string;
@@ -4674,6 +4708,62 @@ export function createBakeryApiClient({
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMergeAttempts(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeAttempts.list"](
+          {
+            pullRequestId: options.pullRequestId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async mergePullRequest(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["pullRequests.merge"](
+          {
+            id: options.pullRequestId,
+            expectedHeadSha: options.expectedHeadSha,
+            ...(options.expectedBaseSha === undefined
+              ? {}
+              : { expectedBaseSha: options.expectedBaseSha }),
+            mergeMethod: options.mergeMethod,
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async reconcileMergeAttempts(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeAttempts.reconcile"](
+          { pullRequestId: options.pullRequestId },
           { signal: options.signal },
         );
         return { ok: true, data };
