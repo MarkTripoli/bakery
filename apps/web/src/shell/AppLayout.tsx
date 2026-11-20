@@ -10,6 +10,7 @@ import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  effectiveAccessQueryOptions,
   installationSettingsQueryOptions,
   organizationQueryOptions,
 } from "../api/query.ts";
@@ -101,6 +102,19 @@ function usePrimaryDestinations(
 ): readonly UI.ApplicationRailItem[] {
   const { translate } = useI18n();
   const workHref = useWorkHref();
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const session = useSession();
+  // Delivery is for whoever may read metrics. The rail asks the server what
+  // this person may do rather than guessing from a role name, so a custom role
+  // that grants metric:read sees it and one that does not never does.
+  const access = useQuery({
+    ...effectiveAccessQueryOptions(api, scope),
+    enabled: !fixture && session.status === "authenticated" &&
+      scope.organizationId !== null,
+  });
+  const canReadMetrics = access.data?.capabilities.includes("metric:read") ??
+    false;
   const soon = fixture ? undefined : translate("shell.navigation.comingSoon");
   const unshipped = (
     id: string,
@@ -221,6 +235,15 @@ function usePrimaryDestinations(
       matchPath: "/projects",
       icon: <UI.IconGlyph name="applications" />,
     },
+    ...(canReadMetrics
+      ? [{
+        id: "delivery",
+        label: translate("shell.navigation.delivery"),
+        href: "/delivery",
+        matchPath: "/delivery",
+        icon: <UI.IconGlyph name="clock" />,
+      }]
+      : []),
     unshipped(
       "sessions",
       translate("shell.navigation.sessionsArea"),
@@ -489,6 +512,9 @@ function usePageTitle(pathname: string): string | undefined {
   if (pathname === "/projects" || pathname.startsWith("/projects/")) {
     return translate("shell.navigation.projects");
   }
+  if (pathname === "/delivery") {
+    return translate("shell.navigation.delivery");
+  }
   if (pathname === INSTALLATION_INTEGRATIONS_PATH) {
     return translate("shell.navigation.installation");
   }
@@ -636,6 +662,7 @@ function ShellFrame() {
     pathname.startsWith("/__fixtures__/settings/");
   const installationSettings = pathname === "/installation/settings" ||
     pathname === "/installation/audit" ||
+    pathname === "/installation/usage" ||
     pathname === INSTALLATION_INTEGRATIONS_PATH ||
     pathname === "/__fixtures__/installation/settings";
   const organizationSettings = ORGANIZATION_FIXTURE_PATHS.includes(pathname);
@@ -721,6 +748,7 @@ function ShellFrame() {
         ? (
           <InstallationSettingsNavigation
             currentPath={pathname === "/installation/audit" ||
+                pathname === "/installation/usage" ||
                 pathname === INSTALLATION_INTEGRATIONS_PATH
               ? pathname
               : "/installation/settings"}

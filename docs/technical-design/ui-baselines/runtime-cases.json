@@ -878,6 +878,20 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.statTile.contract.desktop-light-fine",
+      "catalogId": "ui.statTile",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stattile--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.segmentedBar.contract.desktop-light-fine",
+      "catalogId": "ui.segmentedBar",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-segmentedbar--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.cellStack.contract.dark",
       "catalogId": "ui.cellStack",
       "requiredCaseId": "contract",

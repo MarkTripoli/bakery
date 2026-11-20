@@ -18,20 +18,27 @@ const ORGANIZATION_ID = "00000000-0000-4000-8000-0000000000bb";
 const SESSION_ID = "00000000-0000-4000-8000-0000000000ee";
 const PRINCIPAL_ID = "00000000-0000-4000-8000-0000000000cc";
 
-/** The two backup actions that change state for an administrator. */
+/** The backup actions that change state for an administrator. */
 const SESSION_ONLY_ACTIONS = [
   BackupImplementedAction.BackupsStart,
   BackupImplementedAction.BackupRunnerCredentialIssue,
+  BackupImplementedAction.BackupSchedulePut,
+  BackupImplementedAction.BackupOffsitePut,
+  BackupImplementedAction.BackupOffsiteVerify,
 ] as const;
 
 /** The reads: an administrator may use them with a token. */
 const READ_ACTIONS = [
   BackupImplementedAction.BackupsList,
   BackupImplementedAction.BackupsStatus,
+  BackupImplementedAction.BackupScheduleGet,
+  BackupImplementedAction.BackupOffsiteGet,
 ] as const;
 
 function registry() {
-  return createBackupActionRegistry({} as PgDatabase, "unit-test-secret");
+  return createBackupActionRegistry({} as PgDatabase, "unit-test-secret", {
+    allowLoopbackEndpoint: false,
+  });
 }
 
 function context(over: Partial<ActionContext> = {}): ActionContext {
@@ -78,7 +85,7 @@ async function refusal(
   return "not-refused";
 }
 
-Deno.test("asking for a backup and issuing the runner credential are session-only", () => {
+Deno.test("the backup actions that change state are session-only", () => {
   for (const name of SESSION_ONLY_ACTIONS) {
     assertEquals(registry().get(name).policy.sessionOnly, true, name);
   }
@@ -88,7 +95,7 @@ Deno.test("asking for a backup and issuing the runner credential are session-onl
   }
 });
 
-Deno.test("an MCP caller is refused both actions, before any work", async () => {
+Deno.test("an MCP caller is refused every such action, before any work", async () => {
   for (const name of SESSION_ONLY_ACTIONS) {
     assertEquals(
       await refusal(name, context({ transport: "mcp" })),
@@ -98,7 +105,7 @@ Deno.test("an MCP caller is refused both actions, before any work", async () => 
   }
 });
 
-Deno.test("an access token is refused both actions, before any work", async () => {
+Deno.test("an access token is refused every such action, before any work", async () => {
   const accessToken = {
     id: "00000000-0000-4000-8000-0000000000dd",
     organizationId: ORGANIZATION_ID,
@@ -119,7 +126,7 @@ Deno.test("an access token is refused both actions, before any work", async () =
   }
 });
 
-Deno.test("a call with no session at all is refused both actions", async () => {
+Deno.test("a call with no session at all is refused every such action", async () => {
   for (const name of SESSION_ONLY_ACTIONS) {
     assertEquals(
       await refusal(name, context({ transport: "http" })),

@@ -182,6 +182,8 @@ function fakeApi(
     installationCapabilities: { get: rejecting },
     installationSettings: { get: rejecting, update: rejecting },
     storageSettings: { get: rejecting, put: rejecting },
+    usage: { list: rejecting },
+    metrics: { get: rejecting, sources: rejecting },
     integrationClientCredentials: { get: rejecting, put: rejecting },
     integrationAppRegistrations: {
       get: rejecting,

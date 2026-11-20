@@ -172,6 +172,8 @@ export * from "./molecules/ResourcePicker.tsx";
 export * from "./molecules/SearchField.tsx";
 export * from "./molecules/SegmentedControl.tsx";
 export * from "./molecules/UsageMeter.tsx";
+export * from "./molecules/SegmentedBar.tsx";
+export * from "./molecules/StatTile.tsx";
 export * from "./molecules/StatusStrip.tsx";
 export * from "./molecules/SetupKey.tsx";
 export * from "./molecules/SettingsIndexRow.tsx";
