@@ -72,6 +72,8 @@ import { OrganizationRepositoryRulesPage } from "./pages/OrganizationRepositoryR
 import { RepositoryPage } from "./pages/RepositoryPage.tsx";
 import { RepositoryRulesPage } from "./pages/RepositoryRulesPage.tsx";
 import { OrganizationRolesPage } from "./pages/OrganizationRolesPage.tsx";
+import { PluginPage } from "./pages/PluginPage.tsx";
+import { PluginsPage } from "./pages/PluginsPage.tsx";
 import {
   CONNECTION_ID_PARAMETER,
   CONNECTION_OUTCOME_PARAMETER,
@@ -600,6 +602,18 @@ export const routeCoverage = [
     path: "/settings/organization/roles",
     classification: "production",
     states: ["loading", "default", "error", "forbidden"],
+  },
+  {
+    id: "settings-organization-plugins",
+    path: "/settings/organization/plugins",
+    classification: "production",
+    states: ["loading", "default", "empty", "error"],
+  },
+  {
+    id: "settings-organization-plugin",
+    path: "/settings/organization/plugins/$installId",
+    classification: "production",
+    states: ["loading", "default", "error"],
   },
   {
     id: "settings-organization-repository-rules",
@@ -1561,6 +1575,27 @@ const organizationRolesRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const organizationPluginsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/plugins",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: PluginsPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const organizationPluginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/plugins/$installId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const { installId } = organizationPluginRoute.useParams();
+    return <PluginPage installId={installId} />;
+  },
+  errorComponent: ProtectedRouteError,
+});
+
 const organizationIntegrationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/organization/integrations",
@@ -2279,6 +2314,8 @@ const routeTree = rootRoute.addChildren([
   organizationIntegrationsRoute,
   organizationIntegrationConnectionRoute,
   organizationRolesRoute,
+  organizationPluginsRoute,
+  organizationPluginRoute,
   organizationRepositoryRulesRoute,
   repositoryRoute,
   repositoryRulesRoute,

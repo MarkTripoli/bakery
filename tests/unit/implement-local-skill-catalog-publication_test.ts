@@ -231,7 +231,6 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0233_notification_dedupe_indexes",
       "0234_job_restart_privileges",
       "0235_run_spawned_by",
-      "0237_route_continuation_admission",
       "0239_mentions_and_conversation_access",
       "0240_password_reset_links",
       "0243_organization_groups",
@@ -242,6 +241,8 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0250_storage_purge_requests",
       "0253_artifact_kind_binding",
       "0254_blob_upload_session_blob_fk",
+      "0258_plugin_update_failure",
+      "0265_route_continuation_admission",
     ],
   );
 });
