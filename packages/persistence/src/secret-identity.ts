@@ -561,7 +561,7 @@ export async function prepareIdentityOperation(
        join bakery.secrets secret
          on secret.organization_id = job.organization_id
         and secret.application_id = job.application_id
-        and secret.id = (job.input->>'secretRef')::uuid
+        and secret.id = (job.input->>'identityRef')::uuid
        join bakery.secret_versions version
          on version.organization_id = secret.organization_id
         and version.application_id = secret.application_id
