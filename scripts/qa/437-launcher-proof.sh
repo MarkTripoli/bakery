@@ -53,6 +53,25 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# --- property matching (tested: tests/rails/qa-launcher-proof-is-honest_test.ts) ---
+# systemd renames properties in `systemctl show` output, and the renaming is
+# invisible in the unit file: a unit asks for `RuntimeMaxSec=10s` and shows
+# `RuntimeMaxUSec=10s`, and `CPUQuota=100%` shows as `CPUQuotaPerSecUSec=1s`.
+# A proof that matched only one spelling could never go green on every host, so
+# every check below accepts both and the tests pin that it does.
+has_seconds_cap() { # has_seconds_cap <show output> <seconds>
+  printf '%s\n' "$1" | grep -Eq "^RuntimeMax(Sec|USec)=$2$"
+}
+
+has_cpu_cap() { # has_cpu_cap <show output>: a CPU quota in either spelling
+  printf '%s\n' "$1" | grep -Eq "^CPUQuota(PerSecUSec)?=(1s|1000000|100%)$"
+}
+
+has_exact() { # has_exact <show output> <property> <value>
+  printf '%s\n' "$1" | grep -Eq "^$2=$3$"
+}
+# --- end property matching ---
+
 say "# artifact probe launcher proof"
 say "host: $(uname -srm)"
 say "when: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -98,8 +117,10 @@ step_launcher() {
     systemctl --user show "$unit.service" \
       --property=LoadState --property=ActiveState --property=Result \
       --property=WorkingDirectory \
-      --property=MemoryMax --property=MemorySwapMax --property=RuntimeMaxSec \
-      --property=CPUQuota --property=TasksMax --property=PrivateNetwork \
+      --property=MemoryMax --property=MemorySwapMax \\
+      --property=RuntimeMaxSec --property=RuntimeMaxUSec \\
+      --property=CPUQuota --property=CPUQuotaPerSecUSec --property=TasksMax \\
+      --property=PrivateNetwork \
       --property=NoNewPrivileges --property=ProtectSystem --property=KillMode \
       --property=OOMPolicy --property=IPAddressDeny 2>/dev/null \
       | grep -v '^$' >>"$outdir/unit-properties.txt"
@@ -132,7 +153,7 @@ step_launcher() {
     case "$code" in
       218 | 226)
         say "step 1: systemd could not set up the unit's namespaces on this host"
-        say "        (journal shows why: systemctl --user status bakery-artifact-probe-*)"
+        say "        (journal: systemctl --user status bakery-artifact-probe-*.service)"
         say "result: NOT PROVEN (this host cannot host the sandbox)"
         record "step-1 launcher could start its unit" 1
         exit 2
@@ -146,17 +167,24 @@ step_launcher() {
   # The caps the server declares, checked against what systemd was actually
   # told. A unit that runs uncapped is worse than no unit: it would make the
   # server believe a stranger's file cannot hurt it.
-  local props ok=0
+  local props ok=0 missing=""
   props=$(cat "$outdir/unit-properties.txt")
   local expected_memory=536870912
   local expected_runtime=10s
-  case "$props" in *"MemoryMax=$expected_memory"*) ;; *) ok=1 ;; esac
-  case "$props" in *"RuntimeMaxSec=$expected_runtime"*) ;; *) ok=1 ;; esac
-  case "$props" in *"PrivateNetwork=yes"*) ;; *) ok=1 ;; esac
-  case "$props" in *"NoNewPrivileges=yes"*) ;; *) ok=1 ;; esac
-  case "$props" in *"WorkingDirectory=$repo"*) ;; *) ok=1 ;; esac
-  record "step-1 unit carried MemoryMax/RuntimeMaxSec/PrivateNetwork/NoNewPrivileges/WorkingDirectory" "$ok"
-  [ "$ok" -eq 0 ] || say "step 1: a declared cap was missing (see launch-unit.txt)"
+  has_exact "$props" MemoryMax "$expected_memory" || { ok=1; missing="$missing MemoryMax"; }
+  has_seconds_cap "$props" "$expected_runtime" || { ok=1; missing="$missing RuntimeMax"; }
+  has_cpu_cap "$props" || { ok=1; missing="$missing CPUQuota"; }
+  has_exact "$props" PrivateNetwork yes || { ok=1; missing="$missing PrivateNetwork"; }
+  has_exact "$props" NoNewPrivileges yes || { ok=1; missing="$missing NoNewPrivileges"; }
+  has_exact "$props" WorkingDirectory "$repo" || { ok=1; missing="$missing WorkingDirectory"; }
+  record "step-1 unit carried MemoryMax/RuntimeMax/CPUQuota/PrivateNetwork/NoNewPrivileges/WorkingDirectory" "$ok"
+  if [ "$ok" -ne 0 ]; then
+    say "step 1: the live unit was missing:$missing (see launcher-unit.txt)"
+    say "        This is a defect in this script or in the launcher, not a limit of the host:"
+    say "        the unit started, so the host can host the sandbox."
+    say "result: HARNESS DEFECT — the caps were not observed, so nothing here is proven"
+    exit 1
+  fi
 
   # Saying a property and enforcing it are different claims, and this host shows
   # why: systemd accepted PrivateNetwork=yes here and then logged 'proceeding
@@ -212,7 +240,9 @@ run_victim() {
   {
     printf 'unit: %s\nmode: %s\nexit: %s\n\n' "$unit" "$mode" "$code"
     systemctl --user show "$unit.service" --property=Id --property=Result \
-      --property=ActiveState --property=MemoryMax --property=RuntimeMaxSec \
+      --property=ActiveState --property=MemoryMax \
+      --property=RuntimeMaxSec --property=RuntimeMaxUSec \
+      --property=CPUQuota --property=CPUQuotaPerSecUSec \
       --property=PrivateNetwork 2>&1
     printf '\n--- stdout (tail) ---\n'
     tail -5 "$outdir/victim-$mode-stdout.txt" 2>/dev/null
@@ -228,10 +258,10 @@ say "## step 1: the probe launcher starts a unit with the declared caps"
 if step_launcher; then
   say "step 1: PASS (see launcher-unit.txt, unit-properties.txt)"
 else
-  say "step 1: FAIL (see unit-properties.txt)"
+  say "step 1: FAIL (see launcher-unit.txt)"
   say ""
-  say "## result: NOT PROVEN — the launcher did not produce a capped unit"
-  exit 2
+  say "## result: HARNESS DEFECT — the unit did not carry the declared caps"
+  exit 1
 fi
 
 say ""
