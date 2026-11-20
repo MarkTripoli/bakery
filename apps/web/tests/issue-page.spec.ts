@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
+  chooseFilter,
   issuesFixture,
   type Options,
   ready,
@@ -632,9 +633,7 @@ for (
       }).click();
       await expect(page.getByRole("alertdialog")).toHaveCount(0);
       expect(seen.starts).toEqual([]);
-      await page.getByRole("radio", { name: "All open" }).click({
-        force: true,
-      });
+      await chooseFilter(page, "All open");
       await page.getByRole("button", {
         name: "Open #203 Archive old invoices",
       }).click();

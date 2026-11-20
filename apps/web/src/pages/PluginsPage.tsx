@@ -33,6 +33,7 @@ import {
   InstallDialog,
   VersionChangeDialog,
 } from "./plugins/PluginDialogs.tsx";
+import { OriginDialog } from "./plugins/PluginOrigin.tsx";
 import {
   AvailableList,
   InstalledList,
@@ -81,6 +82,8 @@ export function PluginsPage() {
   const changes = usePluginChanges();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [failure, setFailure] = useState<ChangeFailure | null>(null);
+  /** The version whose "Where it came from" is open over the update dialog. */
+  const [origin, setOrigin] = useState<PluginVersion | null>(null);
   /** Updates that did not start, by install, with the version that was tried. */
   const [failedUpdates, setFailedUpdates] = useState<
     ReadonlyMap<string, string>
@@ -377,8 +380,20 @@ export function PluginsPage() {
             failure={failure}
             onCancel={close}
             onConfirm={() => void doUpdate(updateRow)}
+            onShowOrigin={() =>
+              setOrigin(
+                versionOf(updateRow.packageId, updateRow.update!.versionId) ??
+                  null,
+              )}
           />
         )}
+      {origin === null ? null : (
+        <OriginDialog
+          version={origin}
+          installedOn={false}
+          onClose={() => setOrigin(null)}
+        />
+      )}
     </>
   );
 }
