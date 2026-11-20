@@ -222,6 +222,23 @@ export type FilesOptions = {
   entriesFail?: boolean;
   /** Every folder read after the first page fails. */
   failAfterFirstPage?: boolean;
+  /** More people than one page of 100, to show the Made by filter reads every page. */
+  principalCount?: number;
+  /** An account that was switched off, whose files are still there. */
+  disabledPrincipal?: boolean;
+  /** More kinds than one page of 100, to show the Kind filter reads every page. */
+  kindCount?: number;
+};
+
+/** A list as the server pages it: `limit` at a time, the cursor an offset. */
+const paged = (items: unknown[], url: URL) => {
+  const limit = Number(url.searchParams.get("limit") ?? 100);
+  const offset = Number(url.searchParams.get("cursor") ?? 0);
+  const next = offset + limit;
+  return JSON.stringify({
+    items: items.slice(offset, next),
+    nextCursor: next < items.length ? String(next) : null,
+  });
 };
 
 const page_ = (items: unknown[], nextCursor: string | null = null) =>
@@ -396,6 +413,17 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
         "/library/kinds": [
           item("kinds", "plan", "Plan", "kind", 7004),
           item("kinds", "review", "Review", "kind", 7005),
+          ...Array.from(
+            { length: options.kindCount ?? 0 },
+            (_, n) =>
+              item(
+                "kinds",
+                `kind-${n + 1}`,
+                `Kind ${n + 1}`,
+                "kind",
+                8000 + n + 1,
+              ),
+          ),
         ],
         "/library/workflows": [
           item("workflows", "ship", "Ship a change", "workflow", 7001),
@@ -428,7 +456,7 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           }),
         });
       }
-      return json(route, page_(entries));
+      return json(route, paged(entries, new URL(route.request().url())));
     },
   );
   await page.route(
@@ -436,19 +464,31 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
     (route) =>
       json(
         route,
-        page_([
-          { id: 8800, type: "human", name: "Ana Reyes" },
-          { id: 8801, type: "worker", name: "Build worker" },
-        ].map((principal) => ({
-          id: uuid(principal.id),
-          principalType: principal.type,
-          displayName: principal.name,
-          createdByPrincipalId: null,
-          disabledAt: null,
-          createdAt: STAMP,
-          updatedAt: STAMP,
-          version: 1,
-        }))),
+        paged(
+          [
+            { id: 8800, type: "human", name: "Ana Reyes", off: false },
+            { id: 8801, type: "worker", name: "Build worker", off: false },
+            ...(options.disabledPrincipal
+              ? [{ id: 8802, type: "worker", name: "Old Bot", off: true }]
+              : []),
+            ...Array.from({ length: options.principalCount ?? 0 }, (_, n) => ({
+              id: 9000 + n + 1,
+              type: "human",
+              name: `Person ${n + 1}`,
+              off: false,
+            })),
+          ].map((principal) => ({
+            id: uuid(principal.id),
+            principalType: principal.type,
+            displayName: principal.name,
+            createdByPrincipalId: null,
+            disabledAt: principal.off ? STAMP : null,
+            createdAt: STAMP,
+            updatedAt: STAMP,
+            version: 1,
+          })),
+          new URL(route.request().url()),
+        ),
       ),
   );
   await page.route(

@@ -494,6 +494,38 @@ for (
       await expect(page).not.toHaveURL(/kind=|q=/);
     });
 
+    test("Made by and Kind list every page, a disabled account is marked, and an unlisted one is not shown as an id", async ({ page }) => {
+      await filesFixture(page, {
+        principalCount: 101,
+        kindCount: 101,
+        disabledPrincipal: true,
+      });
+      await page.goto("/files/projects/web-app");
+      await withFilters(page, async (filters) => {
+        const by = filters.getByLabel("Made by");
+        // 101 people beside the three: the last of them is past the first page.
+        await expect(by.locator("option", { hasText: "Person 101" }))
+          .toHaveCount(1);
+        await expect(by.locator("option", { hasText: "Old Bot (disabled)" }))
+          .toHaveCount(1);
+        const kind = filters.getByRole("combobox", { name: "Kind" });
+        await expect(kind.locator("option", { hasText: "Kind 101" }))
+          .toHaveCount(1);
+        await by.selectOption({ label: "Person 101" });
+      });
+      await expect(page).toHaveURL(new RegExp(`by=${uuid(9101)}`));
+      // An id nobody lists reads as a plain word.
+      await page.goto(`/files/projects/web-app?by=${uuid(7777)}`);
+      await withFilters(page, async (filters) => {
+        const by = filters.getByLabel("Made by");
+        await expect(by.locator("option:checked")).toHaveText(
+          "Unknown account",
+        );
+        await expect(by.locator("option", { hasText: uuid(7777) }))
+          .toHaveCount(0);
+      });
+    });
+
     test("the file type filter narrows a search, and Clear search goes back to the folder", async ({ page }) => {
       await filesFixture(page);
       await page.goto("/files/projects/web-app");

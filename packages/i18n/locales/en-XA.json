@@ -5002,5 +5002,7 @@
   "files.filters.show": "⟦Šĥôŵ ŕëšûļŧš ŧë⟧",
   "files.filters.clear": "⟦Çļëàŕ ƒïļŧëŕš ŧë⟧",
   "files.search.by": "⟦Ṁàðë ƀÿ…⟧",
-  "files.search.by.any": "⟦Àñÿôñë…⟧"
+  "files.search.by.any": "⟦Àñÿôñë…⟧",
+  "files.search.by.disabled": "⟦{name} (ðïšàƀļëð) ŧëš⟧",
+  "files.search.by.unknown": "⟦Ûñķñôŵñ àççôûñŧ ŧëš⟧"
 }

@@ -1138,6 +1138,8 @@ export type BakeryApiClient = {
     /** `GET /v1/principals`: the organization's members, service accounts and workers. */
     readonly list: (options: {
       readonly organizationId: string;
+      /** The page after this cursor; omitted for the first. */
+      readonly cursor?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<PrincipalPage>>;
   };
@@ -3518,9 +3520,15 @@ export function createBakeryApiClient({
         try {
           return {
             ok: true,
-            data: await client.actions["principals.list"]({ limit: 100 }, {
-              signal: options.signal,
-            }),
+            data: await client.actions["principals.list"](
+              {
+                limit: 100,
+                ...(options.cursor === undefined
+                  ? {}
+                  : { cursor: options.cursor }),
+              },
+              { signal: options.signal },
+            ),
           };
         } catch (error) {
           return failed(error);

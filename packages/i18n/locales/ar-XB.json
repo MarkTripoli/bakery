@@ -5002,5 +5002,7 @@
   "files.filters.show": "⟪Show results⟫",
   "files.filters.clear": "⟪Clear filters⟫",
   "files.search.by": "⟪Made by⟫",
-  "files.search.by.any": "⟪Anyone⟫"
+  "files.search.by.any": "⟪Anyone⟫",
+  "files.search.by.disabled": "⟪{name} (disabled)⟫",
+  "files.search.by.unknown": "⟪Unknown account⟫"
 }

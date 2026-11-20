@@ -3312,15 +3312,30 @@ export function fileKindsQueryOptions(
     queryKey: protectedQueryKey(scope, "files.library", {
       path: "/library/kinds",
     }),
-    queryFn: async ({ signal }) =>
-      unwrap(
-        await client.files.library(
-          requireOrganization(scope),
-          "/library/kinds",
-          undefined,
-          signal,
-        ),
-      ),
+    // Every page of kinds, so the Kind filter can choose any of them.
+    queryFn: async ({ signal }) => {
+      const organizationId = requireOrganization(scope);
+      let first: LibraryPage | null = null;
+      const items: LibraryPage["items"] = [];
+      let cursor: string | undefined;
+      for (let read = 0; read < FILTER_LIST_MAX_PAGES; read++) {
+        const page = unwrap(
+          await client.files.library(
+            organizationId,
+            "/library/kinds",
+            cursor,
+            signal,
+          ),
+        );
+        first ??= page;
+        items.push(...page.items);
+        if (page.nextCursor === null) {
+          return { ...first, items, nextCursor: null };
+        }
+        cursor = page.nextCursor;
+      }
+      return { ...first!, items, nextCursor: cursor ?? null };
+    },
     enabled: Boolean(scope.organizationId),
     staleTime: 60_000,
     retry: retryNetworkOnce,
@@ -3357,20 +3372,41 @@ export function fileLibraryEntriesQueryOptions(
   });
 }
 
-/** Who can have made a file: the organization's people, workers and service accounts. */
+/**
+ * The most pages a filter list reads. Each page is 100, so this is 5,000 people
+ * or kinds: far past any real organization, and a bound so a server that never
+ * stops answering with a cursor cannot make the page read forever.
+ */
+const FILTER_LIST_MAX_PAGES = 50;
+
+/**
+ * Who can have made a file: the organization's people, workers and service
+ * accounts, every page of them, so the Made by filter can choose anyone.
+ */
 export function filePeopleQueryOptions(
   client: Pick<BakeryApiClient, "principals">,
   scope: ApiScope,
 ) {
   return queryOptions<PrincipalPage, ApiFailure>({
     queryKey: protectedQueryKey(scope, "files.people", {}),
-    queryFn: async ({ signal }) =>
-      unwrap(
-        await client.principals.list({
-          organizationId: requireOrganization(scope),
-          signal,
-        }),
-      ),
+    queryFn: async ({ signal }) => {
+      const organizationId = requireOrganization(scope);
+      let first: PrincipalPage | null = null;
+      const items: PrincipalPage["items"] = [];
+      let cursor: string | undefined;
+      for (let read = 0; read < FILTER_LIST_MAX_PAGES; read++) {
+        const page = unwrap(
+          await client.principals.list({ organizationId, cursor, signal }),
+        );
+        first ??= page;
+        items.push(...page.items);
+        if (page.nextCursor === null) {
+          return { ...first, items, nextCursor: null };
+        }
+        cursor = page.nextCursor;
+      }
+      return { ...first!, items, nextCursor: cursor ?? null };
+    },
     enabled: Boolean(scope.organizationId),
     staleTime: 60_000,
     retry: retryNetworkOnce,
