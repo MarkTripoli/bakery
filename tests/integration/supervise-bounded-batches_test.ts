@@ -409,8 +409,13 @@ Deno.test("batches: ask first starts the first issue, then waits for a person's 
     assertEquals(calls.start.length, 1, "no second issue starts without a yes");
     assertEquals((await batchRow(fx, batchId)).state, "waiting");
 
+    // The person's "start next" (`batches.startNext`) moves a waiting batch back to
+    // running with the yes, in one write; the supervisor does nothing for a waiting one.
     await fx.runtime.query(
-      `update bakery.batches set next_approved = true where id = $1`,
+      `update bakery.batches
+          set state = 'running', next_approved = true,
+              updated_at = now(), version = version + 1
+        where id = $1 and state = 'waiting'`,
       [batchId],
     );
     await superviseBatches(fx.runtime, ports);
