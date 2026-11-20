@@ -884,16 +884,21 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "167d6f712103081750c763063a1e49225738407d",
-    "9d60ae16861322c7425338069d24f9ccb0885089",
-    "1ce09ba92c2007f4837308efdbabfc93baaaff67",
+    "0ab8a30353e2d19599a02affbad1c09f05fcbec6",
   ];
   const approvedDigest =
-    "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1";
+    "sha256:050bbfec6c6d3ccd73991e61264bee8b5d336bfd701d2a73dc9fc1374b2ee3aa";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced when main moved again (#725): the digest follows the tree, so the
+    // earlier one no longer authorises it.
+    "sha256:350a67b467395a98dc007935426ca0ec22397a03e33c236f38510f471d3026d3",
+    // Displaced by the #434 MCP connections re-bind: connection create and update drop
+    // secretId for a write-only secret, and discovery, classification and use grants
+    // add their actions.
+    "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1",
     // The same #57 merge from Bakery change before main moved again (#724): the
     // digest follows the tree, so the earlier one no longer authorises it.
     "sha256:468a1fc65fc3b08483d56cf8108a2d8cb76241bab428558a44b78b723a0d8a53",
