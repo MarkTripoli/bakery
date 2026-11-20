@@ -175,6 +175,8 @@ Deno.test("an off-site destination is a public https origin, a valid bucket and 
     region: "us-east-1",
     bucket: "bakery-backups",
     prefix: "",
+    host: "s3.example.com",
+    loopbackAllowed: false,
   });
   // Plain http is refused outside a test environment, loopback or not.
   assertEquals(
@@ -194,24 +196,8 @@ Deno.test("an off-site destination is a public https origin, a valid bucket and 
     invalidField({ ...base, endpoint: "http://s3.example.com" }, test),
     "endpoint",
   );
-  // Private, loopback and link-local addresses and IPv6 literals are refused.
-  for (
-    const host of [
-      "https://10.0.0.5",
-      "https://192.168.1.10",
-      "https://172.20.0.1",
-      "https://169.254.169.254",
-      "https://127.0.0.1",
-      "https://localhost",
-      "https://[::1]",
-    ]
-  ) {
-    assertEquals(
-      invalidField({ ...base, endpoint: host }, production),
-      "endpoint",
-      host,
-    );
-  }
+  // Which addresses a host may resolve to is the host check's job (dns.ts and
+  // address-policy.ts, tested in backup-destination-dns_test.ts), not the shape's.
   // Credentials, a path, a query or a fragment in the address are refused.
   for (
     const endpoint of [

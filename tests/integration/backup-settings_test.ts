@@ -4,10 +4,12 @@ import { call } from "../helpers/installation-settings.ts";
 import {
   accessKeyId,
   type BackupSettingsFixture,
+  namedHost,
   offsiteBody,
   offsitePath,
   openBackupSettingsFixture,
   type Problem,
+  publicAddress,
   runnerSettingsPath,
   schedulePath,
   secretAccessKey,
@@ -55,6 +57,25 @@ const schedule = {
 };
 
 const problem = async (response: Response) => await response.json() as Problem;
+
+type RunnerAudit = {
+  principal_id: string | null;
+  resource_type: string;
+  resource_id: string;
+  outcome: string;
+  details: Record<string, unknown>;
+};
+
+/** Every audit row the runner's settings reads wrote, oldest first. */
+async function runnerAudit(o: BackupSettingsFixture): Promise<RunnerAudit[]> {
+  return (await o.f.pgDatabase.query<RunnerAudit>(
+    `select principal_id, resource_type, resource_id, outcome, details
+       from bakery.audit_events
+      where operation = 'backupRunner.settings' order by created_at, id`,
+  )).rows;
+}
+const runnerAuditCount = async (o: BackupSettingsFixture) =>
+  (await runnerAudit(o)).length;
 
 async function secretCount(o: BackupSettingsFixture): Promise<number> {
   return Number(
@@ -401,6 +422,7 @@ Deno.test("only the runner credential reads the decrypted settings, and no sessi
   const o = await openBackupSettingsFixture();
   try {
     const credential = await o.issueCredential();
+    const baseline = await runnerAuditCount(o);
     // Nothing saved: schedule defaults, no destination, no credentials.
     const empty = await o.runner(credential, "GET", runnerSettingsPath);
     assertEquals(empty.status, 200, await empty.clone().text());
@@ -409,7 +431,10 @@ Deno.test("only the runner credential reads the decrypted settings, and no sessi
     assertEquals(emptyBody.scheduleEnabled, false);
     assertEquals(emptyBody.offsiteConfigured, false);
     assertEquals(emptyBody.offsiteSecretAccessKey, null);
+    assertEquals(emptyBody.offsiteRefusal, null);
     assertEquals(emptyBody.offsiteVersion, 0);
+    // A read that releases nothing writes no audit row.
+    assertEquals(await runnerAuditCount(o), baseline);
 
     assertEquals((await o.putSchedule(schedule)).status, 200);
     assertEquals((await o.putOffsite(offsiteBody())).status, 200);
@@ -430,6 +455,7 @@ Deno.test("only the runner credential reads the decrypted settings, and no sessi
       offsitePrefix: "prod/",
       offsiteAccessKeyId: accessKeyId,
       offsiteSecretAccessKey: secretAccessKey,
+      offsiteRefusal: null,
       offsiteVersion: 1,
     });
     // No key material of the backups themselves is part of the answer.
@@ -625,6 +651,254 @@ Deno.test("the status goes stale at twice the schedule interval, or seven days w
     assertEquals(await status(), "protected");
     await completedAgo("3 hours");
     assertEquals(await status(), "stale");
+  } finally {
+    await o.finish();
+  }
+});
+
+const named = `https://${namedHost}`;
+
+Deno.test("a save is refused when the host resolves to an address the server may not dial", async () => {
+  const o = await openBackupSettingsFixture();
+  try {
+    const refusal = async (body: Record<string, unknown>) => {
+      const response = await o.putOffsite(body);
+      assertEquals(response.status, 422, await response.clone().text());
+      return (await problem(response)).issues?.[0];
+    };
+    // A private answer, a mixed answer, and the metadata address are all refused.
+    for (
+      const answer of [
+        ["10.0.0.5"],
+        [publicAddress, "10.0.0.5"],
+        ["169.254.169.254"],
+        ["fd00:ec2::254"],
+        ["::ffff:192.168.1.1"],
+        ["100.64.0.1"],
+        ["127.0.0.1"],
+      ]
+    ) {
+      o.setHost(namedHost, answer);
+      const issue = await refusal(offsiteBody({ endpoint: named }));
+      assertEquals(issue?.path, ["endpoint"], answer.join());
+      assertEquals(issue?.code, "destination_private_address", answer.join());
+    }
+    // A literal private address gets the same word, with no lookup at all.
+    const literal = await refusal(
+      offsiteBody({ endpoint: "https://10.0.0.5" }),
+    );
+    assertEquals(literal?.code, "destination_private_address");
+    // A name that cannot be resolved is "unreachable", not "private".
+    o.setHost(namedHost, "unresolvable");
+    assertEquals(
+      (await refusal(offsiteBody({ endpoint: named })))?.code,
+      "destination_unreachable",
+    );
+    // Nothing was called and nothing was stored by any refusal.
+    assertEquals(o.calls.length, 0);
+    assertEquals(await secretCount(o), 0);
+    assertEquals(
+      (await (await o.admin("GET", offsitePath)).json() as Offsite).version,
+      0,
+    );
+
+    // A public answer is saved; the stored host is then held to the policy on
+    // every later save, even one that changes nothing else.
+    o.setHost(namedHost, [publicAddress]);
+    const saved = await o.putOffsite(offsiteBody({ endpoint: named }));
+    assertEquals(saved.status, 200, await saved.clone().text());
+    o.setHost(namedHost, ["10.0.0.5"]);
+    const again = await o.putOffsite(
+      offsiteBody({
+        endpoint: named,
+        accessKeyId: undefined,
+        secretAccessKey: undefined,
+      }),
+      { version: 1 },
+    );
+    assertEquals(again.status, 422, await again.clone().text());
+    assertEquals(
+      (await (await o.admin("GET", offsitePath)).json() as Offsite).version,
+      1,
+    );
+    // The loopback fixture is still allowed in a test environment.
+    o.setHost(namedHost, [publicAddress]);
+    const fixture = await o.putOffsite(
+      offsiteBody({
+        endpoint: "http://127.0.0.1:9000",
+        accessKeyId: undefined,
+        secretAccessKey: undefined,
+      }),
+      { version: 1 },
+    );
+    assertEquals(fixture.status, 200, await fixture.clone().text());
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("sending a test re-checks the saved host, and a re-pointed name is refused without a call", async () => {
+  const o = await openBackupSettingsFixture();
+  try {
+    o.setHost(namedHost, [publicAddress]);
+    assertEquals(
+      (await o.putOffsite(offsiteBody({ endpoint: named }))).status,
+      200,
+    );
+    const callsAfterSave = o.calls.length;
+    const verify = async () =>
+      await (await o.admin("POST", verificationPath, {}, { keyed: true }))
+        .json() as Verification;
+    assertEquals((await verify()).outcome, "verified");
+    assertEquals(o.calls.length, callsAfterSave + 1);
+
+    // Re-pointed at a private address, then a mixed answer: refused, no test sent.
+    for (const answer of [["10.0.0.5"], [publicAddress, "169.254.169.254"]]) {
+      o.setHost(namedHost, answer);
+      const refused = await verify();
+      assertEquals(refused.outcome, "destination_private_address");
+      assert(refused.detail?.includes("may not connect"));
+    }
+    // A name that stopped resolving is unreachable.
+    o.setHost(namedHost, "unresolvable");
+    assertEquals((await verify()).outcome, "destination_unreachable");
+    assertEquals(o.calls.length, callsAfterSave + 1);
+    // Back to a public answer: the test goes through again.
+    o.setHost(namedHost, [publicAddress]);
+    assertEquals((await verify()).outcome, "verified");
+    assertEquals(o.calls.length, callsAfterSave + 2);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("the runner is not given the credentials once the saved name is re-pointed, and every release or refusal is audited", async () => {
+  const o = await openBackupSettingsFixture();
+  try {
+    const credential = await o.issueCredential();
+    const baseline = await runnerAuditCount(o);
+    const mine = async () => (await runnerAudit(o)).slice(baseline);
+    const read = async () => {
+      const response = await o.runner(credential, "GET", runnerSettingsPath);
+      assertEquals(response.status, 200, await response.clone().text());
+      return await response.json() as Record<string, unknown>;
+    };
+    // Nothing saved: nothing released, no audit row.
+    assertEquals((await read()).offsiteConfigured, false);
+    assertEquals((await mine()).length, 0);
+
+    o.setHost(namedHost, [publicAddress]);
+    assertEquals(
+      (await o.putOffsite(offsiteBody({ endpoint: named }))).status,
+      200,
+    );
+    // Released: one audit row, with no principal and no key of any kind.
+    const released = await read();
+    assertEquals(released.offsiteAccessKeyId, accessKeyId);
+    assertEquals(released.offsiteSecretAccessKey, secretAccessKey);
+    assertEquals(released.offsiteRefusal, null);
+    let rows = await mine();
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0].principal_id, null);
+    assertEquals(rows[0].resource_type, "backup_runner_credential");
+    assertEquals(rows[0].resource_id, "backup-runner");
+    assertEquals(rows[0].outcome, "succeeded");
+    assertEquals(rows[0].details, {
+      released: true,
+      generation: 1,
+      bucket: "bakery-backups",
+      region: "us-east-1",
+      endpointHost: namedHost,
+      credentialRevision: 1,
+    });
+
+    // Re-pointed at private addresses: the pair is withheld, the destination
+    // still reads as configured, the refusal is named, and each read is one row.
+    const withheld = async (answer: readonly string[] | "unresolvable") => {
+      o.setHost(namedHost, answer);
+      const body = await read();
+      assertEquals(body.offsiteConfigured, true);
+      assertEquals(body.offsiteAccessKeyId, null);
+      assertEquals(body.offsiteSecretAccessKey, null);
+      assertEquals(body.offsiteEndpoint, named);
+      assertEquals(body.offsiteBucket, "bakery-backups");
+      return body.offsiteRefusal;
+    };
+    assertEquals(await withheld(["10.0.0.5"]), "destination_private_address");
+    assertEquals(
+      await withheld([publicAddress, "169.254.169.254"]),
+      "destination_private_address",
+    );
+    assertEquals(
+      await withheld(["fd00:ec2::254"]),
+      "destination_private_address",
+    );
+    assertEquals(await withheld("unresolvable"), "destination_unresolvable");
+    rows = await mine();
+    assertEquals(rows.length, 5);
+    assertEquals(rows.slice(1).map((r) => r.details.released), [
+      false,
+      false,
+      false,
+      false,
+    ]);
+    assertEquals(
+      rows.slice(1).map((r) => r.details.refusal),
+      [
+        "destination_private_address",
+        "destination_private_address",
+        "destination_private_address",
+        "destination_unresolvable",
+      ],
+    );
+
+    // Back to a public answer: released again.
+    o.setHost(namedHost, [publicAddress]);
+    const back = await read();
+    assertEquals(back.offsiteSecretAccessKey, secretAccessKey);
+    assertEquals((await mine()).length, 6);
+
+    // A saved destination that is no longer a valid one is withheld as invalid.
+    await o.f.pgDatabase.query(
+      "update bakery.backup_offsite_settings set endpoint = 'ftp://nowhere'",
+    );
+    assertEquals(await withheld([publicAddress]), "destination_invalid");
+    assertEquals((await mine()).length, 7);
+
+    // No row and no log line of any read holds a key.
+    const text = JSON.stringify(await mine());
+    assert(!text.includes(accessKeyId) && !text.includes(secretAccessKey));
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("the loopback fixture is released to the runner in a test environment, and no other private address is", async () => {
+  const o = await openBackupSettingsFixture();
+  try {
+    const credential = await o.issueCredential();
+    assertEquals((await o.putOffsite(offsiteBody())).status, 200);
+    const read = async () =>
+      await (await o.runner(credential, "GET", runnerSettingsPath)).json() as {
+        offsiteSecretAccessKey: string | null;
+        offsiteRefusal: string | null;
+      };
+    const fixture = await read();
+    assertEquals(fixture.offsiteSecretAccessKey, secretAccessKey);
+    assertEquals(fixture.offsiteRefusal, null);
+    // The same row pointed at a private (non-loopback) literal is withheld.
+    await o.f.pgDatabase.query(
+      "update bakery.backup_offsite_settings set endpoint = 'http://10.0.0.5:9000'",
+    );
+    const privateRead = await read();
+    assertEquals(privateRead.offsiteSecretAccessKey, null);
+    // http to a non-test host is not a valid destination at all.
+    assert(
+      ["destination_private_address", "destination_invalid"].includes(
+        privateRead.offsiteRefusal ?? "",
+      ),
+      String(privateRead.offsiteRefusal),
+    );
   } finally {
     await o.finish();
   }

@@ -154,6 +154,10 @@ export async function openAuthFixture(options: {
   backupDestinationProbe?: Parameters<
     typeof createApp
   >[0]["backupDestinationProbe"];
+  /** Destination host resolver; tests inject one so none touches real DNS. */
+  backupDestinationResolver?: Parameters<
+    typeof createApp
+  >[0]["backupDestinationResolver"];
   /** Extra runtime environment, such as the server budget policy. */
   env?: Record<string, string>;
 } = {}) {
@@ -267,6 +271,7 @@ export async function openAuthFixture(options: {
       skillFileStore: options.skillFileStore,
       skillStorageProbe: options.skillStorageProbe,
       backupDestinationProbe: options.backupDestinationProbe,
+      backupDestinationResolver: options.backupDestinationResolver,
       emailSend: options.emailSend,
     });
     const originalFetch = app.fetch.bind(app);

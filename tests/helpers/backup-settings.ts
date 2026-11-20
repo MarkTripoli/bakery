@@ -1,4 +1,8 @@
 import { assertEquals } from "@std/assert";
+import {
+  type HostResolver,
+  HostUnresolvable,
+} from "../../apps/server/src/modules/backups/dns.ts";
 import type { probeBackupDestination } from "../../apps/server/src/modules/backups/s3.ts";
 import { authTestOrigin } from "./auth.ts";
 import { call, openInstallationFixture } from "./installation-settings.ts";
@@ -9,6 +13,9 @@ export const schedulePath = "/v1/installation/backup-schedule";
 export const offsitePath = "/v1/installation/backup-offsite";
 export const verificationPath = `${offsitePath}/verification`;
 export const runnerSettingsPath = "/v1/backup-runner/settings";
+/** A destination host that only a steered resolver knows. */
+export const namedHost = "backups.example.test";
+export const publicAddress = "93.184.216.34";
 
 export const accessKeyId = "AKIAFIXTUREACCESSKEY";
 export const secretAccessKey = "fixture/Secret+Access/Key0123456789";
@@ -67,9 +74,21 @@ export async function openBackupSettingsFixture(
     });
     return behave(destination, credentials, signal);
   };
+  // The destination's host names the test steers: what each resolves to, or
+  // that it cannot be resolved. A name with no answer is unresolvable.
+  const hosts = new Map<string, readonly string[] | "unresolvable">();
+  const resolverCalls: string[] = [];
+  const resolve: HostResolver = (hostname) => {
+    resolverCalls.push(hostname);
+    const answer = hosts.get(hostname);
+    return answer === undefined || answer === "unresolvable"
+      ? Promise.reject(new HostUnresolvable())
+      : Promise.resolve(answer);
+  };
   const fixture = await openInstallationFixture(true, {
     secretsKey: { file, keyId: "backup-settings-fixture-key-v1" },
     backupDestinationProbe: options.realProbe ? undefined : probe,
+    backupDestinationResolver: resolve,
   });
   const clear = async () => {
     await fixture.pgDatabase.query("delete from bakery.backup_runs");
@@ -154,8 +173,13 @@ export async function openBackupSettingsFixture(
   return {
     f: fixture,
     calls,
+    resolverCalls,
     setProbe: (next: Probe) => {
       behave = next;
+    },
+    /** What `hostname` resolves to from now on, or "unresolvable". */
+    setHost: (hostname: string, answer: readonly string[] | "unresolvable") => {
+      hosts.set(hostname, answer);
     },
     admin,
     runner,
@@ -180,58 +204,4 @@ export type BackupSettingsFixture = Awaited<
   ReturnType<typeof openBackupSettingsFixture>
 >;
 
-/**
- * A tiny in-process S3-compatible receiver on loopback: path-style PUT, GET and
- * DELETE of objects, with one access key it answers 403 to in the way a real
- * service does (naming the key in its message).
- */
-export function startS3Receiver(options: { rejectKey?: string } = {}) {
-  const objects = new Map<string, Uint8Array<ArrayBuffer>>();
-  const requests: string[] = [];
-  const server = Deno.serve(
-    { hostname: "127.0.0.1", port: 0, onListen: () => {} },
-    async (request) => {
-      const url = new URL(request.url);
-      requests.push(`${request.method} ${url.pathname}`);
-      const authorization = request.headers.get("authorization") ?? "";
-      const used = /Credential=([^/]+)\//.exec(authorization)?.[1] ?? "";
-      if (options.rejectKey !== undefined && used === options.rejectKey) {
-        return new Response(
-          `<?xml version="1.0" encoding="UTF-8"?><Error><Code>InvalidAccessKeyId</Code><Message>The access key ${used} does not exist in our records.</Message></Error>`,
-          { status: 403, headers: { "content-type": "application/xml" } },
-        );
-      }
-      if (request.method === "PUT") {
-        objects.set(
-          url.pathname,
-          new Uint8Array(await request.arrayBuffer()),
-        );
-        return new Response(null, {
-          status: 200,
-          headers: { etag: '"fixture"' },
-        });
-      }
-      if (request.method === "GET") {
-        const body = objects.get(url.pathname);
-        return body === undefined
-          ? new Response("<Error><Code>NoSuchKey</Code></Error>", {
-            status: 404,
-            headers: { "content-type": "application/xml" },
-          })
-          : new Response(body, { status: 200 });
-      }
-      if (request.method === "DELETE") {
-        objects.delete(url.pathname);
-        return new Response(null, { status: 204 });
-      }
-      return new Response(null, { status: 405 });
-    },
-  );
-  const port = (server.addr as Deno.NetAddr).port;
-  return {
-    endpoint: `http://127.0.0.1:${port}`,
-    objects,
-    requests,
-    stop: () => server.shutdown(),
-  };
-}
+export { startS3Receiver } from "./s3-receiver.ts";

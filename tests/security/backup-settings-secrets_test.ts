@@ -5,6 +5,7 @@ import {
   offsiteBody,
   offsitePath,
   openBackupSettingsFixture,
+  runnerSettingsPath,
   schedulePath,
   secretAccessKey,
   verificationPath,
@@ -95,6 +96,21 @@ Deno.test("the credential pair is in no response, audit row, stored plaintext or
         { version: 2 },
       ),
     );
+    // The runner's own read releases the CURRENT pair, by design and to the
+    // runner credential only; that response is not scanned, but the audit row
+    // and every log line it caused are.
+    const credential = await o.issueCredential();
+    const released = await o.runner(credential, "GET", runnerSettingsPath);
+    assertEquals(released.status, 200);
+    const releasedBody = await released.json() as {
+      offsiteSecretAccessKey: string;
+    };
+    assertEquals(releasedBody.offsiteSecretAccessKey, "second/secret/value");
+    const runnerRows = await o.f.pgDatabase.query<{ text: string }>(
+      `select details::text as text from bakery.audit_events
+        where operation = 'backupRunner.settings'`,
+    );
+    assertEquals(runnerRows.rows.length, 1, "one release is one audit row");
     const secrets = [
       accessKeyId,
       secretAccessKey,
