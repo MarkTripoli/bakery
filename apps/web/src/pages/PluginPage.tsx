@@ -449,25 +449,29 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                           {translate("settings.plugins.about.fingerprintHelp")}
                         </UI.HelpTip>
                       </UI.Inline>
-                      <UI.DataText>
-                        {shortFingerprint(current.bundleDigest)}
-                      </UI.DataText>
-                      <CopyValueButton
-                        label={translate("settings.plugins.about.copy")}
-                        value={current.bundleDigest}
-                      />
+                      <UI.Inline gap="compact">
+                        <UI.DataText>
+                          {shortFingerprint(current.bundleDigest)}
+                        </UI.DataText>
+                        <CopyValueButton
+                          label={translate("settings.plugins.about.copy")}
+                          value={current.bundleDigest}
+                        />
+                      </UI.Inline>
                     </UI.Stack>
                     <UI.Text variant="hint">
                       {translate("settings.plugins.about.checked")}
                     </UI.Text>
-                    <UI.Inline gap="compact">
-                      <UI.Button
-                        variant="outline"
-                        onClick={() => setOrigin(current)}
-                      >
-                        {translate("settings.plugins.about.link")}
-                      </UI.Button>
-                    </UI.Inline>
+                    <UI.Link
+                      href="#where-it-came-from"
+                      variant="sentence"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setOrigin(current);
+                      }}
+                    >
+                      {translate("settings.plugins.about.link")}
+                    </UI.Link>
                   </UI.Stack>
                 )}
 

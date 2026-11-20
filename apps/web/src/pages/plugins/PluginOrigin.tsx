@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import * as UI from "@bakery/ui";
 import {
   EVIDENCE_VALUE_LIMIT,
@@ -9,7 +9,22 @@ import {
 } from "../../app/plugins.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 
-/** One of the publisher's own entries: its name as written, its value, cut when long. */
+/** One thing Bakery proved: the check icon, in the success colour, leading the sentence. */
+function CheckedLine({ children }: { readonly children: string }) {
+  return (
+    <UI.DescriptionItem
+      data-testid="origin-checked-line"
+      icon={
+        <UI.Text variant="positive">
+          <UI.IconGlyph name="check" />
+        </UI.Text>
+      }
+      title={<UI.Text>{children}</UI.Text>}
+    />
+  );
+}
+
+/** One of the publisher's own entries: its name as written at the start, its value at the end, cut when long. */
 function StatedRow({ row }: { readonly row: EvidenceRow }) {
   const { translate } = useI18n();
   const [all, setAll] = useState(false);
@@ -18,14 +33,16 @@ function StatedRow({ row }: { readonly row: EvidenceRow }) {
     ? `${row.value.slice(0, EVIDENCE_VALUE_LIMIT)}…`
     : row.value;
   return (
-    <UI.Stack gap="none" data-testid="stated-row">
-      <UI.Text variant="caption">{row.name}</UI.Text>
-      <UI.DataText>{shown}</UI.DataText>
+    <UI.Stack gap="compact" data-testid="stated-row">
+      <UI.Inline variant="between">
+        <UI.Text variant="muted">{row.name}</UI.Text>
+        <UI.DataText>{shown}</UI.DataText>
+      </UI.Inline>
       {long
         ? (
           <UI.Inline gap="compact">
             <UI.Button
-              variant="outline"
+              variant="quiet"
               onClick={() => setAll((previous) => !previous)}
             >
               {all
@@ -39,6 +56,7 @@ function StatedRow({ row }: { readonly row: EvidenceRow }) {
   );
 }
 
+/** Source or Build: a label for the group of entries under it, never a heading. */
 function StatedPart(
   { title, rows, empty }: {
     readonly title: string;
@@ -47,8 +65,8 @@ function StatedPart(
   },
 ) {
   return (
-    <UI.Stack gap="tight">
-      <UI.Heading level="subsection">{title}</UI.Heading>
+    <UI.Stack gap="compact">
+      <UI.Text variant="caption">{title}</UI.Text>
       {rows.length === 0
         ? <UI.Text variant="muted">{empty}</UI.Text>
         : rows.map((row) => <StatedRow key={row.name} row={row} />)}
@@ -70,6 +88,7 @@ export function OriginDialog(
   },
 ) {
   const { translate } = useI18n();
+  const statedHeadingId = useId();
   return (
     <UI.Dialog
       open
@@ -85,38 +104,46 @@ export function OriginDialog(
           <UI.Heading level="subsection">
             {translate("settings.plugins.origin.checkedHeading")}
           </UI.Heading>
-          <UI.Text>
-            {"✓ "}
-            {translate("settings.plugins.origin.matched", {
-              fingerprint: shortFingerprint(version.bundleDigest),
-            })}
-          </UI.Text>
-          {installedOn
-            ? (
-              <UI.Text>
-                {"✓ "}
-                {translate("settings.plugins.origin.works")}
-              </UI.Text>
-            )
-            : null}
+          <UI.DescriptionList>
+            <CheckedLine>
+              {translate("settings.plugins.origin.matched", {
+                fingerprint: shortFingerprint(version.bundleDigest),
+              })}
+            </CheckedLine>
+            {installedOn
+              ? (
+                <CheckedLine>
+                  {translate("settings.plugins.origin.works")}
+                </CheckedLine>
+              )
+              : null}
+          </UI.DescriptionList>
         </UI.Stack>
-        <UI.Stack gap="standard" data-testid="origin-stated">
-          <UI.Heading level="subsection">
+        <UI.Stack gap="compact" data-testid="origin-stated">
+          <UI.Heading level="subsection" id={statedHeadingId}>
             {translate("settings.plugins.origin.statedHeading")}
           </UI.Heading>
-          <UI.Text variant="hint">
-            {translate("settings.plugins.origin.statedCaption")}
-          </UI.Text>
-          <StatedPart
-            title={translate("settings.plugins.origin.source")}
-            rows={evidenceRows(version.sourceEvidence)}
-            empty={translate("settings.plugins.origin.noSource")}
-          />
-          <StatedPart
-            title={translate("settings.plugins.origin.build")}
-            rows={evidenceRows(version.buildEvidence)}
-            empty={translate("settings.plugins.origin.noBuild")}
-          />
+          <UI.InlineNotice
+            tone="neutral"
+            role="group"
+            aria-labelledby={statedHeadingId}
+          >
+            <UI.Stack gap="standard">
+              <UI.Text variant="hint">
+                {translate("settings.plugins.origin.statedCaption")}
+              </UI.Text>
+              <StatedPart
+                title={translate("settings.plugins.origin.source")}
+                rows={evidenceRows(version.sourceEvidence)}
+                empty={translate("settings.plugins.origin.noSource")}
+              />
+              <StatedPart
+                title={translate("settings.plugins.origin.build")}
+                rows={evidenceRows(version.buildEvidence)}
+                empty={translate("settings.plugins.origin.noBuild")}
+              />
+            </UI.Stack>
+          </UI.InlineNotice>
         </UI.Stack>
         <UI.Inline gap="compact">
           <UI.Button variant="secondary" onClick={onClose}>

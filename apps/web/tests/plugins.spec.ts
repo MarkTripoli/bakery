@@ -259,7 +259,13 @@ async function pluginsFixture(
     [DASH]: [
       version(DASH_V1, DASH, "2.0.0", "2026-11-05T00:00:00.000Z", [
         "commands.run",
-      ]),
+      ], {
+        // One part given, one not, and a long value: the other dialog state.
+        source: {
+          repository: "example/dash",
+          notes: "d".repeat(300),
+        },
+      }),
     ],
   };
   await page.route("**/v1/plugin-packages/*/versions**", (route) => {
@@ -508,7 +514,7 @@ for (
       ).toBeVisible();
       await expect(about.getByRole("button", { name: "Copy fingerprint" }))
         .toBeVisible();
-      await about.getByRole("button", { name: "Where it came from" }).click();
+      await about.getByRole("link", { name: "Where it came from" }).click();
 
       const dialog = page.getByTestId("plugin-origin");
       await expect(dialog.getByText("Where version 1.0.0 came from"))
@@ -543,8 +549,13 @@ for (
         .toBeVisible();
       // A publisher writing "passed" is still only a claim.
       await expect(stated.getByText("passed", { exact: true })).toBeVisible();
+      // The check mark is Bakery's alone: an icon on each proven line, none
+      // anywhere in what the publisher says.
+      await expect(checked.getByTestId("origin-checked-line")).toHaveCount(2);
+      const checkMark = 'path[d="m5 12 4 4L19 6"]';
+      await expect(checked.locator(checkMark)).toHaveCount(2);
+      await expect(stated.locator(checkMark)).toHaveCount(0);
       expect(await stated.innerText()).not.toContain("✓");
-      expect(await checked.innerText()).toContain("✓");
 
       // A long value is cut, and "Show all" gives the rest.
       await expect(stated.getByRole("button", { name: "Show all" }))
@@ -561,6 +572,47 @@ for (
       });
       await dialog.getByRole("button", { name: "Close", exact: true }).click();
       await expect(page.getByTestId("plugin-origin")).toHaveCount(0);
+    });
+
+    test("the publisher's details sit in one labelled box; an empty part and a long value stay inside it", async ({ page }) => {
+      await pluginsFixture(page);
+      await page.goto(`/settings/organization/plugins/${DASH_INSTALL}`);
+      await page.getByTestId("plugin-about")
+        .getByRole("link", { name: "Where it came from" }).click();
+      const dialog = page.getByTestId("plugin-origin");
+      const stated = dialog.getByTestId("origin-stated");
+      // One group, named by its heading, not a live region; the caption is its
+      // first line and the Source and Build labels are not headings.
+      const box = stated.getByRole("group", {
+        name: "Stated by the publisher",
+      });
+      await expect(box).toBeVisible();
+      await expect(box.getByText(
+        "Bakery keeps these details as they were given and does not check them.",
+      )).toBeVisible();
+      await expect(stated.getByRole("heading")).toHaveCount(1);
+      await expect(box.getByText("Source", { exact: true })).toBeVisible();
+      await expect(box.getByText("Build", { exact: true })).toBeVisible();
+      await expect(box.getByText("example/dash", { exact: true }))
+        .toBeVisible();
+      // The part that was not given says so inside the box.
+      await expect(box.getByText("The publisher gave no build details."))
+        .toBeVisible();
+      // A long value is cut; Show all is the quietest button and gives the rest.
+      await expect(box.getByRole("button", { name: "Show all" }))
+        .toBeVisible();
+      expect(
+        await box.getByTestId("stated-row").filter({ hasText: /^notes/ })
+          .innerText(),
+      ).not.toContain("d".repeat(300));
+      await box.getByRole("button", { name: "Show all" }).click();
+      await expect(box.getByText("d".repeat(300))).toBeVisible();
+      // Nothing green inside the box: the check mark is Bakery's alone.
+      await expect(box.locator('path[d="m5 12 4 4L19 6"]')).toHaveCount(0);
+      await shot(page, `plugin-origin-partial-${viewport.name}`, [], {
+        windowOnly: true,
+        scrollToEnd: dialog,
+      });
     });
 
     test("the update dialog links to where the new version came from, without claiming it works yet", async ({ page }) => {
