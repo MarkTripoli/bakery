@@ -160,17 +160,18 @@ Deno.test("the query organization is membership-checked and must agree with the 
         "mine",
       );
       // Header and query differ: refused, though each alone names an
-      // organization I belong to.
+      // organization I belong to. With the header alone this
+      // read is served, so only the disagreement refuses it.
       await refused(
         await media(
           fixture,
-          theirsPath + "?organizationId=" + other.organizationId,
+          path + "?organizationId=" + other.organizationId,
           {
             "Bakery-Organization-Id": fixture.organizationId,
           },
         ),
         "RESOURCE_NOT_FOUND",
-        "theirs",
+        "mine",
       );
       // Header and query agree: served.
       assertEquals(
