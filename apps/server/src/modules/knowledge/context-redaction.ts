@@ -16,7 +16,7 @@
  */
 
 /** Identity of the redaction rules; bumps whenever a rule is added or changed. */
-export const CONTEXT_REDACTOR_VERSION = "bakery.redact@3";
+export const CONTEXT_REDACTOR_VERSION = "bakery.redact@5";
 
 /** What replaces a redacted credential. */
 export const REDACTION_MARKER = "[redacted]";
@@ -76,7 +76,24 @@ const TRAILING_PREFIX =
 
 /** Rules that keep the surrounding text and replace only the secret part. */
 const PARTIAL_RULES: readonly { pattern: RegExp; keep: number }[] = [
-  // Authorization headers and bare bearer/basic credentials.
+  // name: value, name = value, "name": "value" for credential-like names. It
+  // runs first so `Authorization: Bearer x` is one credential, not two: the value
+  // may start with its scheme word, which goes with it.
+  {
+    pattern: new RegExp(
+      "(\\b[A-Za-z0-9_.-]{0,40}" + CREDENTIAL_KEY +
+        "[A-Za-z0-9_.-]{0,40}[\"']?[ \\t]*[:=][ \\t]*)" +
+        // A quoted value runs to its closing quote, spaces and all, honouring
+        // backslash escapes and doubled quotes (YAML 'it''s', CSV "a ""b"""). The
+        // closing quote is optional: a value the window cut off, or one longer
+        // than the bound, is redacted to the end of the line rather than leaking
+        // whole. A bare one runs to the next separator.
+        "(?:\"(?:[^\"\\\\\\n]|\\\\.|\"\"){1,2000}\"?|'(?:[^'\\\\\\n]|\\\\.|''){1,2000}'?|(?:(?:Bearer|Basic|Token)[ \\t]+)?[^\\s\"',;}{]{4,300})",
+      "gi",
+    ),
+    keep: 1,
+  },
+  // Bare bearer/basic credentials with no key name before them.
   {
     pattern: /\b((?:Bearer|Basic|Token)[ \t]+)[A-Za-z0-9._~+/=-]{12,}/gi,
     keep: 1,
@@ -85,20 +102,6 @@ const PARTIAL_RULES: readonly { pattern: RegExp; keep: number }[] = [
   {
     pattern:
       /(\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s:/@]{1,100}:)[^\s@/]{1,200}(?=@)/gi,
-    keep: 1,
-  },
-  // name: value, name = value, "name": "value" for credential-like names.
-  {
-    pattern: new RegExp(
-      "(\\b[A-Za-z0-9_.-]{0,40}" + CREDENTIAL_KEY +
-        "[A-Za-z0-9_.-]{0,40}[\"']?[ \\t]*[:=][ \\t]*)" +
-        // A quoted value runs to its closing quote, spaces and all, honouring
-        // backslash escapes. The closing quote is optional: a value the window
-        // cut off, or one longer than the bound, is redacted to the end of the
-        // line rather than leaking whole. A bare one runs to the next separator.
-        "(?:\"(?:[^\"\\\\\\n]|\\\\.){1,2000}\"?|'(?:[^'\\\\\\n]|\\\\.){1,2000}'?|[^\\s\"',;}{]{4,300})",
-      "gi",
-    ),
     keep: 1,
   },
 ];

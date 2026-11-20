@@ -242,8 +242,44 @@ Deno.test("an escaped quote does not end a quoted value early", () => {
   assert(out.includes("and more"));
 });
 
+Deno.test("a doubled quote inside a quoted value does not end it (YAML and CSV)", () => {
+  const cases: Array<[string, string, string]> = [
+    ["secret: 'it''s a long one' and more", "s a long one", "and more"],
+    ['password: "say ""hello world"" now" and more', "hello world", "and more"],
+  ];
+  for (const [line, secret, rest] of cases) {
+    const out = project(line).text!;
+    assertFalse(out.includes(secret), line);
+    assert(out.includes(rest), line);
+  }
+});
+
+Deno.test("an Authorization header is one credential, scheme and all", () => {
+  for (
+    const [line, secret] of [
+      ["Authorization: Bearer abcdefghijklmnop1234", "abcdefghijklmnop1234"],
+      ["Authorization: Basic dXNlcjpwYXNzd29yZA==", "dXNlcjpwYXNzd29yZA=="],
+      [
+        "authorization: token ghx_abcdefghijklmnopqrstuvwx",
+        "ghx_abcdefghijklmnopqrstuvwx",
+      ],
+    ]
+  ) {
+    const result = redactContextText(line);
+    assertFalse(result.text.includes(secret), line);
+    assertEquals(result.count, 1, line);
+    assertEquals(result.text.split(REDACTION_MARKER).length - 1, 1, line);
+    assert(result.text.startsWith(line.split(":")[0] + ":"), line);
+  }
+  // A bare bearer credential keeps its scheme word and counts once.
+  assertEquals(
+    redactContextText("Bearer abcdefghijklmnop1234"),
+    { text: "Bearer " + REDACTION_MARKER, count: 1 },
+  );
+});
+
 Deno.test("the redactor version is pinned, so a rule change cannot ship without bumping it", () => {
-  assertEquals(CONTEXT_REDACTOR_VERSION, "bakery.redact@3");
+  assertEquals(CONTEXT_REDACTOR_VERSION, "bakery.redact@5");
 });
 
 Deno.test("a hostile window cannot make a rule run away", () => {
