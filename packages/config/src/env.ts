@@ -1,3 +1,4 @@
+import { LOCAL_SERVER_HOST, LOCAL_SERVER_PORT } from "./local-server.ts";
 import { z } from "zod";
 import { readSentryConfig, type SentryConfig } from "./sentry.ts";
 import {
@@ -389,8 +390,9 @@ export type RuntimeConfig = {
    */
   draftIsolationLauncher?: DraftIsolationLauncher;
   /**
-   * Where telemetry goes (`BAKERY_TELEMETRY_LOG_DIR`, `BAKERY_OTLP_ENDPOINT`);
-   * server only. Absent means export stays disabled, which is the default.
+   * Where the server writes its rotated telemetry log (`BAKERY_TELEMETRY_LOG_DIR`);
+   * server only. Absent means no log is written. Destinations that receive
+   * measurements are saved in the app, not configured here.
    */
   telemetry?: TelemetrySinkConfig;
 };
@@ -792,11 +794,11 @@ export function readRuntimeConfig(
   const host = readRequiredText(
     env[kind === "server" ? "BAKERY_SERVER_HOST" : "BAKERY_WORKER_HOST"],
     "HOST_INVALID",
-    "127.0.0.1",
+    LOCAL_SERVER_HOST,
   );
   const port = readPort(
     env[kind === "server" ? "BAKERY_SERVER_PORT" : "BAKERY_WORKER_PORT"],
-    kind === "server" ? 8000 : 8001,
+    kind === "server" ? LOCAL_SERVER_PORT : 8001,
   );
   const databaseEnvironmentName = kind === "server"
     ? "BAKERY_APP_DATABASE_URL"

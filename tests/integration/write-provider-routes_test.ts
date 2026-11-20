@@ -212,17 +212,15 @@ Deno.test("provider route writes: the application role cannot rewrite a route's 
     await refused(
       "update bakery.provider_routes set model = 'other' where id = $1",
     );
-    // Circuit state belongs to the probe slice and is not granted here.
-    await refused(
-      "update bakery.provider_routes set health = 'healthy' where id = $1",
-    );
-    await refused(
-      "update bakery.provider_routes set inference_verified_at = now() where id = $1",
-    );
     await refused("delete from bakery.provider_routes where id = $1");
-    // And the columns the writers do own are writable.
+    // And the columns the writers do own are writable: the route commands' region
+    // and, since the probe writers' grant (0228), the circuit state the probe keeps.
     await fixture.fx.appPg.query(
       "update bakery.provider_routes set region = 'eu' where id = $1",
+      [route.id],
+    );
+    await fixture.fx.appPg.query(
+      "update bakery.provider_routes set health = 'healthy', inference_verified_at = now() where id = $1",
       [route.id],
     );
   } finally {

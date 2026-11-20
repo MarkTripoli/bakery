@@ -406,6 +406,21 @@ export async function closeWorkerOrganization(
         where organization_id = $1`,
       [organizationId],
     );
+    // Evaluation rows reference cases, scorers and artifact versions without
+    // cascading; batches take their results and attempts with them.
+    for (
+      const table of [
+        "evaluation_batches",
+        "evaluation_datasets",
+        "evaluation_cases",
+        "evaluation_definitions",
+      ]
+    ) {
+      await pgDatabase.query(
+        `delete from bakery.${table} where organization_id = $1`,
+        [organizationId],
+      );
+    }
     await pgDatabase.query(
       `delete from bakery.artifact_versions
         where organization_id = $1`,
@@ -631,7 +646,7 @@ export async function workerRequest(
   let requestBody = body;
   const mutationPath = path === "/v1/worker/claims" ||
     path === "/v1/worker/heartbeat" ||
-    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|result|session-tools|session-call)$/
+    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|previews|result|session-tools|session-call)$/
       .test(path);
   if (mutationPath) {
     const host = await fixture.pgDatabase.query<{
