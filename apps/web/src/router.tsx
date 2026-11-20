@@ -34,6 +34,8 @@ import { IssuesPage } from "./pages/IssuesPage.tsx";
 import { IssueSettingsListPage } from "./pages/IssueSettingsListPage.tsx";
 import { IssueSettingsPage } from "./pages/IssueSettingsPage.tsx";
 import { LibraryPage } from "./pages/LibraryPage.tsx";
+import { FilesPage } from "./pages/FilesPage.tsx";
+import { folderPathOf } from "./pages/files/files-state.ts";
 import { AgentPage } from "./pages/AgentPage.tsx";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
@@ -201,6 +203,34 @@ export const routeCoverage = [
       "forbidden",
       "conflict",
       "stale",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "files",
+    path: "/files",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "files-folder",
+    path: "/files/$",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
       "offline",
       "long-copy",
     ],
@@ -1150,6 +1180,26 @@ const issueSettingsDetailRoute = createRoute({
     <IssueSettingsPage
       sourceId={issueSettingsDetailRoute.useParams().sourceId}
     />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const filesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <FilesPage path="" />,
+  errorComponent: ProtectedRouteError,
+});
+
+const filesPathRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files/$",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <FilesPage path={folderPathOf(filesPathRoute.useParams()._splat)} />
   ),
   errorComponent: ProtectedRouteError,
 });
@@ -2248,6 +2298,8 @@ const routeTree = rootRoute.addChildren([
   issueSettingsRoute,
   issueSettingsDetailRoute,
   machinesRoute,
+  filesRoute,
+  filesPathRoute,
   libraryRoute,
   workflowRoute,
   workflowEditorRoute,
