@@ -150,6 +150,10 @@ export async function openAuthFixture(options: {
   /** Skill storage verification probe; tests inject one so none reaches R2. */
   skillStorageProbe?: Parameters<typeof createApp>[0]["skillStorageProbe"];
   emailSend?: Parameters<typeof createApp>[0]["emailSend"];
+  /** Telemetry destinations the Monitoring routes manage; tests share a fan-out. */
+  telemetryDestinations?: Parameters<
+    typeof createApp
+  >[0]["telemetryDestinations"];
   /** Extra runtime environment, such as the server budget policy. */
   env?: Record<string, string>;
 } = {}) {
@@ -263,6 +267,7 @@ export async function openAuthFixture(options: {
       skillFileStore: options.skillFileStore,
       skillStorageProbe: options.skillStorageProbe,
       emailSend: options.emailSend,
+      telemetryDestinations: options.telemetryDestinations,
     });
     const originalFetch = app.fetch.bind(app);
     app.fetch = (

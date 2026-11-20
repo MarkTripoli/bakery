@@ -10184,6 +10184,137 @@
       ],
       "description": "Saves the R2 account, bucket and credentials that hold skill bundle objects for this installation. Credentials are write-only and never appear in a response, error, log, trace, event or audit record."
     },
+    "TelemetryDestinationCreate": {
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Which kind of destination this is, as listed by telemetryDestinations.list (for example otlp for OpenTelemetry); it decides which values the destination needs and which measurements it can receive."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Name people see in the list and in alerts, unique across destinations ignoring case."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether the destination receives measurements now; defaults to true. Turning it off keeps its settings and queues nothing for it."
+        },
+        {
+          "name": "measurements",
+          "type": "string[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 6
+          },
+          "description": "The kinds of measurement to send: any of cost, durations, results, skills, health and errors that the destination's kind can take; at least one."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8000
+          },
+          "description": "The destination's settings by field name, as the kind lists them: a string for each. Fields the kind marks secret are write-only and stored encrypted; they are never returned."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session; access tokens are refused. Idempotency-Key is required.",
+        "An unknown kind, a missing required value or a value the kind refuses answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 20 destinations exist; one more answers 409 STATE_CONFLICT. Storing a secret value with no secrets key configured answers 409 STATE_CONFLICT and stores nothing."
+      ],
+      "description": "Adds a telemetry destination: a place Bakery sends the measurements it takes, with its own queue, its own settings and encrypted credentials."
+    },
+    "TelemetryDestinationUpdate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the destination to change; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "New name, unique across destinations ignoring case; omit to keep the current one."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Turns the destination on or off without losing its settings; omit to keep the current state."
+        },
+        {
+          "name": "measurements",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 6
+          },
+          "description": "Replaces the kinds of measurement the destination receives; omit to keep them."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8000
+          },
+          "description": "Only the settings to change, by field name. A secret field supplied here replaces the stored value; one left out keeps it. An empty string clears an optional field."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session. Idempotency-Key and a strong If-Match with the destination's version are required (428 when missing, 412 when stale)."
+      ],
+      "description": "Changes a telemetry destination's name, on or off state, measurements or settings; the stored secret is replaced only when a new one is supplied."
+    },
+    "TelemetryDestinationTest": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": false,
+          "description": "A saved destination whose stored settings and secrets are used for any value not supplied; omit to test values that are not saved."
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "The kind of destination to test when no saved destination is named."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8000
+          },
+          "description": "Unsaved settings to test, by field name; they win over the saved ones. Nothing here is stored or returned."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session. Idempotency-Key is required. The address must be https and not private or local, no redirect is followed, and the test gives up after 10 seconds."
+      ],
+      "description": "Sends one harmless test message to a destination, using unsaved values or a saved destination's own, and reports the destination's real answer."
+    },
     "TicketSourcePersonPath": {
       "fields": [
         {
@@ -28612,6 +28743,125 @@
       "fieldDescriptions": {
         "outcome": "verified when the sentinel round trip matched; not_configured without saved credentials; credentials_rejected when R2 refused the key or signature; access_denied when the token lacks object read, write or delete on the bucket; bucket_not_found when the bucket does not exist; endpoint_unreachable on a network failure or timeout; integrity_failed when the bytes read back differ; provider_error for any other provider failure.",
         "checkedAt": "When the probe finished."
+      }
+    },
+    "TelemetryDestination": {
+      "fields": [
+        "id",
+        "kind",
+        "name",
+        "enabled",
+        "measurements",
+        "settings",
+        "secretFieldsSet",
+        "credentialUpdatedAt",
+        "state",
+        "lastAcceptedAt",
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason",
+        "dropped",
+        "droppedSince",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "kind": "string",
+        "name": "string",
+        "enabled": "boolean",
+        "measurements": "string[]",
+        "settings": "json",
+        "secretFieldsSet": "string[]",
+        "credentialUpdatedAt": "timestamp|null",
+        "state": "enum(working|not_tested_yet|failing|dropping_data|off)",
+        "lastAcceptedAt": "timestamp|null",
+        "lastAnswerAt": "timestamp|null",
+        "lastAnswerOk": "boolean|null",
+        "lastAnswerReason": "string|null",
+        "dropped": "integer",
+        "droppedSince": "timestamp|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "credentialUpdatedAt",
+        "lastAcceptedAt",
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason",
+        "droppedSince"
+      ],
+      "description": "One telemetry destination as an installation administrator may see it, with how it is doing. Secret values are reported only as the names of the fields that are set and when they were last replaced; no value, ciphertext or key identifier is ever returned.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the destination.",
+        "kind": "Which kind of destination this is, for example otlp.",
+        "name": "Name shown in the list and in alerts.",
+        "enabled": "Whether the destination receives measurements now.",
+        "measurements": "The kinds of measurement it receives: cost, durations, results, skills, health, errors.",
+        "settings": "The non-secret values saved for it, by field name.",
+        "secretFieldsSet": "Names of the secret fields that hold a stored value; the values are never returned.",
+        "credentialUpdatedAt": "When its secret values were last replaced, or null when it has none.",
+        "state": "working, not_tested_yet (on, nothing sent yet), failing (the last sends were refused or timed out), dropping_data (its queue overflowed recently) or off.",
+        "lastAcceptedAt": "When it last accepted a batch, or null when it never has since the server started.",
+        "lastAnswerAt": "When it last answered a send, accepted or not, or null.",
+        "lastAnswerOk": "Whether that last answer was an acceptance, or null before any.",
+        "lastAnswerReason": "A short plain reason when the last answer was a refusal, or null.",
+        "dropped": "Records dropped for this destination since the server started.",
+        "droppedSince": "When the first of those was dropped, or null when none were.",
+        "createdAt": "UTC time the destination was added.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Monotonic revision; submit it as If-Match when changing or removing the destination."
+      }
+    },
+    "TelemetryDestinationList": {
+      "fields": [
+        "kinds",
+        "measurements",
+        "destinations"
+      ],
+      "fieldTypes": {
+        "kinds": "json[]",
+        "measurements": "json[]",
+        "destinations": "json[]"
+      },
+      "nullableFields": [],
+      "description": "Everything the Monitoring page needs about destinations in one read: the kinds the server can deliver to with their fields, the six kinds of measurement, and the destinations that exist (at most 20) with their state.",
+      "fieldDescriptions": {
+        "kinds": "Each kind of destination: its identifier, label, fields (name, label, help, secret, required), the measurements it can take and why any it cannot take is unavailable.",
+        "measurements": "The six kinds of measurement, each with its identifier, label and one line of help.",
+        "destinations": "The destinations, oldest first, each shaped as a TelemetryDestination."
+      }
+    },
+    "TelemetryDestinationTestResult": {
+      "fields": [
+        "ok",
+        "status",
+        "reason",
+        "answer",
+        "tookMs"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "status": "integer|null",
+        "reason": "string|null",
+        "answer": "string|null",
+        "tookMs": "integer"
+      },
+      "nullableFields": [
+        "status",
+        "reason",
+        "answer"
+      ],
+      "description": "The destination's real answer to one test message: whether it accepted it, its HTTP status, a short plain reason when it did not, a bounded piece of what it said and how long it took.",
+      "fieldDescriptions": {
+        "ok": "True only when the destination accepted the test message.",
+        "status": "The destination's HTTP status, or null when it never answered.",
+        "reason": "A short plain reason when it did not accept, or null.",
+        "answer": "At most 300 characters of what it answered, or null; never a credential.",
+        "tookMs": "Milliseconds the test took."
       }
     },
     "IntegrationAppManifestStart": {
