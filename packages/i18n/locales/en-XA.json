@@ -5018,5 +5018,7 @@
   "files.search.none.filters.folder": "⟦Ŧŕÿ àñôŧĥëŕ ƒïļŧëŕ, ôŕ Àļļ ƒïļëš. ŧëšŧ çôþÿ⟧",
   "files.search.none.filters.all": "⟦Ŧŕÿ àñôŧĥëŕ ƒïļŧëŕ. ŧëšŧ⟧",
   "files.search.none.both.folder": "⟦Ŧŕÿ ƒëŵëŕ ļëŧŧëŕš, àñôŧĥëŕ ƒïļŧëŕ, ôŕ Àļļ ƒïļëš. ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "files.search.none.both.all": "⟦Ŧŕÿ ƒëŵëŕ ļëŧŧëŕš ôŕ àñôŧĥëŕ ƒïļŧëŕ. ŧëšŧ çôþÿŧ⟧"
+  "files.search.none.both.all": "⟦Ŧŕÿ ƒëŵëŕ ļëŧŧëŕš ôŕ àñôŧĥëŕ ƒïļŧëŕ. ŧëšŧ çôþÿŧ⟧",
+  "files.search.by.unknown": "⟦Ûñķñôŵñ àççôûñŧ ŧëš⟧",
+  "files.search.by.disabled": "⟦{name} (ïñàçŧïṽë) ŧëš⟧"
 }

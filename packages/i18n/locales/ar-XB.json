@@ -5018,5 +5018,7 @@
   "files.search.none.filters.folder": "⟪Try another filter, or All files.⟫",
   "files.search.none.filters.all": "⟪Try another filter.⟫",
   "files.search.none.both.folder": "⟪Try fewer letters, another filter, or All files.⟫",
-  "files.search.none.both.all": "⟪Try fewer letters or another filter.⟫"
+  "files.search.none.both.all": "⟪Try fewer letters or another filter.⟫",
+  "files.search.by.unknown": "⟪Unknown account⟫",
+  "files.search.by.disabled": "⟪{name} (inactive)⟫"
 }

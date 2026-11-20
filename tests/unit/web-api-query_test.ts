@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import type { BakeryApiClient } from "../../apps/web/src/api/client.ts";
 import { protectedQueryKey } from "../../apps/web/src/app/query-scope.ts";
 import {
+  readAllPages,
   readinessQueryOptions,
   runControlCapabilitiesQueryOptions,
   runQueryOptions,
@@ -390,4 +391,38 @@ Deno.test("task filter keys isolate pages and every authority generation", () =>
       .queryKey[2],
     "org-b",
   );
+});
+
+Deno.test("readAllPages joins every page and ends on a null cursor", async () => {
+  const pages: Record<string, { items: string[]; nextCursor: string | null }> =
+    {
+      first: { items: ["a", "b"], nextCursor: "second" },
+      second: { items: ["c"], nextCursor: "third" },
+      third: { items: ["d"], nextCursor: null },
+    };
+  const asked: (string | undefined)[] = [];
+  const all = await readAllPages((cursor) => {
+    asked.push(cursor);
+    return Promise.resolve({
+      ok: true as const,
+      data: pages[cursor ?? "first"]!,
+    });
+  });
+  assertEquals(all.items, ["a", "b", "c", "d"]);
+  assertEquals(all.nextCursor, null);
+  assertEquals(asked, [undefined, "second", "third"]);
+});
+
+Deno.test("readAllPages keeps the cursor still owed when its bound cuts the read short", async () => {
+  let reads = 0;
+  const all = await readAllPages(() => {
+    reads += 1;
+    return Promise.resolve({
+      ok: true as const,
+      data: { items: [reads], nextCursor: `cursor-${reads}` },
+    });
+  });
+  assertEquals(reads, 50);
+  assertEquals(all.items.length, 50);
+  assertEquals(all.nextCursor, "cursor-50");
 });

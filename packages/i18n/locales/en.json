@@ -4690,6 +4690,8 @@
   "files.filters.clear": "Clear filters",
   "files.search.by": "Made by",
   "files.search.by.any": "Anyone",
+  "files.search.by.disabled": "{name} (inactive)",
+  "files.search.by.unknown": "Unknown account",
   "files.file.missing": "That file is not in this folder. It may have been moved or removed, or you may not have access to it.",
   "files.file.finding": "Finding that file…",
   "files.size.none": "—",

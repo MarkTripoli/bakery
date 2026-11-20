@@ -543,6 +543,58 @@ for (
       await expect(page).not.toHaveURL(/fact=|kind=/);
     });
 
+    test("Made by and Kind list every page, an inactive account is marked, and an unlisted one is not shown as an id", async ({ page }) => {
+      await filesFixture(page, {
+        principalCount: 101,
+        kindCount: 101,
+        disabledPrincipal: true,
+      });
+      await page.goto("/files/projects/web-app");
+      await withFilters(page, async (filters) => {
+        const by = filters.getByLabel("Made by");
+        // 101 people beside the three: the last of them is past the first page.
+        await expect(by.locator("option", { hasText: "Person 101" }))
+          .toHaveCount(1);
+        await expect(by.locator("option", { hasText: "Old Bot (inactive)" }))
+          .toHaveCount(1);
+        const kind = filters.getByRole("combobox", { name: "Kind" });
+        await expect(kind.locator("option", { hasText: "Kind 101" }))
+          .toHaveCount(1);
+        await by.selectOption({ label: "Person 101" });
+      });
+      await expect(page).toHaveURL(new RegExp(`by=${uuid(9101)}`));
+      // An id nobody lists reads as a plain word.
+      await page.goto(`/files/projects/web-app?by=${uuid(7777)}`);
+      await withFilters(page, async (filters) => {
+        const by = filters.getByLabel("Made by");
+        await expect(by.locator("option:checked")).toHaveText(
+          "Unknown account",
+        );
+        await expect(by.locator("option", { hasText: uuid(7777) }))
+          .toHaveCount(0);
+        if (viewport.name === "phone") {
+          await still(page, "files-filters-by-unknown-sheet");
+        }
+      });
+      if (viewport.name !== "phone") {
+        await page.mouse.move(700, 700);
+        await still(page, "files-filters-by-unknown");
+      }
+      // The inactive account, chosen: it keeps its name, marked.
+      await page.goto(`/files/projects/web-app?by=${uuid(8802)}`);
+      await withFilters(page, async (filters) => {
+        await expect(filters.getByLabel("Made by").locator("option:checked"))
+          .toHaveText("Old Bot (inactive)");
+        if (viewport.name === "phone") {
+          await still(page, "files-filters-by-inactive-sheet");
+        }
+      });
+      if (viewport.name !== "phone") {
+        await page.mouse.move(700, 700);
+        await still(page, "files-filters-by-inactive");
+      }
+    });
+
     test("the file type filter narrows a search, and Clear search goes back to the folder", async ({ page }) => {
       await filesFixture(page);
       await page.goto("/files/projects/web-app");

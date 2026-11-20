@@ -110,21 +110,30 @@ export function FileSearchControls(
   ) {
     factOptions.push({ value: state.fact, label: state.fact });
   }
-  const principals = (people.data?.items ?? []).filter((item) =>
-    item.disabledAt === null
-  );
+  // Everyone who can have made a file, disabled accounts included: their files
+  // are still there to find, so they are listed and marked, not hidden.
+  const principals = people.data?.items ?? [];
   const byOptions = [
     { value: "", label: translate("files.search.by.any") },
     ...[
       ...principals.filter((item) => item.principalType === "human"),
       ...principals.filter((item) => item.principalType !== "human"),
-    ].map((item) => ({ value: item.id, label: item.displayName })),
+    ].map((item) => ({
+      value: item.id,
+      label: item.disabledAt === null
+        ? item.displayName
+        : translate("files.search.by.disabled", { name: item.displayName }),
+    })),
   ];
   if (
     state.by !== undefined &&
     !byOptions.some((option) => option.value === state.by)
   ) {
-    byOptions.push({ value: state.by, label: state.by });
+    // An id nobody lists (an account that is gone): a plain word, never the id.
+    byOptions.push({
+      value: state.by,
+      label: translate("files.search.by.unknown"),
+    });
   }
   const [text, setText] = useState(state.q);
   useEffect(() => setText(state.q), [state.q]);

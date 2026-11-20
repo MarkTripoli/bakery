@@ -3329,6 +3329,49 @@ export function fileFactsQueryOptions(
   });
 }
 
+/**
+ * The most pages a filter list reads. Each page is 100, so this is 5,000 people
+ * or kinds: far past any real organization, and a bound so a server that never
+ * stops answering with a cursor cannot make the page read forever.
+ */
+const FILTER_LIST_MAX_PAGES = 50;
+
+/**
+ * Every page of a cursor-paged list, joined into one page. Bounded by
+ * FILTER_LIST_MAX_PAGES; when the bound is hit the page keeps its cursor, so
+ * the cut is visible rather than silent.
+ */
+export async function readAllPages<
+  Item,
+  Page extends {
+    readonly items: readonly Item[];
+    readonly nextCursor: string | null;
+  },
+>(
+  read: (cursor: string | undefined) => Promise<ApiResult<Page>>,
+): Promise<
+  Omit<Page, "items" | "nextCursor"> & {
+    items: Item[];
+    nextCursor: string | null;
+  }
+> {
+  let first: Page | null = null;
+  const items: Item[] = [];
+  let cursor: string | undefined;
+  let next: string | null = null;
+  for (let pages = 0; pages < FILTER_LIST_MAX_PAGES; pages++) {
+    const page: Page = unwrap(await read(cursor));
+    first ??= page;
+    items.push(...page.items);
+    next = page.nextCursor;
+    if (next === null) break;
+    cursor = next;
+  }
+  // null once the last page was read; the cursor still owed when the bound cut
+  // the read short.
+  return { ...first!, items, nextCursor: next };
+}
+
 /** The kinds of document the organization has, by name, for the Kind filter. */
 export function fileKindsQueryOptions(
   client: Pick<BakeryApiClient, "files">,
@@ -3338,15 +3381,13 @@ export function fileKindsQueryOptions(
     queryKey: protectedQueryKey(scope, "files.library", {
       path: "/library/kinds",
     }),
-    queryFn: async ({ signal }) =>
-      unwrap(
-        await client.files.library(
-          requireOrganization(scope),
-          "/library/kinds",
-          undefined,
-          signal,
-        ),
-      ),
+    // Every page of kinds, so the Kind filter can choose any of them.
+    queryFn: ({ signal }) => {
+      const organizationId = requireOrganization(scope);
+      return readAllPages((cursor) =>
+        client.files.library(organizationId, "/library/kinds", cursor, signal)
+      );
+    },
     enabled: Boolean(scope.organizationId),
     staleTime: 60_000,
     retry: retryNetworkOnce,
@@ -3383,20 +3424,22 @@ export function fileLibraryEntriesQueryOptions(
   });
 }
 
-/** Who can have made a file: the organization's people, workers and service accounts. */
+/**
+ * Who can have made a file: the organization's people, workers and service
+ * accounts, every page of them, so the Made by filter can choose anyone.
+ */
 export function filePeopleQueryOptions(
   client: Pick<BakeryApiClient, "principals">,
   scope: ApiScope,
 ) {
   return queryOptions<PrincipalPage, ApiFailure>({
     queryKey: protectedQueryKey(scope, "files.people", {}),
-    queryFn: async ({ signal }) =>
-      unwrap(
-        await client.principals.list({
-          organizationId: requireOrganization(scope),
-          signal,
-        }),
-      ),
+    queryFn: ({ signal }) => {
+      const organizationId = requireOrganization(scope);
+      return readAllPages((cursor) =>
+        client.principals.list({ organizationId, cursor, signal })
+      );
+    },
     enabled: Boolean(scope.organizationId),
     staleTime: 60_000,
     retry: retryNetworkOnce,
