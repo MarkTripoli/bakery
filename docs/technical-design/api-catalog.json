@@ -2868,6 +2868,223 @@
     },
     {
       "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skills/{id}/used-by",
+      "action": "skills.usedBy",
+      "access": "Developer",
+      "permission": "skill:read",
+      "input": "CursorQuery",
+      "output": "Page<SkillUsage>",
+      "event": "",
+      "mcp": "bakery_skills_usedBy",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/draft",
+      "action": "skillDrafts.open",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": null,
+      "idempotency": "natural; the same draft comes back",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skills/{id}/draft",
+      "action": "skillDrafts.get",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "PATCH",
+      "path": "/v1/skills/{id}/draft",
+      "action": "skillDrafts.update",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftUpdate",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "DELETE",
+      "path": "/v1/skills/{id}/draft",
+      "action": "skillDrafts.discard",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/draft/check",
+      "action": "skillDrafts.check",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "SkillDraftCheck",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/draft/files",
+      "action": "skillDraftFiles.save",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftFileSave",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "BODY_TOO_LARGE"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skills/{id}/draft/files/{fileId}",
+      "action": "skillDraftFiles.get",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftFilePath",
+      "output": "SkillDraftFile",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "method": "DELETE",
+      "path": "/v1/skills/{id}/draft/files/{fileId}",
+      "action": "skillDraftFiles.delete",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillDraftFilePath",
+      "output": "SkillDraft",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
       "access": "Owner for personal; Admin for organization",
       "permission": "skill:author",
       "mcp": null,
@@ -5688,7 +5905,7 @@
       "action": "previews.list",
       "access": "Developer",
       "permission": "preview:read",
-      "input": "TaskQuery",
+      "input": "PreviewQuery",
       "output": "Page<Preview>",
       "event": "",
       "mcp": "bakery_previews_list",
@@ -5697,9 +5914,11 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Workers",
@@ -5712,16 +5931,86 @@
       "output": "PreviewAccessResult",
       "event": "",
       "mcp": null,
-      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "idempotency": "Not replayed: every call issues a fresh one-use grant, and the grant is never stored in a replayable response",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
+      "access": "Developer",
+      "event": "",
+      "mcp": null,
+      "method": "POST",
+      "path": "/v1/previews/{id}/stop",
+      "action": "previews.stop",
+      "permission": "preview:access",
+      "input": "IdPath",
+      "output": "Preview",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
+      "access": "Developer",
+      "event": "",
+      "mcp": null,
+      "method": "DELETE",
+      "path": "/v1/preview-grants/{id}",
+      "action": "previews.revokeAccess",
+      "permission": "preview:access",
+      "input": "IdPath",
+      "output": "NoContent",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
+      "access": "Developer",
+      "event": "",
+      "mcp": null,
+      "method": "GET",
+      "path": "/v1/preview-availability",
+      "action": "previews.availability",
+      "permission": "preview:read",
+      "input": "Empty",
+      "output": "PreviewAvailability",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Worker protocol",
@@ -6059,6 +6348,26 @@
       "organizationContext": "required_authenticated_context"
     },
     {
+      "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/files/facts",
+      "action": "files.facts",
+      "access": "Developer",
+      "permission": "artifact:read",
+      "input": "FileFactQuery",
+      "output": "Page<FileFact>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
       "group": "Library",
       "method": "GET",
       "path": "/v1/files/library",
@@ -6237,6 +6546,28 @@
         "UNPROCESSABLE",
         "MALFORMED_REQUEST",
         "ARTIFACT_CONTENT_EXPIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Artifacts",
+      "method": "POST",
+      "path": "/v1/context-packs",
+      "action": "contextPacks.build",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "ContextPackBuild",
+      "output": "ContextPack",
+      "event": "",
+      "mcp": "bakery_contextPacks_build",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "UNPROCESSABLE",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context"
     },
@@ -6849,8 +7180,35 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
-      ]
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/metrics/sources",
+      "action": "metrics.sources",
+      "access": "Developer",
+      "permission": "metric:read",
+      "input": "MetricSourcesQuery",
+      "output": "Page<MetricSource>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",
@@ -6868,9 +7226,11 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",
@@ -6888,11 +7248,14 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",
@@ -6910,9 +7273,11 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",
@@ -6930,11 +7295,14 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",
@@ -6997,6 +7365,204 @@
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ]
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "POST",
+      "path": "/v1/evaluation-datasets",
+      "action": "evaluationDatasets.create",
+      "access": "Developer",
+      "permission": "evaluationCase:write",
+      "input": "EvaluationDatasetCreate",
+      "output": "EvaluationDataset",
+      "idempotency": "Idempotency-Key required"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-datasets",
+      "action": "evaluationDatasets.list",
+      "access": "Developer",
+      "permission": "evaluationCase:read",
+      "input": "CursorQuery",
+      "output": "Page<EvaluationDataset>",
+      "idempotency": "Read; opaque cursor pagination"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "POST",
+      "path": "/v1/evaluation-batches",
+      "action": "evaluationBatches.create",
+      "access": "Developer",
+      "permission": "evaluationRun:write",
+      "input": "EvaluationBatchCreate",
+      "output": "EvaluationBatch",
+      "idempotency": "Idempotency-Key required"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-batches",
+      "action": "evaluationBatches.list",
+      "access": "Developer",
+      "permission": "evaluationRun:read",
+      "input": "CursorQuery",
+      "output": "Page<EvaluationBatch>",
+      "idempotency": "Read; opaque cursor pagination"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-batches/{id}",
+      "action": "evaluationBatches.get",
+      "access": "Developer",
+      "permission": "evaluationRun:read",
+      "input": "Empty",
+      "output": "EvaluationBatch",
+      "idempotency": "Read"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "POST",
+      "path": "/v1/evaluation-batches/{id}/cancel",
+      "action": "evaluationBatches.cancel",
+      "access": "Developer",
+      "permission": "evaluationRun:write",
+      "input": "EvaluationBatchCancel",
+      "output": "EvaluationBatch",
+      "idempotency": "Idempotency-Key required; If-Match required"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-batches/{id}/compare",
+      "action": "evaluationBatches.compare",
+      "access": "Developer",
+      "permission": "evaluationResult:read",
+      "input": "EvaluationCompareQuery",
+      "output": "EvaluationComparison",
+      "idempotency": "Read"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-batches/{id}/results",
+      "action": "evaluationBatchResults.list",
+      "access": "Developer",
+      "permission": "evaluationResult:read",
+      "input": "EvaluationResultQuery",
+      "output": "Page<EvaluationBatchResult>",
+      "idempotency": "Read; opaque cursor pagination"
+    },
+    {
+      "group": "Observation",
+      "event": "",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "method": "GET",
+      "path": "/v1/evaluation-results/{id}/attempts",
+      "action": "evaluationAttempts.list",
+      "access": "Developer",
+      "permission": "evaluationResult:read",
+      "input": "CursorQuery",
+      "output": "Page<EvaluationAttempt>",
+      "idempotency": "Read; opaque cursor pagination"
     },
     {
       "group": "Sync",
@@ -8394,6 +8960,145 @@
       ]
     },
     {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/telemetry-destinations",
+      "action": "telemetryDestinations.list",
+      "access": "Installation administrator",
+      "permission": "installationSetting:read",
+      "input": "Empty",
+      "output": "TelemetryDestinationList",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/telemetry-destinations",
+      "action": "telemetryDestinations.create",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "TelemetryDestinationCreate",
+      "output": "TelemetryDestination",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Installation administration",
+      "method": "PATCH",
+      "path": "/v1/installation/telemetry-destinations/{id}",
+      "action": "telemetryDestinations.update",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "TelemetryDestinationUpdate",
+      "output": "TelemetryDestination",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Installation administration",
+      "method": "DELETE",
+      "path": "/v1/installation/telemetry-destinations/{id}",
+      "action": "telemetryDestinations.delete",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/telemetry-destination-tests",
+      "action": "telemetryDestinations.test",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "TelemetryDestinationTest",
+      "output": "TelemetryDestinationTestResult",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
       "group": "Blobs",
       "method": "POST",
       "path": "/v1/blobs/uploads",
@@ -8745,6 +9450,7 @@
       "access": "Developer",
       "permission": "artifactVersion:read",
       "organizationContext": "required_authenticated_context",
+      "organizationIdQuery": "organizationId",
       "input": "StorageFileContentQuery",
       "output": "BinaryArtifact",
       "event": "",

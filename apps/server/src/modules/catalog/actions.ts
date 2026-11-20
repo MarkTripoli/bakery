@@ -62,6 +62,42 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
   ) => Promise<z.output<typeof contractSchemas["Page<SkillUseGrant>"]>>;
+  openSkillDraft: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillDraft>>;
+  getSkillDraft: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillDraft>>;
+  updateSkillDraft: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillDraftUpdate>,
+  ) => Promise<z.output<typeof contractSchemas.SkillDraft>>;
+  discardSkillDraft: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<null>;
+  checkSkillDraft: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillDraftCheck>>;
+  saveSkillDraftFile: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillDraftFileSave>,
+  ) => Promise<z.output<typeof contractSchemas.SkillDraft>>;
+  getSkillDraftFile: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillDraftFilePath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillDraftFile>>;
+  deleteSkillDraftFile: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillDraftFilePath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillDraft>>;
+  listSkillUsage: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.CursorQuery>,
+  ) => Promise<z.output<typeof contractSchemas["Page<SkillUsage>"]>>;
   deleteSkillUseGrant: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.IdPath>,
@@ -239,6 +275,96 @@ export function createCatalogActionRegistry(
       access: ActionAccess.OwnerForPersonalAdminForOrganization,
     },
     handler: handlers.listSkillUseGrants,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillsUsedBy,
+    method: HttpMethod.Get,
+    path: "/v1/skills/:id/used-by",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<SkillUsage>"],
+    policy: queryPolicy,
+    handler: handlers.listSkillUsage,
+  });
+  // The skill's authoring draft. Its author is the owner of a personal skill or
+  // an Admin for an organization one; the handlers decide which from the skill.
+  const draftAccess = ActionAccess.OwnerForPersonalAdminForOrganization;
+  registry.register({
+    name: CatalogImplementedAction.SkillDraftsOpen,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/draft",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.SkillDraft,
+    successStatus: 200,
+    policy: { ...commandPolicy, access: draftAccess },
+    handler: handlers.openSkillDraft,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillDraftsGet,
+    method: HttpMethod.Get,
+    path: "/v1/skills/:id/draft",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.SkillDraft,
+    policy: { ...queryPolicy, access: draftAccess },
+    handler: handlers.getSkillDraft,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillDraftsUpdate,
+    method: HttpMethod.Patch,
+    path: "/v1/skills/:id/draft",
+    input: contractSchemas.SkillDraftUpdate,
+    output: contractSchemas.SkillDraft,
+    policy: { ...commandPolicy, access: draftAccess },
+    handler: handlers.updateSkillDraft,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillDraftsDiscard,
+    method: HttpMethod.Delete,
+    path: "/v1/skills/:id/draft",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.NoContent,
+    explicitIdempotency: "key-and-if-match",
+    policy: { ...commandPolicy, access: draftAccess },
+    handler: handlers.discardSkillDraft,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillDraftsCheck,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/draft/check",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.SkillDraftCheck,
+    successStatus: 200,
+    policy: { ...commandPolicy, access: draftAccess },
+    handler: handlers.checkSkillDraft,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillDraftFilesSave,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/draft/files",
+    input: contractSchemas.SkillDraftFileSave,
+    output: contractSchemas.SkillDraft,
+    successStatus: 200,
+    explicitIdempotency: "key-and-if-match",
+    policy: { ...commandPolicy, access: draftAccess },
+    handler: handlers.saveSkillDraftFile,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillDraftFilesGet,
+    method: HttpMethod.Get,
+    path: "/v1/skills/:id/draft/files/:fileId",
+    input: contractSchemas.SkillDraftFilePath,
+    output: contractSchemas.SkillDraftFile,
+    policy: { ...queryPolicy, access: draftAccess },
+    handler: handlers.getSkillDraftFile,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillDraftFilesDelete,
+    method: HttpMethod.Delete,
+    path: "/v1/skills/:id/draft/files/:fileId",
+    input: contractSchemas.SkillDraftFilePath,
+    output: contractSchemas.SkillDraft,
+    explicitIdempotency: "key-and-if-match",
+    policy: { ...commandPolicy, access: draftAccess },
+    handler: handlers.deleteSkillDraftFile,
   });
   registry.register({
     name: CatalogImplementedAction.SkillUseGrantsDelete,

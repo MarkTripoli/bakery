@@ -32,6 +32,10 @@ import {
   assertImplementedActionRegistry,
   BlobUploadImplementedAction,
   blobUploadImplementedActions,
+  ContextPackImplementedAction,
+  contextPackImplementedActions,
+  PreviewImplementedAction,
+  previewImplementedActions,
   StorageImplementedAction,
   storageImplementedActions,
 } from "@bakery/contracts/implemented-actions";
@@ -52,6 +56,7 @@ import {
   createFileUseLister,
   createFileVersionLister,
   createFolderLister,
+  createSessionFileContentReader,
   listStorageRoots,
   parseRevision,
   readStorageFileByVersion,
@@ -63,6 +68,7 @@ import {
 } from "./agent-file-grants.ts";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import {
+  createFileFactsHandler,
   createFileSearchHandler,
   createLibraryFolderHandler,
 } from "./file-search.ts";
@@ -92,11 +98,19 @@ import {
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { registerCommentActions } from "./comments/routes.ts";
 import { extractArtifactVersion } from "./extraction.ts";
+import { buildContextPack } from "./context-packs.ts";
 import {
   createPreviewGrant,
   previewAvailability,
   revokePreview,
 } from "./previews/actions.ts";
+import {
+  createRunningPreviewAccess,
+  listRunningPreviews,
+  revokeRunningPreviewAccess,
+  runningPreviewAvailability,
+  stopRunningPreview,
+} from "./previews/running.ts";
 
 export type ArtifactResourceRouteOptions = {
   database: PgDatabase;
@@ -205,6 +219,18 @@ function storageAdminPolicy(action: CatalogActionName) {
     },
   } as const;
 }
+const contextPackPolicy = {
+  ...readPolicy,
+  authorize: (context: ActionContext) => {
+    // A pack is built from artifact versions the caller may read, so it needs
+    // exactly that permission and no more: building a pack grants nothing.
+    requireArtifactPermission(
+      context,
+      "artifactVersion:read",
+      ContextPackImplementedAction.ContextPacksBuild,
+    );
+  },
+} as const;
 
 const extractionPolicy = {
   ...readPolicy,
@@ -297,22 +323,30 @@ export function createArtifactActions(
   );
   // Library items need `library:read` on top of the route's file permission, so
   // searching files never reveals the library to someone who may not read it.
-  const searchFiles = createFileSearchHandler(options.secret, (context) => {
-    const actor = (context as Partial<AuthorizedActionContext>).authority;
-    if (actor === undefined) return false;
-    try {
-      authorize(
-        actor as Parameters<typeof authorize>[0],
-        "library:read",
-        {
-          action: ArtifactImplementedAction.FilesSearch,
-        },
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  });
+  const searchFiles = createFileSearchHandler(
+    options.secret,
+    (context) => {
+      const actor = (context as Partial<AuthorizedActionContext>).authority;
+      if (actor === undefined) return false;
+      try {
+        authorize(
+          actor as Parameters<typeof authorize>[0],
+          "library:read",
+          {
+            action: ArtifactImplementedAction.FilesSearch,
+          },
+        );
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    (context) =>
+      storageReader(context, ArtifactImplementedAction.FilesSearch).isAdmin,
+  );
+  const listFileFacts = createFileFactsHandler((context) =>
+    storageReader(context, ArtifactImplementedAction.FilesFacts).isAdmin
+  );
   const listLibrary = createLibraryFolderHandler(options.secret);
   const blobUploads = createBlobUploadHandlers(options.blobStore);
   const trustedRepositoryResolver = createTrustedRepositoryResolver();
@@ -454,6 +488,18 @@ export function createArtifactActions(
         ),
     })
     .register({
+      name: ArtifactImplementedAction.FilesFacts,
+      method: HttpMethod.Get,
+      path: "/v1/files/facts",
+      input: contractSchemas.FileFactQuery,
+      output: contractSchemas["Page<FileFact>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<FileFact>"].parse(
+          await listFileFacts(context, input),
+        ),
+    })
+    .register({
       name: ArtifactImplementedAction.FilesLibrary,
       method: HttpMethod.Get,
       path: "/v1/files/library",
@@ -542,6 +588,21 @@ export function createArtifactActions(
         ),
     })
     .register({
+      name: ContextPackImplementedAction.ContextPacksBuild,
+      method: HttpMethod.Post,
+      path: "/v1/context-packs",
+      input: contractSchemas.ContextPackBuild,
+      output: contractSchemas.ContextPack,
+      // A pack is computed and returned, never created: nothing is stored, so
+      // 201 would say something was.
+      successStatus: 200,
+      policy: contextPackPolicy,
+      handler: async (context, input) =>
+        contractSchemas.ContextPack.parse(
+          await buildContextPack(context, input),
+        ),
+    })
+    .register({
       name: ArtifactImplementedAction.ArtifactPreviewsAvailability,
       method: HttpMethod.Get,
       path: "/v1/artifact-preview-availability",
@@ -581,6 +642,82 @@ export function createArtifactActions(
       policy: { ...readPolicy, type: ActionKind.Command, sessionOnly: true },
       handler: (context) => revokePreview(context),
     })
+    .register({
+      name: PreviewImplementedAction.PreviewsList,
+      method: HttpMethod.Get,
+      path: "/v1/previews",
+      input: contractSchemas.PreviewQuery,
+      output: contractSchemas["Page<Preview>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<Preview>"].parse(
+          await listRunningPreviews(
+            context,
+            input as Parameters<typeof listRunningPreviews>[1],
+            {
+              previewOrigin: options.artifactPreviewOrigin,
+              secret: options.secret,
+            },
+          ),
+        ),
+    })
+    .register({
+      // A query-kind POST on purpose, like artifactPreviews.create: the
+      // response carries the one-use grant.
+      name: PreviewImplementedAction.PreviewsAccess,
+      method: HttpMethod.Post,
+      path: "/v1/previews/:id/access",
+      input: contractSchemas.PreviewAccess,
+      output: contractSchemas.PreviewAccessResult,
+      policy: { ...readPolicy, sessionOnly: true },
+      handler: async (context, input) =>
+        contractSchemas.PreviewAccessResult.parse(
+          await createRunningPreviewAccess(
+            context,
+            input as { sessionSeconds?: number },
+            {
+              previewOrigin: options.artifactPreviewOrigin,
+              secret: options.secret,
+            },
+          ),
+        ),
+    })
+    .register({
+      name: PreviewImplementedAction.PreviewsStop,
+      method: HttpMethod.Post,
+      path: "/v1/previews/:id/stop",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.Preview,
+      explicitIdempotency: "key",
+      policy: { ...readPolicy, type: ActionKind.Command, sessionOnly: true },
+      handler: async (context) =>
+        contractSchemas.Preview.parse(await stopRunningPreview(context)),
+    })
+    .register({
+      name: PreviewImplementedAction.PreviewsRevokeAccess,
+      method: HttpMethod.Delete,
+      path: "/v1/preview-grants/:id",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.NoContent,
+      explicitIdempotency: "key",
+      policy: { ...readPolicy, type: ActionKind.Command, sessionOnly: true },
+      handler: (context) => revokeRunningPreviewAccess(context),
+    })
+    .register({
+      name: PreviewImplementedAction.PreviewsAvailability,
+      method: HttpMethod.Get,
+      path: "/v1/preview-availability",
+      input: contractSchemas.Empty,
+      output: contractSchemas.PreviewAvailability,
+      policy: readPolicy,
+      handler: () =>
+        contractSchemas.PreviewAvailability.parse(
+          runningPreviewAvailability({
+            previewOrigin: options.artifactPreviewOrigin,
+            secret: options.secret,
+          }),
+        ),
+    })
     .register(artifactContentActionDefinition)
     // Blob uploads: the session names what it promises, parts are keyed by
     // ordinal, and completion verifies before recording. The client supplies
@@ -619,19 +756,26 @@ export function createArtifactActions(
       handler: (context) =>
         blobUploads.completeUpload(context, { id: context.params.id }),
     });
-  registerStorageActions(registry, options.secret);
+  registerStorageActions(registry, options.secret, options.blobStore);
   registerCommentActions(registry, options.secret, options.blobStore);
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     ...artifactImplementedActions,
+    ...previewImplementedActions,
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
+    ...contextPackImplementedActions,
   ]);
   return { registry, authority, handlers };
 }
 
 /** The working-area actions over the storage tree (#447). */
-function registerStorageActions(registry: ActionRegistry, secret: string) {
+function registerStorageActions(
+  registry: ActionRegistry,
+  secret: string,
+  blobStore: OrganizationBlobStore | undefined,
+) {
+  const readSessionContent = createSessionFileContentReader(blobStore);
   const listTrash = createTrashLister(secret);
   const listFolder = createFolderLister(secret);
   const listVersions = createFileVersionLister(secret);
@@ -716,17 +860,27 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
           ),
         ),
     })
-    // The bytes are a raw Response served by the route below, under this
-    // action's authority; the registered handler is never reached.
+    // A person's bytes are a raw Response served by the route below, under
+    // this action's authority. The registered handler is reached only by an
+    // agent's session call (files.read), which answers JSON: the same reader
+    // and guard, with the bytes as base64.
     .register({
       name: A.StorageFilesContent,
       method: HttpMethod.Get,
       path: "/v1/storage/files/:id/content",
       input: contractSchemas.StorageFileContentQuery,
       output: contractSchemas.BinaryArtifact,
-      policy: readPolicy,
-      handler: () => {
-        throw new StandardError({ code: "INTERNAL" });
+      // A <video> or <audio> src cannot send the organization header.
+      policy: { ...readPolicy, organizationIdQuery: "organizationId" },
+      handler: async (context, input) => {
+        if (context.agentSession === undefined) {
+          throw new StandardError({ code: "INTERNAL" });
+        }
+        return await readSessionContent(
+          context,
+          storageReader(context, A.StorageFilesContent),
+          input as { range?: string; revision?: number },
+        );
       },
     })
     .register({
@@ -916,12 +1070,21 @@ export function createArtifactResourceRoutes(
       ? options.tokenSession(context, next)
       : session(context, next);
   app.use("/v1/files/search", readsAcceptTokens);
+  app.use("/v1/files/facts", readsAcceptTokens);
   app.use("/v1/files/library", session);
   app.use("/v1/artifacts/*", session);
   app.use("/v1/artifact-versions", session);
   app.use("/v1/artifact-preview-availability", session);
   app.use("/v1/artifact-preview-grants/*", session);
+  // Running-app previews (#19): the same signed-in session, never a worker's.
+  app.use("/v1/previews", session);
+  app.use("/v1/previews/*", session);
+  app.use("/v1/preview-grants/*", session);
+  app.use("/v1/preview-availability", session);
   app.use("/v1/artifact-versions/*", session);
+  // Without this a pack is built with no resolved principal and refused as an
+  // anonymous call even for a signed-in Developer.
+  app.use("/v1/context-packs", session);
   // Without this the blob routes run with no resolved principal, and every call
   // is refused as an anonymous one - a 403 that looks like a permission problem
   // and is really a missing middleware.

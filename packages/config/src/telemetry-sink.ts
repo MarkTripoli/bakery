@@ -3,15 +3,13 @@ import { z } from "zod";
 /**
  * Where the server's telemetry goes (#23).
  *
- * Two destinations, both optional, and the shape is deliberately boring: a
- * directory for rotated structured logs, and at most one OTLP endpoint. The
- * design doc asks for exactly that - "start with structured rotated logs,
- * existing ledger-derived metrics and a single optional OTLP destination" - and
- * a second OTLP destination would be a fan-out the operator did not ask for.
+ * Only the rotated structured log is configured here: a directory for it and its
+ * bounds. Where measurements are sent (OpenTelemetry and, later, others) is set
+ * in the app and stored encrypted; the old BAKERY_OTLP_ENDPOINT and
+ * BAKERY_OTLP_HEADERS variables were removed and are refused at start-up rather
+ * than ignored.
  *
- * With neither variable set the config is `undefined` and export stays disabled,
- * which is the behaviour the server had before this slice: an event costs a
- * counter and nothing is queued.
+ * With no variable set the config is `undefined` and the log is off.
  */
 
 /** A path the server owns, absolute, with no control characters. */
@@ -25,67 +23,9 @@ const AbsolutePathSchema = z.string().min(1).max(4096).regex(/^\//).refine(
   "Absolute path to the server-owned directory that receives rotated structured telemetry logs.",
 );
 
-/**
- * An OTLP/HTTP endpoint.
- *
- * `https` only, and no credentials in the URL: a telemetry destination that
- * carries a password in its path ends up in the very logs it is exporting to.
- * Authentication belongs in the header map, which is not logged.
- */
-const OtlpEndpointSchema = z.string().min(1).max(2048).refine(
-  (value) => {
-    try {
-      const url = new URL(value);
-      if (url.protocol !== "https:") return false;
-      if (url.username !== "" || url.password !== "") return false;
-      // A collector base, not a signal URL: one URL cannot serve both traces and
-      // metrics, so an endpoint that names a signal is refused instead of
-      // silently dropping the other half of the telemetry.
-      return !/\/v1\/(?:traces|metrics)$/.test(value.replace(/\/+$/, ""));
-    } catch {
-      return false;
-    }
-  },
-  "Invalid OTLP endpoint.",
-).describe(
-  "HTTPS OTLP/HTTP collector base URL, without a signal path; the server appends /v1/traces and /v1/metrics, and credentials belong in headers.",
-);
-
-/**
- * Header name to header value, as an operator writes it.
- *
- * Kept as a closed shape because telemetry headers usually carry a collector
- * token: the values are secrets, so they are never included in an error, never
- * logged, and never part of a metric label.
- */
-const HeaderNameSchema = z.string().min(1).max(64).regex(
-  /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/,
-).describe("HTTP header name of an OTLP request header.");
-
-const HeaderValueSchema = z.string().min(1).max(2048).refine(
-  (value) =>
-    Array.from(value).every((character) => {
-      const code = character.charCodeAt(0);
-      // No CR/LF or other control characters: a header value that can break a
-      // line is a request-splitting primitive, not a configuration mistake.
-      return code >= 32 && code !== 127;
-    }),
-  "Invalid header value.",
-).describe(
-  "OTLP request header value, commonly a collector token; treated as secret and never logged.",
-);
-
-const OtlpHeadersSchema = z.record(HeaderNameSchema, HeaderValueSchema)
-  .describe(
-    "OTLP request headers, commonly a collector token; treated as secret and never logged.",
-  );
-
 export const TelemetrySinkConfigSchema = z.object({
   logDir: AbsolutePathSchema.optional().describe(
     "Directory receiving rotated structured telemetry logs; absent when log export is off.",
-  ),
-  otlpEndpoint: OtlpEndpointSchema.optional().describe(
-    "Optional single OTLP/HTTP destination; absent when OTLP export is off.",
   ),
   /**
    * Bytes per log file before it rotates. Bounded on both ends: a tiny cap
@@ -99,11 +39,8 @@ export const TelemetrySinkConfigSchema = z.object({
   logMaxFiles: z.number().int().min(1).max(64).optional().describe(
     "Rotated log files kept on disk, including the current one; defaults to five.",
   ),
-  otlpHeaders: OtlpHeadersSchema.optional().describe(
-    "Headers sent with every OTLP request, such as an authorization token.",
-  ),
 }).strict().describe(
-  "Telemetry destinations: rotated structured logs and at most one optional OTLP endpoint.",
+  "Telemetry written by the server itself: the rotated structured log directory and its bounds. Destinations that receive measurements are saved in the app, not here.",
 );
 
 export type TelemetrySinkConfig = z.infer<typeof TelemetrySinkConfigSchema>;
@@ -124,68 +61,38 @@ export const TELEMETRY_LOG_MAX_FILES = 5;
 export function readTelemetrySinkConfig(
   env: Record<string, string | undefined>,
 ): TelemetrySinkConfig | undefined {
+  // Removed, not ignored: an operator who still sets these would otherwise see
+  // telemetry silently stop. The destination is added in the app instead.
+  if (
+    env.BAKERY_OTLP_ENDPOINT !== undefined ||
+    env.BAKERY_OTLP_HEADERS !== undefined
+  ) {
+    throw new Error("TELEMETRY_OTLP_ENV_REMOVED");
+  }
   const logDir = env.BAKERY_TELEMETRY_LOG_DIR;
-  const otlpEndpoint = env.BAKERY_OTLP_ENDPOINT;
   const logMaxBytes = env.BAKERY_TELEMETRY_LOG_MAX_BYTES;
   const logMaxFiles = env.BAKERY_TELEMETRY_LOG_MAX_FILES;
-  const otlpHeaders = env.BAKERY_OTLP_HEADERS;
   // Any telemetry variable at all means the operator intended to configure
   // telemetry, so the whole configuration is validated. Returning early on "no
   // destination" would silently ignore a malformed bound, and the operator would
   // find out by noticing the absence of data rather than at boot.
   if (
-    logDir === undefined && otlpEndpoint === undefined &&
-    logMaxBytes === undefined && logMaxFiles === undefined &&
-    otlpHeaders === undefined
+    logDir === undefined && logMaxBytes === undefined &&
+    logMaxFiles === undefined
   ) return undefined;
 
   const parsed = TelemetrySinkConfigSchema.safeParse({
     logDir,
-    otlpEndpoint,
     logMaxBytes: readPositiveInt(logMaxBytes),
     logMaxFiles: readPositiveInt(logMaxFiles),
-    otlpHeaders: parseHeaders(otlpHeaders),
   });
   if (!parsed.success) throw new Error("TELEMETRY_SINK_CONFIG_INVALID");
-  // A configuration with no destination is refused rather than accepted. It reads
-  // as "telemetry is configured", and the server then counts every record as
-  // exported while nothing is written anywhere - the defect this work exists to
-  // remove, one level up.
-  if (
-    parsed.data.logDir === undefined && parsed.data.otlpEndpoint === undefined
-  ) {
+  // A configuration with no log directory is refused rather than accepted: it
+  // reads as "telemetry is configured" while nothing is written anywhere.
+  if (parsed.data.logDir === undefined) {
     throw new Error("TELEMETRY_SINK_CONFIG_INVALID");
   }
   return parsed.data;
-}
-
-/**
- * Parses `name=value` pairs separated by commas or semicolons.
- *
- * An entry with no `=` is refused rather than skipped: a header the operator
- * wrote and the server silently dropped is an authentication failure they would
- * debug as a token problem. The error names no value.
- */
-export function parseHeaders(
-  raw: string | undefined,
-): Record<string, string> | undefined {
-  if (raw === undefined) return undefined;
-  const headers: Record<string, string> = {};
-  for (const entry of raw.split(/[,;]/)) {
-    const trimmed = entry.trim();
-    if (trimmed === "") continue;
-    const separator = trimmed.indexOf("=");
-    // Thrown rather than skipped, and never naming the value: a dropped header
-    // is an authentication failure an operator would debug as a token problem.
-    if (separator <= 0) throw new Error("TELEMETRY_SINK_CONFIG_INVALID");
-    const name = trimmed.slice(0, separator).trim();
-    const value = trimmed.slice(separator + 1).trim();
-    if (name === "" || value === "") {
-      throw new Error("TELEMETRY_SINK_CONFIG_INVALID");
-    }
-    headers[name] = value;
-  }
-  return Object.keys(headers).length === 0 ? undefined : headers;
 }
 
 function readPositiveInt(value: string | undefined): number | undefined {

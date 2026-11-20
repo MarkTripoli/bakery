@@ -381,10 +381,34 @@ export const DeliveryImplementedAction = Object.freeze(
     PullRequestsMerge: "pullRequests.merge",
     MergeAttemptsList: "mergeAttempts.list",
     MergeAttemptsReconcile: "mergeAttempts.reconcile",
+    MetricsGet: "metrics.get",
+    MetricsSources: "metrics.sources",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const deliveryImplementedActions = Object.freeze(
   Object.values(DeliveryImplementedAction),
+);
+
+/** Evaluation batches: scorers, cases, datasets, batches, results (#44). */
+export const EvaluationImplementedAction = Object.freeze(
+  {
+    EvaluationDefinitionsList: "evaluationDefinitions.list",
+    EvaluationDefinitionsCreate: "evaluationDefinitions.create",
+    EvaluationCasesList: "evaluationCases.list",
+    EvaluationCasesCreate: "evaluationCases.create",
+    EvaluationDatasetsCreate: "evaluationDatasets.create",
+    EvaluationDatasetsList: "evaluationDatasets.list",
+    EvaluationBatchesCreate: "evaluationBatches.create",
+    EvaluationBatchesList: "evaluationBatches.list",
+    EvaluationBatchesGet: "evaluationBatches.get",
+    EvaluationBatchesCancel: "evaluationBatches.cancel",
+    EvaluationBatchesCompare: "evaluationBatches.compare",
+    EvaluationBatchResultsList: "evaluationBatchResults.list",
+    EvaluationAttemptsList: "evaluationAttempts.list",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const evaluationImplementedActions = Object.freeze(
+  Object.values(EvaluationImplementedAction),
 );
 
 /**
@@ -575,6 +599,7 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactCommentsMentionCandidates: "artifactComments.mentionCandidates",
     ArtifactsList: "artifacts.list",
     FilesSearch: "files.search",
+    FilesFacts: "files.facts",
     FilesLibrary: "files.library",
     ArtifactsGet: "artifacts.get",
     ArtifactsUpdate: "artifacts.update",
@@ -586,6 +611,12 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactPreviewsCreate: "artifactPreviews.create",
     ArtifactPreviewsRevoke: "artifactPreviews.revoke",
     ArtifactPreviewsAvailability: "artifactPreviews.availability",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+
+export const ContextPackImplementedAction = Object.freeze(
+  {
+    ContextPacksBuild: "contextPacks.build",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
@@ -666,6 +697,18 @@ export const BackupImplementedAction = Object.freeze(
 export const backupImplementedActions = Object.freeze(
   Object.values(BackupImplementedAction),
 );
+export const TelemetryDestinationImplementedAction = Object.freeze(
+  {
+    TelemetryDestinationsList: "telemetryDestinations.list",
+    TelemetryDestinationsCreate: "telemetryDestinations.create",
+    TelemetryDestinationsUpdate: "telemetryDestinations.update",
+    TelemetryDestinationsDelete: "telemetryDestinations.delete",
+    TelemetryDestinationsTest: "telemetryDestinations.test",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const telemetryDestinationImplementedActions = Object.freeze(
+  Object.values(TelemetryDestinationImplementedAction),
+);
 
 export const BlobUploadImplementedAction = Object.freeze(
   {
@@ -716,6 +759,15 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsCreate: "skills.create",
     SkillsCopy: "skills.copy",
     SkillsUpdate: "skills.update",
+    SkillsUsedBy: "skills.usedBy",
+    SkillDraftsOpen: "skillDrafts.open",
+    SkillDraftsGet: "skillDrafts.get",
+    SkillDraftsUpdate: "skillDrafts.update",
+    SkillDraftsDiscard: "skillDrafts.discard",
+    SkillDraftsCheck: "skillDrafts.check",
+    SkillDraftFilesSave: "skillDraftFiles.save",
+    SkillDraftFilesGet: "skillDraftFiles.get",
+    SkillDraftFilesDelete: "skillDraftFiles.delete",
     SkillVersionsCreate: "skillVersions.create",
     SkillUseGrantsList: "skills.useGrants.list",
     SkillUseGrantsDelete: "skills.useGrants.delete",
@@ -760,6 +812,19 @@ export const pluginInstallImplementedActions = Object.freeze(
   Object.values(PluginInstallImplementedAction),
 );
 
+export const PreviewImplementedAction = Object.freeze(
+  {
+    PreviewsList: "previews.list",
+    PreviewsAccess: "previews.access",
+    PreviewsStop: "previews.stop",
+    PreviewsRevokeAccess: "previews.revokeAccess",
+    PreviewsAvailability: "previews.availability",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const previewImplementedActions = Object.freeze(
+  Object.values(PreviewImplementedAction),
+);
+
 export const MemoryImplementedAction = Object.freeze(
   {
     MemoriesList: "memories.list",
@@ -786,6 +851,9 @@ export const projectsImplementedActions = Object.freeze(
 export const artifactImplementedActions = Object.freeze(
   Object.values(ArtifactImplementedAction),
 );
+export const contextPackImplementedActions = Object.freeze(
+  Object.values(ContextPackImplementedAction),
+);
 export const draftImplementedActions = Object.freeze(
   Object.values(DraftImplementedAction),
 );
@@ -809,6 +877,7 @@ export const implementedActions = Object.freeze(
     ...artifactKindImplementedActions,
     ...integrationsImplementedActions,
     ...deliveryImplementedActions,
+    ...evaluationImplementedActions,
     ...ticketImplementedActions,
     ...notificationImplementedActions,
     ...groupImplementedActions,
@@ -818,6 +887,7 @@ export const implementedActions = Object.freeze(
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,
     ...artifactImplementedActions,
+    ...contextPackImplementedActions,
     ...draftImplementedActions,
     ...secretsImplementedActions,
     ...catalogImplementedActions,
@@ -825,12 +895,14 @@ export const implementedActions = Object.freeze(
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
     ...backupImplementedActions,
+    ...telemetryDestinationImplementedActions,
     ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
     ...memoryImplementedActions,
+    ...previewImplementedActions,
   ] as const,
 );
 
@@ -873,6 +945,8 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     Review: "review.independent",
     Freeform: "agent.freeform",
     TaskBrief: "task.brief",
+    EvaluationCheck: "evaluation.check",
+    EvaluationScore: "evaluation.score",
     SecretIdentityRead: "secret.identity.read",
   } as const satisfies Record<string, WorkflowActionName>,
 );

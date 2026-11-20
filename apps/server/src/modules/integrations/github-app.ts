@@ -736,6 +736,24 @@ const GitHubPullRequestSchema = z.object({
   updated_at: GitHubTimestampSchema.describe(
     "Time GitHub last updated the pull request.",
   ),
+  created_at: GitHubTimestampSchema.nullable().optional().describe(
+    "Time the pull request was opened.",
+  ),
+  closed_at: GitHubTimestampSchema.nullable().optional().describe(
+    "Time the pull request was last closed; null while open.",
+  ),
+  merged_at: GitHubTimestampSchema.nullable().optional().describe(
+    "Time the pull request was merged; null when it was not.",
+  ),
+  additions: z.number().int().nonnegative().optional().describe(
+    "Lines added across the pull request's diff, as GitHub totals them.",
+  ),
+  deletions: z.number().int().nonnegative().optional().describe(
+    "Lines deleted across the pull request's diff, as GitHub totals them.",
+  ),
+  changed_files: z.number().int().nonnegative().optional().describe(
+    "Files the pull request's diff changes.",
+  ),
   html_url: z.string().url().max(2048).describe(
     "Web page of the pull request on GitHub.",
   ),
@@ -757,8 +775,14 @@ const GitHubPullRequestSchema = z.object({
   mergedSha: wire.merged ? wire.merge_commit_sha ?? null : null,
   updatedAt: wire.updated_at,
   url: wire.html_url,
+  openedAt: wire.created_at ?? null,
+  closedAt: wire.closed_at ?? null,
+  mergedAt: wire.merged ? wire.merged_at ?? null : null,
+  additions: wire.additions ?? null,
+  deletions: wire.deletions ?? null,
+  changedFiles: wire.changed_files ?? null,
 })).describe(
-  "Pull request number, state, head, base and merge commit SHAs, update time and web URL.",
+  "Pull request number, state, head, base and merge commit SHAs, lifecycle times, diff totals, update time and web URL.",
 );
 export type GitHubPullRequest = z.output<typeof GitHubPullRequestSchema>;
 
