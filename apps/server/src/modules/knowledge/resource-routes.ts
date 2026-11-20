@@ -592,6 +592,9 @@ export function createArtifactActions(
       path: "/v1/context-packs",
       input: contractSchemas.ContextPackBuild,
       output: contractSchemas.ContextPack,
+      // A pack is computed and returned, never created: nothing is stored, so
+      // 201 would say something was.
+      successStatus: 200,
       policy: contextPackPolicy,
       handler: async (context, input) =>
         contractSchemas.ContextPack.parse(
