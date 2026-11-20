@@ -349,6 +349,9 @@ test("several waiting steps show one card each, oldest first", async ({ page }) 
 const STILLS = process.env.BAKERY_EVIDENCE_DIR ?? process.env.BAKERY_STILLS_DIR;
 const SIZES = [["desktop", 1440, 900], ["phone", 390, 844]] as const;
 const SCHEMES = ["light", "dark"] as const;
+// Tall enough that the composer pinned to the bottom of the page covers neither
+// the card nor the step's row in the timeline.
+const TALL = { desktop: 1800, phone: 2400 } as const;
 const CASES = [
   ["waiting-card", () => [offerRow()]],
   ["waiting-card-no-check", () => [offerRow({ nextCheckAt: null })]],
@@ -364,15 +367,13 @@ for (const scheme of SCHEMES) {
         await page.setViewportSize({ width, height });
         await openWaiting(page, [...offers()]);
         await expect(card(page)).toBeVisible();
+        await page.setViewportSize({ width, height: TALL[size] });
         await expect(page.getByText(
           "Waiting on Claude Code with claude-opus. It does not start again by itself.",
         )).toBeVisible();
-        // The whole page, so the card and the step's row in the timeline are
-        // both in the still, uncropped.
         await page.screenshot({
           path: `${STILLS}/${name}-${size}-${scheme}.png`,
           animations: "disabled",
-          fullPage: true,
         });
       });
     }
