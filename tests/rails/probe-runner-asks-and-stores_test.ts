@@ -18,6 +18,7 @@ import {
   enqueueProbeSubject,
   failProbeRequest,
   PROBE_MAX_ATTEMPTS,
+  readArtifactVersionProbeSubjectBytes,
   readBlobProbeSubjectBytes,
   readInlineProbeSubjectBytes,
   runProbeTick,
@@ -108,6 +109,7 @@ function fakeDatabase(options: {
             blob_id: options.subject === "blob" ? "blob-1" : null,
             entry_id: options.subject === "inline" ? "entry-1" : null,
             revision: options.subject === "inline" ? 3 : null,
+            artifact_version_id: null,
             attempts: 0,
           }],
         });
@@ -140,6 +142,15 @@ function runnerFor(
         organizationId,
         entryId,
         revision,
+      ),
+    readArtifactVersionBytes: (
+      organizationId: string,
+      artifactVersionId: string,
+    ) =>
+      readArtifactVersionProbeSubjectBytes(
+        database as never,
+        organizationId,
+        artifactVersionId,
       ),
     probeOptions: {
       launcherPath: options.launcherPath,
@@ -301,6 +312,105 @@ Deno.test("an inline version is keyed on itself, because nothing shares its byte
     assertEquals(insert.values[2], 3);
     assert(insert.text.includes("organization_id, entry_id, revision"));
     assertEquals(insert.values[3], "described");
+    assertEquals(cleared(database), true);
+  } finally {
+    forgetSandboxPreflight();
+    await Deno.remove(dir, { recursive: true });
+    await Deno.remove(spoolDir, { recursive: true });
+  }
+});
+
+Deno.test("an inline artifact version is its own subject, from backfill to stored answer", async () => {
+  forgetSandboxPreflight();
+  const dir = await Deno.makeTempDir();
+  const spoolDir = await Deno.makeTempDir();
+  try {
+    const launcher = await writeStub(dir, "sealed-artifact", {
+      selfTest: SEALED,
+      filesystem: READ_ONLY,
+      probe: `printf '%s' '${PNG_FRAME}'`,
+    });
+    const statements: Statement[] = [];
+    // The page finds one unprobed inline artifact version; the queue then holds
+    // it under artifact_version_id, and the claim hands it back the same way.
+    const database = {
+      statements,
+      query: (text: string, values: unknown[] = []) => {
+        statements.push({ text, values });
+        // The page is matched before the content reader: both name the same
+        // table, and answering the page with a content row would test nothing.
+        if (text.includes("union all")) {
+          return Promise.resolve({
+            rows: [{
+              id: "artifact-version-1",
+              organization_id: "org-1",
+              blob_id: null,
+              entry_id: null,
+              revision: null,
+              artifact_version_id: "artifact-version-1",
+            }],
+          });
+        }
+        if (text.includes("select content from bakery.artifact_versions")) {
+          return Promise.resolve({
+            rows: [{ content: PNG, id: "artifact-version-1" }],
+          });
+        }
+        if (text.includes("from bakery.blob_probes")) {
+          return Promise.resolve({ rows: [] });
+        }
+        if (text.includes("from bakery.probe_requests")) {
+          return Promise.resolve({
+            rows: [{
+              id: "request-4",
+              organization_id: "org-1",
+              blob_id: null,
+              entry_id: null,
+              revision: null,
+              artifact_version_id: "artifact-version-1",
+              attempts: 0,
+            }],
+          });
+        }
+        return Promise.resolve({ rows: [] });
+      },
+    };
+    const result = await runProbeTick(
+      database as never,
+      {
+        readBlobBytes: () => Promise.resolve(null),
+        readInlineBytes: () => Promise.resolve(null),
+        readArtifactVersionBytes: (organizationId, artifactVersionId) =>
+          readArtifactVersionProbeSubjectBytes(
+            database as never,
+            organizationId,
+            artifactVersionId,
+          ),
+        probeOptions: { launcherPath: launcher, spoolDir },
+      },
+      { limit: 1 },
+    );
+    // Queued from the page, then answered under the version itself.
+    assertEquals(result.queued, 1);
+    assertEquals(result.answered, 1);
+    const enqueued = statements.find((statement) =>
+      statement.text.includes("insert into bakery.probe_requests") &&
+      statement.text.includes("artifact_version_id")
+    );
+    assert(enqueued !== undefined, "the page queues it as an artifact version");
+    assert(
+      enqueued.text.includes(
+        "on conflict (organization_id, artifact_version_id)",
+      ),
+    );
+    const insert = stored(database);
+    assert(insert !== undefined, "the answer is stored");
+    // Keyed on the version and on nothing else: these bytes are not a blob's and
+    // not a storage entry's, so neither of the other two keys is written.
+    assertEquals(insert.values[1], "artifact-version-1");
+    assert(insert.text.includes("organization_id, artifact_version_id"));
+    assertEquals(insert.text.includes("entry_id"), false);
+    assertEquals(insert.values[2], "described");
     assertEquals(cleared(database), true);
   } finally {
     forgetSandboxPreflight();

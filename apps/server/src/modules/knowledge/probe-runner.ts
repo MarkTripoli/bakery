@@ -34,7 +34,11 @@
 import type { PgDatabase, PgTransactionClient } from "@bakery/persistence";
 import type { ArtifactProbeResult } from "@bakery/contracts/artifact-probe";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
-import { readBlobProbe, writeBlobProbe } from "./blob-probes.ts";
+import {
+  type ProbeSubject,
+  readBlobProbe,
+  writeBlobProbe,
+} from "./blob-probes.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
 import {
   type ArtifactProbeOptions,
@@ -55,6 +59,7 @@ type RequestRow = Readonly<{
   blob_id: string | null;
   entry_id: string | null;
   revision: number | null;
+  artifact_version_id: string | null;
   attempts: number;
 }>;
 
@@ -69,6 +74,11 @@ export type ProbeRunnerDeps = Readonly<{
     organizationId: string,
     entryId: string,
     revision: number,
+  ) => Promise<{ bytes: Uint8Array; sizeBytes: number } | null>;
+  /** Inline bytes of one artifact version. */
+  readArtifactVersionBytes: (
+    organizationId: string,
+    artifactVersionId: string,
   ) => Promise<{ bytes: Uint8Array; sizeBytes: number } | null>;
   probeOptions?: ArtifactProbeOptions;
 }>;
@@ -102,6 +112,7 @@ export async function enqueueProbeSubject(
     & (
       | { blobId: string }
       | { entryId: string; revision: number }
+      | { artifactVersionId: string }
     ),
 ): Promise<void> {
   if ("blobId" in input) {
@@ -111,6 +122,17 @@ export async function enqueueProbeSubject(
        on conflict (organization_id, blob_id) where blob_id is not null
        do nothing`,
       [input.organizationId, input.blobId],
+    );
+    return;
+  }
+  if ("artifactVersionId" in input) {
+    await database.query(
+      `insert into bakery.probe_requests (organization_id, artifact_version_id)
+       values ($1, $2)
+       on conflict (organization_id, artifact_version_id)
+         where artifact_version_id is not null
+       do nothing`,
+      [input.organizationId, input.artifactVersionId],
     );
     return;
   }
@@ -141,12 +163,15 @@ export async function enqueueUnprobedPage(
     entry_id: string | null;
     revision: number | null;
     blob_id: string | null;
+    artifact_version_id: string | null;
     organization_id: string;
     id: string;
   }>(
-    `select id, organization_id, blob_id, entry_id, revision from (
+    `select id, organization_id, blob_id, entry_id, revision,
+            artifact_version_id from (
        select v.id, v.organization_id, v.blob_id,
-              null::uuid as entry_id, null::int as revision
+              null::uuid as entry_id, null::int as revision,
+              null::uuid as artifact_version_id
          from bakery.artifact_versions v
         where v.blob_id is not null and v.purged_at is null
           and not exists (
@@ -157,7 +182,8 @@ export async function enqueueUnprobedPage(
         union all
        select v.id, v.organization_id, v.blob_id,
               case when v.blob_id is null then v.entry_id end,
-              case when v.blob_id is null then v.revision end
+              case when v.blob_id is null then v.revision end,
+              null::uuid as artifact_version_id
          from bakery.storage_file_versions v
         where v.purged_at is null
           and (v.blob_id is not null or v.content is not null)
@@ -168,6 +194,17 @@ export async function enqueueUnprobedPage(
                  or (v.blob_id is null and p.entry_id = v.entry_id
                      and p.revision = v.revision)))
           and ($1::uuid is null or v.id > $1)
+        union all
+       select v.id, v.organization_id, null::uuid as blob_id,
+              null::uuid as entry_id, null::int as revision, v.id
+         from bakery.artifact_versions v
+        where v.blob_id is null and v.content is not null
+          and v.purged_at is null
+          and not exists (
+            select 1 from bakery.blob_probes p
+             where p.organization_id = v.organization_id
+               and p.artifact_version_id = v.id)
+          and ($1::uuid is null or v.id > $1)
      ) page
      order by id
      limit $2`,
@@ -176,8 +213,13 @@ export async function enqueueUnprobedPage(
   for (const row of rows) {
     await enqueueProbeSubject(
       database,
-      row.blob_id !== null && row.entry_id === null
+      row.blob_id !== null
         ? { organizationId: row.organization_id, blobId: row.blob_id }
+        : row.artifact_version_id !== null
+        ? {
+          organizationId: row.organization_id,
+          artifactVersionId: row.artifact_version_id,
+        }
         : {
           organizationId: row.organization_id,
           entryId: row.entry_id as string,
@@ -210,7 +252,8 @@ export async function claimProbeRequests(
   // sandbox unit. What this must not do is select the same row twice within one
   // tick, and it cannot.
   const { rows } = await database.query<RequestRow>(
-    `select id, organization_id, blob_id, entry_id, revision, attempts
+    `select id, organization_id, blob_id, entry_id, revision,
+            artifact_version_id, attempts
        from bakery.probe_requests
       order by requested_at, id
       limit $1
@@ -343,57 +386,66 @@ async function sandboxAvailable(
  *
  * A blob subject reads its bytes through the caller's store and is stored under
  * the blob, so every version sharing those bytes gets the answer. An inline
- * subject is stored under its own version, because nothing else has those bytes.
+ * subject is stored under its own version -- a storage version or an artifact
+ * version -- because nothing else has those bytes.
  */
 async function probeOne(
   database: PgDatabase,
   request: RequestRow,
   deps: ProbeRunnerDeps,
 ): Promise<"answered" | "host-gone" | "gone"> {
-  const subject = request.blob_id !== null
-    ? await deps.readBlobBytes(request.organization_id, request.blob_id)
+  const subject = subjectOf(request);
+  const bytes = "blobId" in subject
+    ? await deps.readBlobBytes(request.organization_id, subject.blobId)
+    : "artifactVersionId" in subject
+    ? await deps.readArtifactVersionBytes(
+      request.organization_id,
+      subject.artifactVersionId,
+    )
     : await deps.readInlineBytes(
       request.organization_id,
-      request.entry_id as string,
-      Number(request.revision),
+      subject.entryId,
+      subject.revision,
     );
-  if (subject === null) return "gone";
+  if (bytes === null) return "gone";
   // A row recorded between this tick's claim and now is the same answer; asking
   // again would spend a sandbox unit to learn what is already written.
-  const existing = await readBlobProbe(
-    database,
-    request.blob_id !== null
-      ? { organizationId: request.organization_id, blobId: request.blob_id }
-      : {
-        organizationId: request.organization_id,
-        entryId: request.entry_id as string,
-        revision: Number(request.revision),
-      },
-  );
+  const existing = await readBlobProbe(database, {
+    organizationId: request.organization_id,
+    ...subject,
+  });
   if (existing !== null) return "answered";
   const attempt = await probeArtifactAttempt({
-    readBytes: () => Promise.resolve(subject.bytes),
-    sizeBytes: subject.sizeBytes,
+    readBytes: () => Promise.resolve(bytes.bytes),
+    sizeBytes: bytes.sizeBytes,
   }, deps.probeOptions);
   // The only unstorable answer is a refusal about the host: the sandbox is not
   // there. That is not this request's fault and must not count against it.
   if (!isStorable(attempt.result)) return "host-gone";
-  await writeBlobProbe(
-    database,
-    request.blob_id !== null
-      ? {
-        organizationId: request.organization_id,
-        blobId: request.blob_id,
-        result: attempt.result,
-      }
-      : {
-        organizationId: request.organization_id,
-        entryId: request.entry_id as string,
-        revision: Number(request.revision),
-        result: attempt.result,
-      },
-  );
+  await writeBlobProbe(database, {
+    organizationId: request.organization_id,
+    ...subject,
+    result: attempt.result,
+  });
   return "answered";
+}
+
+/**
+ * The request's subject, or the closest thing to one for a row the CHECKs should
+ * have made impossible. A request naming a storage version without a revision
+ * resolves to a subject the store cannot match, so it is answered as "gone"
+ * rather than keyed on an arbitrary revision.
+ */
+function subjectOf(request: RequestRow): ProbeSubject {
+  if (request.blob_id !== null) return { blobId: request.blob_id };
+  // Normalised rather than compared: a row that never carried the column must
+  // not read as an artifact subject, which would key the answer on undefined.
+  const artifactVersionId = request.artifact_version_id ?? null;
+  if (artifactVersionId !== null) return { artifactVersionId };
+  return {
+    entryId: request.entry_id as string,
+    revision: Number(request.revision),
+  };
 }
 
 /** A result about the host is not an answer, and `about` is what says so. */
@@ -451,6 +503,28 @@ export async function readInlineProbeSubjectBytes(
       where organization_id = $1 and entry_id = $2 and revision = $3
         and purged_at is null and content is not null`,
     [organizationId, entryId, revision],
+  );
+  const content = rows[0]?.content;
+  if (content === undefined || content === null) return null;
+  return { bytes: content, sizeBytes: content.byteLength };
+}
+
+/**
+ * One artifact version's inline bytes, or null when they are gone.
+ *
+ * An artifact version written with an object store configured names a blob and is
+ * answered under that blob; only the store-less case has bytes of its own here.
+ */
+export async function readArtifactVersionProbeSubjectBytes(
+  database: Pick<PgDatabase, "query">,
+  organizationId: string,
+  artifactVersionId: string,
+): Promise<{ bytes: Uint8Array; sizeBytes: number } | null> {
+  const { rows } = await database.query<{ content: Uint8Array | null }>(
+    `select content from bakery.artifact_versions
+      where organization_id = $1 and id = $2
+        and purged_at is null and content is not null`,
+    [organizationId, artifactVersionId],
   );
   const content = rows[0]?.content;
   if (content === undefined || content === null) return null;

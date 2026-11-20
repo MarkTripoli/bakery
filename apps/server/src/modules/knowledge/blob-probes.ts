@@ -105,14 +105,18 @@ export function isStorableProbe(result: ArtifactProbeResult): boolean {
 /**
  * What a probe answer can be about.
  *
- * Two shapes and no third: bytes deduplicated as a blob, which every version
- * sharing them shares, or one storage version's own inline bytes, which nothing
- * else has. The database holds the same rule as a CHECK, so a subject that
- * carried both or neither could not be constructed here and stored there.
+ * Three shapes and no fourth: bytes deduplicated as a blob, which every version
+ * sharing them shares; one storage version's own inline bytes; or one artifact
+ * version's own inline bytes. The two inline shapes exist because a write below
+ * the inline limit puts the bytes in the version row, and an artifact's inline
+ * bytes are not a storage entry. The database holds the same rule as a CHECK, so
+ * a subject that carried two keys or none could not be constructed here and
+ * stored there.
  */
 export type ProbeSubject =
   | Readonly<{ blobId: string }>
-  | Readonly<{ entryId: string; revision: number }>;
+  | Readonly<{ entryId: string; revision: number }>
+  | Readonly<{ artifactVersionId: string }>;
 
 function subjectClause(subject: ProbeSubject): {
   readonly match: string;
@@ -120,6 +124,12 @@ function subjectClause(subject: ProbeSubject): {
 } {
   if ("blobId" in subject) {
     return { match: "blob_id = $2", values: [subject.blobId] };
+  }
+  if ("artifactVersionId" in subject) {
+    return {
+      match: "artifact_version_id = $2",
+      values: [subject.artifactVersionId],
+    };
   }
   return {
     match: "entry_id = $2 and revision = $3",
@@ -165,14 +175,21 @@ export async function writeBlobProbe(
   if (!isStorableProbe(input.result)) return;
   const { organizationId, result } = input;
   const described = result.status === "described";
-  // The two subjects have two partial uniques, so each needs its own conflict
-  // target and its own predicate; one statement cannot name both.
+  // Each subject has its own partial unique, so each needs its own conflict
+  // target and predicate; one statement cannot name three.
   const subject = "blobId" in input
     ? {
       insert: "organization_id, blob_id",
       values: [input.blobId],
       conflict:
         "on conflict (organization_id, blob_id) where blob_id is not null",
+    }
+    : "artifactVersionId" in input
+    ? {
+      insert: "organization_id, artifact_version_id",
+      values: [input.artifactVersionId],
+      conflict:
+        "on conflict (organization_id, artifact_version_id) where artifact_version_id is not null",
     }
     : {
       insert: "organization_id, entry_id, revision",

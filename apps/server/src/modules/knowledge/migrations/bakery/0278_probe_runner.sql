@@ -16,18 +16,24 @@
 -- ## Where an answer can live
 --
 -- `blob_probes` used to key on a blob, which was true while every probed thing
--- had one. A storage file under the inline limit is stored as bytes in a row
--- with no blob, so it could never be answered. The key becomes exactly one of
--- two shapes:
+-- had one. Bytes under the inline limit are written into the version row itself,
+-- and there are two such rows: a storage file version, and an artifact version
+-- written on a server with no object store. Neither has a blob to key on. The key
+-- becomes exactly one of three shapes:
 --
---   * (organization_id, blob_id)          -- bytes shared by every version that
---                                            has them, because a blob is
---                                            deduplicated by digest;
---   * (organization_id, entry_id, revision) -- one version's own inline bytes,
---                                            which nothing else shares.
+--   * (organization_id, blob_id)             -- bytes shared by every version
+--                                               that has them, because a blob is
+--                                               deduplicated by digest;
+--   * (organization_id, entry_id, revision)  -- one storage version's own inline
+--                                               bytes, which nothing else shares;
+--   * (organization_id, artifact_version_id) -- one artifact version's own inline
+--                                               bytes, same reason. Artifact
+--                                               revisions are per artifact, not
+--                                               per line, so the version id is
+--                                               the whole address.
 --
--- The two CHECKs make that exclusive rather than merely intended, and the two
--- partial uniques keep "one answer per subject" true for both shapes. The
+-- The two CHECKs make that exclusive rather than merely intended, and the three
+-- partial uniques keep "one answer per subject" true for every shape. The
 -- existing foreign keys are MATCH SIMPLE, so a null half of a key is not
 -- enforced and no conditional key is needed.
 --
@@ -38,16 +44,23 @@
 alter table bakery.blob_probes
   alter column blob_id drop not null,
   add column entry_id uuid,
-  add column revision integer;
+  add column revision integer,
+  add column artifact_version_id uuid;
 
 alter table bakery.blob_probes
   add constraint blob_probes_subject_exclusive_check
-    check ((blob_id is not null) <> (entry_id is not null)),
+    check (
+      (blob_id is not null)::int + (entry_id is not null)::int +
+      (artifact_version_id is not null)::int = 1
+    ),
   add constraint blob_probes_subject_complete_check
     check ((entry_id is null) = (revision is null)),
   add constraint blob_probes_entry_fk
     foreign key (organization_id, entry_id)
-    references bakery.storage_entries (organization_id, id) on delete cascade;
+    references bakery.storage_entries (organization_id, id) on delete cascade,
+  add constraint blob_probes_artifact_version_fk
+    foreign key (organization_id, artifact_version_id)
+    references bakery.artifact_versions (organization_id, id) on delete cascade;
 
 alter table bakery.blob_probes
   drop constraint blob_probes_blob_unique;
@@ -60,10 +73,16 @@ create unique index blob_probes_entry_unique
   on bakery.blob_probes (organization_id, entry_id, revision)
   where entry_id is not null;
 
+create unique index blob_probes_artifact_version_unique
+  on bakery.blob_probes (organization_id, artifact_version_id)
+  where artifact_version_id is not null;
+
 comment on column bakery.blob_probes.entry_id is
-  'The storage entry whose inline bytes this answer describes; null when the subject is a blob.';
+  'The storage entry whose inline bytes this answer describes; null unless the subject is a storage version.';
 comment on column bakery.blob_probes.revision is
   'The inline version this answer describes; set exactly when entry_id is.';
+comment on column bakery.blob_probes.artifact_version_id is
+  'The artifact version whose inline bytes this answer describes; null unless the subject is an artifact version.';
 
 -- One row per version still needing an answer. A blob subject asks once per
 -- blob however many versions share it, so the two partial uniques below are the
@@ -74,6 +93,7 @@ create table bakery.probe_requests (
   blob_id uuid,
   entry_id uuid,
   revision integer,
+  artifact_version_id uuid,
   requested_at timestamptz not null default now(),
   attempts integer not null default 0,
   last_error text,
@@ -86,10 +106,16 @@ create table bakery.probe_requests (
   constraint probe_requests_entry_fk
     foreign key (organization_id, entry_id)
     references bakery.storage_entries (organization_id, id) on delete cascade,
-  -- The same subject rule as the answer table: one blob, or one version, never
-  -- both and never neither.
+  constraint probe_requests_artifact_version_fk
+    foreign key (organization_id, artifact_version_id)
+    references bakery.artifact_versions (organization_id, id) on delete cascade,
+  -- The same subject rule as the answer table: one blob, or one storage version,
+  -- or one artifact version -- never two and never none.
   constraint probe_requests_subject_exclusive_check
-    check ((blob_id is not null) <> (entry_id is not null)),
+    check (
+      (blob_id is not null)::int + (entry_id is not null)::int +
+      (artifact_version_id is not null)::int = 1
+    ),
   constraint probe_requests_subject_complete_check
     check ((entry_id is null) = (revision is null)),
   constraint probe_requests_revision_positive_check
@@ -103,6 +129,10 @@ create unique index probe_requests_blob_unique
 create unique index probe_requests_entry_unique
   on bakery.probe_requests (organization_id, entry_id, revision)
   where entry_id is not null;
+
+create unique index probe_requests_artifact_version_unique
+  on bakery.probe_requests (organization_id, artifact_version_id)
+  where artifact_version_id is not null;
 
 -- The runner reads oldest first and skips rows a peer has claimed.
 create index probe_requests_pending_idx

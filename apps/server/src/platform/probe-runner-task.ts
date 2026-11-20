@@ -2,6 +2,7 @@ import { readRuntimeConfig } from "@bakery/config";
 import { createSkillObjectStore } from "../modules/catalog/storage-backend.ts";
 import {
   type ProbeRunnerResult,
+  readArtifactVersionProbeSubjectBytes,
   readBlobProbeSubjectBytes,
   readInlineProbeSubjectBytes,
   runProbeTick,
@@ -44,6 +45,12 @@ export async function runProbeRunnerTask(
           organizationId,
           entryId,
           revision,
+        ),
+      readArtifactVersionBytes: (organizationId, artifactVersionId) =>
+        readArtifactVersionProbeSubjectBytes(
+          database,
+          organizationId,
+          artifactVersionId,
         ),
     });
   } finally {
