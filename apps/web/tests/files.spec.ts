@@ -314,13 +314,34 @@ for (
           filters.getByLabel("Made by").selectOption({ label: "Build worker" }),
       );
       await expect(page.getByText("Nothing matches")).toBeVisible();
+      await page.getByRole("button", { name: "Clear search" }).click();
+      await expect(page).not.toHaveURL(/kind=|by=/);
+      await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
+    });
+
+    test("Clear filters resets the filters and keeps the typed text", async ({ page }) => {
+      test.skip(viewport.name !== "phone");
+      await filesFixture(page);
+      await page.goto("/files/projects/web-app");
+      await page.getByRole("searchbox", { name: "Search files by name" })
+        .fill("plan");
       await withFilters(
         page,
         (filters) =>
-          filters.getByRole("button", { name: "Clear search" }).click(),
+          filters.getByRole("combobox", { name: "Kind" }).selectOption("plan"),
       );
-      await expect(page).not.toHaveURL(/kind=|by=/);
-      await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
+      await expect(page).toHaveURL(/kind=plan/);
+      await page.getByRole("button", { name: /^Filters/ }).click();
+      const sheet = page.getByRole("dialog", { name: "Filters" });
+      await sheet.getByRole("button", { name: "Clear filters" }).click();
+      // The sheet stays open, the selects are reset, the text is kept.
+      await expect(sheet).toBeVisible();
+      await expect(sheet.getByRole("combobox", { name: "Kind" }))
+        .toHaveValue("");
+      await expect(sheet.getByRole("button", { name: "Clear filters" }))
+        .toBeDisabled();
+      await expect(page).not.toHaveURL(/kind=/);
+      await expect(page).toHaveURL(/q=plan/);
     });
 
     test("the file type filter narrows a search, and Clear search goes back to the folder", async ({ page }) => {
@@ -335,11 +356,7 @@ for (
         .toBeVisible();
       await expect(results.getByRole("link", { name: "plan.md" }))
         .toHaveCount(0);
-      await withFilters(
-        page,
-        (filters) =>
-          filters.getByRole("button", { name: "Clear search" }).click(),
-      );
+      await page.getByRole("button", { name: "Clear search" }).click();
       await expect(page.getByTestId("files-results")).toHaveCount(0);
       await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
     });

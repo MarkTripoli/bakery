@@ -101,6 +101,29 @@ export function FileSearchControls(
   const active =
     [state.type, state.kind, state.by].filter((value) => value !== undefined)
       .length + (state.everywhere && !atTop ? 1 : 0);
+  const anySet = state.q !== "" || state.type !== undefined ||
+    state.kind !== undefined || state.by !== undefined;
+  const clearSearch = anySet
+    ? (
+      <UI.Button
+        variant="secondary"
+        onClick={() => {
+          setText("");
+          onChange({
+            ...state,
+            q: "",
+            type: undefined,
+            kind: undefined,
+            by: undefined,
+          });
+        }}
+      >
+        {translate("files.search.clear")}
+      </UI.Button>
+    )
+    : null;
+  const filtersSet = state.type !== undefined || state.kind !== undefined ||
+    state.by !== undefined || (state.everywhere && !atTop);
   const filterItems = (
     <>
       {atTop ? null : (
@@ -159,26 +182,6 @@ export function FileSearchControls(
         }}
         options={byOptions}
       />
-      {state.q !== "" || state.type !== undefined ||
-          state.kind !== undefined || state.by !== undefined
-        ? (
-          <UI.Button
-            variant="secondary"
-            onClick={() => {
-              setText("");
-              onChange({
-                ...state,
-                q: "",
-                type: undefined,
-                kind: undefined,
-                by: undefined,
-              });
-            }}
-          >
-            {translate("files.search.clear")}
-          </UI.Button>
-        )
-        : null}
     </>
   );
   return (
@@ -208,6 +211,7 @@ export function FileSearchControls(
                   ? translate("files.filters.buttonCount", { count: active })
                   : translate("files.filters.button")}
               </UI.Button>
+              {clearSearch}
             </UI.Inline>
             <UI.Sheet
               open={sheetOpen}
@@ -217,6 +221,20 @@ export function FileSearchControls(
             >
               <UI.Stack gap="standard" data-controls="filters">
                 {filterItems}
+                <UI.Button
+                  variant="secondary"
+                  disabled={!filtersSet}
+                  onClick={() =>
+                    onChange({
+                      ...state,
+                      type: undefined,
+                      kind: undefined,
+                      by: undefined,
+                      everywhere: false,
+                    })}
+                >
+                  {translate("files.filters.clear")}
+                </UI.Button>
                 <UI.Button
                   variant="primary"
                   onClick={() => setSheetOpen(false)}
@@ -230,6 +248,7 @@ export function FileSearchControls(
         : (
           <UI.Inline gap="compact" data-controls="filters">
             {filterItems}
+            {clearSearch}
           </UI.Inline>
         )}
     </UI.Stack>

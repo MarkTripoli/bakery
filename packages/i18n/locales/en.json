@@ -4632,6 +4632,7 @@
   "files.filters.title": "Filters",
   "files.filters.close": "Close filters",
   "files.filters.show": "Show results",
+  "files.filters.clear": "Clear filters",
   "files.search.by": "Made by",
   "files.search.by.any": "Anyone",
   "files.file.missing": "That file is not in this folder. It may have been moved or removed, or you may not have access to it.",

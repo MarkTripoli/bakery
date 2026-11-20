@@ -4914,5 +4914,6 @@
   "files.filters.buttonCount": "⟦Ƒïļŧëŕš · {count} ŧëš⟧",
   "files.filters.title": "⟦Ƒïļŧëŕš…⟧",
   "files.filters.close": "⟦Çļôšë ƒïļŧëŕš ŧë⟧",
-  "files.filters.show": "⟦Šĥôŵ ŕëšûļŧš ŧë⟧"
+  "files.filters.show": "⟦Šĥôŵ ŕëšûļŧš ŧë⟧",
+  "files.filters.clear": "⟦Çļëàŕ ƒïļŧëŕš ŧë⟧"
 }

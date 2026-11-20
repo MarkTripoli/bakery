@@ -4914,5 +4914,6 @@
   "files.filters.buttonCount": "⟪Filters · {count}⟫",
   "files.filters.title": "⟪Filters⟫",
   "files.filters.close": "⟪Close filters⟫",
-  "files.filters.show": "⟪Show results⟫"
+  "files.filters.show": "⟪Show results⟫",
+  "files.filters.clear": "⟪Clear filters⟫"
 }
