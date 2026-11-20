@@ -7,6 +7,7 @@ import {
   createDestinationFanout,
   createProviderRegistry,
   createPublicHttpsPolicy,
+  MEASUREMENT_KINDS,
   measurementsOf,
   otlpProvider,
   type TelemetryProvider,
@@ -108,8 +109,10 @@ Deno.test("a registry refuses two adapters for one kind and lists them in order"
 });
 
 Deno.test("every record the server emits maps to the kinds it carries, and an unmapped one to none", () => {
-  assertEquals(measurementsOf(usage), ["cost"]);
-  assertEquals(measurementsOf(completed), ["durations", "results"]);
+  // usage.settled holds only the attempt id and job.completed no duration, so
+  // neither carries cost or durations yet.
+  assertEquals(measurementsOf(usage), []);
+  assertEquals(measurementsOf(completed), ["results"]);
   assertEquals(measurementsOf(sample), ["health"]);
   assertEquals(measurementsOf(unknown), []);
 });
@@ -144,9 +147,22 @@ Deno.test("a measurement a kind offers is one the server really emits", () => {
   for (const kind of otlpProvider.descriptor.measurements) {
     assert(emitted.has(kind), `${kind} is offered but nothing sends it`);
   }
+  // A kind that is not offered says why, so its checkbox is disabled with a reason.
+  for (const kind of MEASUREMENT_KINDS) {
+    if (
+      (otlpProvider.descriptor.measurements as readonly string[]).includes(kind)
+    ) {
+      continue;
+    }
+    assert(
+      (otlpProvider.descriptor.unavailableReasons[kind] ?? "") !== "",
+      `${kind} is not offered and gives no reason`,
+    );
+  }
+  // The promise of each unavailable kind is a number the records do not carry.
   assertEquals(
-    otlpProvider.descriptor.unavailableReasons.skills,
-    "Bakery does not send this yet.",
+    [...otlpProvider.descriptor.measurements],
+    ["results", "health"],
   );
 });
 
@@ -351,7 +367,7 @@ Deno.test("a destination that never answers fills only its own bounded queue whi
   for (let i = 0; i < 25; i += 1) {
     const started = performance.now();
     fanout.send(
-      [usage, usage, usage, usage],
+      [completed, completed, completed, completed],
       new AbortController().signal,
     );
     slowest = Math.max(slowest, performance.now() - started);
@@ -371,9 +387,9 @@ Deno.test("a destination that never answers fills only its own bounded queue whi
 });
 
 Deno.test("a destination receives only the kinds it was told to, and an off one receives nothing", async () => {
-  const got: Record<string, string[]> = { cost: [], health: [], off: [] };
+  const got: Record<string, string[]> = { results: [], health: [], off: [] };
   const registry = createProviderRegistry(
-    ["cost", "health", "off"].map((kind) =>
+    ["results", "health", "off"].map((kind) =>
       fakeProvider(kind, (batch) => {
         for (const r of batch) {
           got[kind].push(r.kind === "event" ? r.name : "metrics");
@@ -387,7 +403,7 @@ Deno.test("a destination receives only the kinds it was told to, and an off one 
     bounds: fast,
   });
   fanout.configure([
-    destination("c", "cost", { measurements: ["cost"] }),
+    destination("c", "results", { measurements: ["results"] }),
     destination("h", "health", { measurements: ["health"] }),
     destination("o", "off", { enabled: false }),
   ]);
@@ -395,9 +411,9 @@ Deno.test("a destination receives only the kinds it was told to, and an off one 
     [usage, completed, sample, unknown],
     new AbortController().signal,
   );
-  await until(() => got.cost.length === 1 && got.health.length === 1);
+  await until(() => got.results.length === 1 && got.health.length === 1);
   await new Promise((resolve) => setTimeout(resolve, 30));
-  assertEquals(got.cost, ["usage.settled"]);
+  assertEquals(got.results, ["job.completed"]);
   assertEquals(got.health, ["metrics"]);
   assertEquals(got.off, []);
   assertEquals(fanout.states().get("o")?.state, "off");
@@ -424,8 +440,8 @@ Deno.test("a new adapter added to the registry receives the same signals with no
     bounds: fast,
   });
   fanout.configure([destination("1", "one"), destination("2", "two")]);
-  fanout.send([usage, completed, sample], new AbortController().signal);
-  await until(() => seen[0].length === 3 && seen[1].length === 3);
+  fanout.send([completed, sample], new AbortController().signal);
+  await until(() => seen[0].length === 2 && seen[1].length === 2);
   assertEquals(seen[0], seen[1]);
   await fanout.close(0);
 });
@@ -446,7 +462,7 @@ Deno.test("a destination's state follows what it answers, and a change is announ
   });
   fanout.configure([destination("f", "flaky")]);
   assertEquals(fanout.states().get("f")?.state, "not_tested_yet");
-  fanout.send([usage], new AbortController().signal);
+  fanout.send([completed], new AbortController().signal);
   await until(() => fanout.states().get("f")?.state === "failing");
   assertEquals(
     fanout.states().get("f")?.lastAnswer?.reason,
@@ -454,7 +470,7 @@ Deno.test("a destination's state follows what it answers, and a change is announ
   );
   assertEquals(fanout.states().get("f")?.lastAcceptedAt, null);
   refuse = false;
-  fanout.send([usage], new AbortController().signal);
+  fanout.send([completed], new AbortController().signal);
   await until(() => fanout.states().get("f")?.state === "working");
   assert((fanout.states().get("f")?.lastAcceptedAt ?? 0) > 0);
   assertEquals(changes, ["failing", "working"]);

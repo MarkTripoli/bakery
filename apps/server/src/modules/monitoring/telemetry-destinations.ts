@@ -74,15 +74,15 @@ const MEASUREMENT_HELP: Readonly<
 > = Object.freeze({
   cost: {
     label: "Cost and token use",
-    help: "The cost and tokens of each use, as it settles.",
+    help: "The cost and tokens of each use.",
   },
   durations: {
     label: "How long work takes",
-    help: "How long each job took.",
+    help: "How long each job takes.",
   },
   results: {
     label: "Workflow results",
-    help: "How each job ended.",
+    help: "How each job ended: completed, failed or canceled.",
   },
   skills: {
     label: "Skills used",
@@ -90,7 +90,8 @@ const MEASUREMENT_HELP: Readonly<
   },
   health: {
     label: "System health",
-    help: "Queue age, leases, retries and the server's own counters.",
+    help:
+      "Queue age, leases and retries, and measurements Bakery could not send.",
   },
   errors: {
     label: "Errors",

@@ -76,10 +76,10 @@ export const otlpProvider: TelemetryProvider = Object.freeze({
     ]),
     // Only the kinds the server really emits (see measurements.ts): a kind offered
     // here that nothing maps to would be a checkbox that sends nothing.
-    measurements: Object.freeze(
-      ["cost", "durations", "results", "health"] as const,
-    ),
+    measurements: Object.freeze(["results", "health"] as const),
     unavailableReasons: Object.freeze({
+      cost: "Bakery does not send this yet.",
+      durations: "Bakery does not send this yet.",
       skills: "Bakery does not send this yet.",
       errors: "OpenTelemetry destinations receive errors as part of traces.",
     }),
