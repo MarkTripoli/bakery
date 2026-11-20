@@ -16,9 +16,11 @@ import {
   DEFAULT_STEP_FILES,
   readsOnlyInputs,
   resolveStepFiles,
+  SEALED_STEP_FILES,
   WORKFLOW_FILE_READ_AREAS,
   WORKFLOW_FILE_WRITE_AREAS,
   WorkflowStepFilesSchema,
+  WorkflowStepSealedSchema,
 } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import { defaultWorkflowCompilerCatalog } from "../../packages/contracts/src/workflow-compiler/default-catalog.ts";
 import {
@@ -125,6 +127,88 @@ Deno.test("contract: an unknown area or an extra key is refused, never dropped",
     !WorkflowStepFilesSchema.safeParse({ read: [], write: [], grant: [] })
       .success,
   );
+});
+
+Deno.test("contract: sealed is a described boolean naming its expansion", () => {
+  const description = WorkflowStepSealedSchema.description ?? "";
+  assert(description.length > 80);
+  assert(description.includes("[inputs]") && description.includes("[outputs]"));
+  assert(description.includes("evaluation"));
+  assertEquals(
+    { read: [...SEALED_STEP_FILES.read], write: [...SEALED_STEP_FILES.write] },
+    { read: ["inputs"], write: ["outputs"] },
+  );
+});
+
+Deno.test("compiler: sealed: true expands into the files section and nothing else", async () => {
+  const result = await compile([step({ sealed: true })]);
+  assert(result.ok, JSON.stringify(result.ok ? [] : result.diagnostics));
+  const node = result.document.steps[0];
+  assert(node && node.kind === "action");
+  assertEquals(node.files, { read: ["inputs"], write: ["outputs"] });
+  assert(!Object.hasOwn(node, "sealed"));
+  const planStep = result.plan.steps[0];
+  assert(planStep);
+  assertEquals(planStep.files, { read: ["inputs"], write: ["outputs"] });
+  assert(!Object.hasOwn(planStep, "sealed"));
+  assert(!JSON.stringify(result.plan).includes("sealed"));
+  assert(readsOnlyInputs(planStep.files));
+  // The claim mints no storage tools for it, as for S2's inputs-only step.
+  assertEquals(stepFileScopes(planStep.files!), []);
+});
+
+Deno.test("compiler: sealed sugar and its explicit files section share a digest", async () => {
+  const sugar = await compile([step({ sealed: true })]);
+  const explicit = await compile([
+    step({ files: { read: ["inputs"], write: ["outputs"] } }),
+  ]);
+  const both = await compile([
+    step({ sealed: true, files: { write: ["outputs"], read: ["inputs"] } }),
+  ]);
+  assert(sugar.ok && explicit.ok && both.ok);
+  assertEquals(sugar.document, explicit.document);
+  assertEquals(sugar.plan, explicit.plan);
+  assertEquals(sugar.digest, explicit.digest);
+  assertEquals(both.digest, explicit.digest);
+});
+
+Deno.test("compiler: sealed: false leaves the defaults and the digest alone", async () => {
+  const unsealed = await compile([step({ sealed: false })]);
+  const plain = await compile([step()]);
+  assert(unsealed.ok && plain.ok);
+  assertEquals(unsealed.digest, plain.digest);
+  const node = unsealed.document.steps[0];
+  assert(node && node.kind === "action");
+  assertEquals(node.files, undefined);
+  const narrowed = await compile([
+    step({ sealed: false, files: { read: ["inputs", "shared"] } }),
+  ]);
+  assert(narrowed.ok);
+  const narrowedNode = narrowed.document.steps[0];
+  assert(narrowedNode && narrowedNode.kind === "action");
+  assertEquals(narrowedNode.files?.read, ["inputs", "shared"]);
+});
+
+Deno.test("compiler: sealed with a conflicting files section is refused by name", async () => {
+  for (
+    const files of [
+      { read: ["inputs", "shared"], write: ["outputs"] },
+      { read: ["inputs"] },
+      { write: ["outputs", "workspace"] },
+      { read: [], write: [] },
+    ]
+  ) {
+    const result = await compile([step({ sealed: true, files })]);
+    assert(!result.ok, JSON.stringify(files));
+    assertEquals(
+      result.diagnostics.map((d) => d.code),
+      ["action_sealed_conflicts_files"],
+      JSON.stringify(files),
+    );
+  }
+  const typed = await compile([step({ sealed: "yes" })]);
+  assert(!typed.ok);
+  assertEquals(typed.diagnostics.map((d) => d.code), ["action_sealed_invalid"]);
 });
 
 Deno.test("compiler: a files section is canonical in the node and carried into the plan", async () => {

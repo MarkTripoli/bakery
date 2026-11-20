@@ -1153,6 +1153,31 @@
       ]
     },
     {
+      "group": "Work",
+      "method": "POST",
+      "path": "/v1/runs/{id}/steps/{stepKey}/writes/revert",
+      "action": "runSteps.revertWrites",
+      "access": "Developer",
+      "permission": "run:control",
+      "organizationContext": "required_authenticated_context",
+      "input": "RunStepRevertWrites",
+      "output": "RunStepWritesReverted",
+      "event": "",
+      "mcp": "bakery_runSteps_revertWrites",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
       "group": "Conversation",
       "method": "GET",
       "path": "/v1/conversations",

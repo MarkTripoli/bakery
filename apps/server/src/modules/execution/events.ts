@@ -35,6 +35,7 @@ import {
   appendAttemptEvent,
   appendOutputBatch,
   applyStartedLifecycle,
+  type AttemptLockMode,
   loadEventsByIds,
   loadExistingEvent as loadPersistedEvent,
   lockAttempt as lockPersistedAttempt,
@@ -106,15 +107,19 @@ function serverAttempt(
   };
 }
 
+export type { AttemptLockMode };
+
 export async function lockAttempt(
   transaction: PgTransactionClient,
   identity: WorkerIdentity,
   attemptId: string,
+  mode: AttemptLockMode = "update",
 ): Promise<AttemptRow> {
   const attempt = await lockPersistedAttempt(
     transaction,
     persistenceIdentity(identity),
     attemptId,
+    mode,
   );
   const row = serverAttempt(attempt);
   assertAttemptRowIntegrity(row);
