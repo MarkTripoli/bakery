@@ -4622,7 +4622,6 @@
   "settings.plugins.page.noneAsked": "⟦Ïŧ àšķš ƒôŕ ñô þëŕɱïššïôñš. ŧëšŧ çô⟧",
   "settings.plugins.page.version": "⟦Ṽëŕšïôñ…⟧",
   "settings.plugins.page.for": "⟦Ƒôŕ⟧",
-  "settings.plugins.page.back": "⟦Þļûĝïñš…⟧",
   "settings.plugins.page.notFound": "⟦Ŧĥïš þļûĝïñ çôûļð ñôŧ ƀë ƒôûñð. ŧëšŧ çôþ⟧",
   "settings.plugins.page.more": "⟦Ṁôŕë⟧",
   "settings.plugins.turnOff.action": "⟦Ŧûŕñ ôƒƒ…⟧",
@@ -4905,5 +4904,6 @@
   "library.memory.action.adminOnly": "⟦Ôñļÿ àñ àðɱïñïšŧŕàŧôŕ çàñ çĥàñĝë ŕëɱëɱƀëŕëð ƒàçŧš. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "files.kind.none": "⟦—⟧",
   "files.file.missing": "⟦Ŧĥàŧ ƒïļë ïš ñôŧ ïñ ŧĥïš ƒôļðëŕ. Ïŧ ɱàÿ ĥàṽë ƀëëñ ɱôṽëð ôŕ ŕëɱôṽëð, ôŕ ÿôû ɱàÿ ñôŧ ĥàṽë àççëšš ŧô ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "files.file.finding": "⟦Ƒïñðïñĝ ŧĥàŧ ƒïļë… ŧëšŧ⟧"
+  "files.file.finding": "⟦Ƒïñðïñĝ ŧĥàŧ ƒïļë… ŧëšŧ⟧",
+  "settings.plugins.page.back": "⟦Ĝô ŧô Þļûĝïñš ŧë⟧"
 }

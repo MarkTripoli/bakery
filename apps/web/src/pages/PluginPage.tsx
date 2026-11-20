@@ -212,11 +212,15 @@ export function PluginPage({ installId }: { readonly installId: string }) {
               href: SETTINGS_HOME,
               label: translate("shell.states.settingsTitle"),
             },
-            {
-              href: PLUGINS_PATH,
-              label: translate("shell.navigation.plugins"),
-            },
-            { label: name || translate("shell.navigation.plugins") },
+            ...(name === ""
+              ? [{ label: translate("shell.navigation.plugins") }]
+              : [
+                {
+                  href: PLUGINS_PATH,
+                  label: translate("shell.navigation.plugins"),
+                },
+                { label: name },
+              ]),
           ]}
         />
       </ShellSlot>
