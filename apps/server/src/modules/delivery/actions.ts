@@ -26,6 +26,8 @@ type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
 type RepositoryQuery = z.output<typeof contractSchemas.RepositoryQuery>;
 type MergeEntryCreate = z.output<typeof contractSchemas.MergeEntryCreate>;
 type PullRequestMerge = z.output<typeof contractSchemas.PullRequestMerge>;
+type MergeAttemptQuery = z.output<typeof contractSchemas.MergeAttemptQuery>;
+type MergeEntryQuery = z.output<typeof contractSchemas.MergeEntryQuery>;
 type MergeAttemptReconcile = z.output<
   typeof contractSchemas.MergeAttemptReconcile
 >;
@@ -57,7 +59,7 @@ export type DeliveryActionHandlers = {
   ) => Promise<z.output<typeof contractSchemas["Page<PullRequest>"]>>;
   mergeEntriesList: (
     context: ActionContext,
-    input: RepositoryQuery,
+    input: MergeEntryQuery,
   ) => Promise<z.output<typeof contractSchemas["Page<MergeEntry>"]>>;
   mergeEntriesCreate: (
     context: ActionContext,
@@ -67,6 +69,10 @@ export type DeliveryActionHandlers = {
     context: ActionContext,
     input: PullRequestMerge,
   ) => Promise<z.output<typeof contractSchemas.MergeAttempt>>;
+  mergeAttemptsList: (
+    context: ActionContext,
+    input: MergeAttemptQuery,
+  ) => Promise<z.output<typeof contractSchemas["Page<MergeAttempt>"]>>;
   mergeAttemptsReconcile: (
     context: ActionContext,
     input: MergeAttemptReconcile,
@@ -158,11 +164,22 @@ export function createDeliveryActionRegistry(
     name: DeliveryImplementedAction.MergeEntriesList,
     method: HttpMethod.Get,
     path: "/v1/merge-entries",
-    input: contractSchemas.RepositoryQuery,
+    input: contractSchemas.MergeEntryQuery,
     output: contractSchemas["Page<MergeEntry>"],
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.mergeEntriesList,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MergeAttemptsList,
+    method: HttpMethod.Get,
+    path: "/v1/merge-attempts",
+    input: contractSchemas.MergeAttemptQuery,
+    output: contractSchemas["Page<MergeAttempt>"],
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.mergeAttemptsList,
   });
 
   registry.register({

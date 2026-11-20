@@ -273,6 +273,40 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
     },
   );
   await page.route(
+    (url) => /^\/v1\/storage\/file-versions\/[^/]+$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[4]!;
+      // The versions of the plan: revision 1 is uuid(501), the current 2 is uuid(502).
+      const revision = id === uuid(501) ? 1 : id === uuid(502) ? 2 : null;
+      const plan = tree.find((entry) => entry.id === 40);
+      if (revision === null || plan === undefined) {
+        return route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({
+            type: "about:blank",
+            title: "Not Found",
+            status: 404,
+            code: "RESOURCE_NOT_FOUND",
+            retryable: false,
+            detail: "No such version.",
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
+      }
+      return json(
+        route,
+        JSON.stringify({
+          file: item(plan),
+          versionId: id,
+          revision,
+          isCurrent: revision === 2,
+        }),
+      );
+    },
+  );
+  await page.route(
     (url) => url.pathname === "/v1/files/search",
     (route) => {
       const url = new URL(route.request().url());

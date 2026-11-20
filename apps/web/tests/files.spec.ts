@@ -222,6 +222,33 @@ for (
       await expect(page.getByText("Nothing matches")).toBeVisible();
     });
 
+    test("a link to a saved version opens its file in its folder at that version", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(`/files/versions/${uuid(501)}`);
+      await expect(page).toHaveURL(/\/files\/projects\/web-app\?/);
+      await expect(page).toHaveURL(/version=1/);
+      await expect(page).toHaveURL(new RegExp(`file=${uuid(40)}`));
+      await expect(page.getByText("The first draft of the plan."))
+        .toBeVisible();
+    });
+
+    test("a link to the current version opens the file without a version", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(`/files/versions/${uuid(502)}`);
+      await expect(page).toHaveURL(new RegExp(`file=${uuid(40)}`));
+      await expect(page).not.toHaveURL(/version=/);
+      await expect(page.getByText("The current plan: fix the redirect"))
+        .toBeVisible();
+    });
+
+    test("a version that is not found says so", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(`/files/versions/${uuid(999)}`);
+      await expect(page.getByText("This version was not found")).toBeVisible();
+      await page.getByRole("button", { name: "Go to Files" }).click();
+      await expect(page).toHaveURL(/\/files$/);
+    });
+
     test("a file nothing has used says so", async ({ page }) => {
       await filesFixture(page, { uses: [] });
       await page.goto(`/files/projects/web-app?file=${uuid(40)}&tab=uses`);

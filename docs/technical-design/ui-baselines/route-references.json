@@ -5062,6 +5062,20 @@
       "frames": []
     },
     {
+      "routeId": "settings-organization-plugins",
+      "path": "/settings/organization/plugins",
+      "status": "no-mock",
+      "rationale": "Designed in design-ux's #76 revision 3 (design-76/v3 on the pr-evidence branch): token-value mocks, not Paper frames, so there is no Paper artboard to score. Not searched against the Paper artboard list; the page is judged against those mocks in the PR's visual evidence and by the Storybook component lanes.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-plugin",
+      "path": "/settings/organization/plugins/$installId",
+      "status": "no-mock",
+      "rationale": "Designed in design-ux's #76 revision 3 (design-76/v3 on the pr-evidence branch): token-value mocks, not Paper frames, so there is no Paper artboard to score. Not searched against the Paper artboard list; the page is judged against those mocks in the PR's visual evidence and by the Storybook component lanes.",
+      "frames": []
+    },
+    {
       "routeId": "settings-organization-repository-rules",
       "path": "/settings/organization/repository-rules",
       "status": "no-mock",
@@ -5157,6 +5171,13 @@
       "path": "/files",
       "status": "no-mock",
       "rationale": "The files browser's top of the tree (#445) is designed by design-ux on #445 (mocks at pr-evidence design-445/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "files-version",
+      "path": "/files/versions/$versionId",
+      "status": "no-mock",
+      "rationale": "A link to one saved version (a memory's source) finds its file and opens it in its folder at that version (#445); there is no screen of its own, so no Paper frame.",
       "frames": []
     },
     {

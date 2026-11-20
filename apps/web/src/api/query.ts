@@ -41,6 +41,7 @@ import type {
   IntegrationAppRegistration,
   IntegrationConnection,
   IntegrationResource,
+  MergeAttemptListResponse,
   MessageListResponse,
   NotificationCountResponse,
   NotificationCursorQuery,
@@ -55,6 +56,9 @@ import type {
   OrganizationRepositoryRulesResponse,
   OrganizationRepositoryRuleVersionListResponse,
   PlanRevisionListResponse,
+  PluginInstallListResponse,
+  PluginPackageListResponse,
+  PluginVersionListResponse,
   PullRequestListResponse,
   QuestionListResponse,
   RepositoryEffectiveRulesResponse,
@@ -72,6 +76,7 @@ import type {
   RunStepListResponse,
   ScimConnection,
   SkillStorageSettings,
+  StorageFileAtVersion,
   StorageFileUsePage,
   StorageFileVersionPage,
   StorageFolderItem,
@@ -355,6 +360,80 @@ export function ticketRoutingRulesQueryOptions(
           signal,
         }),
       ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every plugin published to the organization (one page of up to 100). */
+export function pluginPackagesQueryOptions(
+  client: Pick<BakeryApiClient, "plugins">,
+  scope: ApiScope,
+) {
+  return queryOptions<PluginPackageListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "pluginPackages.list", {}),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.plugins.packages({
+          organizationId: scope.organizationId,
+          limit: 100,
+          signal,
+        }),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The published versions of one plugin. */
+export function pluginVersionsQueryOptions(
+  client: Pick<BakeryApiClient, "plugins">,
+  scope: ApiScope,
+  packageId: string,
+) {
+  return queryOptions<PluginVersionListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "pluginVersions.list", { packageId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.plugins.versions({
+          organizationId: scope.organizationId,
+          packageId,
+          limit: 100,
+          signal,
+        }),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The installs this person may see: their own, and the organization's. */
+export function pluginInstallsQueryOptions(
+  client: Pick<BakeryApiClient, "plugins">,
+  scope: ApiScope,
+) {
+  return queryOptions<PluginInstallListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "pluginInstalls.list", {}),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.plugins.installs({
+          organizationId: scope.organizationId,
+          limit: 100,
+          signal,
+        }),
+      );
+    },
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });
@@ -2443,6 +2522,33 @@ export function approvalsQueryOptions(
 }
 
 /**
+ * One pull request's merge attempts, newest first. Read whole (the newest is
+ * what the section shows) and kept fresh, so a refused or unknown attempt is
+ * what the page says after a reload, never a guess.
+ */
+export function mergeAttemptsQueryOptions(
+  client: Pick<BakeryApiClient, "listMergeAttempts">,
+  scope: ApiScope,
+  pullRequestId: string,
+) {
+  return queryOptions<MergeAttemptListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "mergeAttempts.list", {
+      pullRequestId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listMergeAttempts({
+          organizationId: requireOrganization(scope),
+          pullRequestId,
+          limit: 10,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
  * The task's pull requests, oldest first. Read by task rather than by run: a
  * pull request registered without a run would never match a run filter, and
  * choosing this run's one is the view model's job.
@@ -2994,5 +3100,27 @@ export function fileSearchQueryOptions(
       ),
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
+  });
+}
+
+/** The file one saved version belongs to: what a link to a version opens. */
+export function storageFileAtVersionQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  versionId: string,
+) {
+  return queryOptions<StorageFileAtVersion, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "storageFiles.byVersion", { versionId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.files.atVersion(
+          requireOrganization(scope),
+          versionId,
+          signal,
+        ),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+    staleTime: Infinity,
   });
 }

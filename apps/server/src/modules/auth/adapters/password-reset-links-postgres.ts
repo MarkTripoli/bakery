@@ -7,12 +7,12 @@ import {
   type PgTransactionClient,
   withPgTransaction,
 } from "../../../platform/database.ts";
-import { boundRetryAfterSeconds } from "../../../platform/retry-after.ts";
 import type { InstallationActor } from "../application/authority.ts";
 import {
   type AuthAuditCorrelation,
   recordAuthAudit,
 } from "../application/audit.ts";
+import { spendRateLimitAttempt } from "./rate-limit-postgres.ts";
 
 /** How long an issued link stays redeemable. */
 export const PASSWORD_RESET_LINK_TTL_MS = 60 * 60_000;
@@ -105,31 +105,6 @@ export async function issuePasswordResetLink(
   };
 }
 
-async function spendAttempt(
-  database: PgDatabase,
-  key: string,
-  max: number,
-  nowMs: number,
-): Promise<number | undefined> {
-  const { windowMs } = REDEMPTION_RATE_LIMIT;
-  const result = await database.query<{ count: number; windowStart: number }>(
-    `insert into public."rateLimit" (key, count, "lastRequest")
-     values ($1, 1, $2)
-     on conflict (key) do update set
-       count = case when "rateLimit"."lastRequest" <= $3 then 1
-         else "rateLimit".count + 1 end,
-       "lastRequest" = case when "rateLimit"."lastRequest" <= $3 then $2
-         else "rateLimit"."lastRequest" end
-     returning count, "lastRequest" as "windowStart"`,
-    [key, nowMs, nowMs - windowMs],
-  );
-  const row = result.rows[0];
-  if (!row || row.count <= max) return undefined;
-  return boundRetryAfterSeconds(
-    (Number(row.windowStart) + windowMs - nowMs) / 1000,
-  );
-}
-
 function checkPasswordRule(password: string, hasher: PasswordHasher): void {
   if (password.length < hasher.config.minPasswordLength) {
     throw unprocessable(["newPassword"], "password_too_short");
@@ -169,10 +144,10 @@ export async function redeemPasswordResetLink(
     ],
   ] as const;
   for (const [key, max] of limits) {
-    const retryAfterSeconds = await spendAttempt(
+    const retryAfterSeconds = await spendRateLimitAttempt(
       database,
       key,
-      max,
+      { max, windowMs: REDEMPTION_RATE_LIMIT.windowMs },
       now.getTime(),
     );
     if (retryAfterSeconds !== undefined) {

@@ -54,8 +54,13 @@ import {
   createFolderLister,
   listStorageRoots,
   parseRevision,
+  readStorageFileByVersion,
   type StorageReader,
 } from "./storage-reads.ts";
+import {
+  createAgentFileGrant,
+  revokeAgentFileGrant,
+} from "./agent-file-grants.ts";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import {
   createFileSearchHandler,
@@ -687,6 +692,21 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
           ),
         ),
     })
+    .register({
+      name: A.StorageFilesByVersion,
+      method: HttpMethod.Get,
+      path: "/v1/storage/file-versions/:id",
+      input: contractSchemas.Empty,
+      output: contractSchemas.StorageFileAtVersion,
+      policy: readPolicy,
+      handler: async (context) =>
+        contractSchemas.StorageFileAtVersion.parse(
+          await readStorageFileByVersion(
+            context,
+            storageReader(context, A.StorageFilesByVersion),
+          ),
+        ),
+    })
     // The bytes are a raw Response served by the route below, under this
     // action's authority; the registered handler is never reached.
     .register({
@@ -825,6 +845,34 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
       handler: async (context) =>
         contractSchemas.StoragePurgeResult.parse(
           await purgeStorageEntry(context),
+        ),
+    })
+    .register({
+      name: A.AgentFileGrantsCreate,
+      method: HttpMethod.Post,
+      path: "/v1/storage/agent-file-grants",
+      input: contractSchemas.AgentFileGrantCreate,
+      output: contractSchemas.AgentFileGrant,
+      explicitIdempotency: "key",
+      successStatus: 201,
+      policy: storageAdminPolicy(A.AgentFileGrantsCreate),
+      handler: async (context, input) =>
+        contractSchemas.AgentFileGrant.parse(
+          await createAgentFileGrant(context, input),
+        ),
+    })
+    .register({
+      name: A.AgentFileGrantsRevoke,
+      method: HttpMethod.Post,
+      path: "/v1/storage/agent-file-grants/:id/revoke",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.AgentFileGrant,
+      explicitIdempotency: "key-and-if-match",
+      successStatus: 200,
+      policy: storageAdminPolicy(A.AgentFileGrantsRevoke),
+      handler: async (context) =>
+        contractSchemas.AgentFileGrant.parse(
+          await revokeAgentFileGrant(context),
         ),
     });
 }

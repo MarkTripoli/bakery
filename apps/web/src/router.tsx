@@ -35,6 +35,7 @@ import { IssueSettingsListPage } from "./pages/IssueSettingsListPage.tsx";
 import { IssueSettingsPage } from "./pages/IssueSettingsPage.tsx";
 import { LibraryPage } from "./pages/LibraryPage.tsx";
 import { FilesPage } from "./pages/FilesPage.tsx";
+import { FileVersionPage } from "./pages/FileVersionPage.tsx";
 import { folderPathOf } from "./pages/files/files-state.ts";
 import { AgentPage } from "./pages/AgentPage.tsx";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
@@ -74,6 +75,8 @@ import { OrganizationRepositoryRulesPage } from "./pages/OrganizationRepositoryR
 import { RepositoryPage } from "./pages/RepositoryPage.tsx";
 import { RepositoryRulesPage } from "./pages/RepositoryRulesPage.tsx";
 import { OrganizationRolesPage } from "./pages/OrganizationRolesPage.tsx";
+import { PluginPage } from "./pages/PluginPage.tsx";
+import { PluginsPage } from "./pages/PluginsPage.tsx";
 import {
   CONNECTION_ID_PARAMETER,
   CONNECTION_OUTCOME_PARAMETER,
@@ -210,6 +213,20 @@ export const routeCoverage = [
   {
     id: "files",
     path: "/files",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "files-version",
+    path: "/files/versions/$versionId",
     classification: "production",
     states: [
       "loading",
@@ -630,6 +647,18 @@ export const routeCoverage = [
     path: "/settings/organization/roles",
     classification: "production",
     states: ["loading", "default", "error", "forbidden"],
+  },
+  {
+    id: "settings-organization-plugins",
+    path: "/settings/organization/plugins",
+    classification: "production",
+    states: ["loading", "default", "empty", "error"],
+  },
+  {
+    id: "settings-organization-plugin",
+    path: "/settings/organization/plugins/$installId",
+    classification: "production",
+    states: ["loading", "default", "error"],
   },
   {
     id: "settings-organization-repository-rules",
@@ -1225,6 +1254,17 @@ const filesRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const fileVersionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files/versions/$versionId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <FileVersionPage versionId={fileVersionRoute.useParams().versionId} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const filesPathRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/files/$",
@@ -1641,6 +1681,27 @@ const organizationRolesRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: OrganizationRolesPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const organizationPluginsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/plugins",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: PluginsPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const organizationPluginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/plugins/$installId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const { installId } = organizationPluginRoute.useParams();
+    return <PluginPage installId={installId} />;
+  },
   errorComponent: ProtectedRouteError,
 });
 
@@ -2332,6 +2393,7 @@ const routeTree = rootRoute.addChildren([
   issueSettingsDetailRoute,
   machinesRoute,
   filesRoute,
+  fileVersionRoute,
   filesPathRoute,
   libraryRoute,
   workflowRoute,
@@ -2364,6 +2426,8 @@ const routeTree = rootRoute.addChildren([
   organizationIntegrationsRoute,
   organizationIntegrationConnectionRoute,
   organizationRolesRoute,
+  organizationPluginsRoute,
+  organizationPluginRoute,
   organizationRepositoryRulesRoute,
   repositoryRoute,
   repositoryRulesRoute,

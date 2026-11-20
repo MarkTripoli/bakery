@@ -12,8 +12,10 @@ import type { SupportedLocale } from "./locale.ts";
  * Version 12 adds the artifact preview handoff rows (`artifact.handoff.*`).
  * Version 13 adds the session thread rows (`session.thread.*`) and the four
  * kept connection rows under `session.feed.*`.
+ * Version 14 adds the desktop app's browser sign-in pages
+ * (`auth.desktopSignIn.*`).
  */
-export const catalogVersion = "13";
+export const catalogVersion = "14";
 export const englishCatalog: Readonly<Record<MessageKey, string>> = english;
 export const catalogs: Readonly<
   Record<SupportedLocale, Readonly<Partial<Record<MessageKey, string>>>>
