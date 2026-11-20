@@ -17,6 +17,20 @@ export const dependencyHealthSchema = z.object({
   ),
 }).describe("The safe status of one runtime dependency.");
 
+/**
+ * The level of the HTTP API this build serves. It rises by one whenever a
+ * change would break a client built against the level before, so a client
+ * compares it with the lowest level it supports to say "this server is older
+ * than this app". The free-text `version` is for diagnostics only.
+ */
+export const HEALTH_API_COMPATIBILITY = 1;
+
+/** The port a Bakery server on this computer listens on unless told otherwise. */
+export const LOCAL_SERVER_PORT = 8000;
+
+/** The fixed address of a Bakery server on this computer with default settings. */
+export const LOCAL_SERVER_ORIGIN = `http://127.0.0.1:${LOCAL_SERVER_PORT}`;
+
 export const healthResponseSchema = z.object({
   service: z.string().min(1).describe(
     "Stable service identifier that emitted this health response.",
@@ -27,6 +41,11 @@ export const healthResponseSchema = z.object({
   ),
   dependencies: z.array(dependencyHealthSchema).describe(
     "Bounded dependency checks included in readiness responses.",
+  ),
+  compatibility: z.number().int().min(1).describe(
+    "API compatibility level of this build; a higher number is newer.",
+  ).optional().describe(
+    "API compatibility level of this build, comparable as a number; absent on servers that predate it, which a client treats as older than level 1.",
   ),
 }).describe(
   "Versioned health response shared by server and worker HTTP boundaries.",
