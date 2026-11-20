@@ -149,10 +149,10 @@ export const LIBRARY_SOURCES = Object.freeze(
  */
 export function visibleToCaller(
   source: { readonly kind: string },
-  principalRef: string,
+  principalRef: () => string,
 ): string {
   return source.kind === "skill"
-    ? ` and (x.scope <> 'personal' or x.owner_principal_id = ${principalRef})`
+    ? ` and (x.scope <> 'personal' or x.owner_principal_id = ${principalRef()})`
     : "";
 }
 
@@ -201,8 +201,12 @@ export async function listLibraryFolder(
       const found = await transaction.query<{ present: boolean }>(
         `select exists (select 1 from ${source.table} x
                          where x.organization_id = $1 ${source.where}
-                         ${visibleToCaller(source, "$2::uuid")}) as present`,
-        [input.organizationId, input.principalId],
+                         ${
+          visibleToCaller(source, () => "$2::uuid")
+        }) as present`,
+        source.kind === "skill"
+          ? [input.organizationId, input.principalId]
+          : [input.organizationId],
       );
       if (found.rows[0]?.present) {
         children.push({
@@ -235,7 +239,7 @@ export async function listLibraryFolder(
                     'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at
        from ${source.table} x
       where x.organization_id = $1 ${source.where}
-        ${visibleToCaller(source, "$5::uuid")}
+        ${visibleToCaller(source, () => "$5::uuid")}
         and ($2::timestamptz is null or (x.created_at, x.id) > ($2::timestamptz, $3::uuid))
       order by x.created_at, x.id
       limit $4`,
@@ -244,7 +248,7 @@ export async function listLibraryFolder(
       input.after?.createdAt ?? null,
       input.after?.id ?? null,
       input.limit ?? LIBRARY_PAGE_DEFAULT,
-      input.principalId,
+      ...(source.kind === "skill" ? [input.principalId] : []),
     ],
   );
   return items.rows.map((row) => ({
@@ -485,7 +489,7 @@ export function createFileSearchHandler(
                   x.created_at
              from ${source.table} x
             where x.organization_id = ${org} ${source.where}
-              ${visibleToCaller(source, `${p(principalId)}::uuid`)}
+              ${visibleToCaller(source, () => `${p(principalId)}::uuid`)}
               and (${needleParam}::text is null
                    or strpos(lower(x.${source.name}), ${needleParam}) > 0)
               and (${kindParam}::text is null or ${kindParam} = '${source.kind}')`,
