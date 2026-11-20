@@ -4,6 +4,10 @@ import type { PgTransactionClient } from "@bakery/persistence";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { sha256Bytes } from "./bytes.ts";
 import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
+import {
+  compactDraftEpoch,
+  measureDraftEpochBytes,
+} from "./draft-compaction.ts";
 
 export type DraftEditInput = {
   epoch: number;
@@ -426,6 +430,40 @@ export async function prepareDraftEdit(
   );
 }
 
+/**
+ * Keeps one epoch inside its retained-state cap (chapter 20: 16 MiB). Above the
+ * compaction threshold the commit compacts once first; if the candidate still
+ * does not fit, it is refused. One pass and one refusal, never a retry loop.
+ */
+async function makeRoomForCandidate(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  draftId: string,
+  epoch: number,
+  incomingBytes: number,
+): Promise<void> {
+  let retained = await measureDraftEpochBytes(
+    transaction,
+    organizationId,
+    draftId,
+    epoch,
+  );
+  if (retained + incomingBytes <= DRAFT_LIMITS.compactionThresholdBytes) return;
+  await compactDraftEpoch(transaction, organizationId, draftId, epoch);
+  retained = await measureDraftEpochBytes(
+    transaction,
+    organizationId,
+    draftId,
+    epoch,
+  );
+  if (retained + incomingBytes > DRAFT_LIMITS.stateBytes) {
+    throw new StandardError({
+      code: "STORAGE_QUOTA_EXCEEDED",
+      detail: "This draft has reached its size limit for the current epoch.",
+    });
+  }
+}
+
 async function commitDraftCandidate(
   transaction: PgTransactionClient,
   organizationId: string,
@@ -462,6 +500,14 @@ async function commitDraftCandidate(
     await sha256Bytes(new TextEncoder().encode(candidate.text)) !==
       candidate.textDigest
   ) throw new StandardError({ code: "UNPROCESSABLE" });
+  await makeRoomForCandidate(
+    transaction,
+    organizationId,
+    preparation.draftId,
+    preparation.epoch,
+    candidate.state.length + candidate.frontiers.length +
+      candidate.update.length,
+  );
   const nextSequence = (BigInt(preparation.highwater) + 1n).toString();
   const checkpointId = crypto.randomUUID();
   const updateId = crypto.randomUUID();

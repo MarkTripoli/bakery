@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { FailureCode } from "./api.ts";
+import { describeProblems, verifyBackupDirectory } from "./manifest.ts";
 import { redact, type Secrets } from "./redact.ts";
 import { isBackupName } from "./retention.ts";
 
@@ -49,6 +50,8 @@ export function classifyBackupFailure(input: {
     /age: no (identity|recipient)/i.test(text) ||
     /failed to parse recipient|invalid recipient/i.test(text)
   ) return "key_missing";
+  // backup.sh refused to finish a set that lacks a declared state store.
+  if (/BACKUP_INCOMPLETE/.test(text)) return "incomplete_set";
   return "runner_error";
 }
 
@@ -97,10 +100,10 @@ export type BackupStepOptions = {
 };
 
 /**
- * Runs the existing backup.sh unchanged and reads the set it finished. The
- * script keeps its own behaviour (dump both databases, encrypt to the public
- * recipient, tar the files, checksum, atomic rename); the runner only observes
- * its exit status, its last stderr and the `BACKUP_COMPLETED <name>` line.
+ * Runs backup.sh and reads the set it finished. The script captures every
+ * declared state store, writes the manifest and moves the set into place; the
+ * runner observes its exit status, its last stderr and the
+ * `BACKUP_COMPLETED <name>` line, then verifies the set against its manifest.
  */
 export async function runBackupScript(
   options: BackupStepOptions,
@@ -178,7 +181,24 @@ export async function runBackupScript(
       "The backup script finished without naming its set.",
     );
   }
-  return await readArtifact(options.root, match[1]);
+  const artifact = await readArtifact(options.root, match[1]);
+  // Defence in depth: the script verifies its own set, and the runner reads the
+  // manifest again before the set may be reported as a backup. A set missing a
+  // declared store (or with no manifest at all) is not a recoverable backup.
+  const verification = await verifyBackupDirectory(artifact.directory);
+  if (!verification.complete) {
+    throw new StepError(
+      "incomplete_set",
+      redact(
+        `The backup set is not complete: ${
+          describeProblems(verification.problems)
+        }`,
+        options.secrets,
+        1000,
+      ),
+    );
+  }
+  return artifact;
 }
 
 /** Reads a stream to its end, keeping only the last `max` bytes. */

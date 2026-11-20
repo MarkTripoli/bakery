@@ -26,6 +26,7 @@ import {
 import type { FailureCode, RunnerSettings } from "./api.ts";
 import type { Artifact } from "./backup-step.ts";
 import { redact, type Secrets } from "./redact.ts";
+import { isDeclaredIncomplete } from "./manifest.ts";
 import { backupTimestamp, selectExpired } from "./retention.ts";
 
 /** A part is this big; a file no bigger than one part goes up in one request. */
@@ -407,11 +408,20 @@ export async function pruneLocal(options: {
       names.push(entry.name);
     }
   }
+  // A set that declared itself incomplete is prunable by age and never counts
+  // as the newest good set.
+  const incomplete = new Set<string>();
+  for (const name of names) {
+    if (await isDeclaredIncomplete(`${options.root}/${name}`)) {
+      incomplete.add(name);
+    }
+  }
   const expired = selectExpired({
     names,
     now: options.now,
     daysToKeep: options.daysToKeep,
     protect: new Set([options.artifactName]),
+    incomplete,
   });
   for (const name of expired) {
     await Deno.remove(`${options.root}/${name}`, { recursive: true });

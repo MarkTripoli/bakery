@@ -10,6 +10,7 @@ import {
   estimateTextTokens,
   isTextProjection,
   projectArtifactVersion,
+  type ProjectionLimit,
   referenceProjection,
 } from "./context-projection.ts";
 import {
@@ -240,6 +241,7 @@ async function planCandidate(
         referenceProjection(entry, {
           required: candidate.required,
           priority: candidate.priority,
+          limit: "extraction_failed",
         }),
         candidate.itemId,
       );
@@ -283,6 +285,8 @@ export type ContextPack = Readonly<{
     citation: unknown;
     text: string | null;
     truncated: boolean;
+    limits: ProjectionLimit | null;
+    redactions: number;
     tokens: number;
     countState: "measured" | "estimated" | "unknown";
   }[];
@@ -357,6 +361,8 @@ export async function buildContextPack(
       citation: entry.projection?.citation ?? null,
       text: entry.projection?.text ?? null,
       truncated: entry.projection?.truncated ?? false,
+      limits: entry.projection?.limit ?? null,
+      redactions: entry.projection?.redactions ?? 0,
       tokens: entry.tokens,
       countState: entry.countState,
     }];
@@ -386,6 +392,8 @@ export async function buildContextPack(
         citation: item.citation,
         callerTextSha256: callerText.get(item.itemId) ?? null,
         truncated: item.truncated,
+        limits: item.limits,
+        redactions: item.redactions,
         tokens: item.tokens,
         countState: item.countState,
       })),
