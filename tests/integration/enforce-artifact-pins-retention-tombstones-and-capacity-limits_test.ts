@@ -4,6 +4,11 @@ import {
   retentionFixture,
 } from "../helpers/artifact-retention.ts";
 import { collectArtifactVersion } from "../../apps/server/src/modules/knowledge/retention/collector.ts";
+import {
+  findCachedExtract,
+  storeCachedExtract,
+} from "../../apps/server/src/modules/knowledge/extract-cache.ts";
+import { CONTEXT_EXTRACTOR_VERSION } from "../../apps/server/src/modules/knowledge/context-projection.ts";
 import { statfs } from "node:fs/promises";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 
@@ -485,6 +490,107 @@ for (const text of ["published content", ""]) {
     }
   });
 }
+
+Deno.test("purging a version deletes the extracts cached from its bytes", async () => {
+  // The version row survives a purge as a tombstone, so the extract cache's
+  // `on delete cascade` foreign key never fires: the purge has to delete the
+  // cached copies itself, in the same transaction, or purged text stays
+  // readable through the cache.
+  const fixture = await retentionFixture();
+  try {
+    await fixture.pgDatabase.query(
+      `insert into bakery.artifact_extracts
+         (cache_key, organization_id, artifact_version_id, digest, start_byte,
+          end_byte_exclusive, scope, extractor_version, media_type, text,
+          text_bytes, max_bytes, has_more)
+       values ('key-1',$1,$2,$3,0,10,'p1|org','bakery.text-window@1',
+               'text/plain','cached copy',11,4096,false)`,
+      [fixture.organizationId, fixture.versionId, "a".repeat(64)],
+    );
+    const cached = await fixture.pgDatabase.query(
+      "select count(*)::int as n from bakery.artifact_extracts where artifact_version_id=$1",
+      [fixture.versionId],
+    );
+    assertEquals(cached.rows[0]?.n, 1, "the fixture's extract must be there");
+
+    assertEquals(
+      await collectArtifactVersion(fixture.pgDatabase, fixture.versionId),
+      true,
+    );
+
+    const after = await fixture.pgDatabase.query(
+      "select count(*)::int as n from bakery.artifact_extracts where artifact_version_id=$1",
+      [fixture.versionId],
+    );
+    assertEquals(after.rows[0]?.n, 0, "no cached copy outlives the purge");
+  } finally {
+    await fixture.closeRetention();
+  }
+});
+
+Deno.test("a cached extract is found only for its own scope, digest and request, in the real SQL", async () => {
+  // The unit stand-in re-implements the lookup filters in TypeScript, so only a
+  // real database can show the SQL keeps one caller's rows apart from another's.
+  const fixture = await retentionFixture();
+  try {
+    const db = fixture.pgDatabase;
+    const citation = {
+      artifactId: fixture.artifactId,
+      versionId: fixture.versionId,
+      sha256: fixture.sha256,
+      mediaType: "text/plain",
+      location: { startByte: 0, endByteExclusive: 28 },
+      extractorVersion: CONTEXT_EXTRACTOR_VERSION,
+    };
+    await storeCachedExtract(db, {
+      organizationId: fixture.organizationId,
+      scope: "p1|org",
+      citation,
+      text: "Immutable retention evidence",
+      hasMore: false,
+      maxBytes: 65536,
+    });
+    const ask = (
+      over: Partial<Parameters<typeof findCachedExtract>[1]> = {},
+    ) =>
+      findCachedExtract(db, {
+        organizationId: fixture.organizationId,
+        versionId: fixture.versionId,
+        sha256: fixture.sha256,
+        startByte: 0,
+        maxBytes: 65536,
+        scope: "p1|org",
+        ...over,
+      });
+    const own = await ask();
+    assert(own !== null, "the storing scope finds its row");
+    assertEquals(own.text, "Immutable retention evidence");
+    assertEquals(own.citation.location?.endByteExclusive, 28);
+    assertEquals(
+      await ask({ scope: "p2|org" }),
+      null,
+      "another principal misses",
+    );
+    assertEquals(
+      await ask({ scope: "p1|task:t1" }),
+      null,
+      "a narrower scope misses",
+    );
+    assertEquals(
+      await ask({ sha256: "b".repeat(64) }),
+      null,
+      "another digest misses",
+    );
+    assertEquals(await ask({ startByte: 65536 }), null, "another chunk misses");
+    assertEquals(
+      await ask({ maxBytes: 10 }),
+      null,
+      "another window size misses",
+    );
+  } finally {
+    await fixture.closeRetention();
+  }
+});
 
 Deno.test("a memory revision citing a version keeps its bytes", async () => {
   const fixture = await retentionFixture();
