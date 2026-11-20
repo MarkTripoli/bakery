@@ -41,7 +41,13 @@ body.phone .btn{height:44px}
 .no span{color:var(--color-fg-muted)}
 .cost{color:var(--color-fg-muted);margin:14px 0 0}
 .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
-body.phone .foot{flex-direction:column-reverse}</style></head><body class="phone"><div class="h"><b>Run 3</b><span class="badge warn">Waiting on a model</span></div><div class="sub">Started 14:02 · Fix the flaky upload test</div>
+body.phone .foot{flex-direction:column-reverse}
+body.phone .scrim{align-items:flex-start;position:absolute;min-height:100%}
+body.phone .dlg{padding:16px}
+body.phone .opt{flex-wrap:wrap}
+body.phone .opt .t{flex-basis:calc(100% - 28px)}
+body.phone .opt .badge{margin-left:28px}
+body.phone .no{flex-direction:column;gap:2px}</style></head><body class="phone"><div class="h"><b>Run 3</b><span class="badge warn">Waiting on a model</span></div><div class="sub">Started 14:02 · Fix the flaky upload test</div>
 <div class="card"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.2 14.2 13H1.8L8 2.2Z" stroke-linejoin="round"/><path d="M8 6.6v3M8 11.3v.2" stroke-linecap="round"/></svg><div class="g"><b>Waiting: Claude Code cannot reach its model</b><p>The step “Write the fix” runs on Claude Code with claude-opus-5-5, paid by the subscription on a machine. Anthropic has been limiting requests since 14:31.</p><p class="m">Bakery has not moved this work anywhere else. It checks again at 14:46.</p></div><span class="btn">Choose another way to run it</span></div>
 <div class="steps"><div class="st"><span class="mk done">✓</span><div class="b"><b>Read the issue</b><span>Done in 40 seconds</span></div></div><div class="st"><span class="mk done">✓</span><div class="b"><b>Plan</b><span>Done in 2 minutes</span></div></div><div class="st"><span class="mk wait">!</span><div class="b"><b>Write the fix</b><span>Waiting on Claude Code with claude-opus-5-5.</span></div></div><div class="st"><span class="mk none"></span><div class="b"><b>Check the result</b><span>Not started</span></div></div></div><div class="scrim"><div class="dlg"><h2>Choose another way to run “Write the fix”</h2><p class="intro">It is waiting on Claude Code with claude-opus-5-5, paid by the subscription on a machine. Pick one to carry on with, or close this to keep waiting. Bakery never picks for you.</p>
 <div class="opt on"><span class="radio"></span><div class="t"><b>Claude Code with claude-opus-5-5</b><span>Anthropic · Charged per use to an API key</span></div></div>
