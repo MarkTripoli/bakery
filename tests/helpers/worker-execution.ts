@@ -831,10 +831,12 @@ export async function seedEligibleJob(
     input?: Record<string, unknown>;
     legacy?: boolean;
     /**
-     * Publish a workflow document the plan compiler accepts. The default keeps
-     * the flat-era `workflow: { kind: "fixed" }` marker, which the compiler
-     * rejects as an unknown field, so a run admitted from that version (a spawn)
-     * would be refused as not compilable.
+     * Publish a workflow document the plan compiler accepts, declaring the
+     * `taskId` input a spawn supplies. The default keeps the flat-era
+     * `workflow: { kind: "fixed" }` marker, which the compiler rejects as an
+     * unknown field, so a run admitted from that version (a spawn) would be
+     * refused as not compilable, and a plan with no declared `taskId` refuses
+     * the spawn's inputs.
      */
     compilable?: boolean;
     skillRefs?: readonly { versionId: string; digest: string }[];
@@ -915,6 +917,9 @@ export async function seedEligibleJob(
     ...(options.legacy || options.compilable
       ? {}
       : { workflow: { kind: "fixed" } }),
+    ...(options.compilable
+      ? { inputs: { taskId: { type: "uuid", required: true } } }
+      : {}),
     ...(fixtureAgentConfig === null
       ? {}
       : { agents: { [action]: ids.agentVersionId } }),
