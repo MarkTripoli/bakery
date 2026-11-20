@@ -406,6 +406,7 @@ export type CatalogActionName =
   | "skillDrafts.discard"
   | "skillDrafts.get"
   | "skillDrafts.open"
+  | "skillDrafts.publish"
   | "skillDrafts.update"
   | "skillFiles.get"
   | "skillSources.create"
