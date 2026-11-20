@@ -690,7 +690,16 @@ export function createDraftResourceRoutes(
       output: contractSchemas.Draft,
       policy: commandPolicy,
       handler: async (context, input) => {
-        const { transaction, organizationId } = requireWorkTransaction(context);
+        const { transaction, organizationId, principalId } =
+          requireWorkTransaction(context);
+        // Closing an epoch decides what becomes of every unsaved edit, so a
+        // person does it; an agent proposes changes and never reconciles them.
+        if (attributeAction(context, principalId).actorKind !== "person") {
+          throw new StandardError({
+            code: "AUTH_FORBIDDEN",
+            params: { reason: "rollover_requires_person" },
+          });
+        }
         const stage = (context as StagedActionContext)[draftExecutionStage];
         if (!stage) throw new Error("DRAFT_STAGE_MISSING");
         if (!stage.candidate) {

@@ -36120,6 +36120,7 @@ const transportSchemas = {
       "bakery_draftCheckpoints_get",
       "bakery_draftSlices_get",
       "bakery_drafts_edit",
+      "bakery_drafts_rollover",
       "bakery_draftPublications_create",
       "bakery_draftPublications_get",
       "bakery_draftSuggestions_create",
