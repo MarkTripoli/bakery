@@ -105,7 +105,7 @@ Deno.test("a draft rolls over to the next epoch from its published checkpoint", 
     const edited = await post(
       fixture,
       `/v1/drafts/${opened.id}/edits`,
-      await editBody(fixture, opened, "first"),
+      await editBody(fixture, opened, "bigger"),
     );
     assertEquals(edited.status, 201, await edited.clone().text());
     const cutoff = await readDraft(fixture, opened.id);
@@ -128,7 +128,7 @@ Deno.test("a draft rolls over to the next epoch from its published checkpoint", 
     assertEquals(next.id, opened.id);
     assertEquals(next.epoch, 2);
     assertEquals(next.serverSequence, "0");
-    assertEquals(next.text, "alpha first omega");
+    assertEquals(next.text, "alpha bigger omega");
     assertEquals(next.textDigest, cutoff.textDigest);
     assertEquals(next.checkpointId === cutoff.checkpointId, false);
     assertEquals(next.receipts, []);
