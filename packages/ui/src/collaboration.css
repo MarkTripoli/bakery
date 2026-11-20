@@ -1026,10 +1026,42 @@
   margin: var(--space-0);
   overflow-wrap: anywhere;
 }
+/* Conversation layout: a muted row of linked context under the header, on the page's side padding. */
+.ui-task-detail__linked {
+  color: var(--color-fg-muted);
+  flex: 0 0 auto;
+  font: var(--type-hint);
+  padding: var(--space-0) var(--space-8) var(--space-3);
+}
+.ui-task-detail--conversation.ui-task-detail--sheet .ui-task-detail__linked {
+  padding: var(--space-2) var(--space-4) var(--space-0);
+}
+/* The issue a task came from (#69): the link and "View on GitHub" wrap without a row gap. */
+[data-ui-region="issue-line"] {
+  row-gap: var(--space-0);
+}
+/* An issue-routing rule (#69, desktop): the role and the remove control sit on the selects, not on their labels. */
+[data-ui-region="routing-rule"] {
+  align-items: flex-end;
+}
+[data-ui-region="routing-rule"] > :not(.ui-combobox) {
+  align-items: center;
+  block-size: max(var(--size-control), var(--target-min));
+  box-sizing: border-box;
+  display: flex;
+}
+/* Phone: Remove rule is a text button at the start of its row, not stretched and centred. */
+[data-ui-region="routing-rule-remove"] {
+  align-self: flex-start;
+}
 .ui-task-detail__stages {
   border-block-end: var(--border-default) solid var(--color-border);
   flex: 0 0 auto;
   padding: var(--space-0) var(--space-8) var(--space-4);
+}
+/* A notice under the stages (a notification's part is gone) gets the page's normal gap above it. */
+.ui-task-detail__stages > .ui-inline-notice {
+  margin-block-start: var(--space-3);
 }
 .ui-task-detail--conversation .ui-task-detail__transcript {
   /* intentional: the transcript scrolls while the composer stays pinned */
@@ -2010,6 +2042,27 @@ button.ui-activity-line__row:hover {
 .ui-session-thread__turn[data-highlighted="true"] {
   outline: var(--focus-width) solid var(--color-focus);
   outline-offset: var(--focus-offset-inset);
+}
+
+/* What a notification opened: outlined once, then it fades (see landed.ts). */
+[data-landed="true"],
+[data-landed="true"]:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  /* Stands clear of the part's text instead of sitting on its first letters. */
+  outline-offset: var(--space-2);
+}
+/* A step's thread lands with its Step label and selector above it, not under the header. */
+[data-landing-step] {
+  scroll-margin-block-start: var(--space-16);
+}
+/* A part that fills a panel (the plan in the inspector) would have its line clipped outside it: draw it inside, in the section's own padding. */
+.ui-pane-section[data-landed="true"],
+.ui-pane-section[data-landed="true"]:focus-visible {
+  outline-offset: var(--focus-offset-inset);
+}
+/* One box: while a part is outlined, the heading focused inside it shows no ring of its own. */
+[data-landed="true"] [data-landing-focus]:focus-visible {
+  outline-width: var(--border-none);
 }
 
 .ui-session-thread__started {

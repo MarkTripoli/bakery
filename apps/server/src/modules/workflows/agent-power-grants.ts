@@ -99,7 +99,7 @@ export async function createAgentPowerGrant(
     unprocessable(
       ["power"],
       "agent_power_unknown",
-      "power must be decide, run_control, run_start or ask",
+      "power must be decide, run_control, run_start, steer, steer_reviewer or ask",
     );
   }
   const power = value.power;

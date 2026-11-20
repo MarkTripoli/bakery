@@ -32,6 +32,7 @@ export const RESOURCE_AREAS = {
   externalTicket: "work",
   run: "work",
   runStep: "work",
+  runRequest: "work",
   job: "work",
   jobAttempt: "work",
   session: "work",
@@ -123,6 +124,7 @@ export const RESOURCE_AREAS = {
   organizationInvitation: "access",
   organizationMembership: "access",
   organizationRole: "access",
+  group: "access",
   principal: "access",
   accessBinding: "access",
   accessToken: "access",
@@ -157,9 +159,11 @@ export const PERMISSION_VERBS = [
   "invoke",
   "reconcile",
   "respond",
+  "accept",
   "readSelf",
   "readPinned",
   "preview",
+  "share",
 ] as const;
 export type PermissionVerb = (typeof PERMISSION_VERBS)[number];
 

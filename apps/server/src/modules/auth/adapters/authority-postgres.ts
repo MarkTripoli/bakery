@@ -47,6 +47,10 @@ import {
   type BindingTarget,
 } from "../application/bindings.ts";
 import {
+  hasLiveRunGrant,
+  RUN_GRANT_ACTIONS,
+} from "../application/run-grants.ts";
+import {
   authorizeOrganizationAction,
   isOrganizationMember,
   permissionForAction,
@@ -340,7 +344,51 @@ async function resolveOrganizationActorForSubject(
  * no binding reaches answers exactly as before, so a foreign or hidden
  * resource stays indistinguishable from a missing one.
  */
-function authorizeWithBindings(
+export function authorizeWithBindings(
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  resolveTarget: (
+    kind: NonNullable<(typeof BINDABLE_ACTIONS)[keyof typeof BINDABLE_ACTIONS]>,
+  ) => Promise<BindingTarget | undefined>,
+  holdsRunGrant: (kind: "run" | "task") => Promise<boolean> = () =>
+    Promise.resolve(false),
+): Promise<OrganizationActor> {
+  return (async () => {
+    try {
+      return await authorizeThroughBindings(action, actor, resolveTarget);
+    } catch (denied) {
+      // Last: the right to see this one run, given by a request. Only a
+      // permission miss is widened, like the other fallbacks: a scope miss, a
+      // binding fault or any later denial is the real answer and passes on. Only
+      // the actions in RUN_GRANT_ACTIONS ask; any other action keeps the answer
+      // the role and the bindings gave.
+      const kind = RUN_GRANT_ACTIONS[action.name as CatalogActionName];
+      if (
+        isPermissionMiss(denied) && kind !== undefined &&
+        actor.subject.principalType ===
+          PrincipalType.Human &&
+        await holdsRunGrant(kind)
+      ) {
+        const permission = permissionForAction(
+          action.name as CatalogActionName,
+        );
+        if (
+          actor.tokenScopes !== undefined &&
+          !scopeAllows(permission, actor.tokenScopes)
+        ) {
+          throw new StandardError({
+            code: "INSUFFICIENT_SCOPE",
+            params: { requiredScopes: minimalScopes(permission) },
+          });
+        }
+        return actor;
+      }
+      throw denied;
+    }
+  })();
+}
+
+function authorizeThroughBindings(
   action: ActionDefinition,
   actor: OrganizationActor,
   resolveTarget: (
@@ -393,6 +441,65 @@ function authorizeWithBindings(
 }
 
 /**
+ * Conversation actions a direct mention grant can open, and only on the
+ * conversation named by the route id: read the conversation and its
+ * transcript, see who takes part, find people to mention, and reply. Agent
+ * execution, turn control, task and repository actions are never here.
+ */
+const CONVERSATION_GRANT_ACTIONS: ReadonlySet<string> = new Set([
+  "conversations.get",
+  "messages.list",
+  "messages.create",
+  "conversationParticipants.list",
+  "conversations.mentionCandidates",
+]);
+
+/**
+ * When the organization role refused a conversation action, a live direct
+ * grant on exactly that conversation may still allow it. The grant row is read
+ * `for share`, so a concurrent revoke is ordered before or after this request
+ * rather than interleaved with it. A grant never helps a non-human, a member
+ * without a system role, or a guest with no custom role, and a token still has
+ * to carry the scope the action needs.
+ */
+async function authorizeWithConversationGrant(
+  transaction: PgTransactionClient,
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  conversationId: string | undefined,
+  denied: unknown,
+): Promise<OrganizationActor> {
+  if (
+    !CONVERSATION_GRANT_ACTIONS.has(action.name) ||
+    conversationId === undefined || !isUuid(conversationId) ||
+    actor.subject.principalType !== PrincipalType.Human ||
+    actor.role === undefined ||
+    (actor.role === OrganizationRole.Guest && actor.customRole === undefined)
+  ) throw denied;
+  // Only a permission miss falls back to a grant; any other error is the answer.
+  if (!isPermissionMiss(denied)) throw denied;
+  const grant = await transaction.query(
+    `select 1 from bakery.conversation_access_grants
+     where organization_id = $1 and conversation_id = $2
+       and principal_id = $3 and revoked_at is null
+     for share`,
+    [actor.organizationId, conversationId, actor.subject.principalId],
+  );
+  if (grant.rows.length !== 1) throw denied;
+  const permission = permissionForAction(action.name as CatalogActionName);
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows(permission, actor.tokenScopes)
+  ) {
+    throw new StandardError({
+      code: "INSUFFICIENT_SCOPE",
+      params: { requiredScopes: minimalScopes(permission) },
+    });
+  }
+  return { ...actor, conversationGrant: { conversationId } };
+}
+
+/**
  * Read-state changes on the caller's OWN inbox. Every one of these handlers
  * scopes to recipient = the authenticated principal and never accepts a
  * recipient from the request, so a member whose role lacks
@@ -405,6 +512,42 @@ const OWN_INBOX_WRITE_ACTIONS: ReadonlySet<string> = new Set([
   "notifications.markAllRead",
   "notifications.undoMarkAllRead",
 ]);
+
+/**
+ * The asked person's own view of the requests addressed to them (issue #456).
+ * A person asked may hold nothing but the right to see one run, including a bare
+ * Guest, so a role-based permission would refuse exactly the people the view is
+ * for. The handler scopes to recipient = the authenticated principal and never
+ * accepts a recipient from the request, so this is a principal-equals-recipient
+ * rule, not a role grant: it reaches no other action and nobody else's requests.
+ */
+const OWN_REQUEST_READ_ACTIONS: ReadonlySet<string> = new Set([
+  "runRequests.mine",
+]);
+
+export function authorizeOwnRequestRead(
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  denied: unknown,
+): OrganizationActor {
+  if (
+    !isPermissionMiss(denied) ||
+    !OWN_REQUEST_READ_ACTIONS.has(action.name) ||
+    actor.subject.principalType !== PrincipalType.Human ||
+    actor.role === undefined
+  ) throw denied;
+  const permission = permissionForAction(action.name as CatalogActionName);
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows(permission, actor.tokenScopes)
+  ) {
+    throw new StandardError({
+      code: "INSUFFICIENT_SCOPE",
+      params: { requiredScopes: minimalScopes(permission) },
+    });
+  }
+  return actor;
+}
 
 function isPermissionMiss(error: unknown): boolean {
   return error instanceof StandardError &&
@@ -597,7 +740,30 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
                 id: context.params.id,
                 input,
               }),
-          ).catch((denied) => authorizeOwnInboxWrite(action, actor, denied));
+            (kind) =>
+              hasLiveRunGrant(
+                transaction,
+                organizationId,
+                claimedSubject.principalId,
+                kind,
+                context.params.id,
+              ),
+          )
+            .catch(async (denied) => {
+              // The two fallbacks cover disjoint actions and each rethrows the
+              // original denial untouched, so only a permission miss is widened.
+              if (CONVERSATION_GRANT_ACTIONS.has(action.name)) {
+                return await authorizeWithConversationGrant(
+                  transaction,
+                  action,
+                  actor,
+                  context.params.id,
+                  denied,
+                );
+              }
+              return authorizeOwnInboxWrite(action, actor, denied);
+            })
+            .catch((denied) => authorizeOwnRequestRead(action, actor, denied));
           subject = permitted.subject;
           authority = permitted;
         } else {

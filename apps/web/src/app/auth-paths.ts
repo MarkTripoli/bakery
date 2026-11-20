@@ -10,6 +10,7 @@
 export const SETUP_PATH: string = "/setup";
 export const SIGN_IN_PATH: string = "/sign-in";
 export const TWO_FACTOR_PATH: string = "/sign-in/two-factor";
+export const FORGOT_PASSWORD_PATH: string = "/sign-in/forgot-password";
 export const RECOVERY_CODE_PATH: string = "/sign-in/recovery-code";
 export const SIGN_OUT_PATH: string = "/sign-out";
 export const REGISTER_PATH: string = "/register";
@@ -62,6 +63,7 @@ export const PERSONAL_SETTINGS_PATH: string = "/settings/profile";
 const AUTH_ENTRY_FIXTURE_PREFIXES = [
   "setup-",
   "login-",
+  "forgot-",
   "expired-",
   "invite-login-",
   "totp-challenge-",
@@ -89,6 +91,7 @@ export function isPublicAuthPath(pathname: string): boolean {
     SIGN_IN_PATH,
     TWO_FACTOR_PATH,
     RECOVERY_CODE_PATH,
+    FORGOT_PASSWORD_PATH,
     SIGN_OUT_PATH,
     REGISTER_PATH,
   ] as const;

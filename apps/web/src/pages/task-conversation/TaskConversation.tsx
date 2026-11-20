@@ -36,6 +36,7 @@ import { NowLineOutlet, NowLineProvider } from "../now-line-slot.tsx";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { TaskFromIssue } from "../TaskFromIssue.tsx";
 import { Composer } from "./Composer.tsx";
 import {
   browserDraftStore,
@@ -81,9 +82,19 @@ type Pending<Input> = { key: string; input: Input };
  * panel only sends the typed requests and re-reads.
  */
 export function TaskConversation(
-  { aside, extras, questionDefaults, references, state = "ready", task }: {
+  {
+    aside,
+    banner,
+    extras,
+    questionDefaults,
+    references,
+    state = "ready",
+    task,
+  }: {
     /** More inspector content, such as the task's artifact pane. */
     aside?: ReactNode;
+    /** A notice that belongs right under the stages, such as a landing's. */
+    banner?: ReactNode;
     /** Transcript-end content: run controls, output and artifacts. */
     extras?: ReactNode;
     /** Option preselected per question id; a design fixture supplies it. */
@@ -475,6 +486,7 @@ export function TaskConversation(
     phase: planPhase,
     offline: !online,
     paused: liveTurn !== undefined,
+    approvalId: approval?.id,
     onDecide: (choice, comment) => void decide(choice, comment),
     onRetry: retryDecision,
     onRefresh: () => {
@@ -508,6 +520,8 @@ export function TaskConversation(
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;
   const planCard = (
     <UI.PlanSummaryCard
+      data-approval-id={approval?.id}
+      data-question-id={revision ? undefined : shownQuestions[0]?.id}
       title={revision
         ? t("tasks.conversation.plan.revision", {
           revision: String(revision.revision),
@@ -720,20 +734,24 @@ export function TaskConversation(
           )
           : undefined}
         state={state}
+        meta={<TaskFromIssue taskId={task.id} />}
         data-ui-region="task-conversation"
         aria-label={t("tasks.conversation.heading")}
         role="region"
         stages={
-          <StageStrip
-            compact={phone}
-            people={people}
-            current={stage}
-            wait={(id) => stageWait(task, id)}
-            planningOnly={planningPending ?? task.planningOnly ?? false}
-            planningOnlyDisabled={planningPending !== null || !online}
-            planningOnlyFailed={planningFailed}
-            onPlanningOnly={(value) => void setPlanningOnly(value)}
-          />
+          <>
+            <StageStrip
+              compact={phone}
+              people={people}
+              current={stage}
+              wait={(id) => stageWait(task, id)}
+              planningOnly={planningPending ?? task.planningOnly ?? false}
+              planningOnlyDisabled={planningPending !== null || !online}
+              planningOnlyFailed={planningFailed}
+              onPlanningOnly={(value) => void setPlanningOnly(value)}
+            />
+            {banner}
+          </>
         }
         composer={
           <>

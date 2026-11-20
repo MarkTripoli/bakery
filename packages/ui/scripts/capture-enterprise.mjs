@@ -609,6 +609,7 @@ export function accessCapturePage(page, designCase) {
       id: id(suffix),
       organizationId,
       principalId: member,
+      displayName: "Fixture member",
       role,
       status: "active",
       joinedAt: stamp,

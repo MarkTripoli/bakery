@@ -27,6 +27,13 @@ export const AgentPower = Object.freeze(
     RunStart: "run_start",
     /** Put a question to one named role. The grant names the role. */
     Ask: "ask",
+    /** Steer a run an agent spawned, through the same operations a person uses. */
+    Steer: "steer",
+    /**
+     * Also steer a reviewer's step. Off by default (O18): the review is then
+     * labelled steered and does not count as independent.
+     */
+    SteerReviewer: "steer_reviewer",
   } as const,
 );
 export type AgentPower = typeof AgentPower[keyof typeof AgentPower];

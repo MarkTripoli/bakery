@@ -44,7 +44,14 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     // Work items.
     "tasks.list": "work.read",
     "tasks.get": "work.read",
-    "tasks.create": "work.write",
+    // Starting work is a spawn (#413): off by default, granted as run_start,
+    // and admitted under depth, count and budget checks at the action.
+    "tasks.create": "runs.start",
+    "runs.create": "runs.start",
+    // Steering another agent is off by default (O52) and reaches only runs the
+    // agent spawned; both operations are the ones a person uses.
+    "sessions.steer": "runs.steer",
+    "runSteps.note": "runs.steer",
     // Runs and their steps.
     "runs.list": "runs.read",
     "runs.get": "runs.read",
@@ -83,8 +90,11 @@ export const POWER_SESSION_SCOPES: Readonly<
 > = Object.freeze({
   decide: Object.freeze(["approvals.decide"]),
   run_control: Object.freeze(["runs.control"]),
-  run_start: Object.freeze([]),
+  run_start: Object.freeze(["runs.start"]),
   ask: Object.freeze(["questions.ask"]),
+  steer: Object.freeze(["runs.steer"]),
+  // Reviewer steering rides on the steer scope; it only widens the target.
+  steer_reviewer: Object.freeze([]),
 });
 
 export type SessionTool = Readonly<{
