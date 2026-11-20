@@ -343,6 +343,8 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
     AUTH_FORBIDDEN: new Set([
       "agent_edit_requires_suggestion",
       "suggestion_decision_requires_person",
+      // Closing a draft epoch decides what becomes of unsaved edits (#38).
+      "rollover_requires_person",
       // Coordinator proposals and save as workflow are a person's acts (#420).
       "definition_proposal_decision_requires_person",
       "workflow_listing_requires_person",
