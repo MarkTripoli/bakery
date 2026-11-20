@@ -1,5 +1,5 @@
 {
-  "revision": "4f0e635889893b33ebcfbcd294f3e12993fbf1616696dc254f6b855702824963",
+  "revision": "c0afee19d764c8285ad971f13c0efdb0141ff39b46690b8e3baf13a23265b5b6",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -19883,6 +19883,123 @@
           "desktop-light-fine"
         ]
       }
+    },
+    {
+      "id": "ui.usageMeter",
+      "name": "UsageMeter",
+      "description": "A bar that shows how much of a limit is used, with ticks where the state changes.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/UsageMeter",
+      "usage": {
+        "whenToUse": "A bar that shows how much of a limit is used, with ticks where the state changes.",
+        "whenNotToUse": "Keep content verification, authorization, and mutation orchestration in the caller.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "meter",
+        "accessibleName": "aria-label",
+        "keyboard": [],
+        "notes": "The caller names the meter and gives the reading in words as its value; the ticks are decoration and the page explains them in text."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-destructive",
+        "--color-fg",
+        "--color-status-warning",
+        "--color-surface-subtle",
+        "--radius-control",
+        "--space-1",
+        "--space-3"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "A bar that shows how much of a limit is used, with ticks where the state changes.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.usageMeter.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.usageMeter.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.usageMeter.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 447, not in Paper; the Paper manifests have no usage meter."
     },
     {
       "id": "ui.sendToAgentDialog",

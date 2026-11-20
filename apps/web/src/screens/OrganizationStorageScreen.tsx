@@ -279,7 +279,7 @@ function EditForm(
           label={translate(LABEL[name])}
           layout="inline"
         >
-          <div className="ui-storage-field">
+          <UI.Inline gap="compact">
             <UI.TextInput
               autoComplete="off"
               describedBy={undefined}
@@ -294,7 +294,7 @@ function EditForm(
               value={draft[name]}
             />
             <UI.Text variant="muted">{unitWord(name, translate)}</UI.Text>
-          </div>
+          </UI.Inline>
         </UI.Field>
         {warn
           ? (

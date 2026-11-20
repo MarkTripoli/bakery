@@ -2192,10 +2192,11 @@
 }
 .ui-usage-meter__mark {
   background: var(--color-fg);
-  inline-size: 2px;
+  inline-size: var(--border-emphasis);
   inset-block: 0;
-  margin-inline-start: -1px;
   position: absolute;
+  /* Centred on its position, whichever way the line runs. */
+  translate: -50% 0;
 }
 
 /* Storage settings: the description takes the content width, and on a phone
@@ -2203,16 +2204,15 @@
 .ui-settings-content[data-page="organization-storage"]:has(> .ui-form-content) > .ui-auth-heading {
   max-inline-size: none;
 }
-.ui-storage-field {
+.ui-settings-content[data-page="organization-storage"] .ui-field .ui-inline {
   align-items: center;
-  display: flex;
-  gap: var(--space-2);
+  flex-wrap: nowrap;
 }
-.ui-storage-field > :first-child {
+.ui-settings-content[data-page="organization-storage"] .ui-field .ui-inline > :first-child {
   flex: 1 1 auto;
   min-inline-size: 0;
 }
-.ui-storage-field > :last-child {
+.ui-settings-content[data-page="organization-storage"] .ui-field .ui-inline > :last-child {
   flex: none;
   white-space: nowrap;
 }
