@@ -17,7 +17,10 @@
 --                        so both name the same one;
 --   bytes_written        the size of the bytes the write stored (a put or a
 --                        copy), else 0. Kept on the row so the step's byte
---                        limit still counts a version retention later deletes.
+--                        limit still counts a version retention later deletes;
+--   reverted_at,         when a person undid this write, and who (#448 S5).
+--   reverted_by_principal_id  Null until undone; an undone write is never
+--                        undone again.
 -- A version a retention sweep deletes leaves the row with a null version, and
 -- the set null below names only that column, never organization_id.
 create table bakery.step_write_set (
@@ -30,6 +33,8 @@ create table bakery.step_write_set (
   previous_version_id uuid,
   new_version_id uuid,
   bytes_written bigint not null default 0,
+  reverted_at timestamptz,
+  reverted_by_principal_id uuid,
   created_at timestamptz not null default now(),
   constraint step_write_set_organization_fk
     foreign key (organization_id)
@@ -62,4 +67,11 @@ create index step_write_set_new_version_idx
   on bakery.step_write_set (organization_id, new_version_id)
   where new_version_id is not null;
 
+-- The writes of a step not yet undone, for the undo.
+create index step_write_set_unreverted_idx
+  on bakery.step_write_set (organization_id, attempt_id)
+  where reverted_at is null;
+
 grant select, insert on bakery.step_write_set to bakery_app;
+grant update (reverted_at, reverted_by_principal_id)
+  on bakery.step_write_set to bakery_app;
