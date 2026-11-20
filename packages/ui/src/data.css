@@ -85,6 +85,7 @@
   margin: var(--space-2) 0;
 }
 .ui-breadcrumbs ol {
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -1417,6 +1418,37 @@
   min-block-size: var(--space-0);
   min-inline-size: var(--space-0);
 }
+/* What a row is called is its strongest text: a name link reads in the body
+   colour at medium weight, not the muted colour of a quiet link. */
+.ui-link--quiet[data-name="true"],
+.ui-link--quiet[data-name="true"][data-state="visited"] {
+  color: var(--color-fg);
+  font-weight: var(--weight-medium);
+}
+/* On a phone the name is the row's title: the title size, not the hint size. */
+.ui-stacked-row .ui-link--quiet[data-name="true"] {
+  font: var(--type-control);
+  font-weight: var(--weight-medium);
+}
+/* Filter menus carry a label above them: a button beside them lines up with
+   the menus' bottom edge, not the middle of label plus menu. */
+.ui-inline[data-controls="filters"] {
+  align-items: flex-end;
+}
+/* A header with a long path wraps the path under the name and keeps its action
+   at the end of the line, never dropped beneath the text. */
+@media (min-width: 744px) {
+  .ui-inline--between[data-header="named"] {
+    flex-wrap: nowrap;
+  }
+  .ui-inline--between[data-header="named"] > .ui-stack {
+    flex: 1 1 0%;
+    overflow-wrap: anywhere;
+  }
+  .ui-inline--between[data-header="named"] > .ui-button {
+    flex: none;
+  }
+}
 .ui-data-table--ruled td .ui-status-dot {
   vertical-align: top;
 }
@@ -1816,6 +1848,10 @@
   min-block-size: max(var(--size-control), var(--target-coarse));
   padding: var(--space-2) var(--space-3);
 }
+/* A combobox that failed validation has the same destructive border as a text field. */
+.ui-combobox select[aria-invalid="true"] {
+  border-color: var(--color-destructive);
+}
 /* Column headings kept for assistive technology and hidden visually, for a
    table whose rows explain themselves. */
 .ui-data-table[data-headings="hidden"] thead {
@@ -1834,6 +1870,9 @@
 }
 .ui-stacked-row[data-inset="none"] {
   padding-inline: var(--space-0);
+}
+.ui-stacked-row[data-selected="true"] {
+  background: var(--color-surface-subtle);
 }
 
 /* Notification row: fixed lanes for the unread dot, the actor, the time and

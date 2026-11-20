@@ -32,6 +32,7 @@ export const RESOURCE_AREAS = {
   externalTicket: "work",
   run: "work",
   runStep: "work",
+  runRequest: "work",
   job: "work",
   jobAttempt: "work",
   session: "work",
@@ -163,6 +164,7 @@ export const PERMISSION_VERBS = [
   "readPinned",
   "preview",
   "share",
+  "author",
 ] as const;
 export type PermissionVerb = (typeof PERMISSION_VERBS)[number];
 

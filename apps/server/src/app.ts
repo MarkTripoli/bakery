@@ -8,6 +8,7 @@ import {
   createEmailSettingsRoutes,
   type EmailSettingsDependencies,
 } from "./modules/work/email-actions.ts";
+import { createClientCredentialsRoutes } from "./modules/integrations/client-credentials.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createProviderReadRoutes } from "./modules/execution/provider-read-routes.ts";
 import { createRouteContinuationRoutes } from "./modules/execution/route-continuations.ts";
@@ -111,9 +112,11 @@ import {
   type EventsSocketRegistry,
 } from "./modules/work/events-socket.ts";
 import { createBatchRoutes } from "./modules/work/batch-routes.ts";
+import { createMcpManagementRoutes } from "./modules/mcp/routes.ts";
 import {
   createGroupRoutes,
   createNotificationRoutes,
+  createRunRequestRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
   registerNotificationProjection,
@@ -831,6 +834,16 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createMcpManagementRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+      secretsKey: options.config.secretsKey,
+    }),
+  );
+  app.route(
+    "/",
     createTicketRoutes({
       database: options.pgDatabase,
       session: tokenSession,
@@ -866,6 +879,13 @@ export function createApp(options: {
           },
         },
       }),
+    }),
+  );
+  app.route(
+    "/",
+    createRunRequestRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
     }),
   );
   app.route(
@@ -961,6 +981,15 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       dependencies: { ...skillStorage, probe: options.skillStorageProbe },
+    }),
+  );
+  app.route(
+    "/",
+    createClientCredentialsRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      secretsKey: options.config.secretsKey,
     }),
   );
   app.route(

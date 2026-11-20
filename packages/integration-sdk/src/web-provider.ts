@@ -114,6 +114,20 @@ export type ProviderWebModule<M extends ProviderManifest> = {
    * missing key is a compile error here rather than a raw key on screen.
    */
   describeResource?: (resource: IntegrationResource) => ProviderMessage;
+  /**
+   * Whether a person can start a connection to this provider yet.
+   *
+   * Absent means yes. A provider whose connect flow is not built says `false`, and
+   * the host shows its row with Connect disabled instead of letting the button fail.
+   * It is a statement about this build, so it goes away when the flow ships.
+   */
+  connectAvailable?: boolean;
+  /**
+   * Where an installation administrator creates the OAuth application whose client
+   * ID and secret they enter. Opened in a new tab; only for providers that register
+   * client credentials.
+   */
+  registrationGuideUrl?: string;
   /** How one provider permission and level read to a person, as a message. */
   describePermission?: (
     permission: string,

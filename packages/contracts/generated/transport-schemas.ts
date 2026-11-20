@@ -311,6 +311,13 @@ const transportSchemas = {
       "retryable": false,
       "slug": "artifact-content-expired"
     },
+    "ARTIFACT_CONTENT_MISMATCH": {
+      "status": 409,
+      "retryable": false,
+      "slug": "artifact-content-mismatch",
+      "title": "Artifact content does not match its record",
+      "detail": "The stored bytes are not the bytes this version's digest describes."
+    },
     "RANGE_NOT_SATISFIABLE": {
       "status": 416,
       "retryable": false,
@@ -331,6 +338,21 @@ const transportSchemas = {
       "slug": "session-required",
       "title": "Browser session required",
       "detail": "This action needs a signed-in browser session; an access token cannot perform it."
+    },
+    "STORAGE_AREA_REFUSED": {
+      "status": 409,
+      "retryable": false,
+      "slug": "storage-area-refused"
+    },
+    "STORAGE_QUOTA_EXCEEDED": {
+      "status": 409,
+      "retryable": false,
+      "slug": "storage-quota-exceeded"
+    },
+    "STORAGE_FILE_TOO_LARGE": {
+      "status": 422,
+      "retryable": false,
+      "slug": "storage-file-too-large"
     }
   },
   "conventions": {
@@ -2401,18 +2423,28 @@ const transportSchemas = {
           "description": "MCP server definition this connection instantiates; its transport (stdio or streamable_http) and configSchema govern what this connection's config and worker/integration binding must satisfy."
         },
         {
+          "name": "scope",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "organization",
+            "personal"
+          ],
+          "description": "organization (the default) is registered by an Admin and usable by the organization's work; personal is registered by any member for their own runs, belongs to them alone, and is used on a shared workflow only with their explicit use grant."
+        },
+        {
           "name": "integrationConnectionId",
           "type": "uuid",
           "required": false,
           "nullable": true,
-          "description": "For a streamable_http server whose OAuth authorization flows through an existing integration connection, that integration connection; left null for a stdio connection, which sets workerHostId instead."
+          "description": "Reserved for a streamable_http server whose OAuth authorization flows through an integration connection; not accepted yet, so it must be null."
         },
         {
           "name": "workerHostId",
           "type": "uuid",
           "required": false,
           "nullable": true,
-          "description": "For a stdio server, the specific worker host that launches and owns this server's subprocess; left null for a streamable_http connection, which sets integrationConnectionId instead."
+          "description": "Reserved for a stdio server's worker host; stdio is not accepted yet, so it must be null."
         },
         {
           "name": "label",
@@ -2430,14 +2462,14 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 32000
           },
-          "description": "Per-connection configuration validated against the server's configSchema, including any OAuth issuer, clientId, resource and granted scopes under config.auth; live token bytes are never stored here, only referenced via secretId."
+          "description": "Per-connection configuration validated against the server's configSchema. It carries no credential: a credential is sent as secret and kept sealed."
         },
         {
-          "name": "secretId",
-          "type": "uuid",
+          "name": "secret",
+          "type": "secretString",
           "required": false,
           "nullable": true,
-          "description": "Reference to the encrypted secret version holding this connection's OAuth or credential material; the config object never carries live token bytes directly."
+          "description": "The connection's credential, such as a bearer token or API key. Write-only: it is sealed under the installation key in Postgres, is never returned, audited or logged, and is shown back only as the connection's secretId."
         },
         {
           "name": "enabledCapabilities",
@@ -2446,13 +2478,15 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 100
           },
-          "description": "Subset of the server's discovered tools/resources/prompts this connection actually exposes for capability binding; a newly discovered server capability is never auto-enabled here."
+          "description": "Tools this connection exposes. It starts empty: a tool is enabled only after discovery has pinned a snapshot that lists it, and a newly discovered tool is never enabled automatically."
         }
       ],
       "rules": [
-        "exactly one of integrationConnectionId and workerHostId is required according to the server transport"
+        "a streamable_http connection sets neither integrationConnectionId nor workerHostId; stdio is not accepted yet",
+        "enabledCapabilities starts empty and is changed after discovery",
+        "an organization connection is registered by an Admin; a personal one by its owner"
       ],
-      "description": "Registers a connection between the organization and an MCP server, bound either to a worker host for a local stdio subprocess or to an integration connection carrying OAuth authorization for a remote streamable_http endpoint."
+      "description": "Registers a connection between the organization, or one member, and a remote MCP server definition. The credential is sent once as a write-only secret and sealed in Postgres."
     },
     "McpConnectionUpdate": {
       "fields": [
@@ -2472,11 +2506,11 @@ const transportSchemas = {
           "description": "Replaces this connection's configuration, revalidated against the server's configSchema; changing the OAuth issuer under config.auth requires full reauthorization rather than reusing existing tokens."
         },
         {
-          "name": "secretId",
-          "type": "uuid",
+          "name": "secret",
+          "type": "secretString",
           "required": false,
           "nullable": true,
-          "description": "Replaces the reference to the encrypted secret version holding this connection's credential material, typically set once a corresponding reauthorization has completed."
+          "description": "Replaces the connection's credential with a new sealed revision. Write-only: never returned, audited or logged."
         },
         {
           "name": "enabledCapabilities",
@@ -2485,7 +2519,7 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 100
           },
-          "description": "Replaces the subset of the server's discovered capabilities this connection exposes for capability binding."
+          "description": "Replaces the tools this connection exposes; every name must be a tool in the current pinned snapshot."
         },
         {
           "name": "status",
@@ -2500,7 +2534,7 @@ const transportSchemas = {
           "description": "Sets this connection's lifecycle state: enabled for active use, disabled to block new dispatch while retaining configuration, degraded when connectivity or capability checks are currently failing, or revoked once access has been permanently withdrawn."
         }
       ],
-      "description": "Updates an existing MCP connection's label, config, credential reference, enabled capabilities, or lifecycle status; the server, worker host and integration connection bindings set at creation cannot be changed here."
+      "description": "Updates a connection's label, config, credential, enabled tools or lifecycle status. The server, owner and scope set at creation cannot be changed. An organization connection is changed by an Admin; a personal one only by its owner."
     },
     "McpServerCreate": {
       "fields": [
@@ -3924,9 +3958,15 @@ const transportSchemas = {
             "maxLength": 200
           },
           "description": "Organization-facing display name for the skill created with its private local-bundle source."
+        },
+        {
+          "name": "scope",
+          "type": "enum(global|organization|personal)",
+          "required": false,
+          "description": "Who the skill belongs to: global (shown as Shared by Bakery, comes with Bakery and is never created through this action), organization (the default, visible to the whole organization) or personal (shown as Private, belongs to the calling person alone, and only that person can list, open, change or publish it). A personal skill reaches other people only through a workflow it is attached to, with its owner confirming the attachment."
         }
       ],
-      "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published."
+      "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published, as an organization skill or as a personal skill that belongs to the calling person."
     },
     "SkillImport": {
       "fields": [
@@ -5669,6 +5709,15 @@ const transportSchemas = {
             "maxLength": 100000
           },
           "description": "Optional author-written source text for the draft; when omitted the server stores the canonical JSON text of `definition`, which is valid YAML 1.2."
+        },
+        {
+          "name": "confirmPersonalSkillUse",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 32
+          },
+          "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation."
         }
       ],
       "description": "Creates the definition's single shared mutable draft; publication is the separate publish action."
@@ -5709,6 +5758,24 @@ const transportSchemas = {
             "maxLength": 100000
           },
           "description": "Optional author-written source text; when omitted the server stores the canonical JSON text of `definition`."
+        },
+        {
+          "name": "confirmPersonalSkillUse",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 32
+          },
+          "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation."
+        },
+        {
+          "name": "resolveSkillSlots",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 64
+          },
+          "description": "Steps, by JSON Pointer, whose missing-skill slot the author settled with this save by choosing another skill or removing the step skill. A workflow copied from one that used a personal skill has one open slot per such step, and publishing is refused while any is open. A pointer with no open slot is ignored."
         }
       ],
       "description": "Replaces the content of the definition's shared draft under the draft's optimistic-concurrency version; published versions are immutable and cannot be updated."
@@ -7763,7 +7830,7 @@ const transportSchemas = {
           "name": "versionId",
           "type": "uuid",
           "required": true,
-          "description": "Immutable package version this install pins; installing this version grants no capabilities by itself until any needed permission_grants are separately approved."
+          "description": "Immutable package version this install pins; installing it grants the install every capability that version's manifest requests, all at once."
         },
         {
           "name": "scope",
@@ -7783,9 +7850,9 @@ const transportSchemas = {
         }
       ],
       "rules": [
-        "Personal scope requires the current principal owner; organization scope forbids an owner. Installation grants no capabilities."
+        "Personal scope requires the current principal owner; organization scope forbids an owner. Installation grants the install every capability the version's manifest requests, all at once. Turning the install off or removing it revokes them all in the same step, turning it back on restores exactly the manifest's set, and moving to another version re-reads that version's manifest."
       ],
-      "description": "Installs one immutable, published plugin version into the organization (Admin-only, shared) or for one principal personally (Developer, private); installing pins the version but grants no capabilities on its own."
+      "description": "Installs one immutable, published plugin version into the organization (Admin-only, shared) or for one principal personally (Developer, private); installing pins the version and gives the install every capability that version's manifest requests, all at once, with no way to give some and not others."
     },
     "PluginInstallUpdate": {
       "fields": [
@@ -7805,12 +7872,18 @@ const transportSchemas = {
             "uninstalled"
           ],
           "description": "New lifecycle status to apply: enabled to activate, disabled to block new authority while retaining configuration, or uninstalled to remove it; in-flight work under the pinned version still observes live revocation."
+        },
+        {
+          "name": "dismissUpdateFailure",
+          "type": "boolean",
+          "required": false,
+          "description": "True to clear the install's recorded last update failure without changing its version or status."
         }
       ],
       "rules": [
-        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version."
+        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version. A version that does not pass its checks (plugin_sdk_incompatible, plugin_manifest_*) is not an error: the refusal is recorded as lastUpdateFailure and the install is answered, still on its prior version, because an error would discard the record. The other fields in the same request still apply, so a disable sent with a refused version still disables and revokes; a refusal wins over a dismissUpdateFailure in the same request. A missing, draft or withdrawn version is still RESOURCE_NOT_FOUND, and an uninstalled install refuses any change."
       ],
-      "description": "Updates an existing plugin install's pinned version or lifecycle status; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active."
+      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
     },
     "PluginStatePut": {
       "fields": [
@@ -11935,6 +12008,629 @@ const transportSchemas = {
         }
       ],
       "description": "Lists batches newest first, optionally for one repository."
+    },
+    "SkillCopy": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill to copy; supplied via the request's {id} path segment. The copy starts from its active version, and the copy records this skill and that version as where it came from."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Display name of the new skill, shown wherever skills are listed or picked; independent of the name of the skill it was copied from."
+        },
+        {
+          "name": "scope",
+          "type": "enum(organization|personal)",
+          "required": true,
+          "description": "Who the copy is for: organization (visible to everyone in the organization, and copying into it needs the Admin role) or personal (shown as Private, belongs to the calling person alone). A skill that comes with Bakery can be copied into either, and the original is never changed."
+        },
+        {
+          "name": "slug",
+          "type": "slug",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "URL-safe identity of the new skill, unique within the organization for an organization copy and within the caller's own skills for a personal one; when omitted it is made from the name."
+        }
+      ],
+      "description": "Copies a skill the caller can see into a new organization or personal skill with its own identity, carrying the source's active version (every file and the manifest) as version 1 and recording the source skill and version it was copied from."
+    },
+    "AgentFileGrantCreate": {
+      "fields": [
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
+        },
+        {
+          "name": "folderId",
+          "type": "uuid",
+          "required": true,
+          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
+        },
+        {
+          "name": "access",
+          "type": "enum(read|write)",
+          "required": true,
+          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
+        },
+        {
+          "name": "expiresAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
+        }
+      ],
+      "rules": [
+        "A person with a browser session only; an agent is refused with AUTH_FORBIDDEN reason agent_file_grant_requires_person, so an agent never widens its own file scope (O52).",
+        "An unknown or foreign workflow, or a folder that is missing, trashed, foreign or another member's personal folder, answers RESOURCE_NOT_FOUND.",
+        "A folder in the library, a record area, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with the reason the agent would get; an expiry in the past or more than 30 days ahead is 422.",
+        "A grant adds scope, never authority: an agent's write still needs the person it acts for to be able to write the folder themselves."
+      ],
+      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
+    },
+    "IntegrationProviderPath": {
+      "fields": [
+        {
+          "name": "provider",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Provider slug the installation setting belongs to, as the provider registry names it (for example linear). Only a provider whose manifest asks for client credentials is served."
+        }
+      ],
+      "description": "Names the integration provider a client-credentials setting is read for."
+    },
+    "IntegrationClientCredentialsPut": {
+      "fields": [
+        {
+          "name": "clientId",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The OAuth application's client ID, as the provider shows it. It is not a secret and is shown back to installation administrators."
+        },
+        {
+          "name": "clientSecret",
+          "type": "secretString",
+          "required": true,
+          "description": "The OAuth application's client secret. Write-only: it is sealed under the installation key and never returned; saving always replaces the stored secret with this one."
+        }
+      ],
+      "rules": [
+        "clientSecret is write-only and is never returned by any operation, audit row or log."
+      ],
+      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. Both fields are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree."
+    },
+    "McpToolClassificationPut": {
+      "fields": [
+        {
+          "name": "effectClass",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+        },
+        {
+          "name": "effectKeyArgument",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
+        },
+        {
+          "name": "pairedReadTool",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
+        }
+      ],
+      "rules": [
+        "effectKeyArgument is required for write_idempotent and refused for any other class",
+        "pairedReadTool is required for write_reconcilable and refused for any other class",
+        "the tool must be in the connection's current snapshot"
+      ],
+      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "McpUseGrantCreate": {
+      "fields": [
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
+        }
+      ],
+      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
+    },
+    "StorageFilePut": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "Where the file goes: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent folder must exist and be in a working, personal (owner only) or scratch area."
+        },
+        {
+          "name": "mediaType",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": "IANA media type the version records and later serves, such as text/markdown or application/octet-stream."
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 1398104
+          },
+          "description": "The file's bytes, base64, for a small file of at most 1 MiB. Send exactly one of content or blobId."
+        },
+        {
+          "name": "blobId",
+          "type": "uuid",
+          "required": false,
+          "description": "A blob a completed resumable upload stored in this organization (blobUploads.complete). This is how a large file is uploaded: upload the bytes, then put the blob at a path. Send exactly one of content or blobId."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. Writing a new file needs no If-Match and refuses one (412). Replacing an existing file needs a strong If-Match with the entry's version (428 when missing, 412 when stale).",
+        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal.",
+        "A parent in a record area, the library, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with a reason; a missing parent, or another member's personal folder, is 404."
+      ],
+      "description": "Writes a file at a path in a working area (O42, chapter 25 section 17.4 put and upload): the first write makes the file entry, each later write adds a version. Working areas keep the newest versions up to the organization's setting; scratch keeps only the latest."
+    },
+    "StorageFolderCreate": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "The new folder: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must exist and be writable by the caller."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. An existing folder at the path is returned unchanged; a file there is 409 STATE_CONFLICT reason name_taken."
+      ],
+      "description": "Makes a folder in a working, personal or scratch area. People add folders only in assets, attachments, /shared, workspaces and their own personal folder (section 17.2); everywhere else is refused."
+    },
+    "StorageEntryDestination": {
+      "fields": [
+        {
+          "name": "destinationPath",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "Where the entry ends up, name included: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must be a folder the caller may write."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required; a move also needs a strong If-Match with the entry's version.",
+        "A destination name already taken in that folder is 409 STATE_CONFLICT reason name_taken. Moving a folder into itself is 422."
+      ],
+      "description": "The destination of a copy or a move inside the storage tree. A copy makes a new entry naming the same bytes; a move changes only the entry's parent and name, so nothing pinned to its versions breaks (O34)."
+    },
+    "StorageSettingsPut": {
+      "fields": [
+        {
+          "name": "workingVersionsKept",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1000
+          },
+          "description": "How many versions a working-area file keeps; older ones are removed on the next write. Default 20."
+        },
+        {
+          "name": "trashRetentionDays",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3650
+          },
+          "description": "Days a deleted working file stays in /trash, restorable, before the hourly sweep removes it. Default 30."
+        },
+        {
+          "name": "scratchRetentionDays",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3650
+          },
+          "description": "Days a file in a personal scratch folder lives after its last write before the sweep removes it. Default 30."
+        },
+        {
+          "name": "maxFileBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 5368709120
+          },
+          "description": "Largest single file a put accepts, in bytes; at most the 5 GiB blob limit. Default 5 GiB."
+        },
+        {
+          "name": "organizationQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes all working-area files of the organization may hold. Usage warns at 75% and new writes pause at 90%. Default 100 GiB."
+        },
+        {
+          "name": "projectQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes each project's working-area files (assets, workspaces, attachments) may hold, with the same 75% warning and 90% pause. Default 50 GiB."
+        },
+        {
+          "name": "personalQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB."
+        }
+      ],
+      "rules": [
+        "Organization Admin only. Idempotency-Key is required. The first save needs no If-Match and refuses one; every later save needs a strong If-Match with the settings version (428 when missing, 412 when stale). Every value is replaced; a value outside its bounds is 422 and nothing is stored."
+      ],
+      "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
+    },
+    "RunRequestCreate": {
+      "fields": [
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": true,
+          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+        },
+        {
+          "name": "intent",
+          "type": "enum(fyi|review|approve|answer|take_over)",
+          "required": true,
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+        },
+        {
+          "name": "stepKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "The step the request concerns, or omitted for the run as a whole."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 280
+          },
+          "description": "Optional one line shown to the person asked."
+        },
+        {
+          "name": "neededBy",
+          "type": "timestamp",
+          "required": false,
+          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
+        },
+        {
+          "name": "questionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
+        }
+      ],
+      "rules": [
+        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
+      ],
+      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+    },
+    "StorageFileContentQuery": {
+      "fields": [
+        {
+          "name": "revision",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 999999999
+          },
+          "description": "Which version to read, by its revision number from storageFileVersions.list; omit it to read the file's current version. A revision the file does not have is 404."
+        },
+        {
+          "name": "range",
+          "type": "httpRange",
+          "required": false,
+          "bounds": {
+            "maxBytes": 100
+          },
+          "description": "Standard HTTP Range header value selecting one byte range, as a media player sends while it seeks; multiple ranges are rejected, and an unsatisfiable range returns 416 with the total size."
+        }
+      ],
+      "rules": [
+        "The response is always a download (Content-Disposition attachment naming the file), served with Content-Security-Policy sandbox and nosniff, so an HTML or SVG file never runs on the application origin. Video and audio elements still play it.",
+        "A ranged read of a blob-backed version above 8 MiB is 416 RANGE_NOT_SATISFIABLE until the blob store gains ranged reads; inline versions (at most 1 MiB) always range.",
+        "Contents removed by retention or an Admin purge are 410 ARTIFACT_CONTENT_EXPIRED; the version still lists, with contentRemoved."
+      ],
+      "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
+    },
+    "MergeAttemptQuery": {
+      "fields": [
+        {
+          "name": "pullRequestId",
+          "type": "uuid",
+          "required": true,
+          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Filters for listing one pull request's merge attempts, newest first."
+    },
+    "MergeEntryQuery": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases."
+        },
+        {
+          "name": "pullRequestId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to this tracked pull request's merge entries."
+        },
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to the merge entries admitted for this run, so a page can read one run's entry without listing a whole repository's queue."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query. Every filter given must match."
+      ],
+      "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
+    },
+    "DesktopSignInStart": {
+      "fields": [
+        {
+          "name": "clientId",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "bakery-desktop"
+          ],
+          "description": "Built-in identifier of the first-party Bakery desktop app; every server knows it, so no operator registers it, and any other value is refused."
+        },
+        {
+          "name": "codeChallenge",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "description": "PKCE S256 challenge: the unpadded base64url SHA-256 of a verifier only the app holds. The exchange must present that verifier."
+        },
+        {
+          "name": "codeChallengeMethod",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "S256"
+          ],
+          "description": "PKCE transform the challenge used; only S256 is accepted, never plain."
+        },
+        {
+          "name": "redirectUri",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 512
+          },
+          "description": "Where the browser hands the one-time code back to the app: http on 127.0.0.1 or [::1] with an explicit port, or the app link bakery://auth/callback. No credentials, query or fragment."
+        },
+        {
+          "name": "computerName",
+          "type": "nonBlankString",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Name of the computer the app runs on, shown on the browser confirmation page and in Active sessions; control characters are refused."
+        }
+      ],
+      "rules": [
+        "Unauthenticated and rate limited per client address. The request is usable for ten minutes and grants nothing until a signed-in person confirms it in the browser."
+      ],
+      "description": "Opens one browser sign-in request for the Bakery desktop app. The response names the browser page that asks the person to confirm; the app keeps the PKCE verifier to itself."
+    },
+    "DesktopSignInExchange": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifier of the sign-in request the app opened, from the start response."
+        },
+        {
+          "name": "clientId",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "bakery-desktop"
+          ],
+          "description": "Built-in identifier of the first-party desktop app; it must equal the one the request was opened with."
+        },
+        {
+          "name": "code",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "description": "One-time code the browser handed to the app's redirect address after the person confirmed. Only its SHA-256 digest is stored."
+        },
+        {
+          "name": "codeVerifier",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 43,
+            "maxLength": 128
+          },
+          "description": "PKCE verifier whose S256 transform equals the request's challenge; RFC 7636 characters only."
+        }
+      ],
+      "rules": [
+        "One attempt per confirmed request: with the right code, a wrong verifier or client spends it, and a second exchange of a used request is refused and ends the sign-in the first exchange issued. A wrong code is refused and changes nothing, so knowing the request id alone cannot end or spoil a sign-in.",
+        "Refusals the app can tell apart carry a STATE_CONFLICT reason: desktop_sign_in_expired, desktop_sign_in_used, desktop_sign_in_cancelled, desktop_sign_in_pending or desktop_sign_in_mismatch. An unknown request is RESOURCE_NOT_FOUND."
+      ],
+      "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+    },
+    "RouteContinuationAdmit": {
+      "fields": [
+        {
+          "name": "runStepId",
+          "type": "uuid",
+          "required": true,
+          "description": "UUID of the stalled run step to continue, as named by the offer."
+        },
+        {
+          "name": "incidentId",
+          "type": "uuid",
+          "required": true,
+          "description": "UUID of the incident the offer was made for. If that incident has recovered, been superseded or is not the route's current one, the submission is stale and commits nothing."
+        },
+        {
+          "name": "incidentGeneration",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The incident generation the offer named. A different generation means the line moved on and the submission is stale."
+        },
+        {
+          "name": "targetRouteId",
+          "type": "uuid",
+          "required": true,
+          "description": "UUID of the route to continue on, one the offer marked eligible."
+        },
+        {
+          "name": "runVersion",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The run version the offer named. If the run changed since, the submission is refused as a failed precondition and nothing is committed."
+        }
+      ],
+      "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
     }
   },
   "projections": {
@@ -13418,9 +14114,13 @@ const transportSchemas = {
         "name",
         "activeVersionId",
         "enabled",
+        "scope",
+        "ownerPrincipalId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -13431,11 +14131,18 @@ const transportSchemas = {
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "scope": "enum(global|organization|personal)",
+        "ownerPrincipalId": "uuid|null",
+        "copiedFromSkillId": "uuid|null",
+        "copiedFromVersionId": "uuid|null"
       },
       "nullableFields": [
         "sourceId",
-        "activeVersionId"
+        "activeVersionId",
+        "ownerPrincipalId",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "sourceColumns": {
         "id": "id",
@@ -13446,7 +14153,11 @@ const transportSchemas = {
         "enabled": "enabled",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
-        "version": "version"
+        "version": "version",
+        "scope": "scope",
+        "ownerPrincipalId": "owner_principal_id",
+        "copiedFromSkillId": "copied_from_skill_id",
+        "copiedFromVersionId": "copied_from_version_id"
       },
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
@@ -13456,9 +14167,13 @@ const transportSchemas = {
         "name": "Human-readable name displayed for the skill record.",
         "activeVersionId": "Stable UUID linking this skill record to the related active version entity.",
         "enabled": "Whether the skill record is enabled.",
+        "scope": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person.",
+        "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill.",
         "createdAt": "UTC timestamp when the skill record was created.",
         "updatedAt": "UTC timestamp when the skill record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the skill record."
+        "version": "Optimistic-concurrency version used when updating the skill record.",
+        "copiedFromSkillId": "Stable UUID of the skill this one was copied from; null when the skill was not made by copying.",
+        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying."
       }
     },
     "skill_versions": {
@@ -18667,7 +19382,9 @@ const transportSchemas = {
         "mergedSha",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "mayMerge",
+        "mergeMethod"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18682,7 +19399,9 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "runId": "uuid|null"
+        "runId": "uuid|null",
+        "mayMerge": "boolean",
+        "mergeMethod": "enum(merge|squash|rebase)"
       },
       "nullableFields": [
         "mergedSha",
@@ -18702,7 +19421,9 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "runId": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+        "runId": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run.",
+        "mayMerge": "Whether the caller holds the permission to merge this pull request from Bakery (the pullRequest:merge permission). It says nothing about whether the pull request is ready to merge; the checks and the dispatch still decide that.",
+        "mergeMethod": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one."
       }
     },
     "ReviewCycle": {
@@ -20683,9 +21404,13 @@ const transportSchemas = {
         "name",
         "activeVersionId",
         "enabled",
+        "scope",
+        "ownerPrincipalId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -20696,13 +21421,20 @@ const transportSchemas = {
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "scope": "enum(global|organization|personal)",
+        "ownerPrincipalId": "uuid|null",
+        "copiedFromSkillId": "uuid|null",
+        "copiedFromVersionId": "uuid|null"
       },
       "nullableFields": [
         "sourceId",
-        "activeVersionId"
+        "activeVersionId",
+        "ownerPrincipalId",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
-      "description": "Stable identity for one organization skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use.",
+      "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the skill record.",
         "sourceId": "Stable UUID linking this record to the related source entity.",
@@ -20712,7 +21444,11 @@ const transportSchemas = {
         "enabled": "Whether the record is enabled.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "scope": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person.",
+        "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill.",
+        "copiedFromSkillId": "Stable UUID of the skill this one was copied from; null when the skill was not made by copying.",
+        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying."
       }
     },
     "SkillVersion": {
@@ -20964,6 +21700,7 @@ const transportSchemas = {
         "serverId",
         "integrationConnectionId",
         "workerHostId",
+        "ownerPrincipalId",
         "label",
         "config",
         "secretId",
@@ -20987,16 +21724,19 @@ const transportSchemas = {
         "currentSnapshotId": "uuid|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "ownerPrincipalId": "uuid|null"
       },
       "rules": [
-        "stdio connections require a workerHostId; localhost endpoint resolution is host-local"
+        "stdio connections require a workerHostId; localhost endpoint resolution is host-local",
+        "a personal connection is visible only to its owner"
       ],
       "nullableFields": [
         "integrationConnectionId",
         "workerHostId",
         "secretId",
-        "currentSnapshotId"
+        "currentSnapshotId",
+        "ownerPrincipalId"
       ],
       "description": "One organization's configured binding to an external MCP server, scoped to either a linked integration connection or a specific worker host for stdio locality; enabledCapabilities is the admin-approved subset of the server's discovered manifest and is never auto-expanded when new tools appear.",
       "fieldDescriptions": {
@@ -21012,7 +21752,8 @@ const transportSchemas = {
         "currentSnapshotId": "Stable UUID linking this record to the related current snapshot entity.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "ownerPrincipalId": "The member a personal connection belongs to, or null for an organization connection."
       }
     },
     "McpCapabilitySnapshot": {
@@ -21277,6 +22018,7 @@ const transportSchemas = {
         "topic",
         "tags",
         "currentRevisionId",
+        "currentRevision",
         "sourceState",
         "status",
         "createdAt",
@@ -21293,10 +22035,12 @@ const transportSchemas = {
         "status": "enum(proposed|active|retired)",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "currentRevision": "MemoryRevision|null"
       },
       "nullableFields": [
-        "currentRevisionId"
+        "currentRevisionId",
+        "currentRevision"
       ],
       "description": "Stable repository-scoped learning topic; its currentRevisionId points at the latest accepted memory_revisions row and advances only through the normal compare-and-swap update path, never by editing content in place.",
       "fieldDescriptions": {
@@ -21309,7 +22053,8 @@ const transportSchemas = {
         "status": "Current lifecycle status of the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "currentRevision": "The revision currentRevisionId points at, as this reader sees it (its sourceState, sourceName and sourceRevision are judged against the reader's live access at read time), so wording, source, confidence and expiry come with the entry. Null while the entry has no current revision."
       }
     },
     "MemoryRevision": {
@@ -21322,6 +22067,8 @@ const transportSchemas = {
         "reason",
         "sourceArtifactVersionId",
         "sourceState",
+        "sourceName",
+        "sourceRevision",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -21344,13 +22091,17 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "reason": "string|null"
+        "reason": "string|null",
+        "sourceName": "string|null",
+        "sourceRevision": "integer|null"
       },
       "nullableFields": [
         "supersedesId",
         "expiresAt",
         "reason",
-        "sourceArtifactVersionId"
+        "sourceArtifactVersionId",
+        "sourceName",
+        "sourceRevision"
       ],
       "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
@@ -21367,7 +22118,9 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "reason": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking."
+        "reason": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking.",
+        "sourceName": "Name of the artifact whose version this revision cites, so a reader sees which document it came from without a second read. Null unless sourceState is available or deleted: a reader who cannot read artifact versions, or a version that cannot be found, is never given a name.",
+        "sourceRevision": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null."
       },
       "optionalFields": [
         "reason"
@@ -24589,6 +25342,7 @@ const transportSchemas = {
         "id",
         "organizationId",
         "principalId",
+        "displayName",
         "role",
         "status",
         "joinedAt",
@@ -24600,6 +25354,7 @@ const transportSchemas = {
         "id": "uuid",
         "organizationId": "uuid",
         "principalId": "uuid",
+        "displayName": "string",
         "role": "enum(admin|developer|viewer|guest)",
         "status": "enum(active|inactive)",
         "joinedAt": "timestamp",
@@ -24615,6 +25370,7 @@ const transportSchemas = {
         "id": "Stable UUID identifying this organization membership record.",
         "organizationId": "UUID of the organization that owns this record.",
         "principalId": "UUID of the principal associated with this organization membership record.",
+        "displayName": "Display name of the member's principal, so a member list can name people. Every organization member may read it; it is the name the person chose, never an email address.",
         "role": "Shared Admin, Developer, Viewer or Guest permission-bundle role, or null for a grant-only service or worker membership; humans are always role-bearing.",
         "status": "Current lifecycle state of this organization membership record.",
         "joinedAt": "Timestamp recording when the joined event occurred for this organization membership record.",
@@ -25742,7 +26498,8 @@ const transportSchemas = {
         "disabledAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "lastUpdateFailure"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -25757,14 +26514,16 @@ const transportSchemas = {
         "disabledAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "lastUpdateFailure": "json|null"
       },
       "nullableFields": [
         "ownerPrincipalId",
         "activatedAt",
-        "disabledAt"
+        "disabledAt",
+        "lastUpdateFailure"
       ],
-      "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install.",
+      "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install. lastUpdateFailure records an update that was refused because the new version did not pass its checks.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying this plugin install record.",
         "organizationId": "UUID of the organization that owns this record.",
@@ -25778,8 +26537,12 @@ const transportSchemas = {
         "disabledAt": "Timestamp recording when the disabled event occurred for this plugin install record. May be null when unavailable.",
         "createdAt": "Timestamp recording when the created event occurred for this plugin install record.",
         "updatedAt": "Timestamp recording the last update to this plugin install record.",
-        "version": "Monotonic revision used to order or conditionally update this plugin install record."
-      }
+        "version": "Monotonic revision used to order or conditionally update this plugin install record.",
+        "lastUpdateFailure": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+      },
+      "optionalFields": [
+        "lastUpdateFailure"
+      ]
     },
     "Page<PluginInstall>": {
       "pageOf": "PluginInstall"
@@ -30099,6 +30862,841 @@ const transportSchemas = {
     "Page<Batch>": {
       "pageOf": "Batch",
       "description": "Cursor page of batches, newest first, returned by `GET /v1/batches`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "AgentFileGrant": {
+      "fields": [
+        "id",
+        "workflowId",
+        "folderId",
+        "access",
+        "grantedBy",
+        "expiresAt",
+        "revokedAt",
+        "revokedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "workflowId": "uuid",
+        "folderId": "uuid",
+        "access": "enum(read|write)",
+        "grantedBy": "uuid",
+        "expiresAt": "timestamp",
+        "revokedAt": "timestamp|null",
+        "revokedBy": "uuid|null",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId.",
+        "workflowId": "Immutable id of the workflow whose agent sessions the grant covers.",
+        "folderId": "The storage folder granted; the grant covers it and everything under it.",
+        "access": "read, or write (which includes the destructive verbs mv and rm).",
+        "grantedBy": "Person who made the grant.",
+        "expiresAt": "When the grant stops working; judged at the time of each write.",
+        "revokedAt": "When a person revoked the grant; null while it stands.",
+        "revokedBy": "Person who revoked the grant; null while it stands.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+      }
+    },
+    "IntegrationClientCredentials": {
+      "fields": [
+        "provider",
+        "configured",
+        "clientId",
+        "clientSecretSavedAt",
+        "callbackUrl",
+        "version"
+      ],
+      "nullableFields": [
+        "clientId",
+        "clientSecretSavedAt"
+      ],
+      "fieldTypes": {
+        "provider": "string",
+        "configured": "boolean",
+        "clientId": "string",
+        "clientSecretSavedAt": "timestamp",
+        "callbackUrl": "uri",
+        "version": "integer"
+      },
+      "description": "Whether an integration provider's OAuth client credentials are registered on this installation, which client ID, when the secret was last saved, and the callback URL to give the provider. The secret itself is never part of it. Version is 0 until credentials are saved and is the If-Match value for the next save.",
+      "fieldDescriptions": {
+        "provider": "Provider slug these credentials belong to.",
+        "configured": "True once a client ID and secret have been saved for this provider.",
+        "clientId": "The registered client ID, or null while nothing is registered.",
+        "clientSecretSavedAt": "UTC timestamp at which the current client secret was saved, or null while nothing is registered. A secret is never shown, so this is how an administrator tells it was replaced.",
+        "callbackUrl": "The URL to enter in the provider's OAuth application as its callback, derived from this installation's public address.",
+        "version": "Registration version: 0 while nothing is registered, then the optimistic-concurrency value to send as If-Match when replacing the credentials."
+      }
+    },
+    "McpToolClassification": {
+      "fields": [
+        "toolName",
+        "effectClass",
+        "classified",
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAgainstCurrentSnapshot",
+        "classifiedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAt"
+      ],
+      "fieldTypes": {
+        "toolName": "string",
+        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
+        "classified": "boolean",
+        "effectKeyArgument": "string",
+        "pairedReadTool": "string",
+        "classifiedAgainstCurrentSnapshot": "boolean",
+        "classifiedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it.",
+      "fieldDescriptions": {
+        "toolName": "The tool's name in the pinned snapshot.",
+        "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
+        "classified": "True once an Admin has classified this tool.",
+        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
+        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
+        "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
+        "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
+        "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+      }
+    },
+    "McpToolClassificationList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpToolClassification[]"
+      },
+      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered.",
+      "fieldDescriptions": {
+        "items": "The snapshot's tools with their classifications."
+      }
+    },
+    "McpUseGrant": {
+      "fields": [
+        "id",
+        "connectionId",
+        "workflowId",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "revokedBy"
+      ],
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "connectionId": "uuid",
+        "workflowId": "uuid",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "revokedAt": "timestamp",
+        "revokedBy": "uuid"
+      },
+      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "connectionId": "The personal connection the grant covers.",
+        "workflowId": "The workflow the grant lets use the connection.",
+        "grantedBy": "The owner who granted it.",
+        "createdAt": "UTC timestamp when the grant was made.",
+        "revokedAt": "UTC timestamp when the grant was revoked, or null while it is live.",
+        "revokedBy": "The principal who revoked it, or null while it is live."
+      }
+    },
+    "McpUseGrantList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpUseGrant[]"
+      },
+      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant.",
+      "fieldDescriptions": {
+        "items": "The connection's grants, newest first."
+      }
+    },
+    "StorageEntry": {
+      "fields": [
+        "id",
+        "parentId",
+        "path",
+        "name",
+        "kind",
+        "policy",
+        "artifactId",
+        "currentVersionId",
+        "revision",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "trashedAt",
+        "restoreParentId",
+        "originalName",
+        "originalFolderPath",
+        "trashedById",
+        "trashedByName",
+        "deletionRequestedAt",
+        "version",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "parentId": "uuid|null",
+        "path": "string",
+        "name": "string",
+        "kind": "enum(folder|file)",
+        "policy": "enum(record|working|scratch|library|personal|system)",
+        "artifactId": "uuid|null",
+        "currentVersionId": "uuid|null",
+        "revision": "integer|null",
+        "sha256": "string|null",
+        "sizeBytes": "integer|null",
+        "mediaType": "string|null",
+        "trashedAt": "timestamp|null",
+        "restoreParentId": "uuid|null",
+        "originalName": "string|null",
+        "originalFolderPath": "string|null",
+        "trashedById": "uuid|null",
+        "trashedByName": "string|null",
+        "deletionRequestedAt": "timestamp|null",
+        "version": "integer",
+        "updatedAt": "timestamp"
+      },
+      "nullableFields": [
+        "parentId",
+        "artifactId",
+        "currentVersionId",
+        "revision",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "trashedAt",
+        "restoreParentId",
+        "originalName",
+        "originalFolderPath",
+        "trashedById",
+        "trashedByName",
+        "deletionRequestedAt"
+      ],
+      "description": "A folder or file in the organization's storage tree as the caller may see it: where it is, what policy it follows and, for a working-area file, its current version's digest and size.",
+      "fieldDescriptions": {
+        "id": "Stable id of the entry. A rename or move never changes it, so links and pins keep working.",
+        "parentId": "Folder that holds the entry now; the /trash folder while it is deleted. Null only for a top-level area.",
+        "path": "The entry's path now, a label that changes with a rename or move; the id is its identity.",
+        "name": "The entry's display name, unique in its folder when compared case-insensitively.",
+        "kind": "Whether this is a folder or a file.",
+        "policy": "Folder policy the entry follows: record areas keep their files, working and personal areas take writes and delete to trash, scratch keeps only the latest version and expires.",
+        "artifactId": "The artifact a record-area file shows; null for a file written into a working area and for folders.",
+        "currentVersionId": "The working-area file's current version; null for folders and record-area files, whose version is their artifact's.",
+        "revision": "Revision number of the current working-area version, counting from 1.",
+        "sha256": "Lowercase hexadecimal SHA-256 of the current working-area version's bytes.",
+        "sizeBytes": "Size of the current working-area version in bytes.",
+        "mediaType": "Media type of the current working-area version.",
+        "trashedAt": "When the entry was deleted to trash; null while it is live.",
+        "restoreParentId": "Folder a restore puts a trashed entry back into; null while it is live.",
+        "originalName": "Name the entry had before it was deleted, which a restore gives it back; null while it is live.",
+        "originalFolderPath": "Path of the folder the entry was deleted from, for showing where it came from; null while it is live.",
+        "trashedById": "Person or agent that deleted the entry to trash; null while it is live.",
+        "trashedByName": "Display name of whoever deleted the entry, as shown in the trash list; null while it is live.",
+        "deletionRequestedAt": "When an Admin asked to delete this record-area file forever; set while that request waits for the owner maintenance task, so the page can show it as being deleted. Null when no deletion is pending.",
+        "version": "Optimistic concurrency version; send it as If-Match to replace, move, delete or restore this entry.",
+        "updatedAt": "When the entry or its current version last changed."
+      }
+    },
+    "Page<StorageEntry>": {
+      "pageOf": "StorageEntry",
+      "description": "Cursor page of the entries in the organization's trash the caller may see, most recently deleted first. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
+    },
+    "StorageSettings": {
+      "fields": [
+        "workingVersionsKept",
+        "trashRetentionDays",
+        "scratchRetentionDays",
+        "maxFileBytes",
+        "organizationQuotaBytes",
+        "projectQuotaBytes",
+        "personalQuotaBytes",
+        "organizationUsedBytes",
+        "organizationQuotaState",
+        "customized",
+        "version"
+      ],
+      "fieldTypes": {
+        "workingVersionsKept": "integer",
+        "trashRetentionDays": "integer",
+        "scratchRetentionDays": "integer",
+        "maxFileBytes": "integer",
+        "organizationQuotaBytes": "integer",
+        "projectQuotaBytes": "integer",
+        "personalQuotaBytes": "integer",
+        "organizationUsedBytes": "integer",
+        "organizationQuotaState": "enum(ok|warning|paused)",
+        "customized": "boolean",
+        "version": "integer"
+      },
+      "nullableFields": [],
+      "description": "The organization's storage limits and how much of its quota working-area files use. Every limit is an organization setting with a default (O42).",
+      "fieldDescriptions": {
+        "workingVersionsKept": "Versions a working-area file keeps.",
+        "trashRetentionDays": "Days a deleted working file stays restorable in /trash.",
+        "scratchRetentionDays": "Days a scratch file lives after its last write.",
+        "maxFileBytes": "Largest single file a put accepts, in bytes.",
+        "organizationQuotaBytes": "Bytes the organization's working-area files may hold.",
+        "projectQuotaBytes": "Bytes each project's working-area files may hold.",
+        "personalQuotaBytes": "Bytes each member's personal folder may hold.",
+        "organizationUsedBytes": "Bytes working-area file versions hold now, trash included until it is swept or purged.",
+        "organizationQuotaState": "Where usage stands against the organization quota: warning from 75%, paused from 90%, when new writes are refused.",
+        "customized": "False while the organization uses Bakery's defaults; true once an Admin saved its own values.",
+        "version": "Settings version for If-Match on the next save; 0 while the defaults apply."
+      }
+    },
+    "StoragePurgeResult": {
+      "fields": [
+        "id",
+        "status",
+        "alreadyRequested",
+        "entriesRemoved",
+        "bytesRemoved"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "status": "enum(removed|queued)",
+        "alreadyRequested": "boolean",
+        "entriesRemoved": "integer",
+        "bytesRemoved": "integer"
+      },
+      "nullableFields": [],
+      "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused.",
+      "fieldDescriptions": {
+        "id": "The purged entry.",
+        "status": "removed when the entry and everything under it were deleted in this request; queued when a record-area file's purge was recorded for the owner-privileged job, which clears every version's bytes and leaves the entry as a tombstone. Purging the same file again before the job runs returns queued for the same request.",
+        "alreadyRequested": "True when the record-area file already had a pending purge request, so this call queued nothing new; false when this call made the request or removed the entry.",
+        "entriesRemoved": "Entries deleted with their versions: the entry and everything under it. Zero when the purge is queued.",
+        "bytesRemoved": "Bytes of working-area versions deleted. Zero when the purge is queued."
+      }
+    },
+    "SkillUseGrant": {
+      "fields": [
+        "id",
+        "skillId",
+        "skillVersionId",
+        "workflowId",
+        "workflowName",
+        "stepPath",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "skillId": "uuid",
+        "skillVersionId": "uuid",
+        "workflowId": "uuid",
+        "workflowName": "string",
+        "stepPath": "string",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [],
+      "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "skillId": "Stable UUID of the personal skill the grant is for.",
+        "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
+        "workflowId": "Stable UUID of the workflow the skill was attached to.",
+        "workflowName": "Display name of that workflow, so the owner can recognise it.",
+        "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
+        "grantedBy": "Person who confirmed the grant, always the skill owner.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a stop must name in If-Match."
+      }
+    },
+    "Page<SkillUseGrant>": {
+      "pageOf": "SkillUseGrant",
+      "description": "Cursor page of SkillUseGrant rows in the collection's stable sort order. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
+    },
+    "RunRequestPerson": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "nullableFields": [],
+      "description": "A person named on a request: stable identity and saved display name.",
+      "fieldDescriptions": {
+        "principalId": "Stable principal UUID.",
+        "displayName": "The person's saved display name."
+      }
+    },
+    "RunRequest": {
+      "projection": "person_requests",
+      "fields": [
+        "id",
+        "runId",
+        "stepKey",
+        "intent",
+        "recipient",
+        "askedBy",
+        "askedByKind",
+        "note",
+        "neededBy",
+        "status",
+        "expiresAt",
+        "ownerFallback",
+        "fallbackForName",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "questionId"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "stepKey": "string|null",
+        "intent": "enum(fyi|review|approve|answer|take_over)",
+        "recipient": "RunRequestPerson",
+        "askedBy": "RunRequestPerson|null",
+        "askedByKind": "enum(person|agent|workflow)",
+        "note": "string|null",
+        "neededBy": "timestamp|null",
+        "status": "enum(open|answered|handled|expired|withdrawn)",
+        "expiresAt": "timestamp",
+        "ownerFallback": "boolean",
+        "fallbackForName": "string|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer",
+        "questionId": "uuid|null"
+      },
+      "nullableFields": [
+        "stepKey",
+        "askedBy",
+        "note",
+        "neededBy",
+        "fallbackForName",
+        "questionId"
+      ],
+      "description": "A request: one person asked for one thing on one run, with how it stands.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the request.",
+        "runId": "The run the request is on.",
+        "stepKey": "The step it concerns, or null for the run as a whole.",
+        "intent": "What was asked for.",
+        "recipient": "The person asked, frozen when the request was made.",
+        "askedBy": "The person who asked, or null when the asker no longer exists.",
+        "askedByKind": "Whether a person, an agent or a workflow's own step asked.",
+        "note": "The optional one-line note, or null.",
+        "neededBy": "The optional deadline, or null.",
+        "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
+        "expiresAt": "UTC time the request expires; silence never approves.",
+        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
+        "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
+        "createdAt": "UTC time the request was made.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Optimistic-concurrency version used as If-Match.",
+        "questionId": "The approval or question the request asks about, or null when it asks for none."
+      },
+      "optionalFields": [
+        "questionId"
+      ]
+    },
+    "RunRequests": {
+      "fields": [
+        "requests"
+      ],
+      "fieldTypes": {
+        "requests": "RunRequest[]"
+      },
+      "nullableFields": [],
+      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first.",
+      "fieldDescriptions": {
+        "requests": "Requests in newest-first order; bounded to the most recent fifty."
+      }
+    },
+    "StorageFolderItem": {
+      "fields": [
+        "id",
+        "parentId",
+        "path",
+        "name",
+        "displayName",
+        "kind",
+        "policy",
+        "kindName",
+        "mediaType",
+        "sizeBytes",
+        "artifactId",
+        "contentRemoved",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "parentId": "uuid|null",
+        "path": "string",
+        "name": "string",
+        "displayName": "string|null",
+        "kind": "enum(folder|file)",
+        "policy": "enum(record|working|scratch|library|personal|system)",
+        "kindName": "string|null",
+        "mediaType": "string|null",
+        "sizeBytes": "integer|null",
+        "artifactId": "uuid|null",
+        "contentRemoved": "boolean",
+        "updatedAt": "timestamp"
+      },
+      "nullableFields": [
+        "parentId",
+        "displayName",
+        "kindName",
+        "mediaType",
+        "sizeBytes",
+        "artifactId"
+      ],
+      "description": "One folder or file as the files browser lists it: what it is called, what its folder allows, its artifact kind and current size, and the artifact it shows when it is a work item's document.",
+      "fieldDescriptions": {
+        "id": "Stable id of the entry; open a folder with storageFolderEntries.list and a file's history with storageFileVersions.list.",
+        "parentId": "Folder that holds the entry; null for a top-level folder.",
+        "path": "The entry's path now, for the breadcrumb and Copy path; a label that changes with a rename or move.",
+        "name": "The entry's name in its folder, unique there when compared case-insensitively.",
+        "displayName": "The name to show instead of name where Bakery named the folder after something: a work item's folder carries the work item's title. Null when the entry's own name is the one to show.",
+        "kind": "Whether this is a folder or a file.",
+        "policy": "Folder policy the entry follows, which the badge beside the breadcrumb explains: record, working, scratch, library, personal or system.",
+        "kindName": "The artifact kind of a work item's document (its artifact type key); null for folders and for files written into working areas, which have no kind.",
+        "mediaType": "Media type of the file's current version; null for folders.",
+        "sizeBytes": "Size of the file's current version in bytes; null for folders.",
+        "artifactId": "The artifact a work item's document shows; the page opens the artifact page for it instead of the plain file view. Null for working-area files and folders.",
+        "contentRemoved": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders.",
+        "updatedAt": "When the entry or its current version last changed."
+      }
+    },
+    "Page<StorageFolderItem>": {
+      "pageOf": "StorageFolderItem",
+      "description": "Cursor page of storage-tree entries the caller may see. For a folder: folders first, then files, each by name. For the top of the tree: the caller's top-level folders in display order on one page (nextCursor always null). items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, offsets or totals."
+    },
+    "StorageFileVersion": {
+      "fields": [
+        "id",
+        "revision",
+        "isCurrent",
+        "createdAt",
+        "sizeBytes",
+        "mediaType",
+        "sha256",
+        "contentRemoved",
+        "removedAt",
+        "makerKind",
+        "makerPrincipalId",
+        "makerName",
+        "stepId",
+        "stepName",
+        "runId",
+        "workItemId",
+        "workItemTitle",
+        "sessionId"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "revision": "integer",
+        "isCurrent": "boolean",
+        "createdAt": "timestamp",
+        "sizeBytes": "integer",
+        "mediaType": "string",
+        "sha256": "string",
+        "contentRemoved": "boolean",
+        "removedAt": "timestamp|null",
+        "makerKind": "enum(person|step)",
+        "makerPrincipalId": "uuid",
+        "makerName": "string|null",
+        "stepId": "uuid|null",
+        "stepName": "string|null",
+        "runId": "uuid|null",
+        "workItemId": "uuid|null",
+        "workItemTitle": "string|null",
+        "sessionId": "uuid|null"
+      },
+      "nullableFields": [
+        "removedAt",
+        "makerName",
+        "stepId",
+        "stepName",
+        "runId",
+        "workItemId",
+        "workItemTitle",
+        "sessionId"
+      ],
+      "description": "One version of a storage-tree file: its number, when and by whom or which step it was saved, its size, and whether its contents are still there.",
+      "fieldDescriptions": {
+        "id": "Id of the version: an artifact version id for a work item's document, a working-area version id otherwise.",
+        "revision": "Version number, counting from 1; pass it as revision to storageFiles.content to read or download this version.",
+        "isCurrent": "True for the version the file shows now.",
+        "createdAt": "When the version was saved.",
+        "sizeBytes": "Size of the version's bytes.",
+        "mediaType": "Media type the version was saved with.",
+        "sha256": "Lowercase hexadecimal SHA-256 of the version's bytes.",
+        "contentRemoved": "True when retention or an Admin purge removed the version's bytes; the version stays listed and cannot be read.",
+        "removedAt": "When the bytes were removed; null while they are there.",
+        "makerKind": "Who made the version: step when a run step published it, person when a member or service wrote it.",
+        "makerPrincipalId": "Principal that wrote the version: the member for a person, the run's acting principal for a step.",
+        "makerName": "Display name of makerPrincipalId.",
+        "stepId": "The run step that published the version; null for a person's version.",
+        "stepName": "The step's key in its workflow; null for a person's version.",
+        "runId": "The run the step belongs to, for Open the run; null for a person's version.",
+        "workItemId": "The work item the run worked on; null for a person's version.",
+        "workItemTitle": "That work item's title; null for a person's version.",
+        "sessionId": "The step's most recent agent session, for Open the session; null when the step had none or for a person's version."
+      }
+    },
+    "Page<StorageFileVersion>": {
+      "pageOf": "StorageFileVersion",
+      "description": "Cursor page of a storage-tree file's versions, newest first, removed ones included. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
+    },
+    "StorageFileAtVersion": {
+      "fields": [
+        "file",
+        "versionId",
+        "revision",
+        "isCurrent"
+      ],
+      "fieldTypes": {
+        "file": "StorageFolderItem",
+        "versionId": "uuid",
+        "revision": "integer",
+        "isCurrent": "boolean"
+      },
+      "description": "The storage-tree file a version belongs to, found from the version id alone, with that version's number: what a link to one saved version (for example a memory's source) opens.",
+      "fieldDescriptions": {
+        "file": "The file as the files browser lists it, at its current path; open its history with storageFileVersions.list.",
+        "versionId": "The version that was asked for: a working-area version id or a work item document's artifact version id.",
+        "revision": "That version's number, counting from 1; pass it as revision to storageFiles.content to read this version.",
+        "isCurrent": "True when this version is the one the file shows now."
+      }
+    },
+    "StorageFileUse": {
+      "fields": [
+        "id",
+        "workItemId",
+        "workItemTitle",
+        "runId",
+        "inputName",
+        "versionId",
+        "revision",
+        "usedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "workItemId": "uuid",
+        "workItemTitle": "string",
+        "runId": "uuid",
+        "inputName": "string|null",
+        "versionId": "uuid",
+        "revision": "integer",
+        "usedAt": "timestamp"
+      },
+      "nullableFields": [
+        "inputName"
+      ],
+      "description": "One run that used a storage-tree file: the run pinned one of the file's versions as an input when it was admitted, and keeps that version even if the file changes or is deleted.",
+      "fieldDescriptions": {
+        "id": "Id of the run's input pin.",
+        "workItemId": "The work item the run worked on.",
+        "workItemTitle": "That work item's title.",
+        "runId": "The run that used the file.",
+        "inputName": "The run input that named the file by its storage path; null when the input named the version directly. Pins are per run, so no step is recorded.",
+        "versionId": "The artifact version the run pinned.",
+        "revision": "That version's number, for 'used version n'.",
+        "usedAt": "When the run was admitted and pinned the version."
+      }
+    },
+    "Page<StorageFileUse>": {
+      "pageOf": "StorageFileUse",
+      "description": "Cursor page of the runs that used a storage-tree file, newest first, only those whose work item the caller may open. Only a work item's document can be used by a run; a working-area file lists none. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, offsets or totals."
+    },
+    "Page<MergeAttempt>": {
+      "pageOf": "MergeAttempt",
+      "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "DesktopSignInStarted": {
+      "fields": [
+        "id",
+        "confirmUrl",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "confirmUrl": "uri",
+        "expiresAt": "timestamp"
+      },
+      "description": "A newly opened desktop sign-in request, waiting for the person to confirm it in the browser.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the request; the app sends it back with the code and verifier.",
+        "confirmUrl": "Absolute browser address of the confirmation page for this request; the app opens it in the system browser.",
+        "expiresAt": "UTC instant ten minutes after the request opened, after which it can no longer be confirmed or exchanged."
+      }
+    },
+    "DesktopSignInCredential": {
+      "fields": [
+        "credential",
+        "sessionId",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "credential": "secretString",
+        "sessionId": "uuid",
+        "expiresAt": "timestamp"
+      },
+      "description": "The desktop app's credential, returned once. The app keeps it in the system secret store and sends it as an Authorization bearer value.",
+      "fieldDescriptions": {
+        "credential": "Bearer credential starting with bkd_, sent as `Authorization: Bearer <credential>` to the page API and live updates. Returned only here; Bakery cannot show it again.",
+        "sessionId": "UUID of the sign-in session it opened; the person sees it as the Bakery app in Active sessions and can revoke it there.",
+        "expiresAt": "UTC instant the sign-in ends unless use renews it, as a browser sign-in renews."
+      }
+    },
+    "WorkflowStepSkill": {
+      "fields": [
+        "stepPath",
+        "skillVersionId",
+        "skillName",
+        "revision",
+        "scope",
+        "ownerDisplayName",
+        "mine",
+        "status",
+        "publishedVersionUsesIt"
+      ],
+      "fieldTypes": {
+        "stepPath": "string",
+        "skillVersionId": "uuid|null",
+        "skillName": "string|null",
+        "revision": "integer|null",
+        "scope": "enum(global|organization|personal)|null",
+        "ownerDisplayName": "string|null",
+        "mine": "boolean",
+        "status": "enum(available|stopped|unavailable|missing)",
+        "publishedVersionUsesIt": "boolean"
+      },
+      "nullableFields": [
+        "skillName",
+        "revision",
+        "scope",
+        "ownerDisplayName",
+        "skillVersionId"
+      ],
+      "description": "One skill version named by one step of a workflow version, as the reader may see it. For a personal skill that is not the reader's own it is a placeholder: its name, its owner's display name and its version, never a link, a file or a description. A copy of a workflow that used a personal skill lists the step with status missing, naming the original skill, until the author chooses another skill or removes it.",
+      "fieldDescriptions": {
+        "stepPath": "JSON Pointer of the step in the workflow definition that names the skill.",
+        "skillVersionId": "Immutable skill version the step names; null for a missing-skill slot, which names no skill.",
+        "skillName": "Display name of the skill, or for a missing-skill slot the name of the skill the original workflow used; null when the version no longer exists.",
+        "revision": "Revision number of the skill version; null when it no longer exists.",
+        "scope": "Whether the skill comes with Bakery (global), belongs to the organization, or is personal to one person; null when the version no longer exists.",
+        "ownerDisplayName": "Display name of the person who owns a personal skill; null for any other skill.",
+        "mine": "True when the reader owns this personal skill.",
+        "status": "available when the skill can be used at this step now; stopped when a personal skill has no live use grant for this step and version; unavailable when it was removed or switched off, or its owner left the organization; missing when the workflow was copied from one that used a personal skill, which did not come with the copy.",
+        "publishedVersionUsesIt": "True when a published version of this workflow still names the skill version; answered only to the skill owner, false for everyone else."
+      }
+    },
+    "WorkflowVersionSkills": {
+      "fields": [
+        "items"
+      ],
+      "fieldTypes": {
+        "items": "WorkflowStepSkill[]"
+      },
+      "bounds": {
+        "itemsMaxItems": 256
+      },
+      "description": "Every skill the steps of one workflow version name, ordered by step then skill version, with whether each can be used now. The same read serves a draft and a published version.",
+      "fieldDescriptions": {
+        "items": "One entry per step and skill version the workflow definition names."
+      }
+    },
+    "RouteContinuationPin": {
+      "fields": [
+        "provider",
+        "model",
+        "billingRoute",
+        "billingAccountId"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "provider": "string",
+        "model": "string",
+        "billingRoute": "enum(api|subscription)",
+        "billingAccountId": "string"
+      },
+      "description": "What a step runs on: the provider, model, billing route and billing account of its pin. A continuation records the pin the step had and the pin it now has.",
+      "fieldDescriptions": {
+        "provider": "Provider key the step sends to.",
+        "model": "Model identifier the step runs.",
+        "billingRoute": "Billing route the step's spend follows: api or subscription.",
+        "billingAccountId": "Provider billing account the step's spend is attributed to."
+      }
+    },
+    "RouteContinuation": {
+      "fields": [
+        "id",
+        "runId",
+        "runStepId",
+        "jobId",
+        "incidentId",
+        "incidentGeneration",
+        "sourceRouteId",
+        "targetRouteId",
+        "previousPin",
+        "newPin",
+        "admittedAt"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "runStepId": "uuid",
+        "jobId": "uuid",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "sourceRouteId": "uuid",
+        "targetRouteId": "uuid",
+        "previousPin": "RouteContinuationPin",
+        "newPin": "RouteContinuationPin",
+        "admittedAt": "timestamp"
+      },
+      "description": "The record that a stalled step was continued on another route. The old attempt is fenced, the job is queued again on the new pin, and the step's one budget reservation is re-priced in place, so no second reservation exists and none is left held. Both the pin the step had and the pin it now has are kept.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this continuation.",
+        "runId": "UUID of the run the step belongs to.",
+        "runStepId": "UUID of the step that was continued.",
+        "jobId": "UUID of the step's job that was moved (the earliest, when a step has several live jobs; all were moved).",
+        "incidentId": "UUID of the incident the choice was made against.",
+        "incidentGeneration": "Generation of that incident when the choice was admitted.",
+        "sourceRouteId": "UUID of the route the step was pinned to.",
+        "targetRouteId": "UUID of the route it now runs on.",
+        "previousPin": "The provider, model, billing route and billing account the step had before.",
+        "newPin": "The provider, model, billing route and billing account the step has now.",
+        "admittedAt": "UTC timestamp at which the continuation was admitted."
+      }
     }
   },
   "pageEnvelope": {
@@ -30802,6 +32400,15 @@ const transportSchemas = {
       "inngestTrigger": null,
       "description": "Authorized invalidation notification for a newly created tenant skill; consumers fetch the authoritative skill through its REST operation."
     },
+    "skills.copied": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification for a skill made by copying another; consumers fetch the authoritative skill through its REST operation."
+    },
     "skills.updated": {
       "schemaVersion": 1,
       "payloadFields": {
@@ -31443,6 +33050,15 @@ const transportSchemas = {
       "inngestTrigger": null,
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
+    "routeContinuations.admitted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
     "agentPowerGrant.created": {
       "schemaVersion": 1,
       "payloadFields": {
@@ -31453,6 +33069,24 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "agentPowerGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "runRequest.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "runRequest.withdrawn": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
@@ -31499,6 +33133,24 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation that one person's direct access to a conversation was granted by a mention or revoked; clients re-read conversationAccess.list. It carries no message content."
+    },
+    "skillUseGrant.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification for a skill use grant recorded when an author confirms attaching a personal skill to a workflow step; consumers fetch the authoritative grants through the skill use grants list."
+    },
+    "skillUseGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification for a skill use grant its owner revoked; consumers re-read the skill use grants list."
     }
   },
   "workerActions": {

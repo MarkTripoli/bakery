@@ -297,6 +297,7 @@ const implementedWorkflowActions = [
   "workflowVersions.get",
   "workflowVersions.list",
   "workflowVersions.publish",
+  "workflowVersions.skills",
   "workflowVersions.update",
   "workflows.copy",
   "workflows.create",

@@ -64,6 +64,15 @@ function fakeApi(
       const page: OrganizationAccessPage = { items: [...items], nextCursor };
       return Promise.resolve({ ok: true, data: page });
     },
+    files: {
+      roots: rejecting,
+      entries: rejecting,
+      versions: rejecting,
+      uses: rejecting,
+      atVersion: rejecting,
+      search: rejecting,
+      content: rejecting,
+    },
     invitations: {
       preview: rejecting,
       recipientGet: rejecting,
@@ -79,6 +88,13 @@ function fakeApi(
     access: {} as BakeryApiClient["access"],
     profile: { get: rejecting, update: rejecting },
     userPreferences: { get: rejecting, update: rejecting },
+    plugins: {
+      packages: rejecting,
+      versions: rejecting,
+      installs: rejecting,
+      install: rejecting,
+      update: rejecting,
+    },
     tickets: {
       get: rejecting,
       check: rejecting,
@@ -91,6 +107,12 @@ function fakeApi(
       preview: rejecting,
       lookupPerson: rejecting,
       sync: rejecting,
+      links: rejecting,
+      requests: rejecting,
+      labels: rejecting,
+      resyncNote: rejecting,
+      routingRules: rejecting,
+      replaceRoutingRules: rejecting,
     },
     workers: {
       list: rejecting,
@@ -121,6 +143,7 @@ function fakeApi(
     },
     installationCapabilities: { get: rejecting },
     installationSettings: { get: rejecting, update: rejecting },
+    integrationClientCredentials: { get: rejecting, put: rejecting },
     integrationAppRegistrations: {
       get: rejecting,
       begin: rejecting,
@@ -243,6 +266,9 @@ function fakeApi(
     listReviewFindings: rejecting,
     listRunDeliveryDecisions: rejecting,
     listPullRequests: rejecting,
+    listMergeAttempts: rejecting,
+    mergePullRequest: rejecting,
+    reconcileMergeAttempts: rejecting,
     sync: rejecting,
     listApplications: rejecting,
     createApplication: rejecting,
@@ -270,6 +296,11 @@ function fakeApi(
     getWorkflow: rejecting,
     listWorkflows: rejecting,
     listAgents: rejecting,
+    listMemories: rejecting,
+    getMemory: rejecting,
+    listMemoryRevisions: rejecting,
+    updateMemory: rejecting,
+    createMemoryRevision: rejecting,
     listWorkflowVersions: rejecting,
     activateWorkflowVersion: rejecting,
     updateWorkflow: rejecting,

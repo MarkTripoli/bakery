@@ -1,13 +1,172 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "3b8d4ef5651aeb7feb2a38518001271c1436646f"
+    "82208cd19ee685a73f12fe8c8d7d4f97d9138ce2"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
-  "reason": "#69 ticket preview, ticket link reads and status note re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3b8d4ef5651aeb7feb2a38518001271c1436646f: ticketSources.preview now answers a TicketPreviewResult (counts would start / plan only / held / blocked and one entry per issue with its verdict and reasons) instead of a TicketOperationReceipt, and TicketPreviewCreate gains an optional draft policy and a defined filters object; the preview stores nothing. ticketTaskLinks.list (GET /v1/ticket-task-links, by ticket or by task), ticketTaskLinks.resyncNote (POST /v1/ticket-task-links/{id}/note-syncs, which posts Bakery's status note through the provider's comment action, rewrites it in place by its stored id afterwards and re-creates it when deleted on the provider) and the externalTicketId filter of pullRequests.list are additive; TicketTaskLink descriptions now say what the note fields hold. The breaking drift is the one preview response reference; the approval it displaced at sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:1e96091b9990086d17c09e0bae292465d0f9ce34f5b698b29d9fceb229246276",
+  "reason": "#431 private skills re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 889c2fbfb938191e56ede7ed5dc7458216f131bd: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa when #431 PR1 opened (main moved past a83b7ec57; #654 added the same two access values, no new drift); the breaking drift is unchanged and the approval it displaced at sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 1ce09ba92c2007f4837308efdbabfc93baaaff67 (#714 merged) on top of main's own #69 approval, which is preserved unchanged first below at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926; the breaking drift is unchanged (Skill gains two required response fields) and my previous approval at sha256:74939f698da35840e7aba037034e0e3452c6e17c35fd0790a3c9a0e37886e3d4 follows it. Re-bound again by dev-workflows on 2026-11-20 to main a5f21505dd4b98a965c6ddb3f2d6a756e835ce06 (#729 and #732 merged); the breaking drift is unchanged and the approval it displaced at sha256:c5d59d227e19c3f94fe88c3d44873dc135008fd2478ac8d8ad8daa76397130cf is preserved first below. Re-bound again by dev-workflows on 2026-11-20 to main a001079c230bfd1d039b46b5fb6cc88deb876dd5 (#735 and #731 merged); the breaking drift is unchanged and the approval it displaced at sha256:465b0eac418d01b44c8e533f81a2236c7e9a75bdfc572d13453c4d5f8c531537 is preserved first below. Re-bound by dev-workflows on 2026-11-20 to main 7af7d8692f3c06834a7192c596341ff6d0cf9079 (#728 merged) for #42: Skill gains two more required response fields, copiedFromSkillId and copiedFromVersionId (null for a skill that was not copied), and skills.copy is a new action; no request field, route or status code is removed. The approval it displaced at sha256:f61c0f4a77facec344684ffb9915710f8ea65201a8c67b62bbef25382a56b7c3 is preserved first below. Re-bound again by dev-workflows on 2026-11-20 to main 04c3fa8ffeccac98872c7cb9af1a7f35d43707d7 (#42 skill copy) on top of main's own approval, which is preserved unchanged first below at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96; the breaking drift is unchanged. Re-bound again by dev-workflows on 2026-11-20 to main 82208cd19ee685a73f12fe8c8d7d4f97d9138ce2 (#42 skill copy) on top of main's own approval, preserved unchanged first below at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96; the breaking drift is unchanged.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "4bd35c217d584662c4550c6a956fee67ec0e4577"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96",
+      "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 4bd35c217d584662c4550c6a956fee67ec0e4577 (#728 merged): MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes. Main's own approval at sha256:f61c0f4a77facec344684ffb9915710f8ea65201a8c67b62bbef25382a56b7c3 (the #431 skills change) is preserved unchanged first below, and my previous approval at sha256:7d9b85a83e5f5a41393e5e6dcc407866073723de501b560c7518c019ba25c14e follows it."
+    },
+    {
+      "fromBaseRefs": [
+        "a001079c230bfd1d039b46b5fb6cc88deb876dd5"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:f61c0f4a77facec344684ffb9915710f8ea65201a8c67b62bbef25382a56b7c3",
+      "reason": "#431 private skills re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 889c2fbfb938191e56ede7ed5dc7458216f131bd: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa when #431 PR1 opened (main moved past a83b7ec57; #654 added the same two access values, no new drift); the breaking drift is unchanged and the approval it displaced at sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 1ce09ba92c2007f4837308efdbabfc93baaaff67 (#714 merged) on top of main's own #69 approval, which is preserved unchanged first below at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926; the breaking drift is unchanged (Skill gains two required response fields) and my previous approval at sha256:74939f698da35840e7aba037034e0e3452c6e17c35fd0790a3c9a0e37886e3d4 follows it. Re-bound again by dev-workflows on 2026-11-20 to main a5f21505dd4b98a965c6ddb3f2d6a756e835ce06 (#729 and #732 merged); the breaking drift is unchanged and the approval it displaced at sha256:c5d59d227e19c3f94fe88c3d44873dc135008fd2478ac8d8ad8daa76397130cf is preserved first below. Re-bound again by dev-workflows on 2026-11-20 to main a001079c230bfd1d039b46b5fb6cc88deb876dd5 (#735 and #731 merged); the breaking drift is unchanged and the approval it displaced at sha256:465b0eac418d01b44c8e533f81a2236c7e9a75bdfc572d13453c4d5f8c531537 is preserved first below. [Displaced by the #72 memory re-bind onto main 4bd35c217d584662c4550c6a956fee67ec0e4577: main's own approval, preserved unchanged.]"
+    },
+    {
+      "fromBaseRefs": [
+        "a001079c230bfd1d039b46b5fb6cc88deb876dd5"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7d9b85a83e5f5a41393e5e6dcc407866073723de501b560c7518c019ba25c14e",
+      "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a001079c230bfd1d039b46b5fb6cc88deb876dd5: MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes; the approval it displaced at sha256:0fb3b25cf12e177a1109c01437a66d54d4b52f7353c5b5bfa3715e2950ffef89 is preserved unchanged first below. [Displaced when main moved again (#728 merged): the digest follows the tree.]"
+    },
+    {
+      "fromBaseRefs": [
+        "a5f21505dd4b98a965c6ddb3f2d6a756e835ce06"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:0fb3b25cf12e177a1109c01437a66d54d4b52f7353c5b5bfa3715e2950ffef89",
+      "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a5f21505dd4b98a965c6ddb3f2d6a756e835ce06: MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes; the approval it displaced at sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "889c2fbfb938191e56ede7ed5dc7458216f131bd"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b",
+      "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 889c2fbfb938191e56ede7ed5dc7458216f131bd: MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes; the approval it displaced at sha256:050bbfec6c6d3ccd73991e61264bee8b5d336bfd701d2a73dc9fc1374b2ee3aa is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "a5f21505dd4b98a965c6ddb3f2d6a756e835ce06"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:465b0eac418d01b44c8e533f81a2236c7e9a75bdfc572d13453c4d5f8c531537",
+      "reason": "#431 private skills re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 889c2fbfb938191e56ede7ed5dc7458216f131bd: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa when #431 PR1 opened (main moved past a83b7ec57; #654 added the same two access values, no new drift); the breaking drift is unchanged and the approval it displaced at sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 1ce09ba92c2007f4837308efdbabfc93baaaff67 (#714 merged) on top of main's own #69 approval, which is preserved unchanged first below at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926; the breaking drift is unchanged (Skill gains two required response fields) and my previous approval at sha256:74939f698da35840e7aba037034e0e3452c6e17c35fd0790a3c9a0e37886e3d4 follows it. Re-bound again by dev-workflows on 2026-11-20 to main a5f21505dd4b98a965c6ddb3f2d6a756e835ce06 (#729 and #732 merged); the breaking drift is unchanged and the approval it displaced at sha256:c5d59d227e19c3f94fe88c3d44873dc135008fd2478ac8d8ad8daa76397130cf is preserved first below."
+    },
+    {
+      "fromBaseRefs": [
+        "889c2fbfb938191e56ede7ed5dc7458216f131bd"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c5d59d227e19c3f94fe88c3d44873dc135008fd2478ac8d8ad8daa76397130cf",
+      "reason": "#431 private skills re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 889c2fbfb938191e56ede7ed5dc7458216f131bd: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa when #431 PR1 opened (main moved past a83b7ec57; #654 added the same two access values, no new drift); the breaking drift is unchanged and the approval it displaced at sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 1ce09ba92c2007f4837308efdbabfc93baaaff67 (#714 merged) on top of main's own #69 approval, which is preserved unchanged first below at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926; the breaking drift is unchanged (Skill gains two required response fields) and my previous approval at sha256:74939f698da35840e7aba037034e0e3452c6e17c35fd0790a3c9a0e37886e3d4 follows it."
+    },
+    {
+      "fromBaseRefs": [
+        "0ab8a30353e2d19599a02affbad1c09f05fcbec6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:050bbfec6c6d3ccd73991e61264bee8b5d336bfd701d2a73dc9fc1374b2ee3aa",
+      "reason": "#434 MCP connections re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 0ab8a30353e2d19599a02affbad1c09f05fcbec6: McpConnectionCreate and McpConnectionUpdate drop the secretId reference input and gain a write-only secret (a caller can no longer point a connection at an arbitrary secret id; the credential is sealed server-side), McpConnectionCreate gains an optional scope (organization|personal), and McpConnection gains ownerPrincipalId. mcpConnections create, update and discover change from Admin to Developer-for-personal/Admin-for-organization access. No client writes these shapes: no handler existed before this change. mcpConnections.discover returns the McpCapabilitySnapshot it pinned instead of a Run (a remote server is asked inline; a Run belongs to local servers launched on a worker, a later slice) and carries no domain event. The approval it displaced is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "4e1f1fdf68726693d0b8c36cf23a94ac453512c5"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:350a67b467395a98dc007935426ca0ec22397a03e33c236f38510f471d3026d3",
+      "reason": "#434 MCP connections re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 4e1f1fdf68726693d0b8c36cf23a94ac453512c5: McpConnectionCreate and McpConnectionUpdate drop the secretId reference input and gain a write-only secret (a caller can no longer point a connection at an arbitrary secret id; the credential is sealed server-side), McpConnectionCreate gains an optional scope (organization|personal), and McpConnection gains ownerPrincipalId. mcpConnections create, update and discover change from Admin to Developer-for-personal/Admin-for-organization access. No client writes these shapes: no handler existed before this change. mcpConnections.discover returns the McpCapabilitySnapshot it pinned instead of a Run (a remote server is asked inline; a Run belongs to local servers launched on a worker, a later slice) and carries no domain event. The approval it displaced is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "167d6f712103081750c763063a1e49225738407d",
+        "9d60ae16861322c7425338069d24f9ccb0885089",
+        "1ce09ba92c2007f4837308efdbabfc93baaaff67"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1",
+      "reason": "#57 slice 1 merge from Bakery re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 167d6f712103081750c763063a1e49225738407d: PullRequest gains a required mayMerge (boolean, whether the caller holds pullRequest:merge) and a required mergeMethod (the squash default Bakery merges with), on an output no client writes. mergeAttempts.list (GET /v1/merge-attempts, keyset) and the pull request and run filters of mergeEntries.list are additive. The breaking drift is those two fields becoming required; the approval it displaced at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926 is preserved unchanged first below; main moved again (#724) and the digest followed, the earlier digest of this same change is kept next."
+    },
+    {
+      "fromBaseRefs": [
+        "9d60ae16861322c7425338069d24f9ccb0885089",
+        "1ce09ba92c2007f4837308efdbabfc93baaaff67"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:468a1fc65fc3b08483d56cf8108a2d8cb76241bab428558a44b78b723a0d8a53",
+      "reason": "#57 slice 1 merge from Bakery re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 9d60ae16861322c7425338069d24f9ccb0885089: PullRequest gains a required mayMerge (boolean, whether the caller holds pullRequest:merge) and a required mergeMethod (the squash default Bakery merges with), on an output no client writes. mergeAttempts.list (GET /v1/merge-attempts, keyset) and the pull request and run filters of mergeEntries.list are additive. The breaking drift is those two fields becoming required; the approval it displaced at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "94e8c0e8c04f896c3f56374303ac9853d21405aa",
+        "3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "de64639a4d4cfbf49bc3402f7d21deffd06ef74a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main de64639a4d4cfbf49bc3402f7d21deffd06ef74a: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "bafc1fb3056996606b9392156f474cbbed264c06"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main bafc1fb3056996606b9392156f474cbbed264c06: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "968c2ab9257fad06adb6132eb743a4f62c578e17",
+        "9da88825036edcc588db4c2ac892297a8638b8cb"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 9da88825036edcc588db4c2ac892297a8638b8cb: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "0eb879783c9ec575e77852b3b560dde8f45349a3",
+        "a83b7ec57da9bf29078c23b24d3cdda776f255fe"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main a83b7ec57da9bf29078c23b24d3cdda776f255fe: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "3b8d4ef5651aeb7feb2a38518001271c1436646f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
+      "reason": "#69 ticket preview, ticket link reads and status note re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3b8d4ef5651aeb7feb2a38518001271c1436646f: ticketSources.preview now answers a TicketPreviewResult (counts would start / plan only / held / blocked and one entry per issue with its verdict and reasons) instead of a TicketOperationReceipt, and TicketPreviewCreate gains an optional draft policy and a defined filters object; the preview stores nothing. ticketTaskLinks.list (GET /v1/ticket-task-links, by ticket or by task), ticketTaskLinks.resyncNote (POST /v1/ticket-task-links/{id}/note-syncs, which posts Bakery's status note through the provider's comment action, rewrites it in place by its stored id afterwards and re-creates it when deleted on the provider) and the externalTicketId filter of pullRequests.list are additive; TicketTaskLink descriptions now say what the note fields hold. The breaking drift is the one preview response reference; the approval it displaced at sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2"
@@ -860,6 +1019,60 @@
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f",
       "reason": "Epic E03 (#5) / FS18 (#151) settings contracts on main. Owner standing authorization, given directly to the orchestrator in its own session on 2026-10-09, verbatim: 'I don't worry about breaking changes. Don't do version increments or anything like that. Just make breaking changes freely as you need to.' This entry was written by the orchestrator, not by a builder. It binds exact main base 967d6b687ef222ccc39a7d91fc9a4fd97b432696 to target compatibility digest sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f, computed with generateContracts().compatibilityDigest on branch delivery/epic-e03-settings at e7887e1b762bd9551c0d26862e26c0357e9cd228. Relative to that base the delta is: adds profile.get (GET /v1/me/profile), profile.update (PATCH /v1/me/profile; self-only; Idempotency-Key and If-Match; VERSION_CONFLICT) and the public featureAvailability.get (GET /v1/feature-availability) with new schemas UserProfile, UserProfileUpdate and FeatureAvailability; implements the previously catalogued-only userPreferences.get and userPreferences.update and reshapes UserPreferences (theme, locale, timeZone, effectiveLocale, direction, availableLocales, casVersion, nullable id and timestamps) and UserPreferencesUpdate (optional theme, locale and timeZone plus required expectedCasVersion; the free-form preferences field is removed, which is the breaking change); adds nullable defaultLocale to Organization, OrganizationAccess and OrganizationUpdate; adds timeZone to PrincipalIdentity; adds VERSION_CONFLICT to the userPreferences.update and organizations.update error lists. No operation or schema is removed. The previous top-level approval and every earlier approval remain in priorApprovals. Any other base or generated delta needs a separate entry."
+    },
+    {
+      "fromBaseRefs": [
+        "0ab8a30353e2d19599a02affbad1c09f05fcbec6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8245596f161a86ab236363b8837998152825717ab568ad0db92131209088f602",
+      "reason": "#431 private skills re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 0ab8a30353e2d19599a02affbad1c09f05fcbec6: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa when #431 PR1 opened (main moved past a83b7ec57; #654 added the same two access values, no new drift); the breaking drift is unchanged and the approval it displaced at sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 1ce09ba92c2007f4837308efdbabfc93baaaff67 (#714 merged) on top of main's own #69 approval, which is preserved unchanged first below at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926; the breaking drift is unchanged (Skill gains two required response fields) and my previous approval at sha256:74939f698da35840e7aba037034e0e3452c6e17c35fd0790a3c9a0e37886e3d4 follows it."
+    },
+    {
+      "fromBaseRefs": [
+        "4e1f1fdf68726693d0b8c36cf23a94ac453512c5"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:af74bd29915588674006ef96811da9402432fedb9dcef667c799dd54df482123",
+      "reason": "#431 private skills re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 4e1f1fdf68726693d0b8c36cf23a94ac453512c5: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa when #431 PR1 opened (main moved past a83b7ec57; #654 added the same two access values, no new drift); the breaking drift is unchanged and the approval it displaced at sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 1ce09ba92c2007f4837308efdbabfc93baaaff67 (#714 merged) on top of main's own #69 approval, which is preserved unchanged first below at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926; the breaking drift is unchanged (Skill gains two required response fields) and my previous approval at sha256:74939f698da35840e7aba037034e0e3452c6e17c35fd0790a3c9a0e37886e3d4 follows it."
+    },
+    {
+      "fromBaseRefs": [
+        "1ce09ba92c2007f4837308efdbabfc93baaaff67"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:68ac5cc235510ebf89411e981e1797c03b18eb5817a1948fd0d1ac6794122147",
+      "reason": "#431 private skills re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main a83b7ec57da9bf29078c23b24d3cdda776f255fe: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa when #431 PR1 opened (main moved past a83b7ec57; #654 added the same two access values, no new drift); the breaking drift is unchanged and the approval it displaced at sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 1ce09ba92c2007f4837308efdbabfc93baaaff67 (#714 merged) on top of main's own #69 approval, which is preserved unchanged first below at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926; the breaking drift is unchanged (Skill gains two required response fields) and my previous approval at sha256:74939f698da35840e7aba037034e0e3452c6e17c35fd0790a3c9a0e37886e3d4 follows it."
+    },
+    {
+      "fromBaseRefs": [
+        "94e8c0e8c04f896c3f56374303ac9853d21405aa"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:74939f698da35840e7aba037034e0e3452c6e17c35fd0790a3c9a0e37886e3d4",
+      "reason": "#431 private skills re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main a83b7ec57da9bf29078c23b24d3cdda776f255fe: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa when #431 PR1 opened (main moved past a83b7ec57; #654 added the same two access values, no new drift); the breaking drift is unchanged and the approval it displaced at sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa is preserved first below."
+    },
+    {
+      "fromBaseRefs": [
+        "a83b7ec57da9bf29078c23b24d3cdda776f255fe"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa",
+      "reason": "#431 private skills re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main a83b7ec57da9bf29078c23b24d3cdda776f255fe: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "eb7d1ee5befefbc8fd94a97a66f18fb01d215b4f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc",
+      "reason": "#431 private skills re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main eb7d1ee5befefbc8fd94a97a66f18fb01d215b4f: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId (the owner of a personal skill, null otherwise), and skills.create takes an optional scope. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below."
     }
   ]
 }

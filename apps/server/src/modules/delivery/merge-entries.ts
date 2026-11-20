@@ -239,7 +239,7 @@ export function evidenceRefusal(
  * — this exact head, this exact base and this policy digest — and every named
  * check must have passed.
  */
-async function assertCandidateEvidence(
+export async function assertCandidateEvidence(
   transaction: PgTransactionClient,
   organizationId: string,
   input: MergeEntryCreateInput,
@@ -423,46 +423,66 @@ function pageSize(value: number | undefined): number {
 function listBinding(
   organizationId: string,
   principalId: string,
-  repositoryId: string | null,
+  filters: {
+    repositoryId: string | null;
+    pullRequestId: string | null;
+    runId: string | null;
+  },
 ): CursorBinding {
   return {
     action: "mergeEntries.list",
     principalId,
     organizationId,
     ordering: MERGE_ENTRY_ORDERING,
-    filters: JSON.stringify({ repositoryId }),
+    filters: JSON.stringify(filters),
     schemaVersion: 1,
   };
 }
 
 /**
  * Lists the organization's merge entries, newest first, keyset paginated on
- * (created_at, id). The cursor is bound to the repository filter and the caller.
+ * (created_at, id). The repository, pull request and run filters narrow the
+ * page (every filter given must match); the cursor is bound to all of them and
+ * to the caller.
  */
 export async function listMergeEntries(
   transaction: PgTransactionClient,
   organizationId: string,
   principalId: string,
   secret: string,
-  query: { repositoryId?: string; cursor?: string; limit?: number },
+  query: {
+    repositoryId?: string;
+    pullRequestId?: string;
+    runId?: string;
+    cursor?: string;
+    limit?: number;
+  },
 ): Promise<{ items: MergeEntryRead[]; nextCursor: string | null }> {
   const limit = pageSize(query.limit);
-  const repositoryId = query.repositoryId ?? null;
-  const binding = listBinding(organizationId, principalId, repositoryId);
+  const filters = {
+    repositoryId: query.repositoryId ?? null,
+    pullRequestId: query.pullRequestId ?? null,
+    runId: query.runId ?? null,
+  };
+  const binding = listBinding(organizationId, principalId, filters);
   const position = await decodeCursor(secret, query.cursor, binding);
   const rows = (await transaction.query<EntryRow>(
     `select ${ENTRY_COLUMNS} from bakery.merge_entries entry
       where entry.organization_id = $1
         and ($2::uuid is null or entry.repository_id = $2)
+        and ($6::uuid is null or entry.pull_request_id = $6)
+        and ($7::uuid is null or entry.run_id = $7)
         and ($3::timestamptz is null or (entry.created_at,entry.id) < ($3,$4::uuid))
       order by entry.created_at desc,entry.id desc
       limit $5`,
     [
       organizationId,
-      repositoryId,
+      filters.repositoryId,
       position?.createdAt ?? null,
       position?.id ?? null,
       limit + 1,
+      filters.pullRequestId,
+      filters.runId,
     ],
   )).rows;
   const items = rows.slice(0, limit);
@@ -476,4 +496,30 @@ export async function listMergeEntries(
       })
       : null,
   };
+}
+
+/**
+ * Finishes the entry of a pull request once a settling read has decided an
+ * unknown attempt: merged if GitHub says it merged, blocked `not_merged` if it
+ * says it did not. Only an entry that is `merging` moves; nothing is sent.
+ */
+export async function settleEntriesOfPullRequest(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  pullRequestId: string,
+  settled: "merged" | "refused",
+): Promise<void> {
+  await transaction.query(
+    `update bakery.merge_entries
+        set status = $3, blocked_reason = $4, updated_at = now(),
+            version = version + 1
+      where organization_id = $1 and pull_request_id = $2
+        and status = 'merging'`,
+    [
+      organizationId,
+      pullRequestId,
+      settled === "merged" ? "merged" : "blocked",
+      settled === "merged" ? null : "not_merged",
+    ],
+  );
 }
