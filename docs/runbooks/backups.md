@@ -148,7 +148,11 @@ its own state, `not_copied` (amber), never `failed`. The cause is one of:
 The local backup counts as taken (it moves "last backup"), but the installation
 is **not** protected off-site. Fix the destination (**Send a test** is the quick
 check), then ask for another backup; the next good full backup becomes the newest
-finished attempt and the state returns to `protected`. A failure *before or
+finished attempt and the state returns to `protected`. If you leave it, the state
+turns `stale` once the newest good backup is older than the stale threshold
+(twice the schedule interval, or 7 days with no schedule): an old backup that
+exists only on the host is the bigger risk, so `stale` wins over `not_copied`.
+A failure *before or
 while* taking the backup on the host (`disk_full`, `key_missing`, `runner_error`)
 is still `failed`.
 

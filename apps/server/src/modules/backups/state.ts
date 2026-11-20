@@ -252,7 +252,8 @@ export type BackupStateWord =
  * `running`; a held run whose lease lapsed means the runner stopped reporting,
  * which is `failed`; otherwise the newest finished attempt decides: `failed`,
  * or `not_copied` when it was taken on the host but its off-site copy failed (a
- * later good full backup is the newest and so replaces it), then age.
+ * later good full backup is the newest and so replaces it), then age. Age wins
+ * over `not_copied`: past the stale threshold the word is `stale`.
  */
 export function backupStateWord(input: {
   readonly now: Date;
@@ -274,14 +275,16 @@ export function backupStateWord(input: {
       : "failed";
   }
   if (input.newestFinishedStatus === BackupRunStatus.Failed) return "failed";
+  const fresh = input.lastGoodAt !== null &&
+    input.now.getTime() - input.lastGoodAt.getTime() <=
+      (input.staleAfterMs ?? BACKUP_STALE_AFTER_MS);
+  // `stale` beats `not_copied`: a backup that old and kept only on the host is
+  // the bigger risk, so once the last good one passes the threshold the answer
+  // is "stale", not the milder "not copied".
   if (
     input.newestFinishedStatus === BackupRunStatus.Completed &&
-    input.newestFinishedNotCopied === true
+    input.newestFinishedNotCopied === true &&
+    fresh
   ) return "not_copied";
-  if (
-    input.lastGoodAt !== null &&
-    input.now.getTime() - input.lastGoodAt.getTime() <=
-      (input.staleAfterMs ?? BACKUP_STALE_AFTER_MS)
-  ) return "protected";
-  return "stale";
+  return fresh ? "protected" : "stale";
 }

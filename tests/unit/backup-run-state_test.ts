@@ -453,6 +453,58 @@ Deno.test("not_copied: the newest finished attempt decides, a later good backup 
   );
 });
 
+Deno.test("stale beats not_copied once the last good backup passes the threshold", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const word = (
+    overrides: Partial<Parameters<typeof backupStateWord>[0]> = {},
+  ) =>
+    backupStateWord({
+      now,
+      held: null,
+      newestFinishedStatus: BackupRunStatus.Completed,
+      newestFinishedNotCopied: true,
+      lastGoodAt: new Date(now.getTime() - 1000),
+      ...overrides,
+    });
+  const ago = (ms: number) => new Date(now.getTime() - ms);
+  // No schedule: the seven-day default. Exactly at it is still not_copied (the
+  // same inclusive boundary as "protected"); one millisecond past is stale.
+  assertEquals(word({ lastGoodAt: ago(7 * DAY) }), "not_copied");
+  assertEquals(word({ lastGoodAt: ago(7 * DAY + 1) }), "stale");
+  // With a schedule the threshold is the caller's (twice the interval).
+  assertEquals(
+    word({ lastGoodAt: ago(2 * DAY), staleAfterMs: 2 * DAY }),
+    "not_copied",
+  );
+  assertEquals(
+    word({ lastGoodAt: ago(2 * DAY + 1), staleAfterMs: 2 * DAY }),
+    "stale",
+  );
+  // The same age without the not-copied flag is stale too: age is the one rule.
+  assertEquals(
+    word({
+      newestFinishedNotCopied: false,
+      lastGoodAt: ago(8 * DAY),
+    }),
+    "stale",
+  );
+  // Age never hides a failure or a live run.
+  assertEquals(
+    word({
+      newestFinishedStatus: BackupRunStatus.Failed,
+      lastGoodAt: ago(30 * DAY),
+    }),
+    "failed",
+  );
+  assertEquals(
+    word({
+      held: { leaseExpiresAt: later },
+      lastGoodAt: ago(30 * DAY),
+    }),
+    "running",
+  );
+});
+
 Deno.test("the status schema accepts the not_copied word and still refuses unknown ones", () => {
   const status = {
     state: "not_copied",
