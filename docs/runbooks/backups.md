@@ -245,19 +245,32 @@ it to go quiet, takes the backup, and lets go with its final report.
 
 The status shows it as `maintenanceState` and `maintenanceSince`.
 
-**What is refused while held.** Five entry points answer a retryable
+**What is refused while held.** These entry points answer a retryable
 `503 INSTALLATION_QUIESCED` with a `Retry-After` header (at most 30 seconds, and
 never longer than what is left of the hold) and change nothing:
 
 - starting a run (`runs.create`, `automations.run`) and starting a skill import
   (`skills.import`);
-- a GitHub webhook delivery (`intake.webhook`): GitHub redelivers on a 503, so
-  nothing is lost;
 - importing an artifact version (`artifactVersions.import`);
 - a worker's claim for new work (`worker.claim`): the worker treats the 503 as a
   temporary fault, backs off, and keeps renewing the lease of any attempt it
   already holds;
 - collection and storage purges: the scheduled purge skips the round quietly.
+
+**What is accepted and waits.** A GitHub webhook delivery (`intake.webhook`) is
+**not** refused. GitHub does not redeliver a delivery that got a 503, and Bakery
+does not ask it to, so a refusal would lose the event. The delivery is accepted
+and stored as usual, with its routes. While the installation is held the two
+route consumers (tickets and pull requests, and automations) leave a route
+exactly as it is: not claimed, no attempt counted, no firing started. The
+recovery sweep resends a route that has waited a minute, so a stored delivery is
+processed about a minute or two after the hold ends. A hold of any length cannot
+use up a route's ten attempts.
+
+One limit: a delivery accepted during the hold is stored while the backup is
+taken, so whether that backup contains it depends on when it arrived relative to
+the dump. Restoring that backup can lack a delivery GitHub already saw
+acknowledged, and GitHub will not send it again.
 
 Everything else keeps working: reads, the administrator's backup routes, the
 runner's routes, and attempts already running.
