@@ -297,7 +297,7 @@ Deno.test("execution grants match the worker SQL operations", () =>
        -- serves the worker routes and the admission, so the grant cannot be split by
        -- role. The pin is guarded where it is used: the claim refuses a job whose
        -- billing or configuration left the run's frozen one unless a continuation
-       -- recorded for that job targeted that route (admit-route-continuations_test.ts).
+       -- recorded for that job targeted that route (tests/integration/admit-route-continuations_test.ts).
        -- The exact column grants on jobs and the budget intents are pinned by
        -- application-role-grants-on-job-billing-are-pinned_test.ts.
        ('bakery.jobs', 'installation_reservation_id', 'UPDATE'),
