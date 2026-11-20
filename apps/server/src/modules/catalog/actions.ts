@@ -66,6 +66,10 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.IdPath>,
   ) => Promise<null>;
+  copySkill: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillCopy>,
+  ) => Promise<z.output<typeof contractSchemas.Skill>>;
   createSkillVersion: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.LocalSkillVersion>,
@@ -101,6 +105,29 @@ export const skillImportAuthorizationAction: ActionDefinition<
     throw new Error("SKILL_IMPORT_AUTHORIZATION_ONLY");
   },
 };
+
+/**
+ * Copying a skill writes object bytes, so, like publishing a version, it runs
+ * its handler only behind the staged publication runners in routes.ts.
+ */
+function skillCopyDefinition(
+  handler: CatalogActionHandlers["copySkill"],
+) {
+  return {
+    name: CatalogImplementedAction.SkillsCopy,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/copy",
+    input: contractSchemas.SkillCopy,
+    output: contractSchemas.Skill,
+    // Developer for a personal copy; the handler raises the bar to Admin for an
+    // organization copy, which one access value cannot express.
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.DeveloperForPersonalAdminForOrganization,
+    },
+    handler,
+  } as const;
+}
 
 export function createCatalogActionRegistry(
   handlers: CatalogActionHandlers,
@@ -237,6 +264,7 @@ export function createCatalogActionRegistry(
     handler: handlers.searchLibrary,
   });
   if (options.includeSkillVersionPublication !== false) {
+    registry.register(skillCopyDefinition(handlers.copySkill));
     registry.register({
       name: CatalogImplementedAction.SkillVersionsCreate,
       method: HttpMethod.Post,
@@ -257,6 +285,25 @@ export function createCatalogActionRegistry(
       ? catalogIdentityImplementedActions
       : catalogImplementedActions,
   );
+  return registry;
+}
+
+export function createSkillCopyActionRegistry(
+  handlers: Pick<CatalogActionHandlers, "copySkill">,
+  options: {
+    authorityRunner?: ActionAuthorityRunner;
+    commandRunner?: CommandRunner;
+  } = {},
+): ActionRegistry {
+  const registry = new ActionRegistry(
+    options.authorityRunner,
+    options.commandRunner,
+  );
+  registry.register(skillCopyDefinition(handlers.copySkill));
+  assertRegisteredActions(registry);
+  assertImplementedActionRegistry(registry, [
+    CatalogImplementedAction.SkillsCopy,
+  ]);
   return registry;
 }
 

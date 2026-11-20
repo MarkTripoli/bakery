@@ -140,15 +140,13 @@ Deno.test("real authenticated quality.check claim leases NULL-billing work with 
     assert((assignment.leaseToken as string).length > 0);
     assertMatch(String(assignment.leaseExpiresAt), /^\d{4}-\d{2}-\d{2}T/);
     assertMatch(String(assignment.serverTime), /^\d{4}-\d{2}-\d{2}T/);
-    // The claim carries the W3C trace context of the run it belongs to.
+    // Per-claim values the claim has carried since the session credential and the trace
+    // context were added: present and well-formed, never fixed.
+    assert(typeof assignment.sessionCredential === "string");
+    assert((assignment.sessionCredential as string).length > 0);
     assertMatch(
       String(assignment.traceparent),
-      /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/,
-    );
-    // The first claim returns the session operation credential once.
-    assert(
-      typeof assignment.sessionCredential === "string" &&
-        assignment.sessionCredential.length > 0,
+      /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/,
     );
     assertEquals(assignment, {
       jobId: job.jobId,
@@ -157,6 +155,8 @@ Deno.test("real authenticated quality.check claim leases NULL-billing work with 
       leaseToken: assignment.leaseToken,
       fence: "1",
       leaseExpiresAt: assignment.leaseExpiresAt,
+      sessionCredential: assignment.sessionCredential,
+      traceparent: assignment.traceparent,
       action: "quality.check",
       requirements: stored.requirements,
       input: stored.input,
@@ -171,8 +171,6 @@ Deno.test("real authenticated quality.check claim leases NULL-billing work with 
       leaseDurationSeconds: 45,
       serverTime: assignment.serverTime,
       sealedCredentialOperation: null,
-      traceparent: assignment.traceparent,
-      sessionCredential: assignment.sessionCredential,
     });
 
     const state = await readExecutionState(fixture.pgDatabase, job.jobId);
