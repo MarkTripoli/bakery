@@ -384,31 +384,50 @@ Deno.test("a published version that only mentions a skill's id is not reported a
   const w = await world();
   const f = w.f;
   try {
-    const mention = await f.post(f.ownerCookie, w.versionsPath, {
-      definition: {
-        kind: "fixed",
-        steps: [{ id: w.sv, uses: "workflow.noop" }],
+    // The only draft is rewritten to name the skill's id as a step id, and
+    // published: the id appears in the published text but no step uses the skill.
+    const base = w.versionsPath + "/" + w.draft.id;
+    const rewritten = await f.patch(
+      f.ownerCookie,
+      base,
+      {
+        definition: {
+          kind: "fixed",
+          steps: [{ id: w.sv, uses: "workflow.noop" }],
+        },
       },
-    }, "pw-mention");
-    assertEquals(mention.status, 201, await mention.clone().text());
-    const other = await mention.json() as { id: string; version: number };
+      "pw-mention-edit",
+      w.draft.version,
+    );
+    assertEquals(rewritten.status, 200, await rewritten.clone().text());
+    const edited = await rewritten.json() as { version?: number };
     const published = await send(
       f,
       f.ownerCookie,
       "POST",
-      w.versionsPath + "/" + other.id + "/publish",
+      base + "/publish",
       {},
       {
-        "If-Match": '"' + other.version + '"',
+        "If-Match": '"' + (edited.version ?? w.draft.version + 1) + '"',
         "Idempotency-Key": "pw-mention-publish",
       },
     );
     assertEquals(published.status, 200, await published.clone().text());
+    // A new draft that does use the skill, confirmed by its owner.
+    const next = await f.post(
+      f.ownerCookie,
+      w.versionsPath,
+      { definition: DEF(w.sv), confirmPersonalSkillUse: [w.sv] },
+      "pw-mention-draft",
+    );
+    assertEquals(next.status, 201, await next.clone().text());
+    const draft = await next.json() as { id: string };
     const [mine] = await items(
       f,
       f.ownerCookie,
-      w.versionsPath + "/" + w.draft.id + "/skills",
+      w.versionsPath + "/" + draft.id + "/skills",
     );
+    assertEquals(mine.status, "available");
     assertEquals(mine.publishedVersionUsesIt, false);
   } finally {
     await f.close();
