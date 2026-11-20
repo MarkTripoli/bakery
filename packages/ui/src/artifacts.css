@@ -215,6 +215,20 @@
   block-size: 100%;
   object-fit: contain;
 }
+.ui-artifact-viewer__media {
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-control);
+  display: grid;
+  place-items: center;
+  padding: var(--space-2);
+}
+.ui-artifact-viewer__media video {
+  inline-size: 100%;
+  max-block-size: calc(var(--space-12) * 5);
+}
+.ui-artifact-viewer__media audio {
+  inline-size: 100%;
+}
 .ui-version-picker {
   display: flex;
   flex-wrap: wrap;

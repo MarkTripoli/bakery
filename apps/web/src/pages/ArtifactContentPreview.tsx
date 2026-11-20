@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { ArtifactPreviewView } from "./ArtifactRetrievalView.tsx";
-import {
-  ARTIFACT_CONTENT_OVER_LIMIT_STATUS,
-  type ArtifactVersionResponse,
-} from "../api/client.ts";
+import type { ArtifactVersionResponse } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
@@ -14,25 +11,23 @@ import {
   MAX_IMAGE_PREVIEW_BYTES,
   MAX_TEXT_PREVIEW_BYTES,
 } from "./artifact-media.ts";
+import { previewFacts } from "./preview-facts.ts";
+import { probeFromAnswer } from "./probe-answer.ts";
+import { type PreviewState, previewState } from "./preview-state.ts";
 
-const textModes: Readonly<
-  Record<string, "text" | "markdown" | "patch" | "log">
-> = {
-  "text/plain": "text",
-  "text/markdown": "markdown",
-  "application/json": "text",
-  "text/csv": "text",
-  "text/x-diff": "patch",
-  "text/x-patch": "patch",
-  "text/log": "log",
-};
-const imageTypes = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-]);
-
+/**
+ * The artifact preview, decided by what the probe measured (#437 slice 3).
+ *
+ * Design's rule (issue comment 7029326304) is that the kind comes from the bytes,
+ * never from the name, and that each refusal has its own state. `previewState`
+ * owns that table; this component fetches, renders and adds no judgement.
+ *
+ * The bytes still come through a header-authenticated fetch, digest-checked
+ * against the version record, and handed to the player as a blob URL. A ranged
+ * `<video src>` cannot check the digest, so it is not used here yet: the
+ * mismatch state promises Bakery will not show the file, and a stream that
+ * skipped the check would be the one path that showed it anyway.
+ */
 export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
   readonly version: ArtifactVersionResponse;
   readonly onDownload: () => void;
@@ -40,21 +35,53 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
 }) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const { translate: t } = useI18n();
+  const { translate: t, locale } = useI18n();
+  const probe = useQuery({
+    queryKey: protectedQueryKey(scope, "artifactVersions.probe", {
+      versionId: version.id,
+    }),
+    enabled: scope.organizationId !== null,
+    retry: false,
+    staleTime: Infinity,
+    queryFn: async ({ signal }) => {
+      if (scope.organizationId === null) {
+        throw new Error("ORGANIZATION_REQUIRED");
+      }
+      const result = await api.readArtifactProbe({
+        organizationId: scope.organizationId,
+        versionId: version.id,
+        signal,
+      });
+      if (!result.ok) throw result.error;
+      return result.data;
+    },
+  });
+  const answer = probeFromAnswer(probe.data ?? null);
+  const state = previewState(answer, {
+    mismatch: contentMismatch(probe.error),
+  });
+  const facts = answer === null
+    ? ""
+    : previewFacts(answer, locale, (key, values) =>
+      // The facts keys are catalog keys like every other, but the helper takes a
+      // plain string so it stays free of React and of this file's key type.
+      (t as (id: string, v?: Record<string, string | number>) => string)(
+        key,
+        values,
+      ));
   const mediaType = version.mediaType.split(";", 1)[0].trim().toLowerCase();
-  const textMode = textModes[mediaType];
-  const image = imageTypes.has(mediaType);
-  const supported = image || textMode !== undefined;
-  const previewLimit = image ? MAX_IMAGE_PREVIEW_BYTES : MAX_TEXT_PREVIEW_BYTES;
-  // The advertised size gates the fetch; the client still cancels a stream
-  // that lies about it and crosses the same bound.
-  const advertisedTooLarge = version.sizeBytes > previewLimit;
+  const textMode = textModes[mediaType] ?? "text";
+  const previewLimit = state.kind === "text"
+    ? MAX_TEXT_PREVIEW_BYTES
+    : MAX_IMAGE_PREVIEW_BYTES;
+  const wantsBytes = state.kind === "image" || state.kind === "text" ||
+    state.kind === "video" || state.kind === "audio";
   const content = useQuery({
     queryKey: protectedQueryKey(scope, "artifactVersions.verifiedPreview", {
       versionId: version.id,
       sha256: version.sha256,
     }),
-    enabled: scope.organizationId !== null && supported && !advertisedTooLarge,
+    enabled: scope.organizationId !== null && wantsBytes,
     retry: false,
     staleTime: Infinity,
     queryFn: async ({ signal }) => {
@@ -81,45 +108,40 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
       return data.content;
     },
   });
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const urlKind = state.kind === "image" || state.kind === "video" ||
+      state.kind === "audio"
+    ? state.kind
+    : null;
   useEffect(() => {
-    if (!image || !content.data || content.isError) return;
+    if (urlKind === null || !content.data || content.isError) return;
     const blob = new Blob([new Uint8Array(content.data)], { type: mediaType });
     const url = URL.createObjectURL(blob);
-    setImageUrl(url);
+    setMediaUrl(url);
     return () => {
       URL.revokeObjectURL(url);
-      setImageUrl(null);
+      setMediaUrl(null);
     };
-  }, [content.data, content.isError, image, mediaType]);
-  const expired = content.error !== null && typeof content.error === "object" &&
-    "kind" in content.error && content.error.kind === "problem" &&
-    "problem" in content.error && typeof content.error.problem === "object" &&
-    content.error.problem !== null && "status" in content.error.problem &&
-    content.error.problem.status === 410;
-  const overLimit = advertisedTooLarge || (
-    content.error !== null && typeof content.error === "object" &&
-    "kind" in content.error && content.error.kind === "invalid-response" &&
-    "status" in content.error &&
-    content.error.status === ARTIFACT_CONTENT_OVER_LIMIT_STATUS
+  }, [content.data, content.isError, mediaType, urlKind]);
+  const expired = isExpired(probe.error) || isExpired(content.error);
+  const footer = facts ? <UI.Text variant="muted">{facts}</UI.Text> : undefined;
+
+  // The bytes are not the bytes the record describes. Design's answer is a
+  // danger Banner and no preview and no download, because here something really
+  // is wrong; the server refuses the content for such a version, so hiding a
+  // button is not what keeps the promise.
+  const mismatchNotice = (
+    <UI.Stack gap="compact">
+      <UI.AlertBanner tone="error">
+        {t("files.preview.state.mismatchTitle")}
+      </UI.AlertBanner>
+      <UI.Text variant="muted">
+        {t("files.preview.state.mismatchDescription")}
+      </UI.Text>
+    </UI.Stack>
   );
-  if (supported && overLimit) {
-    return (
-      <ArtifactPreviewView
-        state="unavailable"
-        label={t("artifact.preview.title")}
-        unavailable={{
-          title: t("artifact.preview.tooLargeTitle"),
-          description: t("artifact.preview.tooLargeDescription", {
-            kind: image ? "image" : "text",
-          }),
-          action: {
-            label: t("artifact.retrieval.download"),
-            onClick: onDownload,
-          },
-        }}
-      />
-    );
+  if (state.kind === "mismatch" || contentMismatch(content.error)) {
+    return mismatchNotice;
   }
   if (expired) {
     return (
@@ -138,18 +160,43 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
       />
     );
   }
-  if (!supported) {
+  if (probe.isLoading || state.kind === "pending") {
+    return (
+      <div aria-busy="true" data-testid="artifact-preview-pending">
+        <UI.Skeleton shape="surface" />
+      </div>
+    );
+  }
+  const download = {
+    label: t("artifact.retrieval.download"),
+    onClick: onDownload,
+  };
+  if (
+    state.kind !== "image" && state.kind !== "text" && state.kind !== "video" &&
+    state.kind !== "audio"
+  ) {
+    const copy = stateCopy(
+      state,
+      (key, values) =>
+        (t as (id: string, v?: Record<string, string | number>) => string)(
+          key,
+          values,
+        ),
+    );
     return (
       <ArtifactPreviewView
-        state="unavailable"
         label={t("artifact.preview.title")}
+        state="unavailable"
+        footer={footer}
         unavailable={{
-          title: t("artifact.view.previewUnavailable"),
-          description: t("artifact.preview.unsupported"),
-          action: {
-            label: t("artifact.retrieval.download"),
-            onClick: onDownload,
-          },
+          title: copy.title,
+          description: copy.description,
+          action: state.kind === "host-unavailable"
+            ? {
+              label: t("files.preview.state.retry"),
+              onClick: () => void probe.refetch(),
+            }
+            : download,
         }}
       />
     );
@@ -158,32 +205,116 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
     return (
       <UI.Stack gap="compact">
         <UI.InlineNotice tone="error">
-          {t("artifact.preview.error")}
+          {t("files.preview.error")}
         </UI.InlineNotice>
-        <UI.Button variant="secondary" onClick={() => void content.refetch()}>
-          {t("core.actions.retry")}
-        </UI.Button>
+        <UI.Inline>
+          <UI.Button variant="outline" onClick={() => void content.refetch()}>
+            {t("core.actions.retry")}
+          </UI.Button>
+          <UI.Button variant="secondary" onClick={onDownload}>
+            {download.label}
+          </UI.Button>
+        </UI.Inline>
       </UI.Stack>
     );
   }
-  if (!content.data || (image && imageUrl === null)) {
-    return <UI.Skeleton shape="surface" />;
+  if (!content.data || (urlKind !== null && mediaUrl === null)) {
+    return (
+      <div aria-busy="true" data-testid="artifact-preview-pending">
+        <UI.Skeleton shape="surface" />
+      </div>
+    );
+  }
+  if (state.kind === "video" || state.kind === "audio") {
+    return (
+      <ArtifactPreviewView
+        label={t("artifact.preview.title")}
+        state="content"
+        footer={footer}
+        content={{
+          kind: state.kind,
+          src: mediaUrl ?? "",
+          label: t("artifact.preview.title"),
+        }}
+      />
+    );
   }
   return (
     <ArtifactPreviewView
-      state="content"
       label={t("artifact.preview.title")}
-      content={image && imageUrl !== null
+      state="content"
+      footer={footer}
+      content={state.kind === "image"
         ? {
           kind: "image",
-          src: imageUrl,
+          src: mediaUrl ?? "",
           alt: t("artifact.preview.image"),
           unavailableLabel: t("artifact.preview.error"),
         }
-        : {
-          kind: textMode ?? "text",
-          text: new TextDecoder().decode(content.data),
-        }}
+        : { kind: textMode, text: new TextDecoder().decode(content.data) }}
     />
   );
+}
+
+const textModes: Readonly<
+  Record<string, "text" | "markdown" | "patch" | "log">
+> = {
+  "text/plain": "text",
+  "text/markdown": "markdown",
+  "application/json": "text",
+  "text/csv": "text",
+  "text/x-diff": "patch",
+  "text/x-patch": "patch",
+  "text/log": "log",
+};
+
+/** The words for a state with no preview, from design's table. */
+function stateCopy(
+  state: PreviewState,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): { title: string; description: string } {
+  switch (state.kind) {
+    case "too-large":
+      return {
+        title: t("artifact.preview.tooLargeTitle"),
+        description: t("files.preview.state.tooLarge", {
+          size: `${Math.round(state.limit / 1024)} KiB`,
+          limit: `${Math.round(state.limit / 1024)} KiB`,
+        }),
+      };
+    case "unreadable":
+      return {
+        title: t("artifact.view.previewUnavailable"),
+        description: t("files.preview.state.unreadable", {
+          kind: t("files.preview.facts.unknown"),
+        }),
+      };
+    case "unchecked":
+      return {
+        title: t("artifact.view.previewUnavailable"),
+        description: t("files.preview.state.unchecked"),
+      };
+    case "host-unavailable":
+      return {
+        title: t("artifact.view.previewUnavailable"),
+        description: t("files.preview.state.hostUnavailable"),
+      };
+    default:
+      return {
+        title: t("artifact.view.previewUnavailable"),
+        description: t("files.preview.state.unsupported"),
+      };
+  }
+}
+
+function contentMismatch(error: unknown): boolean {
+  return error instanceof Error &&
+    error.message === "ARTIFACT_PREVIEW_DIGEST_MISMATCH";
+}
+
+function isExpired(error: unknown): boolean {
+  return error !== null && typeof error === "object" && "kind" in error &&
+    error.kind === "problem" && "problem" in error &&
+    typeof error.problem === "object" && error.problem !== null &&
+    "status" in error.problem && error.problem.status === 410;
 }

@@ -5775,6 +5775,29 @@ export const clientManifest = {
     },
     {
       "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/artifact-versions/{id}/probe",
+      "action": "artifactVersions.probe",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "IdPath",
+      "output": "ArtifactProbeAnswer",
+      "event": "",
+      "mcp": "bakery_artifactVersions_probe",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "ARTIFACT_CONTENT_EXPIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Artifacts",
       "method": "POST",
       "path": "/v1/artifacts/{id}/versions/import",
       "action": "artifactVersions.import",
@@ -46132,6 +46155,221 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Bounded UTF-8 text extracted from an authorized safe-text artifact version without changing the version or its whole-content digest."
+    },
+    "ArtifactProbeAnswer": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "described",
+                "refused"
+              ],
+              "description": "`described` when the probe read and described the bytes, `refused` when it named a reason; null when no probe has answered for this blob yet."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.status may be null in this transport value."
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "image",
+                "video",
+                "audio",
+                "text",
+                "pdf",
+                "archive",
+                "unknown"
+              ],
+              "description": "What the bytes are, as distinct from what the file is called. Null unless the probe described them."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.kind may be null in this transport value."
+        },
+        "mediaType": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 255,
+              "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+\\/[!#$%&'*+\\-.^_`|~0-9A-Za-z]+(?:[ \\t]*;[ \\t]*[!#$%&'*+\\-.^_`|~0-9A-Za-z]+(?:[ \\t]*=[ \\t]*(?:\"(?:[\\t\\x20-\\x21\\x23-\\x5b\\x5d-\\x7e]|\\\\[\\t\\x20-\\x7e])*\"|[!#$%&'*+\\-.^_`|~0-9A-Za-z]+))?)*$",
+              "description": "The media type the probe detected from the bytes themselves, not the type the upload declared."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.mediaType may be null in this transport value."
+        },
+        "byteLength": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The size the probe measured, which is the size of the stored bytes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.byteLength may be null in this transport value."
+        },
+        "width": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Pixel width, for an image or video. Null when the format does not state one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.width may be null in this transport value."
+        },
+        "height": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Pixel height, for an image or video. Null when the format does not state one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.height may be null in this transport value."
+        },
+        "durationMs": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Duration in milliseconds, for an audio or video file. Null when the format does not state one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.durationMs may be null in this transport value."
+        },
+        "lineCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Line count, for a text file. Null for every other kind."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.lineCount may be null in this transport value."
+        },
+        "utf8": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Whether a text file decodes as strict UTF-8."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.utf8 may be null in this transport value."
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "too-large",
+                "timeout",
+                "memory",
+                "unreadable",
+                "malformed",
+                "sandbox-unavailable"
+              ],
+              "description": "Why the probe produced no description. Null unless status is `refused`."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.code may be null in this transport value."
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The limit that was hit, when the code names one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.limit may be null in this transport value."
+        },
+        "probedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the probe last answered for this blob."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.probedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "status",
+        "kind",
+        "mediaType",
+        "byteLength",
+        "width",
+        "height",
+        "durationMs",
+        "lineCount",
+        "utf8",
+        "code",
+        "limit",
+        "probedAt"
+      ],
+      "additionalProperties": false,
+      "description": "What a probe learned about one artifact version's bytes, or null facts when no probe has answered yet. A fact the probe did not measure is absent, never zero: the client omits it from the facts line rather than rendering a placeholder."
     },
     "ArtifactVersionMetadata": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -6433,7 +6433,7 @@
         "ARTIFACT_CONTENT_EXPIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Artifacts",
@@ -11988,6 +11988,7 @@
     "artifactVersions.import",
     "artifactVersions.extract",
     "artifactVersions.content",
+    "artifactVersions.probe",
     "artifactPreviews.create",
     "artifactPreviews.revoke",
     "artifactPreviews.availability",
@@ -236746,7 +236747,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:18bc4275686adc39c43254de716545e6875073f38c32dbb8e164905b8ad05e7a",
+  "compatibilityDigest": "sha256:9e098f3c365eb1c86e747043cf47d000276e58258916d9cb2cc796eebbee6d47",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

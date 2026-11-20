@@ -581,6 +581,7 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactVersionsImport: "artifactVersions.import",
     ArtifactVersionsExtract: "artifactVersions.extract",
     ArtifactVersionsContent: "artifactVersions.content",
+    ArtifactVersionsProbe: "artifactVersions.probe",
     ArtifactPreviewsCreate: "artifactPreviews.create",
     ArtifactPreviewsRevoke: "artifactPreviews.revoke",
     ArtifactPreviewsAvailability: "artifactPreviews.availability",

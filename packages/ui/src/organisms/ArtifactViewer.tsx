@@ -12,6 +12,16 @@ export type ArtifactViewerContent =
     readonly alt: string;
     readonly unavailableLabel: string;
   }
+  | {
+    /**
+     * The browser's own player, never autoplayed. `preload="metadata"` so the
+     * browser draws the first frame itself rather than Bakery inventing a
+     * poster image it would have to decode.
+     */
+    readonly kind: "video" | "audio";
+    readonly src: string;
+    readonly label: string;
+  }
   | { readonly kind: "unsupported"; readonly message: ReactNode };
 export type ArtifactViewerProps = {
   readonly label: ReactNode;
@@ -121,6 +131,28 @@ function preview(content: ArtifactViewerContent): ReactNode {
           </div>
         )
         : <p role="alert">{content.unavailableLabel}</p>;
+    case "video":
+      return (
+        <div className="ui-artifact-viewer__media">
+          <video
+            controls
+            preload="metadata"
+            src={content.src}
+            aria-label={content.label}
+          />
+        </div>
+      );
+    case "audio":
+      return (
+        <div className="ui-artifact-viewer__media">
+          <audio
+            controls
+            preload="metadata"
+            src={content.src}
+            aria-label={content.label}
+          />
+        </div>
+      );
     case "unsupported":
       return (
         <div className="ui-artifact-viewer__unavailable">{content.message}</div>

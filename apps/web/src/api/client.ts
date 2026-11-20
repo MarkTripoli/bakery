@@ -447,6 +447,14 @@ export type ExtractArtifactVersionOptions = Readonly<
   }
 >;
 
+export type ArtifactProbeResponse = ClientOutputMap["ArtifactProbeAnswer"];
+
+export type ReadArtifactProbeOptions = Readonly<{
+  organizationId: string;
+  versionId: string;
+  signal?: AbortSignal;
+}>;
+
 export type ListArtifactCommentsOptions = Readonly<
   ArtifactCommentQuery & {
     organizationId: string;
@@ -1785,6 +1793,9 @@ export type BakeryApiClient = {
   readonly extractArtifactVersion: (
     options: ExtractArtifactVersionOptions,
   ) => Promise<ApiResult<ArtifactExtractionResponse>>;
+  readonly readArtifactProbe: (
+    options: ReadArtifactProbeOptions,
+  ) => Promise<ApiResult<ArtifactProbeResponse>>;
   readonly listArtifactComments: (
     options: ListArtifactCommentsOptions,
   ) => Promise<ApiResult<ArtifactCommentListResponse>>;
@@ -4122,6 +4133,27 @@ export function createBakeryApiClient({
               ? {}
               : { maxBytes: options.maxBytes }),
           },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    /**
+     * What the probe learned about this version's bytes, or nulls.
+     *
+     * Separate from the content read on purpose: the answer is small, it needs
+     * no bytes, and a caller wants it before deciding whether to fetch any.
+     */
+    async readArtifactProbe(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactVersions.probe"](
+          { id: options.versionId },
           { signal: options.signal },
         );
         return { ok: true, data };
