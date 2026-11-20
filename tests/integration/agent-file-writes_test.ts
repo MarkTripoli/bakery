@@ -599,6 +599,16 @@ Deno.test("an agent at its step's file limit is refused the next write; a person
  * Pins a compiled plan document into the seeded run's snapshot, so the claim
  * reads the claimed step's files section from it. The seeded step's key is
  * `worker`; `files` is that step's section (undefined: the defaults).
+ *
+ * A run whose snapshot carries `runtime` is a plan run, and claim admission
+ * reads a plan step's work from the dispatch the engine recorded on its row
+ * (actionAndInputFromSnapshot -> planDispatchFromRow), not from the flat
+ * spec. The seeded row has no dispatch, so without one the job is skipped as
+ * workflow_plan_dispatch_invalid and the claim answers 204. The dispatch
+ * recorded here is the seeded job's action and attempts, the step's own input
+ * (the job's input minus the repositoryProfile admission adds), and no
+ * declared requirements (the action's registered capabilities apply), which
+ * is what the engine would have admitted it with.
  */
 async function pinPlanStep(
   fixture: Fixture,
@@ -628,6 +638,18 @@ async function pinPlanStep(
     ],
   );
   assertEquals(updated.rowCount, 1);
+  const dispatched = await fixture.pgDatabase.query(
+    "update bakery.run_steps as step set dispatch = jsonb_build_object(" +
+      "'action', job.action, 'input', step.input," +
+      " 'requires', '[]'::jsonb," +
+      " 'retry', jsonb_build_object('maxAttempts', job.max_attempts))" +
+      " from bakery.jobs as job" +
+      " where job.organization_id = step.organization_id" +
+      " and job.run_step_id = step.id" +
+      " and job.organization_id = $1 and job.id = $2",
+    [fixture.organizationId, job.jobId],
+  );
+  assertEquals(dispatched.rowCount, 1);
 }
 
 /** The live scopes minted for an attempt's session credential. */
