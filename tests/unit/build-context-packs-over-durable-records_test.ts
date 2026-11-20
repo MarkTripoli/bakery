@@ -119,6 +119,64 @@ Deno.test("the same inputs give the same digest, and a changed selection changes
   assertEquals(first.packDigest === changed.packDigest, false);
 });
 
+Deno.test("the digest changes when caller text changes, even at the same token count", async () => {
+  // Both are 12 bytes, so both count as 12 estimated tokens: only the text differs.
+  const pack = (text: string) =>
+    build({
+      envelope: ENVELOPE,
+      candidates: [textCandidate("one", text)],
+    }) as Promise<Awaited<ReturnType<typeof buildContextPack>>>;
+  const first = await pack("rm -rf build");
+  const second = await pack("rm -rf /home");
+  assertEquals(first.usedTokens, second.usedTokens);
+  assertEquals(first.packDigest === second.packDigest, false);
+});
+
+Deno.test("the digest changes with the conversation cutoff and the repository the pack names", async () => {
+  const pack = (extra: Record<string, unknown>) =>
+    build({
+      envelope: ENVELOPE,
+      candidates: [textCandidate("one", "same text")],
+      ...extra,
+    }) as Promise<Awaited<ReturnType<typeof buildContextPack>>>;
+  const base = await pack({});
+  const cutoff = await pack({ conversationCutoff: 42 });
+  const repo = await pack({ repository: { commitSha: "a".repeat(40) } });
+  const otherRepo = await pack({ repository: { commitSha: "b".repeat(40) } });
+  const digests = [base, cutoff, repo, otherRepo].map((p) => p.packDigest);
+  assertEquals(new Set(digests).size, 4);
+  // And the same inputs still give the same digest.
+  assertEquals(
+    (await pack({ conversationCutoff: 42 })).packDigest,
+    cutoff.packDigest,
+  );
+});
+
+Deno.test("a bad nested request and a duplicate id are 422s that name the field", async () => {
+  const error = await assertRejects(
+    () =>
+      build({
+        envelope: ENVELOPE,
+        candidates: [{ itemId: "x", kind: "nope" }],
+      }),
+    StandardError,
+  );
+  assertEquals((error as StandardError).code, "UNPROCESSABLE");
+  const duplicate = await assertRejects(
+    () =>
+      build({
+        envelope: ENVELOPE,
+        candidates: [textCandidate("same", "a"), textCandidate("same", "b")],
+      }),
+    StandardError,
+  );
+  assertEquals((duplicate as StandardError).code, "UNPROCESSABLE");
+  assertEquals(
+    JSON.stringify((duplicate as StandardError).params).includes("candidates"),
+    true,
+  );
+});
+
 Deno.test("a pack that admits nothing has no digest to pin", async () => {
   const pack = await build({
     envelope: { ...ENVELOPE, maxInputTokens: 50 },

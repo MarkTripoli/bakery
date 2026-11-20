@@ -16,7 +16,7 @@ import {
   extractArtifactVersion,
   readArtifactVersionIdentity,
 } from "./extraction.ts";
-import { StandardError } from "@bakery/contracts/http";
+import { StandardError, unprocessable } from "@bakery/contracts/http";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import type { ActionContext } from "@bakery/contracts/action-registry";
@@ -124,6 +124,11 @@ type Planned = Readonly<{
   projection: ContextProjection | null;
   countState: "measured" | "estimated" | "unknown";
   tokens: number;
+  /**
+   * Digest of the caller's own text, which has no citation to pin it; null for
+   * an artifact item, whose citation (version, digest, window) is its pin.
+   */
+  callerTextSha256: string | null;
 }>;
 
 function refusalCode(error: unknown): string | null {
@@ -162,6 +167,7 @@ async function planCandidate(
       projection: null,
       countState: "estimated",
       tokens,
+      callerTextSha256: await sha256Hex(candidate.text),
     };
   }
 
@@ -257,6 +263,7 @@ function planned(
     projection,
     countState: count.state,
     tokens: count.tokens,
+    callerTextSha256: null,
   };
 }
 
@@ -296,13 +303,25 @@ export async function buildContextPack(
 ): Promise<ContextPack> {
   // The door parses: defaults live in the schema, so a caller may omit priority
   // and required and still get the same pack as one that spells them out.
-  const input: ContextPackBuild = ContextPackBuildSchema.parse(raw);
+  // The transport carries the envelope and the candidates as bounded JSON (the
+  // schema language has no unions of objects), so their nested rules are parsed
+  // here. A bad one is a 422 that names the field, never an unhandled error.
+  const parsed = ContextPackBuildSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw unprocessable(
+      (issue?.path ?? []).slice(0, 8) as (string | number)[],
+      issue?.code ?? "invalid_value",
+      parsed.error,
+    );
+  }
+  const input: ContextPackBuild = parsed.data;
   const seen = new Set<string>();
-  for (const candidate of input.candidates) {
+  for (const [index, candidate] of input.candidates.entries()) {
     if (seen.has(candidate.itemId)) {
       // A duplicate id would make an omission ambiguous: the reader could not
       // tell which of the two was left out.
-      throw new StandardError({ code: "UNPROCESSABLE" });
+      throw unprocessable(["candidates", index, "itemId"], "duplicate_item_id");
     }
     seen.add(candidate.itemId);
   }
@@ -351,6 +370,13 @@ export async function buildContextPack(
     ...refused,
   ];
 
+  // The digest pins what a step was given. An artifact item is pinned by its
+  // citation (version, digest, window); caller text has no citation, so its own
+  // digest is hashed in, along with the cutoff and the repository the pack names.
+  // Two packs that differ in any of them never share a digest.
+  const callerText = new Map(
+    planned.map((entry) => [entry.itemId, entry.callerTextSha256]),
+  );
   const packDigest = items.length === 0 ? null : await sha256Hex(
     canonicalJson({
       decision: allocation.decision,
@@ -358,12 +384,15 @@ export async function buildContextPack(
         itemId: item.itemId,
         kind: item.kind,
         citation: item.citation,
+        callerTextSha256: callerText.get(item.itemId) ?? null,
         truncated: item.truncated,
         tokens: item.tokens,
         countState: item.countState,
       })),
       omitted,
       usedTokens: allocation.selectedTokens,
+      conversationCutoff: input.conversationCutoff ?? null,
+      repository: input.repository ?? null,
     }),
   );
 
