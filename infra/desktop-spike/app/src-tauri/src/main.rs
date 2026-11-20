@@ -45,13 +45,14 @@ fn now_ms() -> u128 {
 
 fn report(out: &PathBuf, event: &str, data: Value) {
     let _ = std::fs::create_dir_all(out);
-    let line = json!({ "t": now_ms(), "event": event, "data": data }).to_string();
+    // One append of the whole line: several small writes interleave when two reporters race.
+    let line = format!("{}\n", json!({ "t": now_ms(), "event": event, "data": data }));
     if let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(out.join("report.jsonl"))
     {
-        let _ = writeln!(f, "{line}");
+        let _ = f.write_all(line.as_bytes());
     }
 }
 

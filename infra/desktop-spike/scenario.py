@@ -77,7 +77,13 @@ def events(path):
     p = os.path.join(path, "report.jsonl")
     if not os.path.exists(p):
         return []
-    return [json.loads(l) for l in open(p) if l.strip()]
+    out = []
+    for l in open(p):
+        try:
+            out.append(json.loads(l))
+        except ValueError:
+            continue  # a line still being written; the next read has it whole
+    return out
 
 def wait_event(path, name, timeout=40, after=0, pred=None):
     end = time.time() + timeout
