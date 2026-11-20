@@ -18,6 +18,7 @@ import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { forgetSandboxPreflight } from "../../apps/server/src/modules/knowledge/probe.ts";
 import {
   enqueueUnprobedPage,
+  PROBE_MAX_ATTEMPTS,
   readInlineProbeSubjectBytes,
   runProbeTick,
 } from "../../apps/server/src/modules/knowledge/probe-runner.ts";
@@ -400,3 +401,94 @@ async function seedInlineArtifact(fixture: Fixture) {
   );
   return { versionId: version.rows[0].id };
 }
+
+/**
+ * The class the #759 reviewer found: a retry ceiling that resets itself.
+ *
+ * An abandoned request used to be deleted, and a deleted request is
+ * indistinguishable from a subject that was never asked, so the next tick's
+ * backfill queued it again with `attempts = 0`. A subject nobody can answer was
+ * therefore probed five times per tick, for ever, and a page of such subjects
+ * starved every version behind it. This runs the real ticks and asserts the
+ * ceiling holds across them, which a stubbed database cannot show.
+ */
+Deno.test("a subject that fails five times is not queued again by the next tick", () =>
+  withWorkerFixture(async (fixture) => {
+    const response = await put(
+      fixture,
+      "/shared/cursed.txt",
+      "never answer me",
+    );
+    assertEquals(response.status, 200);
+    const file = await response.json() as { id: string };
+    // Start from nothing rather than from the write's own request, so the ticks
+    // below are the only reason a row exists.
+    await fixture.pgDatabase.query(
+      "delete from bakery.probe_requests where organization_id = $1",
+      [fixture.organizationId],
+    );
+
+    const dir = await Deno.makeTempDir();
+    const spoolDir = await Deno.makeTempDir();
+    const config = readRuntimeConfig(
+      {
+        BAKERY_ENV: "test",
+        BAKERY_PROBE_SPOOL_DIR: spoolDir,
+        BAKERY_PUBLIC_BASE_URL: fixture.config.publicBaseUrl,
+      },
+      "server",
+    );
+    const built = probeRunnerDeps(config, fixture.pgDatabase);
+    try {
+      const launcher = await writeStub(dir, "sealed", {
+        selfTest: SEALED,
+        filesystem: READ_ONLY,
+        probe: `printf '%s' '${PNG_FRAME}'`,
+      });
+      // The read itself fails every time: what is under test is the ceiling, not
+      // how a particular fault is spelled.
+      const deps = {
+        ...built,
+        readInlineBytes: () => Promise.reject(new Error("unreadable-spool")),
+        probeOptions: { ...built.probeOptions, launcherPath: launcher },
+      };
+      forgetSandboxPreflight();
+      for (let tick = 1; tick <= PROBE_MAX_ATTEMPTS; tick += 1) {
+        const result = await runProbeTick(fixture.pgDatabase, deps, {
+          limit: 10,
+        });
+        assertEquals(result.spoolDirMissing, false);
+        assertEquals(result.sandboxUnavailable, false);
+      }
+
+      const after = await fixture.pgDatabase.query<
+        { attempts: number; last_error: string | null }
+      >(
+        `select attempts, last_error from bakery.probe_requests
+          where organization_id = $1 and entry_id = $2`,
+        [fixture.organizationId, file.id],
+      );
+      assertEquals(after.rows.length, 1, "the request is kept, not deleted");
+      assertEquals(after.rows[0].attempts, PROBE_MAX_ATTEMPTS);
+
+      // The tick that used to undo all of it.
+      const next = await runProbeTick(fixture.pgDatabase, deps, { limit: 10 });
+      assertEquals(next.claimed, 0, "a terminal row is not work");
+      assertEquals(next.queued, 0, "the backfill does not ask again");
+
+      const still = await fixture.pgDatabase.query<
+        { count: string; attempts: number }
+      >(
+        `select count(*)::text as count, min(attempts) as attempts
+           from bakery.probe_requests
+          where organization_id = $1 and entry_id = $2`,
+        [fixture.organizationId, file.id],
+      );
+      assertEquals(still.rows[0].count, "1");
+      assertEquals(still.rows[0].attempts, PROBE_MAX_ATTEMPTS);
+    } finally {
+      forgetSandboxPreflight();
+      await Deno.remove(dir, { recursive: true });
+      await Deno.remove(spoolDir, { recursive: true });
+    }
+  }));

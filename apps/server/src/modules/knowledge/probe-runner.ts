@@ -7,12 +7,22 @@
  *
  * ## Two halves, one tick
  *
- * 1. **Backfill.** Bounded keyset pages over the versions that have no answer
- *    yet, oldest id first, so a workspace that predates the probe collects facts
- *    without anyone touching it. The page cursor is remembered between ticks, so
- *    a large install is covered over many ticks rather than one long scan.
- * 2. **Drain.** Claim queued requests (`for update skip locked`), run the probe,
- *    store the answer, delete the request.
+ * 1. **Backfill.** One bounded keyset page over versions that have neither an
+ *    answer nor a request, oldest id first, so a workspace that predates the
+ *    probe collects facts without anyone touching it. The page restarts from the
+ *    beginning on every tick: there is nowhere to keep a cursor without a table
+ *    of its own, and a restart is safe only because a subject that cannot be
+ *    answered leaves a terminal request behind (below). Without that, a page of
+ *    permanently failing subjects would be selected for ever and the versions
+ *    behind them would never be reached.
+ * 2. **Drain.** Claim queued requests in age order, run the probe, and store the
+ *    answer.
+ *
+ * The request row is the record of what happened to a subject: it is deleted when
+ * an answer is stored, and kept with `attempts = PROBE_MAX_ATTEMPTS` when the
+ * subject is finished with and has no answer. That terminal row is what keeps the
+ * backfill from asking again -- a deleted request would be re-queued by the next
+ * tick, with its attempts reset, which is a retry ceiling that never bites.
  *
  * ## Why a queue and a periodic task, not an event
  *
@@ -64,11 +74,15 @@ type RequestRow = Readonly<{
 }>;
 
 export type ProbeRunnerDeps = Readonly<{
-  /** Bytes of a blob, verified by the caller's own store. */
+  /**
+   * Bytes of a blob, verified by the caller's own store. `"unavailable"` is the
+   * server having no store, which is not the same answer as `null`: the bytes may
+   * be perfectly present, and the request must be left alone rather than dropped.
+   */
   readBlobBytes: (
     organizationId: string,
     blobId: string,
-  ) => Promise<{ bytes: Uint8Array; sizeBytes: number } | null>;
+  ) => Promise<{ bytes: Uint8Array; sizeBytes: number } | null | "unavailable">;
   /** Inline bytes of one storage version. */
   readInlineBytes: (
     organizationId: string,
@@ -111,6 +125,12 @@ export type ProbeRunnerResult = Readonly<{
    * nothing for ever.
    */
   spoolDirMissing: boolean;
+  /**
+   * True when this server has no object store, so a blob-backed subject cannot be
+   * read at all. That is a deployment fact, not a fact about the file: nothing is
+   * counted and the request is left exactly as it was found.
+   */
+  storeUnavailable: boolean;
 }>;
 
 /** Queues one subject. Writing the same subject twice queues it once. */
@@ -189,6 +209,12 @@ export async function enqueueUnprobedPage(
             select 1 from bakery.blob_probes p
              where p.organization_id = v.organization_id
                and p.blob_id = v.blob_id)
+          -- A queued or terminal request is the record that this subject has been
+          -- asked about, or given up on; either way the backfill must not ask again.
+          and not exists (
+            select 1 from bakery.probe_requests r
+             where r.organization_id = v.organization_id
+               and r.blob_id = v.blob_id)
           and ($1::uuid is null or v.id > $1)
         union all
        select v.id, v.organization_id, v.blob_id,
@@ -210,6 +236,12 @@ export async function enqueueUnprobedPage(
                and ((v.blob_id is not null and p.blob_id = v.blob_id)
                  or (v.blob_id is null and p.entry_id = v.entry_id
                      and p.revision = v.revision)))
+          and not exists (
+            select 1 from bakery.probe_requests r
+             where r.organization_id = v.organization_id
+               and ((v.blob_id is not null and r.blob_id = v.blob_id)
+                 or (v.blob_id is null and r.entry_id = v.entry_id
+                     and r.revision = v.revision)))
           and ($1::uuid is null or v.id > $1)
         union all
        select v.id, v.organization_id, null::uuid as blob_id,
@@ -221,6 +253,10 @@ export async function enqueueUnprobedPage(
             select 1 from bakery.blob_probes p
              where p.organization_id = v.organization_id
                and p.artifact_version_id = v.id)
+          and not exists (
+            select 1 from bakery.probe_requests r
+             where r.organization_id = v.organization_id
+               and r.artifact_version_id = v.id)
           and ($1::uuid is null or v.id > $1)
      ) page
      order by id
@@ -252,30 +288,27 @@ export async function enqueueUnprobedPage(
 }
 
 /**
- * Takes up to `limit` queued requests that no other runner holds.
+ * Takes up to `limit` requests that still need an answer, oldest first.
  *
- * `for update skip locked` inside one transaction, then the ids are owned by
- * this tick: two runners on the same database do not probe the same subject
- * twice, and a runner that dies leaves its rows unlocked for the next tick.
+ * Nothing is locked and nothing is owned: the read runs outside a transaction, so
+ * a second runner on the same database may pick the same rows in the same tick.
+ * That is tolerable because an answer is an upsert and `probeOne` re-reads the
+ * store before spending a sandbox unit, and it is why the claim makes no
+ * exclusivity promise. A row at the attempt ceiling is a terminal record, not
+ * work, so it is never claimed.
  */
 export async function claimProbeRequests(
   database: PgDatabase,
   limit: number,
 ): Promise<readonly RequestRow[]> {
-  // `skip locked` means a peer's in-flight rows are passed over rather than
-  // waited on. Outside an explicit transaction the locks end with the statement,
-  // so two ticks can still pick the same row; that is safe because a subject's
-  // answer is an upsert and `probeOne` re-reads the store before spending a
-  // sandbox unit. What this must not do is select the same row twice within one
-  // tick, and it cannot.
   const { rows } = await database.query<RequestRow>(
     `select id, organization_id, blob_id, entry_id, revision,
             artifact_version_id, attempts
        from bakery.probe_requests
+      where attempts < $2
       order by requested_at, id
-      limit $1
-      for update skip locked`,
-    [limit],
+      limit $1`,
+    [limit, PROBE_MAX_ATTEMPTS],
   );
   return rows;
 }
@@ -293,13 +326,24 @@ export async function completeProbeRequest(
  *
  * Backoff is by attempts rather than by clock: the tick interval is the clock,
  * and a check-then-write race over a timestamp would buy nothing here.
+ *
+ * Giving up leaves the row in place at the ceiling rather than deleting it. A
+ * deleted request is indistinguishable from one that was never asked, so the next
+ * tick's backfill would queue the same subject again with `attempts = 0` and the
+ * ceiling would never be reached; the terminal row is what makes the ceiling
+ * real.
  */
 export async function failProbeRequest(
   database: Pick<PgDatabase, "query">,
   input: { id: string; attempts: number; error: string },
 ): Promise<"retry" | "abandoned"> {
   if (input.attempts + 1 >= PROBE_MAX_ATTEMPTS) {
-    await completeProbeRequest(database, input.id);
+    await database.query(
+      `update bakery.probe_requests
+          set attempts = $2, last_error = $3
+        where id = $1`,
+      [input.id, PROBE_MAX_ATTEMPTS, input.error.slice(0, 500)],
+    );
     return "abandoned";
   }
   await database.query(
@@ -307,6 +351,27 @@ export async function failProbeRequest(
     [input.id, input.error.slice(0, 500)],
   );
   return "retry";
+}
+
+/**
+ * Gives up on a subject that has nothing left to ask about.
+ *
+ * The bytes are gone -- the version or blob was purged, or it never carried any --
+ * so there is no answer to store and never will be. The request stays, at the
+ * ceiling, so the backfill does not queue it again on the next tick: `requested_at`
+ * means "queued once", not "queued now", and the row is the record that this
+ * subject is finished.
+ */
+export async function giveUpProbeRequest(
+  database: Pick<PgDatabase, "query">,
+  id: string,
+): Promise<void> {
+  await database.query(
+    `update bakery.probe_requests
+        set attempts = $2, last_error = 'subject-gone'
+      where id = $1`,
+    [id, PROBE_MAX_ATTEMPTS],
+  );
 }
 
 /** Runs one tick: a backfill page, then as many requests as the budget allows. */
@@ -332,6 +397,7 @@ export async function runProbeTick(
       queued: 0,
       sandboxUnavailable: false,
       spoolDirMissing: true,
+      storeUnavailable: false,
     };
   }
   // The host is asked once, before anything is claimed. A host that cannot build
@@ -350,6 +416,7 @@ export async function runProbeTick(
       queued: 0,
       sandboxUnavailable: true,
       spoolDirMissing: false,
+      storeUnavailable: false,
     };
   }
   const page = await enqueueUnprobedPage(database, {
@@ -389,8 +456,23 @@ export async function runProbeTick(
       await completeProbeRequest(database, request.id);
       answered++;
     } else if (stored === "gone") {
-      // The bytes are gone: there is nothing to ask about and never will be.
-      await completeProbeRequest(database, request.id);
+      // The bytes are gone: there is nothing to ask about and never will be. The
+      // row stays, terminal, so the backfill does not queue it again.
+      await giveUpProbeRequest(database, request.id);
+    } else if (stored === "unavailable") {
+      // No store on this server, so these bytes cannot be read at all. Leaving the
+      // row untouched is the only honest answer: the file is fine, this deployment
+      // is not. The tick stops so the rest of the page keeps its place.
+      return {
+        claimed: claimed.length,
+        answered,
+        deferred,
+        abandoned,
+        queued: page.queued,
+        sandboxUnavailable: false,
+        spoolDirMissing: false,
+        storeUnavailable: true,
+      };
     } else {
       // The sandbox stopped answering partway through the tick. That is the same
       // host fact as an unbuildable sandbox, so it stops the tick rather than
@@ -403,6 +485,7 @@ export async function runProbeTick(
         queued: page.queued,
         sandboxUnavailable: true,
         spoolDirMissing: false,
+        storeUnavailable: false,
       };
     }
   }
@@ -414,6 +497,7 @@ export async function runProbeTick(
     queued: page.queued,
     sandboxUnavailable: false,
     spoolDirMissing: false,
+    storeUnavailable: false,
   };
 }
 
@@ -437,7 +521,7 @@ async function probeOne(
   database: PgDatabase,
   request: RequestRow,
   deps: ProbeRunnerDeps,
-): Promise<"answered" | "host-gone" | "gone"> {
+): Promise<"answered" | "host-gone" | "gone" | "unavailable"> {
   const subject = subjectOf(request);
   const bytes = "blobId" in subject
     ? await deps.readBlobBytes(request.organization_id, subject.blobId)
@@ -451,6 +535,7 @@ async function probeOne(
       subject.entryId,
       subject.revision,
     );
+  if (bytes === "unavailable") return "unavailable";
   if (bytes === null) return "gone";
   // A row recorded between this tick's claim and now is the same answer; asking
   // again would spend a sandbox unit to learn what is already written.
@@ -513,7 +598,7 @@ export async function readBlobProbeSubjectBytes(
   store: Pick<OrganizationBlobStore, "read"> | undefined,
   organizationId: string,
   blobId: string,
-): Promise<{ bytes: Uint8Array; sizeBytes: number } | null> {
+): Promise<{ bytes: Uint8Array; sizeBytes: number } | null | "unavailable"> {
   const { rows } = await database.query<
     { sha256: string; size_bytes: string }
   >(
@@ -523,8 +608,9 @@ export async function readBlobProbeSubjectBytes(
   const row = rows[0];
   if (row === undefined) return null;
   // A server with no store cannot read a blob-backed subject at all, which is a
-  // deployment fact, not a fact about the file: leave it queued.
-  if (store === undefined) return null;
+  // deployment fact, not a fact about the file. Saying `null` here would be read
+  // as "the bytes are gone" and the subject given up on; this is its own answer.
+  if (store === undefined) return "unavailable";
   const sizeBytes = Number(row.size_bytes);
   const bytes = await store.read(organizationId, row.sha256, sizeBytes);
   await assertStoredBytes(

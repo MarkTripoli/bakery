@@ -17,6 +17,7 @@ import {
   claimProbeRequests,
   enqueueProbeSubject,
   failProbeRequest,
+  giveUpProbeRequest,
   PROBE_MAX_ATTEMPTS,
   readArtifactVersionProbeSubjectBytes,
   readBlobProbeSubjectBytes,
@@ -463,7 +464,7 @@ Deno.test("an inline artifact version is its own subject, from backfill to store
   }
 });
 
-Deno.test("a request that keeps failing on the host is dropped, not retried for ever", async () => {
+Deno.test("a request that keeps failing is kept at the ceiling, not deleted", async () => {
   const statements: Statement[] = [];
   const database = {
     query: (text: string, values: unknown[] = []) => {
@@ -479,6 +480,17 @@ Deno.test("a request that keeps failing on the host is dropped, not retried for 
     }),
     "abandoned",
   );
+  // The row survives at the ceiling. Deleting it would make the subject look
+  // unasked, and the next tick's backfill would queue it again from zero -- a
+  // retry ceiling that resets itself is no ceiling at all.
+  assertEquals(statements.length, 1);
+  assert(statements[0].text.includes("update bakery.probe_requests"));
+  assertEquals(statements[0].text.includes("delete"), false);
+  assertEquals(statements[0].values, [
+    "request-3",
+    PROBE_MAX_ATTEMPTS,
+    "sandbox-unavailable",
+  ]);
   assertEquals(
     await failProbeRequest(database as never, {
       id: "request-3",
@@ -487,6 +499,21 @@ Deno.test("a request that keeps failing on the host is dropped, not retried for 
     }),
     "retry",
   );
+});
+
+Deno.test("a subject with nothing left to ask about is finished, not re-queued", async () => {
+  const statements: Statement[] = [];
+  const database = {
+    query: (text: string, values: unknown[] = []) => {
+      statements.push({ text, values });
+      return Promise.resolve({ rows: [] });
+    },
+  };
+  await giveUpProbeRequest(database as never, "request-4");
+  assertEquals(statements.length, 1);
+  assert(statements[0].text.includes("update bakery.probe_requests"));
+  assertEquals(statements[0].text.includes("delete"), false);
+  assertEquals(statements[0].values, ["request-4", PROBE_MAX_ATTEMPTS]);
 });
 
 Deno.test("enqueueing the same subject twice queues it once", async () => {
@@ -519,18 +546,43 @@ Deno.test("enqueueing the same subject twice queues it once", async () => {
   assertEquals(statements[1].values, ["org-1", "entry-1", 2]);
 });
 
-Deno.test("claiming requests reads them oldest first and lets a peer's rows go", async () => {
-  const statements: string[] = [];
+Deno.test("claiming requests reads live ones oldest first and leaves terminal rows", async () => {
+  const statements: { text: string; values: unknown[] }[] = [];
   const database = {
-    query: (text: string) => {
-      statements.push(text);
+    query: (text: string, values: unknown[] = []) => {
+      statements.push({ text, values });
       return Promise.resolve({ rows: [] });
     },
   };
   await claimProbeRequests(database as never, 5);
   assertEquals(statements.length, 1);
-  assert(statements[0].includes("order by requested_at, id"));
-  assert(statements[0].includes("for update skip locked"));
+  assert(statements[0].text.includes("order by requested_at, id"));
+  // A row at the ceiling is the record that this subject was given up on, so it is
+  // not work: claiming it again would spend a sandbox unit to learn nothing.
+  assert(statements[0].text.includes("attempts < $2"));
+  assertEquals(statements[0].values, [5, PROBE_MAX_ATTEMPTS]);
+  // No lock, because there is no transaction around the statement for one to
+  // outlive; the doc says so rather than promising exclusivity it cannot give.
+  assertEquals(statements[0].text.includes("for update"), false);
+});
+
+Deno.test("a server with no store says so rather than calling the bytes gone", async () => {
+  // The blob row exists -- the bytes are there -- and only the store is missing.
+  // Answering `null` here would be read as "gone", and the subject would be given
+  // up on because of a deployment fact (#759 review).
+  const database = {
+    query: () =>
+      Promise.resolve({ rows: [{ sha256: "a".repeat(64), size_bytes: "4" }] }),
+  };
+  assertEquals(
+    await readBlobProbeSubjectBytes(
+      database as never,
+      undefined,
+      "org-1",
+      "blob-1",
+    ),
+    "unavailable",
+  );
 });
 
 Deno.test("a stored answer is readable for both subject shapes", async () => {

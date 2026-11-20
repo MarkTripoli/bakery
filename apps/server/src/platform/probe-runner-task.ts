@@ -50,6 +50,16 @@ export async function runProbeRunnerTask(
           "no request was counted; set the variable and restart the service.",
       );
     }
+    if (result.storeUnavailable) {
+      // The same shape of message as the spool directory: a deployment that cannot
+      // read a blob-backed subject would otherwise look like a workspace whose
+      // files all vanished.
+      console.error(
+        "bakery-server probe-runner: no object store is configured, so a " +
+          "blob-backed version cannot be read. Its request was left queued and " +
+          "nothing was counted; configure the store and restart the service.",
+      );
+    }
     return result;
   } finally {
     await closePgDatabase(database);
