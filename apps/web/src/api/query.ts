@@ -449,7 +449,7 @@ export function pluginSavedDataQueryOptions(
   installId: string,
 ) {
   return queryOptions<SavedDataPage, ApiFailure>({
-    queryKey: protectedQueryKey(scope, "pluginState.list", { installId }),
+    queryKey: protectedQueryKey(scope, "pluginStateItems.list", { installId }),
     queryFn: async ({ signal }) => {
       if (!scope.organizationId) {
         throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;

@@ -2640,6 +2640,107 @@ Deno.test("a state read says how big each saved item is, and the write answers w
     );
   }));
 
+Deno.test("each install lists only its own saved items, and a size counts bytes, not characters", () =>
+  withPluginFixture(async (fixture, store) => {
+    const install = async () => {
+      const published = await publishInstallable(fixture, store);
+      return await (await call(fixture, "/v1/plugin-installs", {
+        method: "POST",
+        body: {
+          packageId: published.packageId,
+          versionId: published.versionId,
+          scope: "organization",
+        },
+      })).json() as { id: string };
+    };
+    const first = await install();
+    const second = await install();
+    assert(first.id !== second.id);
+    const put = async (installId: string, key: string, value: unknown) => {
+      const response = await call(
+        fixture,
+        `/v1/plugin-installs/${installId}/state/settings/${key}`,
+        {
+          method: "PUT",
+          body: {
+            namespace: "settings",
+            key,
+            schemaVersion: 1,
+            value,
+            expectedCasVersion: 0,
+          },
+        },
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+    };
+    // The same key in both installs, so a query that ignored the install would
+    // return the other install's row under a name the first one also has.
+    await put(first.id, "shared", { who: "first" });
+    await put(first.id, "only-first", { n: 1 });
+    await put(second.id, "shared", { who: "second", pad: "p".repeat(300) });
+    await put(second.id, "only-second", { n: 2 });
+    // Three bytes more than characters would be: "é" is two bytes.
+    const accented = "é".repeat(1000);
+    await put(second.id, "accented", { text: accented });
+
+    type Item = {
+      key: string;
+      pluginInstallId: string;
+      sizeBytes: number;
+    };
+    const itemsOf = async (
+      installId: string,
+      path: "state" | "state-items",
+    ) => {
+      const response = await call(
+        fixture,
+        `/v1/plugin-installs/${installId}/${path}`,
+        { method: "GET" },
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+      return (await response.json()).items as Item[];
+    };
+    for (const path of ["state-items", "state"] as const) {
+      const ofFirst = await itemsOf(first.id, path);
+      const ofSecond = await itemsOf(second.id, path);
+      assertEquals(ofFirst.map((item) => item.key).sort(), [
+        "only-first",
+        "shared",
+      ], path);
+      assertEquals(ofSecond.map((item) => item.key).sort(), [
+        "accented",
+        "only-second",
+        "shared",
+      ], path);
+      assert(ofFirst.every((item) => item.pluginInstallId === first.id), path);
+      assert(
+        ofSecond.every((item) => item.pluginInstallId === second.id),
+        path,
+      );
+      // The size of the shared key is the size of this install's own value.
+      const sharedFirst = ofFirst.find((item) => item.key === "shared")!;
+      const sharedSecond = ofSecond.find((item) => item.key === "shared")!;
+      assert(sharedSecond.sizeBytes > sharedFirst.sizeBytes + 250, path);
+    }
+    // The size is bytes: a thousand two-byte characters is over two thousand.
+    const stored = await fixture.pgDatabase.query<{ size: string }>(
+      `select octet_length(value::text)::text as size
+         from bakery.plugin_state
+        where organization_id = $1 and plugin_install_id = $2
+          and key = 'accented'`,
+      [fixture.organizationId, second.id],
+    );
+    const bytes = Number(stored.rows[0].size);
+    assert(bytes > 2000, `stored ${bytes}`);
+    assert(bytes > JSON.stringify({ text: accented }).length);
+    for (const path of ["state-items", "state"] as const) {
+      const item = (await itemsOf(second.id, path)).find((entry) =>
+        entry.key === "accented"
+      )!;
+      assertEquals(item.sizeBytes, bytes, path);
+    }
+  }));
+
 Deno.test("the values-free state read carries no saved value, pages, and is authorized like the full read", () =>
   withPluginFixture(async (fixture, store) => {
     const published = await publishInstallable(fixture, store);
