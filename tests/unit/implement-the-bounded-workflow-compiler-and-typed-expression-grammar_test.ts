@@ -4118,6 +4118,13 @@ Deno.test("step skills, roles and slots each report their own code", async () =>
       { ...noop("aa"), files: { write: ["shared"] } },
       "action_files_write_needs_grant",
     ],
+    // S7: sealed is sugar for an inputs-only, outputs-only files section; a
+    // non-boolean or a contradicting files section is refused by name.
+    [{ ...noop("aa"), sealed: "yes" }, "action_sealed_invalid"],
+    [
+      { ...noop("aa"), sealed: true, files: { read: ["inputs", "shared"] } },
+      "action_sealed_conflicts_files",
+    ],
   ];
   for (const [step, code] of cases) {
     const result = await compileWorkflowDocument(workflow([step]));

@@ -52,6 +52,7 @@ Deno.test("export matches the list for the window, bounds the window and carries
   const f = await openInstallationFixture(true, {
     secretsKey: key.secretsKey,
     githubAppClient: key.githubAppClient,
+    backupDestinationProbe: key.backupDestinationProbe,
   });
   try {
     await runAuditMatrix(f);

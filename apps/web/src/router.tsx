@@ -87,6 +87,8 @@ import { ConnectionPage } from "./pages/integrations/ConnectionPage.tsx";
 import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
 import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
+import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
+import { DeliveryPage } from "./pages/DeliveryPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
 import { SettingsIndexPage } from "./pages/SettingsIndexPage.tsx";
 import { ProfilePage } from "./pages/ProfilePage.tsx";
@@ -209,6 +211,24 @@ export const routeCoverage = [
       "stale",
       "offline",
       "long-copy",
+    ],
+  },
+  {
+    id: "delivery",
+    path: "/delivery",
+    classification: "production",
+    // Not a fifth kind of failure: `partial` is the page with figures and a
+    // note that some records are missing, and `degraded` is a source that
+    // stopped, whose figures are unknown rather than zero.
+    states: [
+      "loading",
+      "default",
+      "partial",
+      "degraded",
+      "stale",
+      "empty",
+      "error",
+      "forbidden",
     ],
   },
   {
@@ -604,14 +624,31 @@ export const routeCoverage = [
     ],
   },
   {
-    id: "installation-audit",
-    path: "/installation/audit",
+    id: "installation-monitoring",
+    path: "/installation/monitoring",
     classification: "production",
     states: ["loading", "default", "empty", "error", "forbidden"],
   },
   {
-    id: "installation-monitoring",
-    path: "/installation/monitoring",
+    id: "installation-usage",
+    path: "/installation/usage",
+    classification: "production",
+    // `unknown` is not a fifth kind of failure: it is the state where the
+    // records exist but Bakery cannot say how complete they are, and the page
+    // must still render figures with that warning rather than an error.
+    states: [
+      "loading",
+      "default",
+      "partial",
+      "degraded",
+      "empty",
+      "error",
+      "forbidden",
+    ],
+  },
+  {
+    id: "installation-audit",
+    path: "/installation/audit",
     classification: "production",
     states: ["loading", "default", "empty", "error", "forbidden"],
   },
@@ -1264,6 +1301,15 @@ function validateFilesSearch(
   };
 }
 
+const deliveryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/delivery",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <DeliveryPage />,
+  errorComponent: ProtectedRouteError,
+});
+
 const filesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/files",
@@ -1614,6 +1660,19 @@ const installationMonitoringRoute = createRoute({
   component: () => (
     <InstallationBreadcrumbs section="shell.navigation.monitoring">
       <InstallationMonitoringPage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const installationUsageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/usage",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.usage.title">
+      <InstallationUsagePage />
     </InstallationBreadcrumbs>
   ),
   errorComponent: ProtectedRouteError,
@@ -2459,8 +2518,10 @@ const routeTree = rootRoute.addChildren([
   organizationsRoute,
   organizationSettingsRoute,
   installationSettingsRoute,
-  installationAuditRoute,
   installationMonitoringRoute,
+  installationUsageRoute,
+  deliveryRoute,
+  installationAuditRoute,
   installationIntegrationsRoute,
   organizationAccessRoute,
   organizationInvitationsRoute,

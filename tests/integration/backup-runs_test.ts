@@ -525,3 +525,125 @@ Deno.test("the database itself refuses a second active or a second waiting run",
     await o.finish();
   }
 });
+
+Deno.test("a completed report may name why the off-site copy failed: accepted, shown as not_copied, replayed exactly, and superseded by a later full backup", async () => {
+  const o = await open();
+  try {
+    const { credential } = await o.issue();
+    const first = await o.start();
+    const claimed = await o.claim(credential);
+    const token = claimed.leaseToken!;
+    const send = (id: string, lease: string, body: Record<string, unknown>) =>
+      o.report(credential, id, lease, body);
+    assertEquals(
+      (await send(first.id, token, {
+        sequence: 1,
+        status: "running",
+        progressPercent: 60,
+      })).status,
+      200,
+    );
+    // Taken on the host; the off-site copy then failed.
+    const notCopied = {
+      sequence: 2,
+      status: "completed",
+      sizeBytes: "2048",
+      locations: ["server-host"],
+      failureCode: "destination_unreachable",
+      failureDetail: "connect ECONNREFUSED 203.0.113.9:443",
+    };
+    const done = await send(first.id, token, notCopied);
+    assertEquals(done.status, 200, await done.clone().text());
+    const run = await done.json() as Run;
+    assertEquals(run.status, "completed");
+    assertEquals(run.locations, ["server-host"]);
+    assertEquals(run.sizeBytes, "2048");
+    assertEquals(run.failureCode, "destination_unreachable");
+    assertEquals(run.failureDetail, "connect ECONNREFUSED 203.0.113.9:443");
+    assert(run.finishedAt !== null);
+
+    // Its own state, and the local copy counts as a backup taken.
+    const status = await o.status();
+    assertEquals(status.state, "not_copied");
+    assert(status.lastGoodBackupAt !== null);
+
+    // The same report again is answered from the row, byte for byte.
+    const replay = await send(first.id, token, notCopied);
+    assertEquals(replay.status, 200);
+    assertEquals(await replay.json(), run);
+    // A changed cause on the same sequence is a different request.
+    const changed = await send(first.id, token, {
+      ...notCopied,
+      failureCode: "destination_refused",
+    });
+    assertEquals(changed.status, 422);
+    assertEquals((await problem(changed)).code, "IDEMPOTENCY_PAYLOAD_MISMATCH");
+    assertEquals((await o.status()).state, "not_copied");
+
+    // The shape rules: each of these is refused before anything is stored.
+    const second = await o.start();
+    const claimedAgain = await o.claim(credential);
+    assertEquals(claimedAgain.runId, second.id);
+    const lease = claimedAgain.leaseToken!;
+    const refused: Record<string, unknown>[] = [
+      // copied off-site AND failed to copy
+      {
+        sequence: 1,
+        status: "completed",
+        sizeBytes: "1",
+        locations: ["server-host", "off-site"],
+        failureCode: "destination_refused",
+      },
+      // a cause that is not about the off-site copy ends the run as failed
+      {
+        sequence: 1,
+        status: "completed",
+        sizeBytes: "1",
+        locations: ["server-host"],
+        failureCode: "disk_full",
+      },
+      // a detail with no cause
+      {
+        sequence: 1,
+        status: "completed",
+        sizeBytes: "1",
+        locations: ["server-host"],
+        failureDetail: "words only",
+      },
+      // a failed report still carries no size or locations
+      {
+        sequence: 1,
+        status: "failed",
+        failureCode: "destination_refused",
+        sizeBytes: "1",
+        locations: ["server-host"],
+      },
+    ];
+    for (const body of refused) {
+      const response = await send(second.id, lease, body);
+      assertEquals(response.status, 422, JSON.stringify(body));
+    }
+    // Nothing was stored: the run is still claimed and the status still amber.
+    assertEquals((await o.status()).state, "running");
+
+    // A later good FULL backup supersedes the amber state.
+    assertEquals(
+      (await send(second.id, lease, {
+        sequence: 1,
+        status: "completed",
+        sizeBytes: "4096",
+        locations: ["server-host", "off-site"],
+      })).status,
+      200,
+    );
+    assertEquals((await o.status()).state, "protected");
+    const list = await o.admin("GET", "/v1/installation/backups");
+    const items = (await list.json() as { items: Run[] }).items;
+    assertEquals(items.map((item) => item.failureCode), [
+      null,
+      "destination_unreachable",
+    ]);
+  } finally {
+    await o.finish();
+  }
+});

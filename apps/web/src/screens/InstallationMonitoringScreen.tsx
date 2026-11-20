@@ -367,15 +367,15 @@ function DestinationRow(
       : "",
   ].filter((part) => part !== "").join(" \u00b7 ");
   return (
-    <div className="ui-monitoring-row">
-      <div className="ui-monitoring-row__copy">
+    <UI.Inline gap="compact" variant="between">
+      <UI.Stack gap="tight">
         <UI.Inline gap="compact">
           <UI.Heading level="subsection-compact">{destination.name}</UI.Heading>
           <UI.Badge tone={words.tone}>{translate(words.key)}</UI.Badge>
         </UI.Inline>
         <UI.Text variant="muted">{line}</UI.Text>
-      </div>
-      <div className="ui-monitoring-row__actions">
+      </UI.Stack>
+      <UI.Inline gap="compact">
         <UI.Button
           onClick={onEdit}
           type="button"
@@ -397,8 +397,8 @@ function DestinationRow(
             name: destination.name,
           })}
         </UI.Switch>
-      </div>
-    </div>
+      </UI.Inline>
+    </UI.Inline>
   );
 }
 
