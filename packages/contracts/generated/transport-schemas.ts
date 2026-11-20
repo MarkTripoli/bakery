@@ -12144,6 +12144,35 @@ const transportSchemas = {
         "Organization Admin only. Idempotency-Key is required. The first save needs no If-Match and refuses one; every later save needs a strong If-Match with the settings version (428 when missing, 412 when stale). Every value is replaced; a value outside its bounds is 422 and nothing is stored."
       ],
       "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
+    },
+    "StorageFileContentQuery": {
+      "fields": [
+        {
+          "name": "revision",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 999999999
+          },
+          "description": "Which version to read, by its revision number from storageFileVersions.list; omit it to read the file's current version. A revision the file does not have is 404."
+        },
+        {
+          "name": "range",
+          "type": "httpRange",
+          "required": false,
+          "bounds": {
+            "maxBytes": 100
+          },
+          "description": "Standard HTTP Range header value selecting one byte range, as a media player sends while it seeks; multiple ranges are rejected, and an unsatisfiable range returns 416 with the total size."
+        }
+      ],
+      "rules": [
+        "The response is always a download (Content-Disposition attachment naming the file), served with Content-Security-Policy sandbox and nosniff, so an HTML or SVG file never runs on the application origin. Video and audio elements still play it.",
+        "A ranged read of a blob-backed version above 8 MiB is 416 RANGE_NOT_SATISFIABLE until the blob store gains ranged reads; inline versions (at most 1 MiB) always range.",
+        "Contents removed by retention or an Admin purge are 410 ARTIFACT_CONTENT_EXPIRED; the version still lists, with contentRemoved."
+      ],
+      "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
     }
   },
   "projections": {
@@ -30442,6 +30471,183 @@ const transportSchemas = {
         "entriesRemoved": "Entries deleted with their versions: the entry and everything under it. Zero when the purge is queued.",
         "bytesRemoved": "Bytes of working-area versions deleted. Zero when the purge is queued."
       }
+    },
+    "StorageFolderItem": {
+      "fields": [
+        "id",
+        "parentId",
+        "path",
+        "name",
+        "displayName",
+        "kind",
+        "policy",
+        "kindName",
+        "mediaType",
+        "sizeBytes",
+        "artifactId",
+        "contentRemoved",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "parentId": "uuid|null",
+        "path": "string",
+        "name": "string",
+        "displayName": "string|null",
+        "kind": "enum(folder|file)",
+        "policy": "enum(record|working|scratch|library|personal|system)",
+        "kindName": "string|null",
+        "mediaType": "string|null",
+        "sizeBytes": "integer|null",
+        "artifactId": "uuid|null",
+        "contentRemoved": "boolean",
+        "updatedAt": "timestamp"
+      },
+      "nullableFields": [
+        "parentId",
+        "displayName",
+        "kindName",
+        "mediaType",
+        "sizeBytes",
+        "artifactId"
+      ],
+      "description": "One folder or file as the files browser lists it: what it is called, what its folder allows, its artifact kind and current size, and the artifact it shows when it is a work item's document.",
+      "fieldDescriptions": {
+        "id": "Stable id of the entry; open a folder with storageFolderEntries.list and a file's history with storageFileVersions.list.",
+        "parentId": "Folder that holds the entry; null for a top-level folder.",
+        "path": "The entry's path now, for the breadcrumb and Copy path; a label that changes with a rename or move.",
+        "name": "The entry's name in its folder, unique there when compared case-insensitively.",
+        "displayName": "The name to show instead of name where Bakery named the folder after something: a work item's folder carries the work item's title. Null when the entry's own name is the one to show.",
+        "kind": "Whether this is a folder or a file.",
+        "policy": "Folder policy the entry follows, which the badge beside the breadcrumb explains: record, working, scratch, library, personal or system.",
+        "kindName": "The artifact kind of a work item's document (its artifact type key); null for folders and for files written into working areas, which have no kind.",
+        "mediaType": "Media type of the file's current version; null for folders.",
+        "sizeBytes": "Size of the file's current version in bytes; null for folders.",
+        "artifactId": "The artifact a work item's document shows; the page opens the artifact page for it instead of the plain file view. Null for working-area files and folders.",
+        "contentRemoved": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders.",
+        "updatedAt": "When the entry or its current version last changed."
+      }
+    },
+    "Page<StorageFolderItem>": {
+      "pageOf": "StorageFolderItem",
+      "description": "Cursor page of storage-tree entries the caller may see. For a folder: folders first, then files, each by name. For the top of the tree: the caller's top-level folders in display order on one page (nextCursor always null). items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, offsets or totals."
+    },
+    "StorageFileVersion": {
+      "fields": [
+        "id",
+        "revision",
+        "isCurrent",
+        "createdAt",
+        "sizeBytes",
+        "mediaType",
+        "sha256",
+        "contentRemoved",
+        "removedAt",
+        "makerKind",
+        "makerPrincipalId",
+        "makerName",
+        "stepId",
+        "stepName",
+        "runId",
+        "workItemId",
+        "workItemTitle",
+        "sessionId"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "revision": "integer",
+        "isCurrent": "boolean",
+        "createdAt": "timestamp",
+        "sizeBytes": "integer",
+        "mediaType": "string",
+        "sha256": "string",
+        "contentRemoved": "boolean",
+        "removedAt": "timestamp|null",
+        "makerKind": "enum(person|step)",
+        "makerPrincipalId": "uuid",
+        "makerName": "string|null",
+        "stepId": "uuid|null",
+        "stepName": "string|null",
+        "runId": "uuid|null",
+        "workItemId": "uuid|null",
+        "workItemTitle": "string|null",
+        "sessionId": "uuid|null"
+      },
+      "nullableFields": [
+        "removedAt",
+        "makerName",
+        "stepId",
+        "stepName",
+        "runId",
+        "workItemId",
+        "workItemTitle",
+        "sessionId"
+      ],
+      "description": "One version of a storage-tree file: its number, when and by whom or which step it was saved, its size, and whether its contents are still there.",
+      "fieldDescriptions": {
+        "id": "Id of the version: an artifact version id for a work item's document, a working-area version id otherwise.",
+        "revision": "Version number, counting from 1; pass it as revision to storageFiles.content to read or download this version.",
+        "isCurrent": "True for the version the file shows now.",
+        "createdAt": "When the version was saved.",
+        "sizeBytes": "Size of the version's bytes.",
+        "mediaType": "Media type the version was saved with.",
+        "sha256": "Lowercase hexadecimal SHA-256 of the version's bytes.",
+        "contentRemoved": "True when retention or an Admin purge removed the version's bytes; the version stays listed and cannot be read.",
+        "removedAt": "When the bytes were removed; null while they are there.",
+        "makerKind": "Who made the version: step when a run step published it, person when a member or service wrote it.",
+        "makerPrincipalId": "Principal that wrote the version: the member for a person, the run's acting principal for a step.",
+        "makerName": "Display name of makerPrincipalId.",
+        "stepId": "The run step that published the version; null for a person's version.",
+        "stepName": "The step's key in its workflow; null for a person's version.",
+        "runId": "The run the step belongs to, for Open the run; null for a person's version.",
+        "workItemId": "The work item the run worked on; null for a person's version.",
+        "workItemTitle": "That work item's title; null for a person's version.",
+        "sessionId": "The step's most recent agent session, for Open the session; null when the step had none or for a person's version."
+      }
+    },
+    "Page<StorageFileVersion>": {
+      "pageOf": "StorageFileVersion",
+      "description": "Cursor page of a storage-tree file's versions, newest first, removed ones included. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
+    },
+    "StorageFileUse": {
+      "fields": [
+        "id",
+        "workItemId",
+        "workItemTitle",
+        "runId",
+        "inputName",
+        "versionId",
+        "revision",
+        "usedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "workItemId": "uuid",
+        "workItemTitle": "string",
+        "runId": "uuid",
+        "inputName": "string|null",
+        "versionId": "uuid",
+        "revision": "integer",
+        "usedAt": "timestamp"
+      },
+      "nullableFields": [
+        "inputName"
+      ],
+      "description": "One run that used a storage-tree file: the run pinned one of the file's versions as an input when it was admitted, and keeps that version even if the file changes or is deleted.",
+      "fieldDescriptions": {
+        "id": "Id of the run's input pin.",
+        "workItemId": "The work item the run worked on.",
+        "workItemTitle": "That work item's title.",
+        "runId": "The run that used the file.",
+        "inputName": "The run input that named the file by its storage path; null when the input named the version directly. Pins are per run, so no step is recorded.",
+        "versionId": "The artifact version the run pinned.",
+        "revision": "That version's number, for 'used version n'.",
+        "usedAt": "When the run was admitted and pinned the version."
+      }
+    },
+    "Page<StorageFileUse>": {
+      "pageOf": "StorageFileUse",
+      "description": "Cursor page of the runs that used a storage-tree file, newest first, only those whose work item the caller may open. Only a work item's document can be used by a run; a working-area file lists none. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, offsets or totals."
     }
   },
   "pageEnvelope": {
