@@ -1,5 +1,8 @@
 import type { Page } from "@playwright/test";
-import { mockAuthenticatedSession } from "./mock-session.ts";
+import {
+  MOCK_ORGANIZATION_ID,
+  mockAuthenticatedSession,
+} from "./mock-session.ts";
 
 /** Stubs for the Monitoring page: the kinds, the measurements, the destinations and every change. */
 
@@ -131,6 +134,21 @@ export async function monitoringFixture(
   options: MonitoringOptions = {},
 ) {
   await mockAuthenticatedSession(page);
+  // The shell asks what this person may do to decide which links to draw; an
+  // unstubbed read answers 401 here and signs the page out.
+  await page.route(
+    `**/v1/organizations/${MOCK_ORGANIZATION_ID}/effective-access`,
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          organizationId: MOCK_ORGANIZATION_ID,
+          role: "admin",
+          capabilities: [],
+        }),
+      }),
+  );
   const items: Destination[] = options.empty ? [] : [
     destination(1, { name: "Grafana Cloud" }),
     destination(2, {
