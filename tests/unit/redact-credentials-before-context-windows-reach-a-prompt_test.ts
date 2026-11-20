@@ -37,6 +37,15 @@ const SECRETS: Record<string, string> = {
   "anthropic key": "sk-ant-" + "api03-abcdefghijklmnopqrstuvwxyz0123456789",
   "google api key": "AIza" + "SyA-abcdefghijklmnopqrstuvwxyz012345",
   "stripe key": "sk_live_" + "abcdefghijklmnop1234",
+  "gitlab token": "glpat-" + "abcdefghij0123456789",
+  "npm token": "npm_" + "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8",
+  "hugging face token": "hf_" + "abcdefghijklmnopqrstuvwxyzABCDEFGH",
+  "sendgrid key": "SG." + "abcdefghijklmnopqrstuv" + "." +
+    "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
+  "resend key": "re_" + "AbCdEfGh_1234567890AbCdEfGhIjKl",
+  "linear key": "lin_api_" + "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd",
+  "notion token": "ntn_" + "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJ",
+  "twilio api key": "SK" + "0123456789abcdef0123456789abcdef",
   "json web token": "eyJhbGciOiJIUzI1NiJ9" + "." +
     "eyJzdWIiOiIxMjM0NTY3ODkwIn0" + "." + "dBjftJeZ4CVPmB92K27uhbUJU1p1r",
 };
@@ -92,6 +101,12 @@ Deno.test("a token prefix cut by the end of the window is still redacted", () =>
       "sk-ant-api0",
       "eyJhbGciOi",
       "xoxb-1234",
+      "glpat-abc12",
+      "npm_a1B2",
+      "hf_abcd12",
+      "SG.abcdef",
+      "lin_api_AbCd",
+      "ntn_1234ab",
     ]
   ) {
     const projection = project("value: " + tail);
@@ -113,6 +128,19 @@ Deno.test("credential-named keys lose their value in every common form", () => {
     ["Authorization: Bearer abcdefghijklmnop1234", "abcdefghijklmnop1234"],
     ["Authorization: Basic dXNlcjpwYXNzd29yZA==", "dXNlcjpwYXNzd29yZA=="],
     ["postgres://app:p4ssw0rd-long@db.internal:5432/app", "p4ssw0rd-long"],
+    // A quoted value runs to its closing quote, spaces and all.
+    ['password: "correct horse battery staple"', "horse battery staple"],
+    ["db_password='my long pass phrase'", "long pass phrase"],
+    ['{"secret": "two words here"}', "words here"],
+    // Azure storage connection strings.
+    [
+      "AccountName=x;AccountKey=Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4==",
+      "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4",
+    ],
+    [
+      "SharedAccessKey=abcdefghijklmnop0123456789",
+      "abcdefghijklmnop0123456789",
+    ],
   ];
   for (const [line, secret] of cases) {
     const projection = project(`config\n${line}\nend`);

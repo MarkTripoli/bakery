@@ -16,7 +16,7 @@
  */
 
 /** Identity of the redaction rules; bumps whenever a rule is added or changed. */
-export const CONTEXT_REDACTOR_VERSION = "bakery.redact@1";
+export const CONTEXT_REDACTOR_VERSION = "bakery.redact@2";
 
 /** What replaces a redacted credential. */
 export const REDACTION_MARKER = "[redacted]";
@@ -30,7 +30,7 @@ export type RedactionResult = {
 
 /** A key name whose value is a credential, for `name: value` and `name=value` forms. */
 const CREDENTIAL_KEY =
-  "(?:pass(?:word|wd|phrase)?|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|auth(?:orization)?|credential|bearer|signature|session[_-]?id|cookie)";
+  "(?:pass(?:word|wd|phrase)?|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|account[_-]?key|shared[_-]?access[_-]?key|sas[_-]?key|auth(?:orization)?|credential|bearer|signature|session[_-]?id|cookie)";
 
 /** Whole-match rules: the matched text is a credential in itself. */
 const WHOLE_RULES: readonly RegExp[] = [
@@ -50,6 +50,15 @@ const WHOLE_RULES: readonly RegExp[] = [
   /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/]{20,}/g,
   // Anthropic, OpenAI and compatible secret keys.
   /\bsk-[A-Za-z0-9_-]{20,}/g,
+  // GitLab, npm, Hugging Face, SendGrid, Resend, Linear, Notion and Twilio keys.
+  /\bglpat-[A-Za-z0-9_-]{20,}/g,
+  /\bnpm_[A-Za-z0-9]{30,}/g,
+  /\bhf_[A-Za-z0-9]{30,}/g,
+  /\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/g,
+  /\bre_[A-Za-z0-9_]{20,}/g,
+  /\blin_(?:api|oauth)_[A-Za-z0-9]{30,}/g,
+  /\bntn_[A-Za-z0-9]{30,}/g,
+  /\bSK[0-9a-f]{32}\b/g,
   // Google API keys.
   /\bAIza[0-9A-Za-z_-]{35}/g,
   // Stripe.
@@ -63,7 +72,7 @@ const WHOLE_RULES: readonly RegExp[] = [
  * the token lies in the next window, so redact what is here at any length.
  */
 const TRAILING_PREFIX =
-  /(?:\bbk[yd]_|\bgh[pousr]_|\bgithub_pat_|\bxox[abposr]-|\bsk-|\bAIza|\b[rs]k_(?:live|test)_|\beyJ|-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----)[A-Za-z0-9_.\-/+= ]{0,60}$/g;
+  /(?:\bbk[yd]_|\bgh[pousr]_|\bgithub_pat_|\bglpat-|\bnpm_|\bhf_|\bSG\.|\blin_(?:api|oauth)_|\bntn_|\bxox[abposr]-|\bsk-|\bAIza|\b[rs]k_(?:live|test)_|\beyJ|-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY(?: BLOCK)?-----)[A-Za-z0-9_.\-/+= ]{0,60}$/g;
 
 /** Rules that keep the surrounding text and replace only the secret part. */
 const PARTIAL_RULES: readonly { pattern: RegExp; keep: number }[] = [
@@ -82,7 +91,10 @@ const PARTIAL_RULES: readonly { pattern: RegExp; keep: number }[] = [
   {
     pattern: new RegExp(
       "(\\b[A-Za-z0-9_.-]{0,40}" + CREDENTIAL_KEY +
-        "[A-Za-z0-9_.-]{0,40}[\"']?[ \\t]*[:=][ \\t]*[\"']?)[^\\s\"',;}{]{4,300}",
+        "[A-Za-z0-9_.-]{0,40}[\"']?[ \\t]*[:=][ \\t]*)" +
+        // A quoted value runs to its closing quote, spaces and all; a bare one
+        // runs to the next separator.
+        "(?:\"[^\"\\n]{1,300}\"|'[^'\\n]{1,300}'|[^\\s\"',;}{]{4,300})",
       "gi",
     ),
     keep: 1,
