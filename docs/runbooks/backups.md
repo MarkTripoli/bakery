@@ -67,8 +67,11 @@ exclusion; a key id without its file (or the reverse) makes the backup
 incomplete.
 
 The references list is read at the same moment as the database dump but not in
-the same transaction, so a write in between can leave it a little newer than the
-dump. Slice B of #64 (a maintenance state) makes the snapshot exact.
+the same transaction. A backup taken by the runner holds the installation first
+(see "While a backup is taken" below), so no new write is admitted in between and
+the list matches the dump up to the limits stated there. The daily
+`bakery-backup.timer` does not hold the installation, so for it the list can be
+a little newer than the dump.
 
 ## The age key
 
@@ -189,6 +192,7 @@ A failed backup keeps a stable code and the runner's plain-text detail:
 | `destination_refused`     | only ever the cause of a `not_copied` backup (below): the off-site destination said no. |
 | `destination_unreachable` | only ever the cause of a `not_copied` backup (below): no answer, or an unverifiable copy.                                                       |
 | `incomplete_set`          | the finished set was missing a state store, or did not match its manifest, so it is **not a recoverable backup** and was not kept as `latest`. The detail names the store (for example `redis: store_not_captured`) or the cause `manifest_builder_missing` (below). Fix that and take another backup. |
+| `drain_timeout`           | the installation did not go quiet within 10 minutes, so **no backup was taken** and the installation was released. The detail counts what was still in flight (worker attempts and open transactions). See "While a backup is taken" below. |
 | `runner_error`            | anything else: `journalctl -u bakery-backup-runner` has the script's last lines.                                                               |
 
 ### Taken, but not copied off-site (`not_copied`)
@@ -220,7 +224,72 @@ shows in `systemctl --failed` and the journal says plainly
 `was taken but NOT copied off-site (<cause>)`. Retention after such a run prunes
 the **local** sets only; off-site sets are left alone until a copy succeeds.
 
+## While a backup is taken: the installation is held
+
+A consistent snapshot needs the installation to stand still. After the runner
+claims a backup it **holds the installation** (the maintenance switch), waits for
+it to go quiet, takes the backup, and lets go with its final report.
+
+| state | meaning |
+| ----- | ------- |
+| `off` | normal; nothing is held |
+| `draining` | held: new work is refused, work already in flight is finishing |
+| `quiesced` | held and quiet: nothing the server can see is still running; the snapshot is taken now |
+
+The status shows it as `maintenanceState` and `maintenanceSince`.
+
+**What is refused while held.** Five entry points answer a retryable
+`503 INSTALLATION_QUIESCED` with a `Retry-After` header (at most 30 seconds, and
+never longer than what is left of the hold) and change nothing:
+
+- starting a run (`runs.create`, `automations.run`) and starting a skill import
+  (`skills.import`);
+- a GitHub webhook delivery (`intake.webhook`): GitHub redelivers on a 503, so
+  nothing is lost;
+- importing an artifact version (`artifactVersions.import`);
+- a worker's claim for new work (`worker.claim`): the worker treats the 503 as a
+  temporary fault, backs off, and keeps renewing the lease of any attempt it
+  already holds;
+- collection and storage purges: the scheduled purge skips the round quietly.
+
+Everything else keeps working: reads, the administrator's backup routes, the
+runner's routes, and attempts already running.
+
+**What "quiet" means, and what it does not.** The server reports `quiesced` only
+when all of this is true: no worker job attempt is leased, running or canceling
+with an unexpired lease; no other open database transaction of the server's role
+began before the hold; and the hold has lasted at least 5 seconds (the settle
+window, which covers a write that passed the check just before the hold began).
+It **cannot see** Inngest or Redis engine steps, work a worker does without a
+lease, a transaction of another database role, or a transaction that began before
+the hold and stays open past the settle window. An attempt whose lease has lapsed
+is not waited for: the lease rule already fences it. The references list of a
+backup (slice A) is read while the hold is on, so it matches the dump.
+
+**The hold always ends.** It is lease-bound: it lasts only as long as the claim's
+lease (5 minutes), and every running report from the runner extends both. A
+terminal report (completed, failed or a drain timeout) lets go at once. If the
+runner dies, the hold lapses within 5 minutes with **no action from anyone**; a
+lapsed hold reads as `off` everywhere. A lapse runs no code, so it is written to
+the audit trail (`backupRunner.maintenance.exit`, outcome `lease_expired`) the
+next time the runner enters.
+
+**`drain_timeout`.** The runner waits up to 10 minutes for the installation to go
+quiet. If work is still in flight it reports `failed` with `drain_timeout`, takes
+no backup, and the installation is released. The detail says how many worker
+attempts and open transactions were still running. Fix: find the long-running
+attempts (`GET /v1/workers`), let them finish or cancel them, or set the workers
+to draining, then ask for another backup.
+
+**Audit.** Entering and leaving are audited as `backupRunner.maintenance.enter`
+and `backupRunner.maintenance.exit` with the runner credential's generation, the
+run id and the outcome, never a token or a key.
+
 ## What the runner does when something goes wrong
+
+The order of a pass is: claim, hold the installation, wait for quiet, read
+the settings (only now, so an idle minute reads nothing), take the backup, copy
+off-site, send the final report, which lets go.
 
 - **The API cannot be reached** on a claim: the pass exits 3 and the next minute
   tries again.
