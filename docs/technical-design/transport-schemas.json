@@ -7389,130 +7389,6 @@
       "pagination": "pagination",
       "description": "Query parameters for listing this organization's cached external ticket snapshots; results reflect the last synchronized state, not a live provider fetch."
     },
-    "TicketTaskLinkQuery": {
-      "fields": [
-        {
-          "name": "externalTicketId",
-          "type": "uuid",
-          "required": false,
-          "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404."
-        },
-        {
-          "name": "taskId",
-          "type": "uuid",
-          "required": false,
-          "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404."
-        },
-        {
-          "name": "role",
-          "type": "enum(primary|reference)",
-          "required": false,
-          "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted."
-        }
-      ],
-      "rules": [
-        "Exactly one of externalTicketId and taskId; keyset pages newest link first."
-      ],
-      "pagination": "pagination",
-      "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
-    },
-    "TicketRequestQuery": {
-      "fields": [
-        {
-          "name": "externalTicketId",
-          "type": "uuid",
-          "required": true,
-          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted."
-        }
-      ],
-      "rules": [
-        "Keyset pages newest request first, ordered by createdAt then id."
-      ],
-      "pagination": "pagination",
-      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
-    },
-    "TicketSourceLabelQuery": {
-      "fields": [
-        {
-          "name": "id",
-          "type": "uuid",
-          "required": true,
-          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 100
-          },
-          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer."
-        }
-      ],
-      "rules": [
-        "A live provider read, never cached; a provider failure answers 503 DEPENDENCY_UNAVAILABLE, a provider without labels 422 labels_unsupported."
-      ],
-      "pagination": "pagination",
-      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
-    },
-    "TicketTaskLinkNoteSync": {
-      "fields": [],
-      "rules": [
-        "Idempotency-Key and If-Match on the link version required; refused while a write of the same link is in flight; never refused because the note is already posted."
-      ],
-      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
-    },
     "TicketReadinessCreate": {
       "fields": [
         {
@@ -11515,6 +11391,171 @@
       ],
       "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     },
+    "RouteContinuationAdmit": {
+      "fields": [
+        {
+          "name": "runStepId",
+          "type": "uuid",
+          "required": true,
+          "description": "UUID of the stalled run step to continue, as named by the offer."
+        },
+        {
+          "name": "incidentId",
+          "type": "uuid",
+          "required": true,
+          "description": "UUID of the incident the offer was made for. If that incident has recovered, been superseded or is not the route's current one, the submission is stale and commits nothing."
+        },
+        {
+          "name": "incidentGeneration",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The incident generation the offer named. A different generation means the line moved on and the submission is stale."
+        },
+        {
+          "name": "targetRouteId",
+          "type": "uuid",
+          "required": true,
+          "description": "UUID of the route to continue on, one the offer marked eligible."
+        },
+        {
+          "name": "runVersion",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The run version the offer named. If the run changed since, the submission is refused as a failed precondition and nothing is committed."
+        }
+      ],
+      "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
+    },
+    "TicketTaskLinkQuery": {
+      "fields": [
+        {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404."
+        },
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404."
+        },
+        {
+          "name": "role",
+          "type": "enum(primary|reference)",
+          "required": false,
+          "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted."
+        }
+      ],
+      "rules": [
+        "Exactly one of externalTicketId and taskId; keyset pages newest link first."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
+    },
+    "TicketRequestQuery": {
+      "fields": [
+        {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": true,
+          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted."
+        }
+      ],
+      "rules": [
+        "Keyset pages newest request first, ordered by createdAt then id."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
+    },
+    "TicketSourceLabelQuery": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 100
+          },
+          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer."
+        }
+      ],
+      "rules": [
+        "A live provider read, never cached; a provider failure answers 503 DEPENDENCY_UNAVAILABLE, a provider without labels 422 labels_unsupported."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
+    },
+    "TicketTaskLinkNoteSync": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match on the link version required; refused while a write of the same link is in flight; never refused because the note is already posted."
+      ],
+      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
+    },
     "AgentPowerGrantCreate": {
       "fields": [
         {
@@ -11869,216 +11910,87 @@
       ],
       "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
     },
-    "StorageFilePut": {
+    "MergeAttemptQuery": {
       "fields": [
         {
-          "name": "path",
-          "type": "string",
-          "required": true,
-          "bounds": {
-            "minLength": 2,
-            "maxLength": 4096
-          },
-          "description": "Where the file goes: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent folder must exist and be in a working, personal (owner only) or scratch area."
-        },
-        {
-          "name": "mediaType",
-          "type": "string",
-          "required": true,
-          "bounds": {
-            "minLength": 1,
-            "maxLength": 255
-          },
-          "description": "IANA media type the version records and later serves, such as text/markdown or application/octet-stream."
-        },
-        {
-          "name": "content",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxLength": 1398104
-          },
-          "description": "The file's bytes, base64, for a small file of at most 1 MiB. Send exactly one of content or blobId."
-        },
-        {
-          "name": "blobId",
-          "type": "uuid",
-          "required": false,
-          "description": "A blob a completed resumable upload stored in this organization (blobUploads.complete). This is how a large file is uploaded: upload the bytes, then put the blob at a path. Send exactly one of content or blobId."
-        }
-      ],
-      "rules": [
-        "Idempotency-Key is required. Writing a new file needs no If-Match and refuses one (412). Replacing an existing file needs a strong If-Match with the entry's version (428 when missing, 412 when stale).",
-        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal.",
-        "A parent in a record area, the library, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with a reason; a missing parent, or another member's personal folder, is 404."
-      ],
-      "description": "Writes a file at a path in a working area (O42, chapter 25 section 17.4 put and upload): the first write makes the file entry, each later write adds a version. Working areas keep the newest versions up to the organization's setting; scratch keeps only the latest."
-    },
-    "StorageFolderCreate": {
-      "fields": [
-        {
-          "name": "path",
-          "type": "string",
-          "required": true,
-          "bounds": {
-            "minLength": 2,
-            "maxLength": 4096
-          },
-          "description": "The new folder: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must exist and be writable by the caller."
-        }
-      ],
-      "rules": [
-        "Idempotency-Key is required. An existing folder at the path is returned unchanged; a file there is 409 STATE_CONFLICT reason name_taken."
-      ],
-      "description": "Makes a folder in a working, personal or scratch area. People add folders only in assets, attachments, /shared, workspaces and their own personal folder (section 17.2); everywhere else is refused."
-    },
-    "StorageEntryDestination": {
-      "fields": [
-        {
-          "name": "destinationPath",
-          "type": "string",
-          "required": true,
-          "bounds": {
-            "minLength": 2,
-            "maxLength": 4096
-          },
-          "description": "Where the entry ends up, name included: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must be a folder the caller may write."
-        }
-      ],
-      "rules": [
-        "Idempotency-Key is required; a move also needs a strong If-Match with the entry's version.",
-        "A destination name already taken in that folder is 409 STATE_CONFLICT reason name_taken. Moving a folder into itself is 422."
-      ],
-      "description": "The destination of a copy or a move inside the storage tree. A copy makes a new entry naming the same bytes; a move changes only the entry's parent and name, so nothing pinned to its versions breaks (O34)."
-    },
-    "StorageSettingsPut": {
-      "fields": [
-        {
-          "name": "workingVersionsKept",
-          "type": "integer",
-          "required": true,
-          "bounds": {
-            "min": 1,
-            "max": 1000
-          },
-          "description": "How many versions a working-area file keeps; older ones are removed on the next write. Default 20."
-        },
-        {
-          "name": "trashRetentionDays",
-          "type": "integer",
-          "required": true,
-          "bounds": {
-            "min": 1,
-            "max": 3650
-          },
-          "description": "Days a deleted working file stays in /trash, restorable, before the hourly sweep removes it. Default 30."
-        },
-        {
-          "name": "scratchRetentionDays",
-          "type": "integer",
-          "required": true,
-          "bounds": {
-            "min": 1,
-            "max": 3650
-          },
-          "description": "Days a file in a personal scratch folder lives after its last write before the sweep removes it. Default 30."
-        },
-        {
-          "name": "maxFileBytes",
-          "type": "integer",
-          "required": true,
-          "bounds": {
-            "min": 1,
-            "max": 5368709120
-          },
-          "description": "Largest single file a put accepts, in bytes; at most the 5 GiB blob limit. Default 5 GiB."
-        },
-        {
-          "name": "organizationQuotaBytes",
-          "type": "integer",
-          "required": true,
-          "bounds": {
-            "min": 1,
-            "max": 1125899906842624
-          },
-          "description": "Bytes all working-area files of the organization may hold. Usage warns at 75% and new writes pause at 90%. Default 100 GiB."
-        },
-        {
-          "name": "projectQuotaBytes",
-          "type": "integer",
-          "required": true,
-          "bounds": {
-            "min": 1,
-            "max": 1125899906842624
-          },
-          "description": "Bytes each project's working-area files (assets, workspaces, attachments) may hold, with the same 75% warning and 90% pause. Default 50 GiB."
-        },
-        {
-          "name": "personalQuotaBytes",
-          "type": "integer",
-          "required": true,
-          "bounds": {
-            "min": 1,
-            "max": 1125899906842624
-          },
-          "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB."
-        }
-      ],
-      "rules": [
-        "Organization Admin only. Idempotency-Key is required. The first save needs no If-Match and refuses one; every later save needs a strong If-Match with the settings version (428 when missing, 412 when stale). Every value is replaced; a value outside its bounds is 422 and nothing is stored."
-      ],
-      "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
-    },
-    "RunRequestCreate": {
-      "fields": [
-        {
-          "name": "recipientId",
+          "name": "pullRequestId",
           "type": "uuid",
           "required": true,
-          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
         },
         {
-          "name": "intent",
-          "type": "enum(fyi|review|approve|answer|take_over)",
-          "required": true,
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
-        },
-        {
-          "name": "stepKey",
+          "name": "cursor",
           "type": "string",
           "required": false,
           "bounds": {
-            "minLength": 1,
-            "maxLength": 200
+            "maxBytes": 512
           },
-          "description": "The step the request concerns, or omitted for the run as a whole."
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
         },
         {
-          "name": "note",
-          "type": "string",
+          "name": "limit",
+          "type": "integer",
           "required": false,
           "bounds": {
-            "maxLength": 280
+            "min": 1,
+            "max": 100,
+            "default": 25
           },
-          "description": "Optional one line shown to the person asked."
-        },
-        {
-          "name": "neededBy",
-          "type": "timestamp",
-          "required": false,
-          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
-        },
-        {
-          "name": "questionId",
-          "type": "uuid",
-          "required": false,
-          "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
         }
       ],
+      "pagination": "pagination",
       "rules": [
-        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+      "description": "Filters for listing one pull request's merge attempts, newest first."
+    },
+    "MergeEntryQuery": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases."
+        },
+        {
+          "name": "pullRequestId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to this tracked pull request's merge entries."
+        },
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to the merge entries admitted for this run, so a page can read one run's entry without listing a whole repository's queue."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query. Every filter given must match."
+      ],
+      "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
     },
     "FileSearchQuery": {
       "fields": [
@@ -12243,6 +12155,217 @@
       ],
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
     },
+    "RunRequestCreate": {
+      "fields": [
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": true,
+          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+        },
+        {
+          "name": "intent",
+          "type": "enum(fyi|review|approve|answer|take_over)",
+          "required": true,
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+        },
+        {
+          "name": "stepKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "The step the request concerns, or omitted for the run as a whole."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 280
+          },
+          "description": "Optional one line shown to the person asked."
+        },
+        {
+          "name": "neededBy",
+          "type": "timestamp",
+          "required": false,
+          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
+        },
+        {
+          "name": "questionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
+        }
+      ],
+      "rules": [
+        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
+      ],
+      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+    },
+    "StorageFilePut": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "Where the file goes: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent folder must exist and be in a working, personal (owner only) or scratch area."
+        },
+        {
+          "name": "mediaType",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": "IANA media type the version records and later serves, such as text/markdown or application/octet-stream."
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 1398104
+          },
+          "description": "The file's bytes, base64, for a small file of at most 1 MiB. Send exactly one of content or blobId."
+        },
+        {
+          "name": "blobId",
+          "type": "uuid",
+          "required": false,
+          "description": "A blob a completed resumable upload stored in this organization (blobUploads.complete). This is how a large file is uploaded: upload the bytes, then put the blob at a path. Send exactly one of content or blobId."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. Writing a new file needs no If-Match and refuses one (412). Replacing an existing file needs a strong If-Match with the entry's version (428 when missing, 412 when stale).",
+        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal.",
+        "A parent in a record area, the library, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with a reason; a missing parent, or another member's personal folder, is 404."
+      ],
+      "description": "Writes a file at a path in a working area (O42, chapter 25 section 17.4 put and upload): the first write makes the file entry, each later write adds a version. Working areas keep the newest versions up to the organization's setting; scratch keeps only the latest."
+    },
+    "StorageFolderCreate": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "The new folder: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must exist and be writable by the caller."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. An existing folder at the path is returned unchanged; a file there is 409 STATE_CONFLICT reason name_taken."
+      ],
+      "description": "Makes a folder in a working, personal or scratch area. People add folders only in assets, attachments, /shared, workspaces and their own personal folder (section 17.2); everywhere else is refused."
+    },
+    "StorageEntryDestination": {
+      "fields": [
+        {
+          "name": "destinationPath",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "Where the entry ends up, name included: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must be a folder the caller may write."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required; a move also needs a strong If-Match with the entry's version.",
+        "A destination name already taken in that folder is 409 STATE_CONFLICT reason name_taken. Moving a folder into itself is 422."
+      ],
+      "description": "The destination of a copy or a move inside the storage tree. A copy makes a new entry naming the same bytes; a move changes only the entry's parent and name, so nothing pinned to its versions breaks (O34)."
+    },
+    "StorageSettingsPut": {
+      "fields": [
+        {
+          "name": "workingVersionsKept",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1000
+          },
+          "description": "How many versions a working-area file keeps; older ones are removed on the next write. Default 20."
+        },
+        {
+          "name": "trashRetentionDays",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3650
+          },
+          "description": "Days a deleted working file stays in /trash, restorable, before the hourly sweep removes it. Default 30."
+        },
+        {
+          "name": "scratchRetentionDays",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3650
+          },
+          "description": "Days a file in a personal scratch folder lives after its last write before the sweep removes it. Default 30."
+        },
+        {
+          "name": "maxFileBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 5368709120
+          },
+          "description": "Largest single file a put accepts, in bytes; at most the 5 GiB blob limit. Default 5 GiB."
+        },
+        {
+          "name": "organizationQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes all working-area files of the organization may hold. Usage warns at 75% and new writes pause at 90%. Default 100 GiB."
+        },
+        {
+          "name": "projectQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes each project's working-area files (assets, workspaces, attachments) may hold, with the same 75% warning and 90% pause. Default 50 GiB."
+        },
+        {
+          "name": "personalQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB."
+        }
+      ],
+      "rules": [
+        "Organization Admin only. Idempotency-Key is required. The first save needs no If-Match and refuses one; every later save needs a strong If-Match with the settings version (428 when missing, 412 when stale). Every value is replaced; a value outside its bounds is 422 and nothing is stored."
+      ],
+      "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
+    },
     "StorageFileContentQuery": {
       "fields": [
         {
@@ -12271,88 +12394,6 @@
         "Contents removed by retention or an Admin purge are 410 ARTIFACT_CONTENT_EXPIRED; the version still lists, with contentRemoved."
       ],
       "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
-    },
-    "MergeAttemptQuery": {
-      "fields": [
-        {
-          "name": "pullRequestId",
-          "type": "uuid",
-          "required": true,
-          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
-        }
-      ],
-      "pagination": "pagination",
-      "rules": [
-        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
-      ],
-      "description": "Filters for listing one pull request's merge attempts, newest first."
-    },
-    "MergeEntryQuery": {
-      "fields": [
-        {
-          "name": "repositoryId",
-          "type": "uuid",
-          "required": false,
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases."
-        },
-        {
-          "name": "pullRequestId",
-          "type": "uuid",
-          "required": false,
-          "description": "Restrict results to this tracked pull request's merge entries."
-        },
-        {
-          "name": "runId",
-          "type": "uuid",
-          "required": false,
-          "description": "Restrict results to the merge entries admitted for this run, so a page can read one run's entry without listing a whole repository's queue."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
-        }
-      ],
-      "pagination": "pagination",
-      "rules": [
-        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query. Every filter given must match."
-      ],
-      "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
     },
     "McpToolClassificationPut": {
       "fields": [
@@ -26164,132 +26205,6 @@
     "Page<TicketRequest>": {
       "pageOf": "TicketRequest"
     },
-    "TicketRequestView": {
-      "projection": "ticket_requests",
-      "fields": [
-        "id",
-        "externalTicketId",
-        "ticketTaskLinkId",
-        "intent",
-        "origin",
-        "requestedByPrincipalId",
-        "triggerLabelName",
-        "disposition",
-        "dispositionReasonCode",
-        "pausedAt",
-        "pausedReason",
-        "progress",
-        "workflowRunId",
-        "createdAt",
-        "updatedAt",
-        "version",
-        "targets"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "externalTicketId": "uuid",
-        "ticketTaskLinkId": "uuid",
-        "intent": "enum(plan|start)",
-        "origin": "enum(manual|adoption|webhook|poll)",
-        "requestedByPrincipalId": "uuid|null",
-        "triggerLabelName": "string|null",
-        "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
-        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
-        "pausedAt": "timestamp|null",
-        "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
-        "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
-        "workflowRunId": "uuid|null",
-        "createdAt": "timestamp",
-        "updatedAt": "timestamp",
-        "version": "integer",
-        "targets": "TicketRequestViewTarget[]"
-      },
-      "nullableFields": [
-        "requestedByPrincipalId",
-        "triggerLabelName",
-        "dispositionReasonCode",
-        "pausedAt",
-        "pausedReason",
-        "workflowRunId"
-      ],
-      "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
-      "fieldDescriptions": {
-        "id": "Stable UUID of this ticket request.",
-        "externalTicketId": "External ticket this request admitted.",
-        "ticketTaskLinkId": "Link between the ticket and the task this request owns.",
-        "intent": "Requested scope: plan stops after the plan for review, start plans and then runs.",
-        "origin": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync.",
-        "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
-        "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
-        "disposition": "Stored lifecycle state of the request.",
-        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
-        "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
-        "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
-        "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
-        "workflowRunId": "Workflow run the request owns; null before one starts.",
-        "createdAt": "When the request was admitted.",
-        "updatedAt": "When the request last changed.",
-        "version": "Monotonic revision of the request.",
-        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
-      }
-    },
-    "Page<TicketRequestView>": {
-      "pageOf": "TicketRequestView"
-    },
-    "TicketRequestViewTarget": {
-      "projection": "ticket_request_targets",
-      "fields": [
-        "repositoryId",
-        "role",
-        "routingRuleId",
-        "routingRuleVersion",
-        "childTaskId"
-      ],
-      "fieldTypes": {
-        "repositoryId": "uuid",
-        "role": "string",
-        "routingRuleId": "uuid|null",
-        "routingRuleVersion": "integer|null",
-        "childTaskId": "uuid|null"
-      },
-      "nullableFields": [
-        "routingRuleId",
-        "routingRuleVersion",
-        "childTaskId"
-      ],
-      "description": "One repository a ticket request was routed to, as pinned at admission.",
-      "fieldDescriptions": {
-        "repositoryId": "Repository this target is scoped to.",
-        "role": "Role the repository plays; default for the fallback to the source's own repository.",
-        "routingRuleId": "Rule that routed the ticket here as pinned at admission, or null for the fallback.",
-        "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
-        "childTaskId": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
-      }
-    },
-    "TicketSourceLabel": {
-      "fields": [
-        "id",
-        "name",
-        "color"
-      ],
-      "fieldTypes": {
-        "id": "string",
-        "name": "string",
-        "color": "string|null"
-      },
-      "nullableFields": [
-        "color"
-      ],
-      "description": "One label the ticket source's provider holds, read live (#69).",
-      "fieldDescriptions": {
-        "id": "The provider's stable, opaque label id; the value a routing rule stores, which survives a rename.",
-        "name": "The label's current name.",
-        "color": "The label's colour as six hex digits without a leading #, or null when the provider gives none."
-      }
-    },
-    "Page<TicketSourceLabel>": {
-      "pageOf": "TicketSourceLabel"
-    },
     "PluginPackage": {
       "projection": "plugin_packages",
       "fields": [
@@ -26813,114 +26728,6 @@
         "reconciliationId": "Stable UUID linking this record to the related reconciliation entity.",
         "effectId": "Stable UUID linking this record to the related effect entity.",
         "status": "Current lifecycle status of the record."
-      }
-    },
-    "TicketPreviewResult": {
-      "fields": [
-        "sourceId",
-        "policyRevision",
-        "draft",
-        "evaluatedAt",
-        "counts",
-        "issues",
-        "skipped"
-      ],
-      "fieldTypes": {
-        "sourceId": "uuid",
-        "policyRevision": "integer",
-        "draft": "boolean",
-        "evaluatedAt": "timestamp",
-        "counts": "TicketPreviewCounts",
-        "issues": "TicketPreviewIssue[]",
-        "skipped": "integer"
-      },
-      "description": "What ticketSources.preview computed for one ticket source: how each evaluated issue would be judged under the saved or draft policy, and the totals. Nothing behind it is stored, so a second preview evaluates again from fresh provider reads.",
-      "fieldDescriptions": {
-        "sourceId": "The ticket source the preview evaluated.",
-        "policyRevision": "The saved policy revision at evaluation time. A draft is judged against the source as it is at this revision and would advance it once saved.",
-        "draft": "True when the request carried a draft policy and the answer describes it; false when it describes the saved policy.",
-        "evaluatedAt": "Server time the evaluation ran; the answer describes the issues as the provider returned them just before it.",
-        "counts": "Totals over issues, one bucket per issue.",
-        "issues": "One entry per evaluated issue in provider list order (or in the order of filters.numbers), at most 25.",
-        "skipped": "Issues that were read but could not be evaluated, for example one whose read failed mid-page; they are in no count."
-      },
-      "fieldBounds": {
-        "issues": {
-          "maxItems": 25
-        },
-        "skipped": {
-          "min": 0
-        }
-      }
-    },
-    "TicketPreviewCounts": {
-      "fields": [
-        "wouldStart",
-        "planOnly",
-        "held",
-        "blocked"
-      ],
-      "fieldTypes": {
-        "wouldStart": "integer",
-        "planOnly": "integer",
-        "held": "integer",
-        "blocked": "integer"
-      },
-      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
-      "fieldDescriptions": {
-        "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
-        "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
-        "held": "Issues carrying the hold label; the hold wins over every other label.",
-        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
-      },
-      "fieldBounds": {
-        "wouldStart": {
-          "min": 0
-        },
-        "planOnly": {
-          "min": 0
-        },
-        "held": {
-          "min": 0
-        },
-        "blocked": {
-          "min": 0
-        }
-      }
-    },
-    "TicketPreviewIssue": {
-      "fields": [
-        "number",
-        "title",
-        "outcome",
-        "verdict",
-        "reasons"
-      ],
-      "fieldTypes": {
-        "number": "integer",
-        "title": "string|null",
-        "outcome": "enum(would_start|plan_only|held|blocked)",
-        "verdict": "enum(ready|waiting|rejected)",
-        "reasons": "string[]"
-      },
-      "nullableFields": [
-        "title"
-      ],
-      "description": "How one issue would be judged by the previewed policy, as a poll would judge it: its bucket, the readiness verdict and the reason codes of every check that did not pass.",
-      "fieldDescriptions": {
-        "number": "The issue number on the provider.",
-        "title": "The issue title as read, or null when the issue could not be read (gone, moved or a pull request).",
-        "outcome": "would_start or plan_only when every check passes (by the label's intent), held when the hold label is present, blocked otherwise.",
-        "verdict": "The readiness verdict the evaluation produced: ready when every check passes, rejected when any check rejects, waiting otherwise.",
-        "reasons": "Distinct TicketReasonCode values of the checks that did not pass, in check order; empty when the verdict is ready."
-      },
-      "fieldBounds": {
-        "number": {
-          "min": 1
-        },
-        "reasons": {
-          "maxItems": 12
-        }
       }
     },
     "TicketOperationReceipt": {
@@ -30283,40 +30090,6 @@
         "createdAt": "When the note was recorded."
       }
     },
-    "AgentPowerGrant": {
-      "fields": [
-        "id",
-        "power",
-        "workflowId",
-        "accessTokenId",
-        "grantedBy",
-        "createdAt",
-        "version"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "power": "enum(decide|run_control|run_start|steer|steer_reviewer)",
-        "workflowId": "uuid|null",
-        "accessTokenId": "uuid|null",
-        "grantedBy": "uuid",
-        "createdAt": "timestamp",
-        "version": "integer"
-      },
-      "nullableFields": [
-        "workflowId",
-        "accessTokenId"
-      ],
-      "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
-      "fieldDescriptions": {
-        "id": "Stable UUID identifying the grant.",
-        "power": "The power granted: decide, run_control, run_start, steer or steer_reviewer.",
-        "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
-        "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
-        "grantedBy": "Person who made the grant.",
-        "createdAt": "When the grant was made.",
-        "version": "Optimistic-concurrency version a revoke must name in If-Match."
-      }
-    },
     "RouteContinuationTarget": {
       "fields": [
         "routeId",
@@ -30403,6 +30176,339 @@
       "fieldDescriptions": {
         "runId": "UUID of the run these offers belong to.",
         "offers": "The open choices, empty when no step of the run is stalled behind an incident."
+      }
+    },
+    "RouteContinuationPin": {
+      "fields": [
+        "provider",
+        "model",
+        "billingRoute",
+        "billingAccountId"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "provider": "string",
+        "model": "string",
+        "billingRoute": "enum(api|subscription)",
+        "billingAccountId": "string"
+      },
+      "description": "What a step runs on: the provider, model, billing route and billing account of its pin. A continuation records the pin the step had and the pin it now has.",
+      "fieldDescriptions": {
+        "provider": "Provider key the step sends to.",
+        "model": "Model identifier the step runs.",
+        "billingRoute": "Billing route the step's spend follows: api or subscription.",
+        "billingAccountId": "Provider billing account the step's spend is attributed to."
+      }
+    },
+    "RouteContinuation": {
+      "fields": [
+        "id",
+        "runId",
+        "runStepId",
+        "jobId",
+        "incidentId",
+        "incidentGeneration",
+        "sourceRouteId",
+        "targetRouteId",
+        "previousPin",
+        "newPin",
+        "admittedAt"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "runStepId": "uuid",
+        "jobId": "uuid",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "sourceRouteId": "uuid",
+        "targetRouteId": "uuid",
+        "previousPin": "RouteContinuationPin",
+        "newPin": "RouteContinuationPin",
+        "admittedAt": "timestamp"
+      },
+      "description": "The record that a stalled step was continued on another route. The old attempt is fenced, the job is queued again on the new pin, and the step's one budget reservation is re-priced in place, so no second reservation exists and none is left held. Both the pin the step had and the pin it now has are kept.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this continuation.",
+        "runId": "UUID of the run the step belongs to.",
+        "runStepId": "UUID of the step that was continued.",
+        "jobId": "UUID of the step's job that was moved (the earliest, when a step has several live jobs; all were moved).",
+        "incidentId": "UUID of the incident the choice was made against.",
+        "incidentGeneration": "Generation of that incident when the choice was admitted.",
+        "sourceRouteId": "UUID of the route the step was pinned to.",
+        "targetRouteId": "UUID of the route it now runs on.",
+        "previousPin": "The provider, model, billing route and billing account the step had before.",
+        "newPin": "The provider, model, billing route and billing account the step has now.",
+        "admittedAt": "UTC timestamp at which the continuation was admitted."
+      }
+    },
+    "TicketRequestView": {
+      "projection": "ticket_requests",
+      "fields": [
+        "id",
+        "externalTicketId",
+        "ticketTaskLinkId",
+        "intent",
+        "origin",
+        "requestedByPrincipalId",
+        "triggerLabelName",
+        "disposition",
+        "dispositionReasonCode",
+        "pausedAt",
+        "pausedReason",
+        "progress",
+        "workflowRunId",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "targets"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "externalTicketId": "uuid",
+        "ticketTaskLinkId": "uuid",
+        "intent": "enum(plan|start)",
+        "origin": "enum(manual|adoption|webhook|poll)",
+        "requestedByPrincipalId": "uuid|null",
+        "triggerLabelName": "string|null",
+        "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
+        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
+        "pausedAt": "timestamp|null",
+        "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
+        "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
+        "workflowRunId": "uuid|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer",
+        "targets": "TicketRequestViewTarget[]"
+      },
+      "nullableFields": [
+        "requestedByPrincipalId",
+        "triggerLabelName",
+        "dispositionReasonCode",
+        "pausedAt",
+        "pausedReason",
+        "workflowRunId"
+      ],
+      "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this ticket request.",
+        "externalTicketId": "External ticket this request admitted.",
+        "ticketTaskLinkId": "Link between the ticket and the task this request owns.",
+        "intent": "Requested scope: plan stops after the plan for review, start plans and then runs.",
+        "origin": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync.",
+        "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
+        "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
+        "disposition": "Stored lifecycle state of the request.",
+        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
+        "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
+        "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
+        "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
+        "workflowRunId": "Workflow run the request owns; null before one starts.",
+        "createdAt": "When the request was admitted.",
+        "updatedAt": "When the request last changed.",
+        "version": "Monotonic revision of the request.",
+        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
+      }
+    },
+    "Page<TicketRequestView>": {
+      "pageOf": "TicketRequestView"
+    },
+    "TicketRequestViewTarget": {
+      "projection": "ticket_request_targets",
+      "fields": [
+        "repositoryId",
+        "role",
+        "routingRuleId",
+        "routingRuleVersion",
+        "childTaskId"
+      ],
+      "fieldTypes": {
+        "repositoryId": "uuid",
+        "role": "string",
+        "routingRuleId": "uuid|null",
+        "routingRuleVersion": "integer|null",
+        "childTaskId": "uuid|null"
+      },
+      "nullableFields": [
+        "routingRuleId",
+        "routingRuleVersion",
+        "childTaskId"
+      ],
+      "description": "One repository a ticket request was routed to, as pinned at admission.",
+      "fieldDescriptions": {
+        "repositoryId": "Repository this target is scoped to.",
+        "role": "Role the repository plays; default for the fallback to the source's own repository.",
+        "routingRuleId": "Rule that routed the ticket here as pinned at admission, or null for the fallback.",
+        "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
+        "childTaskId": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
+      }
+    },
+    "TicketSourceLabel": {
+      "fields": [
+        "id",
+        "name",
+        "color"
+      ],
+      "fieldTypes": {
+        "id": "string",
+        "name": "string",
+        "color": "string|null"
+      },
+      "nullableFields": [
+        "color"
+      ],
+      "description": "One label the ticket source's provider holds, read live (#69).",
+      "fieldDescriptions": {
+        "id": "The provider's stable, opaque label id; the value a routing rule stores, which survives a rename.",
+        "name": "The label's current name.",
+        "color": "The label's colour as six hex digits without a leading #, or null when the provider gives none."
+      }
+    },
+    "Page<TicketSourceLabel>": {
+      "pageOf": "TicketSourceLabel"
+    },
+    "TicketPreviewResult": {
+      "fields": [
+        "sourceId",
+        "policyRevision",
+        "draft",
+        "evaluatedAt",
+        "counts",
+        "issues",
+        "skipped"
+      ],
+      "fieldTypes": {
+        "sourceId": "uuid",
+        "policyRevision": "integer",
+        "draft": "boolean",
+        "evaluatedAt": "timestamp",
+        "counts": "TicketPreviewCounts",
+        "issues": "TicketPreviewIssue[]",
+        "skipped": "integer"
+      },
+      "description": "What ticketSources.preview computed for one ticket source: how each evaluated issue would be judged under the saved or draft policy, and the totals. Nothing behind it is stored, so a second preview evaluates again from fresh provider reads.",
+      "fieldDescriptions": {
+        "sourceId": "The ticket source the preview evaluated.",
+        "policyRevision": "The saved policy revision at evaluation time. A draft is judged against the source as it is at this revision and would advance it once saved.",
+        "draft": "True when the request carried a draft policy and the answer describes it; false when it describes the saved policy.",
+        "evaluatedAt": "Server time the evaluation ran; the answer describes the issues as the provider returned them just before it.",
+        "counts": "Totals over issues, one bucket per issue.",
+        "issues": "One entry per evaluated issue in provider list order (or in the order of filters.numbers), at most 25.",
+        "skipped": "Issues that were read but could not be evaluated, for example one whose read failed mid-page; they are in no count."
+      },
+      "fieldBounds": {
+        "issues": {
+          "maxItems": 25
+        },
+        "skipped": {
+          "min": 0
+        }
+      }
+    },
+    "TicketPreviewCounts": {
+      "fields": [
+        "wouldStart",
+        "planOnly",
+        "held",
+        "blocked"
+      ],
+      "fieldTypes": {
+        "wouldStart": "integer",
+        "planOnly": "integer",
+        "held": "integer",
+        "blocked": "integer"
+      },
+      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
+      "fieldDescriptions": {
+        "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
+        "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
+        "held": "Issues carrying the hold label; the hold wins over every other label.",
+        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
+      },
+      "fieldBounds": {
+        "wouldStart": {
+          "min": 0
+        },
+        "planOnly": {
+          "min": 0
+        },
+        "held": {
+          "min": 0
+        },
+        "blocked": {
+          "min": 0
+        }
+      }
+    },
+    "TicketPreviewIssue": {
+      "fields": [
+        "number",
+        "title",
+        "outcome",
+        "verdict",
+        "reasons"
+      ],
+      "fieldTypes": {
+        "number": "integer",
+        "title": "string|null",
+        "outcome": "enum(would_start|plan_only|held|blocked)",
+        "verdict": "enum(ready|waiting|rejected)",
+        "reasons": "string[]"
+      },
+      "nullableFields": [
+        "title"
+      ],
+      "description": "How one issue would be judged by the previewed policy, as a poll would judge it: its bucket, the readiness verdict and the reason codes of every check that did not pass.",
+      "fieldDescriptions": {
+        "number": "The issue number on the provider.",
+        "title": "The issue title as read, or null when the issue could not be read (gone, moved or a pull request).",
+        "outcome": "would_start or plan_only when every check passes (by the label's intent), held when the hold label is present, blocked otherwise.",
+        "verdict": "The readiness verdict the evaluation produced: ready when every check passes, rejected when any check rejects, waiting otherwise.",
+        "reasons": "Distinct TicketReasonCode values of the checks that did not pass, in check order; empty when the verdict is ready."
+      },
+      "fieldBounds": {
+        "number": {
+          "min": 1
+        },
+        "reasons": {
+          "maxItems": 12
+        }
+      }
+    },
+    "AgentPowerGrant": {
+      "fields": [
+        "id",
+        "power",
+        "workflowId",
+        "accessTokenId",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "power": "enum(decide|run_control|run_start|steer|steer_reviewer)",
+        "workflowId": "uuid|null",
+        "accessTokenId": "uuid|null",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "workflowId",
+        "accessTokenId"
+      ],
+      "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "power": "The power granted: decide, run_control, run_start, steer or steer_reviewer.",
+        "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
+        "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
+        "grantedBy": "Person who made the grant.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
       }
     },
     "GroupMember": {
@@ -30690,6 +30796,221 @@
         "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
       }
     },
+    "Page<MergeAttempt>": {
+      "pageOf": "MergeAttempt",
+      "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "FileSearchHit": {
+      "fields": [
+        "source",
+        "entryId",
+        "path",
+        "name",
+        "kind",
+        "mediaType",
+        "mediaGroup",
+        "sizeBytes",
+        "versionId",
+        "producerId",
+        "producerKind",
+        "producerName",
+        "producerTaskId",
+        "producerTaskTitle",
+        "nameMatchStart",
+        "nameMatchLength",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "source": "enum(files|library)",
+        "entryId": "uuid|null",
+        "path": "string",
+        "name": "string",
+        "kind": "string",
+        "mediaType": "string|null",
+        "mediaGroup": "enum(text|image|video|audio|data|archive|other)|null",
+        "sizeBytes": "integer|null",
+        "versionId": "uuid|null",
+        "producerId": "uuid|null",
+        "producerKind": "enum(person|step)|null",
+        "producerName": "string|null",
+        "producerTaskId": "uuid|null",
+        "producerTaskTitle": "string|null",
+        "nameMatchStart": "integer|null",
+        "nameMatchLength": "integer|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "entryId",
+        "mediaType",
+        "mediaGroup",
+        "sizeBytes",
+        "versionId",
+        "producerId",
+        "producerKind",
+        "producerName",
+        "producerTaskId",
+        "producerTaskTitle",
+        "nameMatchStart",
+        "nameMatchLength"
+      ],
+      "description": "One file or library item matched by files.search, with its absolute path, so a caller can open it by path or by the ids shown.",
+      "fieldDescriptions": {
+        "source": "Where the hit lives: the organization's file tree, or the read-only library mirror.",
+        "entryId": "Stable UUID of the file's tree entry; null for a library item, which is shown by path.",
+        "path": "Absolute path of the hit in the tree, for example /projects/<project>/artifacts/<work item>/plan.md or /library/skills/<slug>.",
+        "name": "Name of the file or library item.",
+        "kind": "The artifact type of a file, or the library kind of a library item.",
+        "mediaType": "Media type of the file's current version; null for a library item or a file with no current version.",
+        "mediaGroup": "Plain group of the file's media type (text, image, video, audio, data, archive or other); null for a library item or a file with no current version.",
+        "sizeBytes": "Size in bytes of the file's current version; null for a library item or a file with no current version.",
+        "versionId": "Stable UUID of the file's current version, the one a run would pin; null for a library item or a file with no current version.",
+        "producerId": "Stable UUID of the principal that authored the file's current version; null for a library item.",
+        "producerKind": "Whether the file's current version was made by a person or by a step of a run; null for a library item.",
+        "producerName": "The person's display name, or the step's key for a step; null for a library item.",
+        "producerTaskId": "For a step, the work item (task) its run belongs to; null otherwise.",
+        "producerTaskTitle": "For a step, the title of that work item; null otherwise.",
+        "nameMatchStart": "Zero-based position in the name where the query first matches, case-insensitively, so a page can mark the match; null when the search had no text or the position is not exact.",
+        "nameMatchLength": "Length of the matched text in the name; null with nameMatchStart.",
+        "createdAt": "UTC timestamp when the entry or library item was created."
+      }
+    },
+    "LibraryEntry": {
+      "fields": [
+        "type",
+        "path",
+        "name",
+        "kind",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "type": "enum(folder|item)",
+        "path": "string",
+        "name": "string",
+        "kind": "string|null",
+        "createdAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "kind",
+        "createdAt"
+      ],
+      "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path.",
+      "fieldDescriptions": {
+        "type": "folder for a section, item for a published catalog item.",
+        "path": "Absolute path: /library/<section> or /library/<section>/<slug>.",
+        "name": "Display name of the section or item.",
+        "kind": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder.",
+        "createdAt": "UTC time the catalog item was created; null for a folder."
+      }
+    },
+    "Page<FileSearchHit>": {
+      "pageOf": "FileSearchHit",
+      "description": "Cursor page of file search hits, newest first, returned by GET /v1/files/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "Page<LibraryEntry>": {
+      "pageOf": "LibraryEntry",
+      "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "RunRequestPerson": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "nullableFields": [],
+      "description": "A person named on a request: stable identity and saved display name.",
+      "fieldDescriptions": {
+        "principalId": "Stable principal UUID.",
+        "displayName": "The person's saved display name."
+      }
+    },
+    "RunRequest": {
+      "projection": "person_requests",
+      "fields": [
+        "id",
+        "runId",
+        "stepKey",
+        "intent",
+        "recipient",
+        "askedBy",
+        "askedByKind",
+        "note",
+        "neededBy",
+        "status",
+        "expiresAt",
+        "ownerFallback",
+        "fallbackForName",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "questionId"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "stepKey": "string|null",
+        "intent": "enum(fyi|review|approve|answer|take_over)",
+        "recipient": "RunRequestPerson",
+        "askedBy": "RunRequestPerson|null",
+        "askedByKind": "enum(person|agent|workflow)",
+        "note": "string|null",
+        "neededBy": "timestamp|null",
+        "status": "enum(open|answered|handled|expired|withdrawn)",
+        "expiresAt": "timestamp",
+        "ownerFallback": "boolean",
+        "fallbackForName": "string|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer",
+        "questionId": "uuid|null"
+      },
+      "nullableFields": [
+        "stepKey",
+        "askedBy",
+        "note",
+        "neededBy",
+        "fallbackForName",
+        "questionId"
+      ],
+      "description": "A request: one person asked for one thing on one run, with how it stands.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the request.",
+        "runId": "The run the request is on.",
+        "stepKey": "The step it concerns, or null for the run as a whole.",
+        "intent": "What was asked for.",
+        "recipient": "The person asked, frozen when the request was made.",
+        "askedBy": "The person who asked, or null when the asker no longer exists.",
+        "askedByKind": "Whether a person, an agent or a workflow's own step asked.",
+        "note": "The optional one-line note, or null.",
+        "neededBy": "The optional deadline, or null.",
+        "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
+        "expiresAt": "UTC time the request expires; silence never approves.",
+        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
+        "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
+        "createdAt": "UTC time the request was made.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Optimistic-concurrency version used as If-Match.",
+        "questionId": "The approval or question the request asks about, or null when it asks for none."
+      },
+      "optionalFields": [
+        "questionId"
+      ]
+    },
+    "RunRequests": {
+      "fields": [
+        "requests"
+      ],
+      "fieldTypes": {
+        "requests": "RunRequest[]"
+      },
+      "nullableFields": [],
+      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first.",
+      "fieldDescriptions": {
+        "requests": "Requests in newest-first order; bounded to the most recent fifty."
+      }
+    },
     "StorageEntry": {
       "fields": [
         "id",
@@ -30850,258 +31171,6 @@
         "bytesRemoved": "Bytes of working-area versions deleted. Zero when the purge is queued."
       }
     },
-    "SkillUseGrant": {
-      "fields": [
-        "id",
-        "skillId",
-        "skillVersionId",
-        "workflowId",
-        "workflowName",
-        "stepPath",
-        "grantedBy",
-        "createdAt",
-        "version"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "skillId": "uuid",
-        "skillVersionId": "uuid",
-        "workflowId": "uuid",
-        "workflowName": "string",
-        "stepPath": "string",
-        "grantedBy": "uuid",
-        "createdAt": "timestamp",
-        "version": "integer"
-      },
-      "nullableFields": [],
-      "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
-      "fieldDescriptions": {
-        "id": "Stable UUID identifying the grant.",
-        "skillId": "Stable UUID of the personal skill the grant is for.",
-        "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
-        "workflowId": "Stable UUID of the workflow the skill was attached to.",
-        "workflowName": "Display name of that workflow, so the owner can recognise it.",
-        "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
-        "grantedBy": "Person who confirmed the grant, always the skill owner.",
-        "createdAt": "When the grant was made.",
-        "version": "Optimistic-concurrency version a stop must name in If-Match."
-      }
-    },
-    "Page<SkillUseGrant>": {
-      "pageOf": "SkillUseGrant",
-      "description": "Cursor page of SkillUseGrant rows in the collection's stable sort order. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
-    },
-    "RunRequestPerson": {
-      "fields": [
-        "principalId",
-        "displayName"
-      ],
-      "fieldTypes": {
-        "principalId": "uuid",
-        "displayName": "string"
-      },
-      "nullableFields": [],
-      "description": "A person named on a request: stable identity and saved display name.",
-      "fieldDescriptions": {
-        "principalId": "Stable principal UUID.",
-        "displayName": "The person's saved display name."
-      }
-    },
-    "RunRequest": {
-      "projection": "person_requests",
-      "fields": [
-        "id",
-        "runId",
-        "stepKey",
-        "intent",
-        "recipient",
-        "askedBy",
-        "askedByKind",
-        "note",
-        "neededBy",
-        "status",
-        "expiresAt",
-        "ownerFallback",
-        "fallbackForName",
-        "createdAt",
-        "updatedAt",
-        "version",
-        "questionId"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "runId": "uuid",
-        "stepKey": "string|null",
-        "intent": "enum(fyi|review|approve|answer|take_over)",
-        "recipient": "RunRequestPerson",
-        "askedBy": "RunRequestPerson|null",
-        "askedByKind": "enum(person|agent|workflow)",
-        "note": "string|null",
-        "neededBy": "timestamp|null",
-        "status": "enum(open|answered|handled|expired|withdrawn)",
-        "expiresAt": "timestamp",
-        "ownerFallback": "boolean",
-        "fallbackForName": "string|null",
-        "createdAt": "timestamp",
-        "updatedAt": "timestamp",
-        "version": "integer",
-        "questionId": "uuid|null"
-      },
-      "nullableFields": [
-        "stepKey",
-        "askedBy",
-        "note",
-        "neededBy",
-        "fallbackForName",
-        "questionId"
-      ],
-      "description": "A request: one person asked for one thing on one run, with how it stands.",
-      "fieldDescriptions": {
-        "id": "Stable UUID of the request.",
-        "runId": "The run the request is on.",
-        "stepKey": "The step it concerns, or null for the run as a whole.",
-        "intent": "What was asked for.",
-        "recipient": "The person asked, frozen when the request was made.",
-        "askedBy": "The person who asked, or null when the asker no longer exists.",
-        "askedByKind": "Whether a person, an agent or a workflow's own step asked.",
-        "note": "The optional one-line note, or null.",
-        "neededBy": "The optional deadline, or null.",
-        "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
-        "expiresAt": "UTC time the request expires; silence never approves.",
-        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
-        "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
-        "createdAt": "UTC time the request was made.",
-        "updatedAt": "UTC time it last changed.",
-        "version": "Optimistic-concurrency version used as If-Match.",
-        "questionId": "The approval or question the request asks about, or null when it asks for none."
-      },
-      "optionalFields": [
-        "questionId"
-      ]
-    },
-    "RunRequests": {
-      "fields": [
-        "requests"
-      ],
-      "fieldTypes": {
-        "requests": "RunRequest[]"
-      },
-      "nullableFields": [],
-      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first.",
-      "fieldDescriptions": {
-        "requests": "Requests in newest-first order; bounded to the most recent fifty."
-      }
-    },
-    "FileSearchHit": {
-      "fields": [
-        "source",
-        "entryId",
-        "path",
-        "name",
-        "kind",
-        "mediaType",
-        "mediaGroup",
-        "sizeBytes",
-        "versionId",
-        "producerId",
-        "producerKind",
-        "producerName",
-        "producerTaskId",
-        "producerTaskTitle",
-        "nameMatchStart",
-        "nameMatchLength",
-        "createdAt"
-      ],
-      "fieldTypes": {
-        "source": "enum(files|library)",
-        "entryId": "uuid|null",
-        "path": "string",
-        "name": "string",
-        "kind": "string",
-        "mediaType": "string|null",
-        "mediaGroup": "enum(text|image|video|audio|data|archive|other)|null",
-        "sizeBytes": "integer|null",
-        "versionId": "uuid|null",
-        "producerId": "uuid|null",
-        "producerKind": "enum(person|step)|null",
-        "producerName": "string|null",
-        "producerTaskId": "uuid|null",
-        "producerTaskTitle": "string|null",
-        "nameMatchStart": "integer|null",
-        "nameMatchLength": "integer|null",
-        "createdAt": "timestamp"
-      },
-      "nullableFields": [
-        "entryId",
-        "mediaType",
-        "mediaGroup",
-        "sizeBytes",
-        "versionId",
-        "producerId",
-        "producerKind",
-        "producerName",
-        "producerTaskId",
-        "producerTaskTitle",
-        "nameMatchStart",
-        "nameMatchLength"
-      ],
-      "description": "One file or library item matched by files.search, with its absolute path, so a caller can open it by path or by the ids shown.",
-      "fieldDescriptions": {
-        "source": "Where the hit lives: the organization's file tree, or the read-only library mirror.",
-        "entryId": "Stable UUID of the file's tree entry; null for a library item, which is shown by path.",
-        "path": "Absolute path of the hit in the tree, for example /projects/<project>/artifacts/<work item>/plan.md or /library/skills/<slug>.",
-        "name": "Name of the file or library item.",
-        "kind": "The artifact type of a file, or the library kind of a library item.",
-        "mediaType": "Media type of the file's current version; null for a library item or a file with no current version.",
-        "mediaGroup": "Plain group of the file's media type (text, image, video, audio, data, archive or other); null for a library item or a file with no current version.",
-        "sizeBytes": "Size in bytes of the file's current version; null for a library item or a file with no current version.",
-        "versionId": "Stable UUID of the file's current version, the one a run would pin; null for a library item or a file with no current version.",
-        "producerId": "Stable UUID of the principal that authored the file's current version; null for a library item.",
-        "producerKind": "Whether the file's current version was made by a person or by a step of a run; null for a library item.",
-        "producerName": "The person's display name, or the step's key for a step; null for a library item.",
-        "producerTaskId": "For a step, the work item (task) its run belongs to; null otherwise.",
-        "producerTaskTitle": "For a step, the title of that work item; null otherwise.",
-        "nameMatchStart": "Zero-based position in the name where the query first matches, case-insensitively, so a page can mark the match; null when the search had no text or the position is not exact.",
-        "nameMatchLength": "Length of the matched text in the name; null with nameMatchStart.",
-        "createdAt": "UTC timestamp when the entry or library item was created."
-      }
-    },
-    "LibraryEntry": {
-      "fields": [
-        "type",
-        "path",
-        "name",
-        "kind",
-        "createdAt"
-      ],
-      "fieldTypes": {
-        "type": "enum(folder|item)",
-        "path": "string",
-        "name": "string",
-        "kind": "string|null",
-        "createdAt": "timestamp|null"
-      },
-      "nullableFields": [
-        "kind",
-        "createdAt"
-      ],
-      "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path.",
-      "fieldDescriptions": {
-        "type": "folder for a section, item for a published catalog item.",
-        "path": "Absolute path: /library/<section> or /library/<section>/<slug>.",
-        "name": "Display name of the section or item.",
-        "kind": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder.",
-        "createdAt": "UTC time the catalog item was created; null for a folder."
-      }
-    },
-    "Page<FileSearchHit>": {
-      "pageOf": "FileSearchHit",
-      "description": "Cursor page of file search hits, newest first, returned by GET /v1/files/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
-    },
-    "Page<LibraryEntry>": {
-      "pageOf": "LibraryEntry",
-      "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
-    },
     "StorageFolderItem": {
       "fields": [
         "id",
@@ -31239,27 +31308,6 @@
       "pageOf": "StorageFileVersion",
       "description": "Cursor page of a storage-tree file's versions, newest first, removed ones included. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
     },
-    "StorageFileAtVersion": {
-      "fields": [
-        "file",
-        "versionId",
-        "revision",
-        "isCurrent"
-      ],
-      "fieldTypes": {
-        "file": "StorageFolderItem",
-        "versionId": "uuid",
-        "revision": "integer",
-        "isCurrent": "boolean"
-      },
-      "description": "The storage-tree file a version belongs to, found from the version id alone, with that version's number: what a link to one saved version (for example a memory's source) opens.",
-      "fieldDescriptions": {
-        "file": "The file as the files browser lists it, at its current path; open its history with storageFileVersions.list.",
-        "versionId": "The version that was asked for: a working-area version id or a work item document's artifact version id.",
-        "revision": "That version's number, counting from 1; pass it as revision to storageFiles.content to read this version.",
-        "isCurrent": "True when this version is the one the file shows now."
-      }
-    },
     "StorageFileUse": {
       "fields": [
         "id",
@@ -31299,10 +31347,6 @@
     "Page<StorageFileUse>": {
       "pageOf": "StorageFileUse",
       "description": "Cursor page of the runs that used a storage-tree file, newest first, only those whose work item the caller may open. Only a work item's document can be used by a run; a working-area file lists none. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, offsets or totals."
-    },
-    "Page<MergeAttempt>": {
-      "pageOf": "MergeAttempt",
-      "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "McpToolClassification": {
       "fields": [
@@ -31445,6 +31489,27 @@
         "version": "Optimistic-concurrency version a revoke must name in If-Match."
       }
     },
+    "StorageFileAtVersion": {
+      "fields": [
+        "file",
+        "versionId",
+        "revision",
+        "isCurrent"
+      ],
+      "fieldTypes": {
+        "file": "StorageFolderItem",
+        "versionId": "uuid",
+        "revision": "integer",
+        "isCurrent": "boolean"
+      },
+      "description": "The storage-tree file a version belongs to, found from the version id alone, with that version's number: what a link to one saved version (for example a memory's source) opens.",
+      "fieldDescriptions": {
+        "file": "The file as the files browser lists it, at its current path; open its history with storageFileVersions.list.",
+        "versionId": "The version that was asked for: a working-area version id or a work item document's artifact version id.",
+        "revision": "That version's number, counting from 1; pass it as revision to storageFiles.content to read this version.",
+        "isCurrent": "True when this version is the one the file shows now."
+      }
+    },
     "DesktopSignInStarted": {
       "fields": [
         "id",
@@ -31480,6 +31545,47 @@
         "sessionId": "UUID of the sign-in session it opened; the person sees it as the Bakery app in Active sessions and can revoke it there.",
         "expiresAt": "UTC instant the sign-in ends unless use renews it, as a browser sign-in renews."
       }
+    },
+    "SkillUseGrant": {
+      "fields": [
+        "id",
+        "skillId",
+        "skillVersionId",
+        "workflowId",
+        "workflowName",
+        "stepPath",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "skillId": "uuid",
+        "skillVersionId": "uuid",
+        "workflowId": "uuid",
+        "workflowName": "string",
+        "stepPath": "string",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [],
+      "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "skillId": "Stable UUID of the personal skill the grant is for.",
+        "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
+        "workflowId": "Stable UUID of the workflow the skill was attached to.",
+        "workflowName": "Display name of that workflow, so the owner can recognise it.",
+        "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
+        "grantedBy": "Person who confirmed the grant, always the skill owner.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a stop must name in If-Match."
+      }
+    },
+    "Page<SkillUseGrant>": {
+      "pageOf": "SkillUseGrant",
+      "description": "Cursor page of SkillUseGrant rows in the collection's stable sort order. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
     },
     "WorkflowStepSkill": {
       "fields": [
@@ -32883,6 +32989,15 @@
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "providerRoutes.updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "routeContinuations.admitted": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
