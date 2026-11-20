@@ -1,0 +1,110 @@
+{
+  "schema": "bakery.evidence.scene-states/1",
+  "generatedAt": "2026-11-20T01:11:44.338Z",
+  "distinct": 20,
+  "files": [
+    {
+      "path": "not-found--light--desktop-1440x900.png",
+      "bytes": 73652,
+      "sha256": "6900c06c8a203e02a1108ea653b6944a7d3b7d3e363d7021543676c715f6d3e3"
+    },
+    {
+      "path": "not-found--dark--desktop-1440x900.png",
+      "bytes": 72663,
+      "sha256": "7ac7e50091c23a268ef26277cc5b76e4e2237b2dd84490bd532f2b3cf3ed6ee8"
+    },
+    {
+      "path": "not-found--light--phone-390x844.png",
+      "bytes": 32592,
+      "sha256": "4c8fb8de2ffbfdcf55f805220127c1989fc572a9a42341717f688b33dd09f005"
+    },
+    {
+      "path": "not-found--dark--phone-390x844.png",
+      "bytes": 32214,
+      "sha256": "f77a9202331664b98865dab2dfedd368b02102ff907c4124480fec12e2ad2e98"
+    },
+    {
+      "path": "forbidden--light--desktop-1440x900.png",
+      "bytes": 80460,
+      "sha256": "087c4c0901654395afbec7471511f8292d1ef3ed546721937b59109b93607ac5"
+    },
+    {
+      "path": "forbidden--dark--desktop-1440x900.png",
+      "bytes": 78743,
+      "sha256": "deeea8b10203698bba74b77d14c9bb14c8b6923ff3a974979d10ae02b58b1faf"
+    },
+    {
+      "path": "forbidden--light--phone-390x844.png",
+      "bytes": 39989,
+      "sha256": "69d13394fb3cfbc9b046fdb4162ee2402996f624ac09fda1ef8d74328d52a346"
+    },
+    {
+      "path": "forbidden--dark--phone-390x844.png",
+      "bytes": 38808,
+      "sha256": "e967e2785ee4f0c74b431483e5901487e74aa94477b38eab7f0294df2feb4a78"
+    },
+    {
+      "path": "server-error--light--desktop-1440x900.png",
+      "bytes": 62368,
+      "sha256": "2df0ed2fb2b6c46779b3f5da669c6e504ed61a94c5d3b284f4924f6bd9f17bdf"
+    },
+    {
+      "path": "server-error--dark--desktop-1440x900.png",
+      "bytes": 60344,
+      "sha256": "34e0116e7de3086993e6576011d3e0895a0b0b0607db3e8b715792d59a894522"
+    },
+    {
+      "path": "server-error--light--phone-390x844.png",
+      "bytes": 36614,
+      "sha256": "e7f622db00a4159f694624a2c78c637db1801183d31ce628b7f349b335b26b96"
+    },
+    {
+      "path": "server-error--dark--phone-390x844.png",
+      "bytes": 35434,
+      "sha256": "ed2421a96e393838509141b74217b6dbf9417a5888e3e66ade4e64856a941e11"
+    },
+    {
+      "path": "empty-machines--light--desktop-1440x900.png",
+      "bytes": 84377,
+      "sha256": "1bc4bbcebec0939c2d74890e1335db756bd03745caa16bc3691ff52529b53a74"
+    },
+    {
+      "path": "empty-machines--dark--desktop-1440x900.png",
+      "bytes": 80762,
+      "sha256": "dc74cf06e8b466cf51a7791f3321a0792a0656de0c2a108428f4dd5a2ae7a192"
+    },
+    {
+      "path": "empty-machines--light--phone-390x844.png",
+      "bytes": 39787,
+      "sha256": "134a699354b82c563a872ed73b72a4b48fa76d32ee9e7927729a8959eff22f24"
+    },
+    {
+      "path": "empty-machines--dark--phone-390x844.png",
+      "bytes": 37607,
+      "sha256": "974c7aaaec845a3225ba76955033de6c8ccf74640444c6f57023767d41ea816f"
+    },
+    {
+      "path": "offline--light--desktop-1440x900.png",
+      "bytes": 67303,
+      "sha256": "4a7d7353b0b59c3381773df624553e9e574963483d1f1195018ed628d939708f"
+    },
+    {
+      "path": "offline--dark--desktop-1440x900.png",
+      "bytes": 63815,
+      "sha256": "479abe48d2e14f8f79cbd968a3f8cf62900ca27c4ca1a9793c79ce80935634ba"
+    },
+    {
+      "path": "offline--light--phone-390x844.png",
+      "bytes": 33481,
+      "sha256": "e9d70b5ba9435ac34b07a087a927fc5367ae404aa12920e39dbd445fd8db1fdd"
+    },
+    {
+      "path": "offline--dark--phone-390x844.png",
+      "bytes": 31172,
+      "sha256": "6459c1f28bce56aa9aadb4d31dfef53821ef13f362b23a157c5c779db4887001"
+    }
+  ],
+  "web": "http://127.0.0.1:5199",
+  "api": "http://127.0.0.1:32783",
+  "note": "Real pages on a real stack: a path no route claims, a person who belongs to no organization, a 500 on the page's own read, an organization with no machines, and the API aborted at startup."
+}
