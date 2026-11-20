@@ -17548,7 +17548,8 @@
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
-                  "task.brief"
+                  "task.brief",
+                  "secret.identity.read"
                 ],
                 "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
               }
@@ -65391,7 +65392,8 @@
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
-                "task.brief"
+                "task.brief",
+                "secret.identity.read"
               ],
               "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
             },
@@ -66387,7 +66389,7 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
-            "secretRef": {
+            "identityRef": {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -66395,7 +66397,7 @@
             }
           },
           "required": [
-            "secretRef"
+            "identityRef"
           ],
           "additionalProperties": false,
           "description": "Workflow-owned fixed identity read input. The server may add only its frozen repository execution context after authenticated admission."
@@ -161484,7 +161486,8 @@
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
-                "task.brief"
+                "task.brief",
+                "secret.identity.read"
               ],
               "description": "Registered workflow action name."
             },
@@ -161518,7 +161521,8 @@
                   "reviewer",
                   "integration",
                   "delivery",
-                  "storage"
+                  "storage",
+                  "secret.identity"
                 ],
                 "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
               },
@@ -161643,7 +161647,8 @@
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
-                      "task.brief"
+                      "task.brief",
+                      "secret.identity.read"
                     ],
                     "description": "Registered workflow action name."
                   },
@@ -161677,7 +161682,8 @@
                         "reviewer",
                         "integration",
                         "delivery",
-                        "storage"
+                        "storage",
+                        "secret.identity"
                       ],
                       "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
                     },
@@ -161855,7 +161861,8 @@
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
-                "task.brief"
+                "task.brief",
+                "secret.identity.read"
               ],
               "description": "Registered workflow action the step runs."
             },
@@ -161927,7 +161934,8 @@
                   "reviewer",
                   "integration",
                   "delivery",
-                  "storage"
+                  "storage",
+                  "secret.identity"
                 ],
                 "description": "Capabilities the step's action requires of its agent. Each array item follows this format."
               },
@@ -162126,7 +162134,8 @@
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
-                      "task.brief"
+                      "task.brief",
+                      "secret.identity.read"
                     ],
                     "description": "Registered workflow action the step runs."
                   },
@@ -162198,7 +162207,8 @@
                         "reviewer",
                         "integration",
                         "delivery",
-                        "storage"
+                        "storage",
+                        "secret.identity"
                       ],
                       "description": "Capabilities the step's action requires of its agent. Each array item follows this format."
                     },
@@ -185746,7 +185756,7 @@
                 {
                   "type": "object",
                   "properties": {
-                    "secretRef": {
+                    "identityRef": {
                       "type": "string",
                       "format": "uuid",
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -187924,7 +187934,7 @@
                     }
                   },
                   "required": [
-                    "secretRef"
+                    "identityRef"
                   ],
                   "additionalProperties": false,
                   "description": "Workflow-owned fixed identity read input. The server may add only its frozen repository execution context after authenticated admission."
@@ -236243,6 +236253,44 @@
           "additionalProperties": false,
           "description": "HealthOutput is the pinned worker action output contract."
         },
+        "SecretIdentityOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "completed",
+                "denied",
+                "uncertain"
+              ],
+              "description": "How the one fixed identity read ended: completed, denied before the provider was asked, or uncertain."
+            },
+            "accountId": {
+              "description": "SecretIdentityOutput.accountId output may be omitted by adapters that do not expose it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16
+            },
+            "login": {
+              "description": "SecretIdentityOutput.login output may be omitted by adapters that do not expose it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 39
+            },
+            "code": {
+              "description": "SecretIdentityOutput.code output may be omitted by adapters that do not expose it.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "SecretIdentityOutput is the pinned worker action output contract."
+        },
         "MemoryOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -237395,7 +237443,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:92609cdd6887b8a92c019b307673b5de86d683e7743fffe3d988775985cacbfc",
+  "compatibilityDigest": "sha256:daca708942d3d8366d203f3d2618b47ceaf1943494f7a33d148a93dcbc024d1b",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -260890,7 +260938,8 @@
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
-            "task.brief"
+            "task.brief",
+            "secret.identity.read"
           ],
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -261886,7 +261935,7 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "secretRef": {
+        "identityRef": {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -261894,7 +261943,7 @@
         }
       },
       "required": [
-        "secretRef"
+        "identityRef"
       ],
       "additionalProperties": false,
       "description": "Workflow-owned fixed identity read input. The server may add only its frozen repository execution context after authenticated admission."
@@ -357261,7 +357310,8 @@
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
-            "task.brief"
+            "task.brief",
+            "secret.identity.read"
           ],
           "description": "Registered workflow action name."
         },
@@ -357295,7 +357345,8 @@
               "reviewer",
               "integration",
               "delivery",
-              "storage"
+              "storage",
+              "secret.identity"
             ],
             "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
           },
@@ -357420,7 +357471,8 @@
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
-                  "task.brief"
+                  "task.brief",
+                  "secret.identity.read"
                 ],
                 "description": "Registered workflow action name."
               },
@@ -357454,7 +357506,8 @@
                     "reviewer",
                     "integration",
                     "delivery",
-                    "storage"
+                    "storage",
+                    "secret.identity"
                   ],
                   "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
                 },
@@ -357632,7 +357685,8 @@
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
-            "task.brief"
+            "task.brief",
+            "secret.identity.read"
           ],
           "description": "Registered workflow action the step runs."
         },
@@ -357704,7 +357758,8 @@
               "reviewer",
               "integration",
               "delivery",
-              "storage"
+              "storage",
+              "secret.identity"
             ],
             "description": "Capabilities the step's action requires of its agent. Each array item follows this format."
           },
@@ -357903,7 +357958,8 @@
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
-                  "task.brief"
+                  "task.brief",
+                  "secret.identity.read"
                 ],
                 "description": "Registered workflow action the step runs."
               },
@@ -357975,7 +358031,8 @@
                     "reviewer",
                     "integration",
                     "delivery",
-                    "storage"
+                    "storage",
+                    "secret.identity"
                   ],
                   "description": "Capabilities the step's action requires of its agent. Each array item follows this format."
                 },
@@ -381547,7 +381604,7 @@
             {
               "type": "object",
               "properties": {
-                "secretRef": {
+                "identityRef": {
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -383725,7 +383782,7 @@
                 }
               },
               "required": [
-                "secretRef"
+                "identityRef"
               ],
               "additionalProperties": false,
               "description": "Workflow-owned fixed identity read input. The server may add only its frozen repository execution context after authenticated admission."
@@ -432107,6 +432164,44 @@
       ],
       "additionalProperties": false,
       "description": "HealthOutput is the pinned worker action output contract."
+    },
+    "SecretIdentityOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "denied",
+            "uncertain"
+          ],
+          "description": "How the one fixed identity read ended: completed, denied before the provider was asked, or uncertain."
+        },
+        "accountId": {
+          "description": "SecretIdentityOutput.accountId output may be omitted by adapters that do not expose it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "login": {
+          "description": "SecretIdentityOutput.login output may be omitted by adapters that do not expose it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 39
+        },
+        "code": {
+          "description": "SecretIdentityOutput.code output may be omitted by adapters that do not expose it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "SecretIdentityOutput is the pinned worker action output contract."
     },
     "MemoryOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

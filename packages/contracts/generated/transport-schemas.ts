@@ -8516,7 +8516,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -9292,7 +9292,7 @@ const transportSchemas = {
       "description": "Workflow-owned fixed identity read input. The server may add only its frozen repository execution context after authenticated admission.",
       "fields": [
         {
-          "name": "secretRef",
+          "name": "identityRef",
           "type": "uuid",
           "required": true,
           "description": "Opaque project credential reference resolved only inside the server trust boundary."
@@ -22716,11 +22716,11 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
-        "capabilities": "enum(model|web|paper|git|shell|browser|reviewer|integration|delivery|storage)[]",
+        "capabilities": "enum(model|web|paper|git|shell|browser|reviewer|integration|delivery|storage|secret.identity)[]",
         "cancel": "enum(immediate|cooperative|cooperative_fenced)",
         "retry": "WorkflowActionRetry",
         "effectPolicy": "enum(artifact_only|repository_revision|evidence_only|review_evidence|external_effect_keyed_reconcile|projection_only|external_prepare|external_effect_keyed|none|memory_write|evaluation_write)",
@@ -22761,12 +22761,12 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
         "digest": "sha256|null",
-        "requiredCapabilities": "enum(model|web|paper|git|shell|browser|reviewer|integration|delivery|storage)[]",
+        "requiredCapabilities": "enum(model|web|paper|git|shell|browser|reviewer|integration|delivery|storage|secret.identity)[]",
         "modelBillingRequired": "boolean"
       },
       "description": "Effective agent binding of one top-level workflow step as resolved by validation: which level supplied the agent version, which immutable version it is, and what the step requires of it. It never carries agent configuration, model, billing, prompt or provider.",
@@ -33058,8 +33058,8 @@ const transportSchemas = {
     },
     "secret.identity.read": {
       "inputSchema": "SecretIdentityReadInput",
-      "outputSchema": "SecretIdentityToolResult",
-      "schemaSource": "packages/contracts/src/secret-identity.ts",
+      "outputSchema": "SecretIdentityOutput",
+      "schemaSource": "packages/contracts/src/contracts.ts",
       "capabilities": [
         "secret.identity"
       ],

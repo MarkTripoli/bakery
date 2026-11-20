@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertNotEquals } from "@std/assert";
+import { assertEquals, assertNotEquals } from "@std/assert";
 import { upDurableCoreStack } from "../helpers/durable-core/stack.ts";
 import { killOwnedSystemdUnit } from "../helpers/owned-process-group.ts";
 import {
@@ -26,17 +26,11 @@ type AttemptRow = {
   worker_host_id: string;
 };
 
-const RECOVERY_DETAIL_PREFIX = "PRESET_RECOVERY_DETAIL:";
-
 /**
  * The parent relays only the child's exit code, so a failed assertion names the
  * settled state itself. Ids, generations and idempotency keys only; never the
  * worker credential or the enrollment token.
  */
-function reportDetail(detail: Record<string, unknown>): void {
-  console.error(`${RECOVERY_DETAIL_PREFIX}${JSON.stringify(detail)}`);
-}
-
 /** The heartbeat body a killed worker left in its state directory, if any. */
 async function pendingHeartbeatLeftBehind(
   stateDir: string,
@@ -67,7 +61,7 @@ async function pendingHeartbeatLeftBehind(
 
 Deno.test({
   name:
-    "a killed worker's held implement step is recovered once by the restarted worker",
+    "a killed worker's held implement step is not run again: the plan run fails with the exhausted attempt budget",
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -132,16 +126,25 @@ Deno.test({
         name: firstWorker.name,
       });
       const restarted = worker;
-      await until(
-        "implement held again by the restarted worker",
+      // A plan run gives the effectful implement step one attempt (the action's
+      // registered retry is maxAttempts 1), so a lost attempt is not redelivered:
+      // the restarted worker never takes the step, and the run ends failed with
+      // the exhausted budget named. The flat executor re-ran it once.
+      const terminal = await waitForTerminalRun(
+        stack,
+        world,
+        run,
         180_000,
-        async () =>
-          (await fileExists(`${scriptedDir}/${jobId}.started`))
-            ? true
-            : undefined,
         () => assertWorkerRunning(restarted),
       );
-      const mid = await stack.psql<AttemptRow>(
+      assertEquals(terminal.run_status, "failed");
+      assertEquals(
+        await fileExists(`${scriptedDir}/${jobId}.started`),
+        false,
+        "the restarted worker must not hold the step again",
+      );
+
+      const attempts = await stack.psql<AttemptRow>(
         `select id, attempt_no, status, worker_session_id,
                 worker_session_generation::text as worker_session_generation,
                 worker_host_id
@@ -150,58 +153,25 @@ Deno.test({
           order by attempt_no`,
         [world.organizationId, jobId],
       );
-      try {
-        assert(mid.length >= 2, "the restarted worker took a new attempt");
-        assertNotEquals(
-          mid.at(-1)!.worker_session_id,
-          before[0].worker_session_id,
-        );
-        assertNotEquals(mid.at(-1)!.id, before[0].id);
-      } catch (error) {
-        const host = await stack.psql<{
-          worker_session_id: string | null;
-          worker_session_generation: string;
-        }>(
-          `select worker_session_id,
-                  worker_session_generation::text as worker_session_generation
-             from bakery.worker_hosts
-            where organization_id = $1 and id = $2`,
-          [world.organizationId, before[0].worker_host_id],
-        ).catch(() => []);
-        reportDetail({
-          restart: {
-            killedSessionId: before[0].worker_session_id,
-            pendingAtRelaunch,
-            host: host[0] ?? null,
-            attempts: mid,
-          },
-        });
-        throw error;
-      }
-
-      await Deno.writeTextFile(`${scriptedDir}/${jobId}.release`, "release\n");
-      const terminal = await waitForTerminalRun(
-        stack,
-        world,
-        run,
-        120_000,
-        () => assertWorkerRunning(restarted),
-      );
-      assertEquals(terminal.run_status, "completed");
-
-      const completedAttempts = await stack.psql<{ count: string }>(
-        `select count(*)::text as count from bakery.job_attempts
-          where organization_id = $1 and job_id = $2 and status = 'completed'`,
+      assertEquals(attempts.length, 1, "no second attempt is taken");
+      assertEquals(attempts[0].id, before[0].id);
+      assertNotEquals(attempts[0].status, "completed");
+      const job = await stack.psql<{ status: string }>(
+        `select status from bakery.jobs
+          where organization_id = $1 and id = $2`,
         [world.organizationId, jobId],
       );
-      assertEquals(completedAttempts[0].count, "1");
+      assertEquals(job[0].status, "failed");
       const implementStepId = await presetImplementStepId(stack, world, run);
-      const implement = await stack.psql<{ status: string; output: unknown }>(
-        `select status, output from bakery.run_steps
+      const implement = await stack.psql<
+        { status: string; code: string | null }
+      >(
+        `select status, error->>'code' as code from bakery.run_steps
           where organization_id = $1 and id = $2`,
         [world.organizationId, implementStepId],
       );
-      assertEquals(implement[0].status, "completed");
+      assertEquals(implement[0].status, "failed");
+      assertEquals(implement[0].code, "ATTEMPT_BUDGET_EXHAUSTED");
       const patches = await stack.psql<{ count: string }>(
         `select count(*)::text as count
            from bakery.artifact_versions version
@@ -212,7 +182,7 @@ Deno.test({
             and artifact.artifact_type = 'patch'`,
         [world.organizationId, implementStepId],
       );
-      assertEquals(patches[0].count, "1");
+      assertEquals(patches[0].count, "0");
       const sessions = await stack.psql<{ count: string }>(
         `select count(*)::text as count from bakery.agent_sessions
           where organization_id = $1 and run_step_id = $2`,
@@ -221,13 +191,15 @@ Deno.test({
       assertEquals(sessions[0].count, "1");
 
       console.log(JSON.stringify({
-        evidence: "FIXED_CODING_PRESET_RECOVERY_CONFIRMED",
+        evidence: "FIXED_CODING_PRESET_RECOVERY_REFUSES_REDELIVERY",
         composeProject: stack.project,
         runId: run.runId,
-        attempts: mid.length,
-        completedAttempts: 1,
-        patchArtifactVersions: 1,
+        attempts: attempts.length,
+        runStatus: terminal.run_status,
+        stepCode: implement[0].code,
+        patchArtifactVersions: 0,
         agentSessions: 1,
+        pendingAtRelaunch,
       }));
       await stopPresetWorker(restarted);
       worker = undefined;
