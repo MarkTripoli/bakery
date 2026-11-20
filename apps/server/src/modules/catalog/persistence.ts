@@ -16,8 +16,9 @@ import {
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
-import { assertMayAuthorSkill } from "./skill-scope-guard.ts";
+import { assertMayAuthorSkill, SKILL_VISIBLE_TO } from "./skill-scope-guard.ts";
 import { insertLocalSkillIdentity } from "./skill-identity.ts";
+import { listSkillUsage } from "./skill-usage.ts";
 import { deleteSkillUseGrant, listSkillUseGrants } from "./skill-use-grants.ts";
 import {
   type RunRow,
@@ -38,13 +39,6 @@ export const SKILL_COLUMNS =
   `id, source_id, slug, name, active_version_id, enabled,
   scope, owner_principal_id, copied_from_skill_id, copied_from_version_id,
   created_at, updated_at, version`;
-/**
- * A person sees every shared skill and their own personal (Private) skills, and
- * nobody else's. The one place a personal skill reaches another person is a
- * workflow it is attached to; that path never goes through these reads.
- */
-export const SKILL_VISIBLE_TO = (principalParam: string) =>
-  `(scope <> 'personal' or owner_principal_id = ${principalParam}::uuid)`;
 const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
   run.workflow_version_id, run.skill_source_id, run.repository_profile_id,
   run.repository_profile_revision, run.repository_profile_digest,
@@ -794,6 +788,10 @@ export function createCatalogHandlers(
 
     listSkillUseGrants(context: ActionContext, input: CursorInput) {
       return listSkillUseGrants(context, input, secret);
+    },
+
+    listSkillUsage(context: ActionContext, input: CursorInput) {
+      return listSkillUsage(context, input, secret);
     },
 
     deleteSkillUseGrant(context: ActionContext) {

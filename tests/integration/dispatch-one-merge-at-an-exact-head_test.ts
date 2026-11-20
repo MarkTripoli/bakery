@@ -155,6 +155,12 @@ function openPullRequest(overrides: Partial<GitHubPullRequest> = {}) {
     mergedSha: null,
     updatedAt: "2026-10-01T00:00:00Z",
     url: "https://github.com/acme/widgets/pull/12",
+    openedAt: null,
+    closedAt: null,
+    mergedAt: null,
+    additions: null,
+    deletions: null,
+    changedFiles: null,
     ...overrides,
   };
 }
