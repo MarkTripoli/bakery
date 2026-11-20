@@ -18,8 +18,12 @@ const HEADER_VALUE_FIELD = "headerValue";
 /** An HTTP header name: letters, digits and the usual separators, no spaces. */
 const HEADER_NAME = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,100}$/;
 
-/** A header value is visible text and tabs only: no CR, LF or other control character. */
-const HEADER_VALUE = /^[\t\x20-\x7e\u0080-\uffff]*$/;
+/**
+ * A header value is visible text and tabs only, and only Latin-1: a value with a
+ * line break or other control character, or a character above U+00FF (which a
+ * header cannot carry), is refused on save instead of failing on every send.
+ */
+const HEADER_VALUE = /^[\t\x20-\x7e\u00a0-\u00ff]*$/;
 
 function headersOf(values: DestinationValues): Record<string, string> {
   const name = values[HEADER_NAME_FIELD]?.trim();
@@ -94,7 +98,7 @@ export const otlpProvider: TelemetryProvider = Object.freeze({
     }
     if (value !== "" && !HEADER_VALUE.test(value)) {
       problems[HEADER_VALUE_FIELD] =
-        "The value may not contain line breaks or other control characters.";
+        "The value may use Latin-1 text only: no line breaks, control characters or characters outside it.";
     }
     if (value !== "" && name === "") {
       problems[HEADER_NAME_FIELD] = "Name the header the value is sent in.";

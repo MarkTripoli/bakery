@@ -188,7 +188,18 @@ Deno.test("an IPv4 address in any IPv6 spelling, and the other special ranges, a
 });
 
 Deno.test("a header value with a line break or control character is refused on save", async () => {
-  for (const bad of ["Bearer a\r\nx-evil: 1", "a\nb", "a\u0000b", "a\u007fb"]) {
+  for (
+    const bad of [
+      "Bearer a\r\nx-evil: 1",
+      "a\nb",
+      "a\u0000b",
+      "a\u007fb",
+      // A header carries Latin-1 only: these would save and then fail every send.
+      "Bearer \u2713",
+      "\u0100",
+      "\u4e2d",
+    ]
+  ) {
     const found = await otlpProvider.validate({
       address: "https://collector.example.test",
       headerName: "Authorization",
