@@ -21,11 +21,8 @@ export type DeliveryOptions = {
   /** Tasks delivered at a merge, and at a completed run with no pull request. */
   merged?: number;
   runs?: number;
-  /** Hours by category; blocked is always unknown. */
-  hours?: Record<
-    "agentWorking" | "queue" | "review" | "person" | "unaccounted",
-    number
-  >;
+  /** Every task's recorded intervals cover all of its time: nothing is unaccounted for. */
+  allAccountedFor?: boolean;
 };
 
 const point = (day: number, value: number | null) => ({
@@ -78,16 +75,20 @@ export async function deliveryFixture(
   const count = merged + runs;
   const totals = totalsHours.slice(0, count);
   const split = (total: number) => {
-    const agentWorking = Math.round(total * 0.5);
     const queue = Math.round(total * 0.15);
     const review = Math.round(total * 0.08);
     const person = Math.round(total * 0.17);
+    const rest = total - queue - review - person;
+    // What no record covers is the remainder, or nothing when all is covered.
+    const agentWorking = options.allAccountedFor === true
+      ? rest
+      : Math.round(total * 0.5);
     return {
       agentWorking,
       queue,
       review,
       person,
-      unaccounted: total - agentWorking - queue - review - person,
+      unaccounted: rest - agentWorking,
     };
   };
   const rowsWaits = totals.map(split);
@@ -101,7 +102,6 @@ export async function deliveryFixture(
     }),
     { agentWorking: 0, queue: 0, review: 0, person: 0, unaccounted: 0 },
   );
-  if (options.hours !== undefined) Object.assign(sums, options.hours);
   const sorted = [...totals].sort((a, b) => a - b);
   const median = sorted[Math.ceil(sorted.length / 2) - 1] ?? null;
   const p90 = sorted[Math.ceil(sorted.length * 0.9) - 1] ?? null;

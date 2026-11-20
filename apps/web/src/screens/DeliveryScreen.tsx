@@ -656,10 +656,6 @@ function RecordsSection(
   const rows = props.missingOnly ? missing : records.rows;
   const figure = FIGURES.find((entry) => entry.show === shown)!;
   const figureValue = props.figures[shown];
-  const day = (iso: string | null) =>
-    iso === null
-      ? "\u2014"
-      : formatDate(new Date(iso), locale, { dateStyle: "medium", timeZone });
   const dayAndTime = (iso: string | null) =>
     iso === null ? "\u2014" : formatDate(new Date(iso), locale, {
       dateStyle: "medium",
@@ -775,14 +771,14 @@ function RecordsSection(
         {
           id: "opened",
           header: translate("delivery.records.column.opened"),
-          cell: (row: RecordRow) => day(row.openedAt),
+          cell: (row: RecordRow) => dayAndTime(row.openedAt),
         },
         ...(shown === "merged"
           ? [
             {
               id: "merged",
               header: translate("delivery.records.column.merged"),
-              cell: (row: RecordRow) => day(row.mergedAt),
+              cell: (row: RecordRow) => dayAndTime(row.mergedAt),
             },
             {
               id: "openToMerge",
@@ -804,7 +800,7 @@ function RecordsSection(
           ? [{
             id: "closed",
             header: translate("delivery.records.column.closed"),
-            cell: (row: RecordRow) => day(row.closedAt),
+            cell: (row: RecordRow) => dayAndTime(row.closedAt),
           }]
           : []),
       ]),

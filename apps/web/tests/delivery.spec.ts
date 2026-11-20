@@ -112,13 +112,7 @@ for (
       await deliveryFixture(page, {
         merged: 7,
         runs: 0,
-        hours: {
-          agentWorking: 14,
-          queue: 5,
-          review: 3,
-          person: 6,
-          unaccounted: 0,
-        },
+        allAccountedFor: true,
       });
       await page.goto("/delivery");
       const time = page.getByTestId("delivery-time");

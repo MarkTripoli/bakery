@@ -194,7 +194,8 @@ Deno.test("each figure opens the metric that lists exactly what it counts", () =
 });
 
 Deno.test("a duration reads in the two units that matter and never as 0", () => {
-  assertEquals(durationWords(0).key, "delivery.duration.lessThanMinute");
+  assertEquals(durationWords(0).key, "delivery.duration.none");
+  assertEquals(durationWords(0.001).key, "delivery.duration.lessThanMinute");
   assertEquals(durationWords(0.5), {
     key: "delivery.duration.minutes",
     params: { minutes: "30" },

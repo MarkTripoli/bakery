@@ -1921,6 +1921,7 @@
   "delivery.missing.noDiffTotals": "Not line-counted",
   "delivery.missing.stillOpen": "Still open",
   "delivery.missing.other": "Something is missing",
+  "delivery.duration.none": "None",
   "delivery.duration.lessThanMinute": "Under 1 min",
   "delivery.duration.minutes": "{minutes} min",
   "delivery.duration.hours": "{hours} h",

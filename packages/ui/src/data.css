@@ -2196,7 +2196,7 @@
   border-radius: var(--radius-control);
   /* A ring just outside the tile: it marks it without changing its size or its
      place, and leaves the text clear of the line. */
-  outline: var(--border-emphasis) solid var(--color-border-strong);
+  outline: var(--border-emphasis) solid var(--color-selection);
   outline-offset: var(--space-1);
 }
 @media (pointer: coarse) {

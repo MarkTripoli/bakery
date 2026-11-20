@@ -245,6 +245,7 @@ export function withSomethingMissing(rows: readonly RecordRow[]): RecordRow[] {
 
 /** The catalogue keys for a length of time in words. */
 export type DurationKey =
+  | "delivery.duration.none"
   | "delivery.duration.lessThanMinute"
   | "delivery.duration.minutes"
   | "delivery.duration.hours"
@@ -265,6 +266,8 @@ export type DurationWords = {
  * not a number of minutes. A time under a minute says so rather than "0".
  */
 export function durationWords(hours: number): DurationWords {
+  // An exact zero is "None": nothing, not a rounding of something small.
+  if (hours === 0) return { key: "delivery.duration.none", params: {} };
   const total = Math.round(hours * 60);
   if (total < 1) return { key: "delivery.duration.lessThanMinute", params: {} };
   if (total < 60) {
