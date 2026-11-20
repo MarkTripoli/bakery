@@ -16,6 +16,7 @@ import {
  *
  * - the manifest asked for an exact resume and its safe boundary, as the
  *   server computed it, is true;
+ * - every external effect of the step is settled (confirmed or failed);
  * - the source session is still the one the manifest names and is active;
  * - the session row's `resume_ref` (written by the adapter that owns the native
  *   session) names the native session, the checkpoint, the worktree revision, the
@@ -32,6 +33,7 @@ import {
 export type FreshReason =
   | "exact_resume_not_requested"
   | "boundary_unsafe"
+  | "effects_unresolved"
   | "session_changed"
   | "no_native_evidence"
   | "native_evidence_mismatch"
@@ -77,6 +79,8 @@ export function decideResume(input: {
   session: SourceSession | null;
   sourceHostId: string;
   historyAuthorized: boolean;
+  /** No external effect of the step is still prepared, submitted or uncertain. */
+  effectsSettled: boolean;
 }): ResumeDecision {
   const { manifest, session } = input;
   const fresh = (reason: FreshReason): ResumeDecision => ({
@@ -89,6 +93,10 @@ export function decideResume(input: {
   if (manifest.checkpoint.safeBoundary !== true) {
     return fresh("boundary_unsafe");
   }
+  // An uncertain effect means the native history describes work whose outcome
+  // nobody knows; it is never reused, and the continuation parks until the
+  // effect is reconciled.
+  if (!input.effectsSettled) return fresh("effects_unresolved");
   if (
     session === null || session.id !== manifest.sourceSessionId ||
     session.status !== "active"

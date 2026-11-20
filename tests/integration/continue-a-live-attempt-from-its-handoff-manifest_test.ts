@@ -7,6 +7,8 @@
  */
 
 import { assert, assertEquals } from "@std/assert";
+import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
+import { releaseReconciledHandoffs } from "../../apps/server/src/modules/execution/handoff-release.ts";
 import {
   claimAssignment,
   withWorkerFixture,
@@ -227,34 +229,6 @@ Deno.test("a refused handoff commits nothing and says why", () =>
     );
     await untouched(canceled);
 
-    // An effect still in flight.
-    const effect = await liveAttempt(fixture, "continue-effect");
-    const effectRecord = await stored(fixture, effect);
-    await fixture.pgDatabase.query(
-      `insert into bakery.external_effects
-         (organization_id, run_step_id, operation, target, requesting_principal_id,
-          actor_ref, idempotency_key, request_digest, adapter_version, status)
-       values ($1, $2, 'test.operation', 'test-target', $3, 'actor', $4, $5, 'v1', 'uncertain')`,
-      [
-        fixture.organizationId,
-        effect.job.runStepId,
-        fixture.principalId,
-        crypto.randomUUID(),
-        "a".repeat(64),
-      ],
-    );
-    const effectResult = await refusedWith(
-      effect,
-      effectRecord,
-      await runVersion(fixture, effect.job.runId),
-    );
-    assertEquals(effectResult.status, 409);
-    assertEquals(
-      JSON.stringify(effectResult.parsed).includes("effects_unresolved"),
-      true,
-    );
-    await untouched(effect);
-
     // A workspace capture that did not finish.
     const paused = await liveAttempt(fixture, "continue-paused");
     const base = await manifestFor(fixture, paused.job);
@@ -426,5 +400,99 @@ Deno.test("history that is no longer authorized is not reused: a purged cited ve
     assertEquals(
       (await auditDetails(fixture, String(continuation.id))).reason,
       "history_revoked",
+    );
+  }));
+
+function release(fixture: WorkerFixture) {
+  return withPgTransaction(
+    fixture.pgDatabase,
+    (transaction) => releaseReconciledHandoffs(transaction),
+  );
+}
+
+Deno.test("an effect in flight parks the continuation, and settling it releases the job as a fresh session", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "continue-parked");
+    // Native evidence matches, so only the unsettled effect can stop a resume.
+    const record = await exactCandidate(fixture, live);
+    const effect = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.external_effects
+         (organization_id, run_step_id, operation, target, requesting_principal_id,
+          actor_ref, idempotency_key, request_digest, adapter_version, status)
+       values ($1, $2, 'test.operation', 'test-target', $3, 'actor', $4, $5, 'v1', 'uncertain')
+       returning id`,
+      [
+        fixture.organizationId,
+        live.job.runStepId,
+        fixture.principalId,
+        crypto.randomUUID(),
+        "a".repeat(64),
+      ],
+    );
+    const before = await state(fixture, live);
+    const response = await continueManifest(
+      fixture,
+      String(record.id),
+      await runVersion(fixture, live.job.runId),
+    );
+    assert(response.status === 200 || response.status === 201);
+    const continuation = await body(response);
+    assertEquals(continuation.mode, "fresh_session");
+
+    // Retired and fenced, but not queued: nothing may start a model turn yet.
+    const parked = await state(fixture, live);
+    assertEquals(parked.attempt, "lost");
+    assertEquals(parked.job.status, "awaiting_reconciliation");
+    assertEquals(
+      parked.job.current_fence,
+      String(BigInt(before.job.current_fence) + 1n),
+    );
+    assertEquals(await checkpoints(fixture, live), []);
+    const details = await auditDetails(fixture, String(continuation.id));
+    assertEquals(details.jobStatus, "awaiting_reconciliation");
+    assertEquals(details.reason, "effects_unresolved");
+
+    // While the effect is unsettled a coordinator pass releases nothing.
+    assertEquals(await release(fixture), 0);
+    assertEquals(
+      (await state(fixture, live)).job.status,
+      "awaiting_reconciliation",
+    );
+
+    // The effect settles; the next pass queues the job once, at the same fence.
+    await fixture.pgDatabase.query(
+      "update bakery.external_effects set status = 'confirmed' where id = $1",
+      [effect.rows[0].id],
+    );
+    assertEquals(await release(fixture), 1);
+    assertEquals(await release(fixture), 0);
+    const queued = await state(fixture, live);
+    assertEquals(queued.job.status, "queued");
+    assertEquals(queued.job.current_fence, parked.job.current_fence);
+    assertEquals(queued.job.input, before.job.input);
+
+    // The effect was reconciled, never repeated: still the one row.
+    const effects = await fixture.pgDatabase.query<{ n: number }>(
+      "select count(*)::int as n from bakery.external_effects where run_step_id = $1",
+      [live.job.runStepId],
+    );
+    assertEquals(effects.rows[0].n, 1);
+
+    const claimed = await claimAssignment(fixture, live.worker);
+    assertEquals(claimed.jobId, live.job.jobId);
+    assertEquals(claimed.fence, String(BigInt(parked.job.current_fence) + 1n));
+  }));
+
+Deno.test("a job parked by another path is not released by the handoff pass", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "continue-other-park");
+    await fixture.pgDatabase.query(
+      "update bakery.jobs set status = 'awaiting_reconciliation' where id = $1",
+      [live.job.jobId],
+    );
+    assertEquals(await release(fixture), 0);
+    assertEquals(
+      (await state(fixture, live)).job.status,
+      "awaiting_reconciliation",
     );
   }));

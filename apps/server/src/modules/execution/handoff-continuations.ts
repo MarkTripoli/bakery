@@ -53,6 +53,14 @@ import {
  *   lost-attempt and retry policy; this transition is only for a live source
  *   that was asked to hand off, and a terminal job never becomes claimable.
  *
+ * ## Uncertain effects park the job
+ *
+ * An external effect that may or may not have happened is never repeated and
+ * never trusted. The source is still retired and the fence advances, but the job
+ * waits in `awaiting_reconciliation` instead of queueing, as a fresh session
+ * with no checkpoint. `releaseReconciledHandoffs` (handoff-release.ts) queues it
+ * once every effect of the step is settled.
+ *
  * ## Refusals commit nothing
  *
  * Every refusal is a thrown error before a write, so the transaction rolls back
@@ -60,7 +68,7 @@ import {
  * `PRECONDITION_FAILED` (the run changed since the offer), `run_not_active`,
  * `already_continued`, `manifest_blocked`, `source_not_live`, `fence_moved`,
  * `job_terminal`, `cancel_requested`, `awaiting_reconciliation`,
- * `attempt_budget_exhausted`, `effects_unresolved` and `capture_incomplete`.
+ * `attempt_budget_exhausted` and `capture_incomplete`.
  *
  * ## Lock order
  *
@@ -210,15 +218,17 @@ export async function admitHandoffContinuation(
   const used = attempts.filter((attempt) => attempt.job_id === job.id).length;
   if (used >= job.max_attempts) throw refuse("attempt_budget_exhausted");
 
-  // Unsettled effects must be reconciled before anything continues; this slice
-  // refuses, and the next parks the job in awaiting_reconciliation instead.
-  const effects = await transaction.query(
+  // An effect that may or may not have happened is never repeated and never
+  // trusted: the source is still retired and the fence advances, but the job
+  // parks in awaiting_reconciliation instead of queueing, and the coordinator
+  // queues it (as a fresh session) once every effect of the step is settled.
+  const unsettledEffects = await transaction.query(
     `select 1 from bakery.external_effects
       where organization_id = $1 and run_step_id = $2 and status = any($3::text[])
       limit 1`,
     [organizationId, named.run_step_id, [...NON_REPLAY_SAFE_EFFECT_STATES]],
   );
-  if (effects.rows.length > 0) throw refuse("effects_unresolved");
+  const effectsSettled = unsettledEffects.rows.length === 0;
 
   // Exact resume reuses the source's native history, so the server decides it
   // from its own rows: the session, the host, the revision and the history's
@@ -233,6 +243,7 @@ export async function admitHandoffContinuation(
       stored.data.sourceSessionId,
     ),
     sourceHostId: source.worker_host_id ?? "",
+    effectsSettled,
     historyAuthorized: await historyIsAuthorized(transaction, {
       organizationId,
       taskId: stored.data.taskId,
@@ -252,7 +263,9 @@ export async function admitHandoffContinuation(
   if (lost.rowCount !== 1) throw refuse("source_not_live");
   const requeued = await transaction.query<{ version: number }>(
     `update bakery.jobs
-        set status = 'queued', current_fence = current_fence + 1,
+        set status = case when $4::boolean then 'queued'
+                          else 'awaiting_reconciliation' end,
+            current_fence = current_fence + 1,
             current_checkpoints = $3::jsonb,
             available_at = clock_timestamp(),
             updated_at = clock_timestamp(), version = version + 1
@@ -267,6 +280,7 @@ export async function admitHandoffContinuation(
       JSON.stringify(
         decision.mode === "exact_harness_resume" ? [decision.checkpoint] : [],
       ),
+      effectsSettled,
     ],
   );
   if (requeued.rows.length !== 1) throw refuse("fence_moved");
@@ -336,6 +350,7 @@ export async function admitHandoffContinuation(
       previousFence: job.current_fence,
       newFence: newFence.toString(),
       mode: decision.mode,
+      jobStatus: effectsSettled ? "queued" : "awaiting_reconciliation",
       ...(decision.mode === "fresh_session" ? { reason: decision.reason } : {}),
     },
   });
