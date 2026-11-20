@@ -1052,6 +1052,127 @@ async function claimStatus(
   return response.status;
 }
 
+/**
+ * Re-pins a job to `billing` by hand, with its budget intent, call intent and pricing
+ * snapshot all agreeing, so the funding check accepts it and only the continuation rule
+ * can refuse it. Needs the billing's pricing snapshot to exist already.
+ */
+async function repinConsistently(
+  pg: ReturnType<typeof database>,
+  job: AdmittedJob,
+  billing: typeof TARGET_BILLING,
+) {
+  const snapshotId = (await pg.query(
+    `select id from bakery.provider_pricing_snapshots
+      where provider = $1 and model = $2 and billing_account_id = $3`,
+    [billing.provider, billing.model, billing.billingAccountId],
+  )).rows[0].id;
+  await pg.query(
+    `update bakery.jobs
+        set billing = jsonb_set(billing, '{model}', to_jsonb($2::text)),
+            agent_config = jsonb_set(agent_config, '{billing,model}', to_jsonb($2::text))
+      where id = $1`,
+    [job.jobId, billing.model],
+  );
+  await pg.query(
+    `update bakery.budget_action_intents set model = $2 where run_step_id = $1`,
+    [job.runStepId, billing.model],
+  );
+  await pg.query(
+    `update bakery.provider_call_intents
+        set model = $2, pricing_snapshot_id = $3 where run_step_id = $1`,
+    [job.runStepId, billing.model, snapshotId],
+  );
+}
+
+const PIN_FIELDS = [
+  "provider",
+  "model",
+  "billingRoute",
+  "billingAccountId",
+  "pricingMetadataSnapshot",
+] as const;
+
+/**
+ * Gives `to` exactly the pin `from` holds now (job, budget intent, call intent and
+ * pricing snapshot), with no continuation behind it. After a real continuation of
+ * `from`, this is what a hand-made copy of that pin on another job looks like.
+ */
+async function copyPin(
+  pg: ReturnType<typeof database>,
+  from: AdmittedJob,
+  to: AdmittedJob,
+) {
+  const source = (await pg.query(
+    `select billing, agent_config -> 'billing' as pin
+       from bakery.jobs where id = $1`,
+    [from.jobId],
+  )).rows[0];
+  const pick = (value: Record<string, unknown>) =>
+    Object.fromEntries(
+      PIN_FIELDS.filter((field) => field in value).map((
+        field,
+      ) => [field, value[field]]),
+    );
+  await pg.query(
+    `update bakery.jobs
+        set billing = billing || $2::jsonb,
+            agent_config = jsonb_set(
+              agent_config, '{billing}',
+              (agent_config -> 'billing') || $3::jsonb
+            )
+      where id = $1`,
+    [
+      to.jobId,
+      JSON.stringify(pick(source.billing)),
+      JSON.stringify(pick(source.pin)),
+    ],
+  );
+  await pg.query(
+    `update bakery.budget_action_intents as target
+        set provider = source.provider,
+            billing_account_id = source.billing_account_id,
+            model = source.model,
+            billing_route = source.billing_route,
+            pricing_metadata_snapshot = source.pricing_metadata_snapshot
+       from bakery.budget_action_intents as source
+      where source.run_step_id = $1 and target.run_step_id = $2`,
+    [from.runStepId, to.runStepId],
+  );
+  await pg.query(
+    `update bakery.provider_call_intents as target
+        set provider = source.provider,
+            billing_account_id = source.billing_account_id,
+            model = source.model,
+            billing_type = source.billing_type,
+            pricing_snapshot_id = source.pricing_snapshot_id,
+            pricing_metadata_snapshot = source.pricing_metadata_snapshot
+       from bakery.provider_call_intents as source
+      where source.run_step_id = $1 and target.run_step_id = $2`,
+    [from.runStepId, to.runStepId],
+  );
+}
+
+/** A second admitted, funded job in the same organization as `seeded`'s. */
+async function seedSecondJob(seeded: Seeded) {
+  const pg = database(seeded.fixture);
+  const run = await seedAdmissibleRun(
+    pg,
+    seeded.fixture.organizationId,
+    seeded.fixture.principalId,
+    { stepKey: `cont-b-${crypto.randomUUID().slice(0, 8)}` },
+  );
+  await seedProviderPricingSnapshot(pg, { billing: run.billing! });
+  return await admitFundedModelRun(pg, run, { maxAttempts: 3 });
+}
+
+async function attemptsOf(seeded: Seeded, jobId: string) {
+  return (await database(seeded.fixture).query(
+    `select count(*)::int as count from bakery.job_attempts where job_id = $1`,
+    [jobId],
+  )).rows[0].count as number;
+}
+
 Deno.test("admit: only a recorded continuation can make a job's pin differ from the frozen one", async () => {
   // A job re-pinned by hand, with no continuation behind it: the claim refuses it
   // exactly as it refused any job whose configuration left the frozen one.
@@ -1109,27 +1230,7 @@ Deno.test("admit: only a recorded continuation can make a job's pin differ from 
       const pg = database(seeded.fixture);
       const other = { ...TARGET_BILLING, model: "model-nobody-continued-to" };
       await seedProviderPricingSnapshot(pg, { billing: other });
-      const snapshotId = (await pg.query(
-        `select id from bakery.provider_pricing_snapshots
-          where provider = $1 and model = $2 and billing_account_id = $3`,
-        [other.provider, other.model, other.billingAccountId],
-      )).rows[0].id;
-      await pg.query(
-        `update bakery.jobs
-            set billing = jsonb_set(billing, '{model}', to_jsonb($2::text)),
-                agent_config = jsonb_set(agent_config, '{billing,model}', to_jsonb($2::text))
-          where id = $1`,
-        [seeded.job.jobId, other.model],
-      );
-      await pg.query(
-        `update bakery.budget_action_intents set model = $2 where run_step_id = $1`,
-        [seeded.job.runStepId, other.model],
-      );
-      await pg.query(
-        `update bakery.provider_call_intents
-            set model = $2, pricing_snapshot_id = $3 where run_step_id = $1`,
-        [seeded.job.runStepId, other.model, snapshotId],
-      );
+      await repinConsistently(pg, seeded.job, other);
       // Prove the setup first: the claim's own funding check accepts this pin, so the
       // refusal below is the continuation rule and nothing else.
       const funded = await withPgTransaction(
@@ -1143,6 +1244,61 @@ Deno.test("admit: only a recorded continuation can make a job's pin differ from 
       );
       assertEquals(funded, true);
       assertEquals(await claimStatus(seeded, worker), 204);
+    } finally {
+      await done(seeded);
+    }
+  }
+  // Control for the case below: a second job in this fixture is claimable at all, so
+  // its refusal there is the continuation rule and not something about the fixture.
+  {
+    const seeded = await seed();
+    try {
+      const worker = await registeredWorker(seeded.fixture, { slots: 4 });
+      const jobB = await seedSecondJob(seeded);
+      assertEquals(await claimStatus(seeded, worker), 200);
+      assertEquals(await claimStatus(seeded, worker), 200);
+      assertEquals(await claimStatus(seeded, worker), 204);
+      assertEquals(await attemptsOf(seeded, seeded.job.jobId), 1);
+      assertEquals(await attemptsOf(seeded, jobB.jobId), 1);
+    } finally {
+      await done(seeded);
+    }
+  }
+  // A continuation is recorded for ONE job. Another job in the same organization,
+  // re-pinned by hand to the very route that continuation went to, has no
+  // continuation of its own and must stay refused: the lookup is scoped to the job.
+  {
+    const seeded = await seed();
+    try {
+      const worker = await registeredWorker(seeded.fixture, { slots: 4 });
+      const pg = database(seeded.fixture);
+      // Job A: a real continuation to the target route.
+      await admit(seeded);
+      // Job B: a second admitted job in the same organization, given by hand the very
+      // pin job A now holds. Nothing continued B.
+      const jobB = await seedSecondJob(seeded);
+      await copyPin(pg, seeded.job, jobB);
+      // Prove the setup: B's pin is funded and priced exactly as A's, so the claim's
+      // own funding check accepts it and only the continuation rule can refuse it.
+      const funded = await withPgTransaction(
+        pg,
+        (transaction) =>
+          hasHeldJobBudgetReservation(
+            transaction,
+            seeded.fixture.organizationId,
+            jobB.jobId,
+          ),
+      );
+      assertEquals(funded, true);
+
+      // A claims, because a continuation is recorded for it.
+      assertEquals(await claimStatus(seeded, worker), 200);
+      assertEquals(await attemptsOf(seeded, seeded.job.jobId), 1);
+      // B never does, however many times the worker asks: the continuation that
+      // targeted its model belongs to A.
+      assertEquals(await claimStatus(seeded, worker), 204);
+      assertEquals(await claimStatus(seeded, worker), 204);
+      assertEquals(await attemptsOf(seeded, jobB.jobId), 0);
     } finally {
       await done(seeded);
     }
