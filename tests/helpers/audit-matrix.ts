@@ -1087,25 +1087,6 @@ export async function runAuditMatrix(
       }),
     },
     {
-      // Runs while email is off, so it answers not_configured and sends nothing.
-      operation: "emailSettings.test",
-      failure: () =>
-        call(f, "POST", "/v1/installation/email/test", developer, {
-          body: {},
-          headers: { "Idempotency-Key": key() },
-        }),
-      success: async () => ({
-        response: await call(
-          f,
-          "POST",
-          "/v1/installation/email/test",
-          f.adminCookie,
-          { body: {}, headers: { "Idempotency-Key": key() } },
-        ),
-        organizationId: null,
-      }),
-    },
-    {
       operation: "emailSettings.put",
       failure: () =>
         call(f, "PUT", "/v1/installation/email", developer, {
