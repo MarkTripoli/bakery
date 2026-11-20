@@ -169,6 +169,50 @@ const cleared = (database: ReturnType<typeof fakeDatabase>) =>
     statement.text.startsWith("delete from bakery.probe_requests")
   );
 
+Deno.test("a runner with nowhere to spool says so instead of refusing every subject", async () => {
+  forgetSandboxPreflight();
+  const dir = await Deno.makeTempDir();
+  try {
+    // The shipped defect this guards: the task passed no probe options, so every
+    // bytes-fed subject was refused as "the host is unavailable" and the runner
+    // answered nothing on any host, for ever, while looking healthy. A missing
+    // spool directory is a precondition of the tick, not a fact about a file.
+    const launcher = await writeStub(dir, "sealed-no-spool", {
+      selfTest: SEALED,
+      filesystem: READ_ONLY,
+      probe: `printf '%s' '${PNG_FRAME}'`,
+    });
+    const database = fakeDatabase({ subject: "blob", content: null });
+    const result = await runProbeTick(
+      database as never,
+      {
+        readBlobBytes: () =>
+          Promise.resolve({ bytes: PNG, sizeBytes: PNG.byteLength }),
+        readInlineBytes: () => Promise.resolve(null),
+        readArtifactVersionBytes: () => Promise.resolve(null),
+        probeOptions: { launcherPath: launcher },
+      },
+      { limit: 1 },
+    );
+    assertEquals(result.spoolDirMissing, true);
+    assertEquals(result.claimed, 0);
+    assertEquals(result.answered, 0);
+    assertEquals(result.deferred, 0);
+    assertEquals(result.abandoned, 0);
+    // Nothing was claimed, counted or cleared, and the queue was not even read.
+    assertEquals(
+      database.statements.some((statement) =>
+        statement.text.includes("from bakery.probe_requests")
+      ),
+      false,
+    );
+    assertEquals(cleared(database), false);
+  } finally {
+    forgetSandboxPreflight();
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("a host with no sandbox claims nothing, so no request burns an attempt", async () => {
   forgetSandboxPreflight();
   const dir = await Deno.makeTempDir();

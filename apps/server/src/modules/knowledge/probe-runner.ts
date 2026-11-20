@@ -100,6 +100,15 @@ export type ProbeRunnerResult = Readonly<{
    * on a healthy host picks the same rows up again.
    */
   sandboxUnavailable: boolean;
+  /**
+   * True when the runner was given no spool directory, so it can never answer a
+   * bytes-fed subject: the probe hands the sandbox a path, so there has to be
+   * somewhere to put one. Reported as a precondition of the tick rather than
+   * discovered per request, because a runner with nowhere to spool would
+   * otherwise claim every request, be told the host is unavailable, and answer
+   * nothing for ever.
+   */
+  spoolDirMissing: boolean;
 }>;
 
 /** Queues one subject. Writing the same subject twice queues it once. */
@@ -308,6 +317,21 @@ export async function runProbeTick(
   } = {},
 ): Promise<ProbeRunnerResult> {
   const limit = options.limit ?? PROBE_TICK_LIMIT;
+  // A bytes-fed subject needs somewhere to be spooled, and the probe refuses
+  // before reading when there is not. That refusal is indistinguishable from a
+  // dead sandbox if it is only discovered per request, so it is a precondition of
+  // the tick: with no spool directory the runner claims nothing and says so.
+  if (deps.probeOptions?.spoolDir === undefined) {
+    return {
+      claimed: 0,
+      answered: 0,
+      deferred: 0,
+      abandoned: 0,
+      queued: 0,
+      sandboxUnavailable: false,
+      spoolDirMissing: true,
+    };
+  }
   // The host is asked once, before anything is claimed. A host that cannot build
   // the sandbox is not going to build it twenty-five times in a row, and a tick
   // that claimed anyway would spend five attempts per request and then abandon a
@@ -323,6 +347,7 @@ export async function runProbeTick(
       abandoned: 0,
       queued: 0,
       sandboxUnavailable: true,
+      spoolDirMissing: false,
     };
   }
   const page = await enqueueUnprobedPage(database, {
@@ -366,6 +391,7 @@ export async function runProbeTick(
         abandoned,
         queued: page.queued,
         sandboxUnavailable: true,
+        spoolDirMissing: false,
       };
     }
   }
@@ -376,6 +402,7 @@ export async function runProbeTick(
     abandoned,
     queued: page.queued,
     sandboxUnavailable: false,
+    spoolDirMissing: false,
   };
 }
 

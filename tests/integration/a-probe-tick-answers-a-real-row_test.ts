@@ -13,6 +13,7 @@
  * purge filter was wrong, and it is the arm a small file actually takes.
  */
 import { assert, assertEquals } from "@std/assert";
+import { readRuntimeConfig } from "@bakery/config";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { forgetSandboxPreflight } from "../../apps/server/src/modules/knowledge/probe.ts";
 import {
@@ -20,6 +21,7 @@ import {
   readInlineProbeSubjectBytes,
   runProbeTick,
 } from "../../apps/server/src/modules/knowledge/probe-runner.ts";
+import { probeRunnerDeps } from "../../apps/server/src/platform/probe-runner-task.ts";
 import {
   PNG_FRAME,
   READ_ONLY,
@@ -90,6 +92,23 @@ Deno.test("one tick answers a real inline version and clears its request", () =>
 
     const dir = await Deno.makeTempDir();
     const spoolDir = await Deno.makeTempDir();
+    // The task's own dependency builder, from a real RuntimeConfig: only the
+    // launcher path is swapped, because the sandbox is proven elsewhere.
+    const deps = (launcherPath: string) => {
+      const config = readRuntimeConfig(
+        {
+          BAKERY_ENV: "test",
+          BAKERY_PROBE_SPOOL_DIR: spoolDir,
+          BAKERY_PUBLIC_BASE_URL: fixture.config.publicBaseUrl,
+        },
+        "server",
+      );
+      const built = probeRunnerDeps(config, fixture.pgDatabase);
+      return {
+        ...built,
+        probeOptions: { ...built.probeOptions, launcherPath },
+      };
+    };
     try {
       const launcher = await writeStub(dir, "sealed", {
         selfTest: SEALED,
@@ -99,20 +118,14 @@ Deno.test("one tick answers a real inline version and clears its request", () =>
       forgetSandboxPreflight();
       const result = await runProbeTick(
         fixture.pgDatabase,
-        {
-          readBlobBytes: () => Promise.resolve(null),
-          readInlineBytes: (organizationId, entryId, version) =>
-            readInlineProbeSubjectBytes(
-              fixture.pgDatabase,
-              organizationId,
-              entryId,
-              version,
-            ),
-          readArtifactVersionBytes: () => Promise.resolve(null),
-          probeOptions: { launcherPath: launcher, spoolDir },
-        },
+        deps(launcher),
         { limit: 10 },
       );
+      // The spool directory comes from the runtime config, through the same
+      // factory the entrypoint uses. A runner assembled here by hand would pass
+      // this test while the shipped one refused every subject, which is exactly
+      // the defect this asserts against.
+      assertEquals(result.spoolDirMissing, false);
       assertEquals(result.sandboxUnavailable, false);
       assert(result.answered >= 1, "the tick stored an answer");
 
@@ -140,18 +153,7 @@ Deno.test("one tick answers a real inline version and clears its request", () =>
       // no unprobed subject and the queue is empty.
       const again = await runProbeTick(
         fixture.pgDatabase,
-        {
-          readBlobBytes: () => Promise.resolve(null),
-          readInlineBytes: (organizationId, entryId, version) =>
-            readInlineProbeSubjectBytes(
-              fixture.pgDatabase,
-              organizationId,
-              entryId,
-              version,
-            ),
-          readArtifactVersionBytes: () => Promise.resolve(null),
-          probeOptions: { launcherPath: launcher, spoolDir },
-        },
+        deps(launcher),
         { limit: 10 },
       );
       assertEquals(again.answered, 0);
