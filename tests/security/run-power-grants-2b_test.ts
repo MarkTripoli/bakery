@@ -225,7 +225,7 @@ Deno.test("an observer reads only the granted session's own messages, never the 
         o.fixture,
         cookie,
         "GET",
-        `/v1/sessions/${session}/feed?limit=100`,
+        `/v1/sessions/${session}/feed`,
       );
       assertEquals(response.status, 200, await response.clone().text());
       const page = await response.json() as {
