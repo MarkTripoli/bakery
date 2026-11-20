@@ -121,6 +121,8 @@ export const ExecutionImplementedAction = Object.freeze(
     RunStepsNote: "runSteps.note",
     RunStepsTakeOver: "runSteps.takeOver",
     RunStepsRevertWrites: "runSteps.revertWrites",
+    HandoffManifestsGet: "handoffManifests.get",
+    HandoffManifestsContinue: "handoffManifests.continue",
     TranscriptStatus: "outputStreams.transcript",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -752,6 +754,18 @@ export const alertChannelImplementedActions = Object.freeze(
   Object.values(AlertChannelImplementedAction),
 );
 
+export const AlertRuleImplementedAction = Object.freeze(
+  {
+    AlertRulesList: "alertRules.list",
+    AlertRulesUpdate: "alertRules.update",
+    AlertsList: "alerts.list",
+    AlertsSendTest: "alerts.sendTest",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const alertRuleImplementedActions = Object.freeze(
+  Object.values(AlertRuleImplementedAction),
+);
+
 export const BlobUploadImplementedAction = Object.freeze(
   {
     BlobUploadStart: "blobUploads.start",
@@ -943,6 +957,7 @@ export const implementedActions = Object.freeze(
     ...backupImplementedActions,
     ...telemetryDestinationImplementedActions,
     ...alertChannelImplementedActions,
+    ...alertRuleImplementedActions,
     ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,

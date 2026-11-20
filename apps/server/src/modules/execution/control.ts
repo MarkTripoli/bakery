@@ -73,6 +73,8 @@ import {
   steerAgentSession,
 } from "./sessions.ts";
 import { createRunStepNote } from "./step-notes.ts";
+import { getHandoffManifest } from "./handoff-manifests.ts";
+import { admitHandoffContinuation } from "./handoff-continuations.ts";
 import { takeOverRunStep } from "./step-takeover.ts";
 import { revertRunStepWrites } from "./step-write-revert.ts";
 import { createSessionFeedHandler } from "./session-feed.ts";
@@ -637,6 +639,42 @@ export function createRunControlRegistry(
     handler: (context, input) => steerAgentSession(context, input, limits),
   });
   registry.register({
+    name: ExecutionImplementedAction.HandoffManifestsGet,
+    method: HttpMethod.Get,
+    path: "/v1/handoff-manifests/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.HandoffManifestRecord,
+    policy: {
+      type: ActionKind.Query,
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: (context) =>
+      getHandoffManifest(context).then((record) =>
+        contractSchemas.HandoffManifestRecord.parse(record)
+      ),
+  });
+  registry.register({
+    name: ExecutionImplementedAction.HandoffManifestsContinue,
+    method: HttpMethod.Post,
+    path: "/v1/handoff-manifests/:id/continuations",
+    input: contractSchemas.HandoffContinue,
+    output: contractSchemas.HandoffContinuation,
+    policy: {
+      type: ActionKind.Command,
+      // The same access as controlling the run: retiring a live attempt to
+      // continue it elsewhere is a decision about that one run, like cancelling.
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: (context, input) =>
+      admitHandoffContinuation(context, input).then((record) =>
+        contractSchemas.HandoffContinuation.parse(record)
+      ),
+  });
+  registry.register({
     name: ExecutionImplementedAction.RunStepsNote,
     method: HttpMethod.Post,
     path: "/v1/runs/:id/steps/:stepKey/notes",
@@ -692,6 +730,7 @@ export function createExecutionRunControlApp(
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/runs/*", options.browserSession);
   app.use("/v1/sessions/*", options.browserSession);
+  app.use("/v1/handoff-manifests/*", options.browserSession);
   app.use("/v1/output-streams/*", options.browserSession);
   app.route(
     "/",
