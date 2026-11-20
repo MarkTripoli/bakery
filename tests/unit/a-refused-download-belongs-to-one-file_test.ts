@@ -1,7 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { ApiProblemError } from "@bakery/contracts/client";
 import type { ArtifactProbeResult } from "@bakery/contracts/artifact-probe";
-import { mismatchSelection } from "../../apps/web/src/pages/files/mismatch-selection.ts";
+import { mismatchSubject } from "../../apps/web/src/pages/files/mismatch-selection.ts";
 import { refusedDownload } from "../../apps/web/src/pages/files/media-failure.ts";
 import { previewState } from "../../apps/web/src/pages/preview-state.ts";
 
@@ -69,13 +69,20 @@ Deno.test("the refusal is read on the frame that draws it", () => {
 });
 
 Deno.test("a refusal stays on the file and version that was refused", () => {
-  const refused = mismatchSelection("file-a", undefined);
-  // The same subject keeps it: re-rendering the panel must not clear the state.
-  assertEquals(refused.keep("file-a", undefined), true);
+  const refused = mismatchSubject("file-a", undefined);
+  // The same file and version is the same subject: re-rendering the panel must
+  // not clear the state.
+  assertEquals(mismatchSubject("file-a", undefined), refused);
   // Another file starts clean.
-  assertEquals(refused.keep("file-b", undefined), false);
+  assert(mismatchSubject("file-b", undefined) !== refused);
   // So does another version of the same file.
-  assertEquals(refused.keep("file-a", 3), false);
+  assert(mismatchSubject("file-a", 3) !== refused);
+});
+
+Deno.test("the current version is not the same subject as a named one", () => {
+  // A refusal on an older copy says nothing about the current file, and the
+  // reverse, so the two must never collide.
+  assert(mismatchSubject("file-a", undefined) !== mismatchSubject("file-a", 1));
 });
 
 /** A probed video, as the server describes one: enough to reach the player. */
@@ -90,12 +97,3 @@ function sampleProbe(): ArtifactProbeResult {
     durationMs: 2000,
   };
 }
-
-Deno.test("the selection carries the file and the version it belongs to", () => {
-  const selection = mismatchSelection("file-a", 2);
-  assert(selection.subject.includes("file-a"));
-  assert(selection.subject.includes("2"));
-  // The current version and a named older one are different subjects, or the
-  // refusal on an older copy would blame the current file.
-  assert(selection.keep("file-a", undefined) === false);
-});

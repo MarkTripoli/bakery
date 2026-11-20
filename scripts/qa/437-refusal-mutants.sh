@@ -58,10 +58,10 @@ run "M6 FileDetails does not record the refusal"
 python3 - <<'PY'
 p='src/pages/files/FileDetails.tsx'
 s=open(p).read()
-old='''  const selection = mismatchSelection(file.id, revision);
-  const [mismatchFor, setMismatchFor] = useState(selection.subject);
-  if (mismatchFor !== selection.subject) {
-    setMismatchFor(selection.subject);
+old='''  const subject = mismatchSubject(file.id, revision);
+  const [mismatchFor, setMismatchFor] = useState(subject);
+  if (mismatchFor !== subject) {
+    setMismatchFor(subject);
     setBytesMismatch(false);
     setDownloadFailed(false);
     setMoreOpen(false);
