@@ -11,6 +11,11 @@ import {
   type AlertChannelDependencies,
   createAlertChannelRoutes,
 } from "./modules/monitoring/alert-channels.ts";
+import { createAlertEvaluator } from "./modules/monitoring/alert-evaluator.ts";
+import {
+  type AlertRuleDependencies,
+  createAlertRuleRoutes,
+} from "./modules/monitoring/alert-rules.ts";
 import {
   createTelemetryDestinationRoutes,
   type TelemetryDestinationDependencies,
@@ -241,6 +246,8 @@ export function createApp(options: {
   telemetryDestinations?: TelemetryDestinationDependencies;
   /** Where alert messages go and how a send is made; tests inject a receiver. */
   alertChannels?: AlertChannelDependencies;
+  /** How the test alert is sent; left out, it uses the channels' own fetch and address rules. */
+  alertRules?: AlertRuleDependencies;
   /** Replaces the SMTP exchange of the installation email test (tests only). */
   emailSend?: EmailSettingsDependencies["send"];
   skillSourceAdapter?: SkillSourceAdapter;
@@ -1034,20 +1041,36 @@ export function createApp(options: {
   const egressFetch = options.config.environment === "test"
     ? fetch
     : createPinnedFetch();
+  const alertChannelDependencies: AlertChannelDependencies =
+    options.alertChannels ?? {
+      secretsKey: options.config.secretsKey,
+      fetch: egressFetch,
+      // A test environment may run its receiver on loopback.
+      addressPolicy: options.config.environment === "test"
+        ? allowAnyAddress
+        : createPublicHttpsPolicy(),
+    };
   app.route(
     "/",
     createAlertChannelRoutes({
       database: options.pgDatabase,
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
-      dependencies: options.alertChannels ?? {
-        secretsKey: options.config.secretsKey,
-        fetch: egressFetch,
-        // A test environment may run its receiver on loopback.
-        addressPolicy: options.config.environment === "test"
-          ? allowAnyAddress
-          : createPublicHttpsPolicy(),
-      },
+      dependencies: alertChannelDependencies,
+    }),
+  );
+  app.route(
+    "/",
+    createAlertRuleRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      // The test alert goes through the same channels, fetch and address rules
+      // as the channel routes; the timed checks run from main.ts.
+      dependencies: options.alertRules ?? createAlertEvaluator({
+        database: options.pgDatabase,
+        ...alertChannelDependencies,
+      }),
     }),
   );
   app.route(
