@@ -5,6 +5,17 @@ import {
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
 import {
+  createTelemetryDestinationRoutes,
+  type TelemetryDestinationDependencies,
+} from "./modules/monitoring/telemetry-destinations.ts";
+import {
+  allowAnyAddress,
+  createDestinationFanout,
+  createProviderRegistry,
+  createPublicHttpsPolicy,
+  otlpProvider,
+} from "./platform/telemetry-destinations/index.ts";
+import {
   createEmailSettingsRoutes,
   type EmailSettingsDependencies,
 } from "./modules/work/email-actions.ts";
@@ -206,6 +217,13 @@ export function createApp(options: {
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
   skillStorageProbe?: typeof probeSkillStorage;
+  /**
+   * The telemetry destinations the Monitoring settings manage: the adapters the
+   * server knows, the fan-out that delivers to them and how to reach a
+   * destination. The server's entry point builds it and shares the fan-out with
+   * its telemetry; left out, the routes run on a fan-out nothing feeds.
+   */
+  telemetryDestinations?: TelemetryDestinationDependencies;
   /** Replaces the SMTP exchange of the installation email test (tests only). */
   emailSend?: EmailSettingsDependencies["send"];
   skillSourceAdapter?: SkillSourceAdapter;
@@ -965,6 +983,29 @@ export function createApp(options: {
     createWorkflowActionRoutes({
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
+    }),
+  );
+  app.route(
+    "/",
+    createTelemetryDestinationRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      dependencies: options.telemetryDestinations ?? {
+        registry: createProviderRegistry([otlpProvider]),
+        fanout: createDestinationFanout({
+          registry: createProviderRegistry([otlpProvider]),
+          dependencies: { fetch, addressPolicy: allowAnyAddress },
+        }),
+        providerDependencies: {
+          fetch,
+          // A test environment may run its receiver on loopback.
+          addressPolicy: options.config.environment === "test"
+            ? allowAnyAddress
+            : createPublicHttpsPolicy(),
+        },
+        secretsKey: options.config.secretsKey,
+      },
     }),
   );
   app.route(

@@ -11,6 +11,8 @@ import type { SkillFileStoreOperations } from "./storage.ts";
 import { SkillFileStoreError } from "./storage.ts";
 import {
   type LocalSkillVersionInput,
+  SkillUploadInvalid,
+  skillUploadIssues,
   type ValidatedSkillVersion,
   validateLocalSkillVersion,
 } from "./validation.ts";
@@ -377,6 +379,13 @@ export async function prepareLocalSkillVersionPublication(options: {
   try {
     validated = await validateLocalSkillVersion(options.input);
   } catch (error) {
+    if (error instanceof SkillUploadInvalid) {
+      throw new StandardError({
+        code: "UNPROCESSABLE",
+        cause: error,
+        params: { issues: skillUploadIssues(error) },
+      });
+    }
     throw new StandardError({ code: "UNPROCESSABLE", cause: error });
   }
   return await prepareSkillVersionPublication({
