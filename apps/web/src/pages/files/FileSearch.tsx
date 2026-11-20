@@ -66,7 +66,7 @@ export function FileSearchControls(
           }
         }}
       />
-      <UI.Inline gap="compact">
+      <UI.Inline gap="compact" data-controls="filters">
         {atTop ? null : (
           <UI.Combobox
             label={translate("files.search.where")}

@@ -53,6 +53,9 @@ for (
       const plan = page.locator(`[data-entry-id="${uuid(40)}"]`);
       await expect(plan).toContainText("Plan");
       await expect(plan).toContainText("4.1 KB");
+      // A file with no kind shows a dash, not an empty cell.
+      await expect(page.locator(`[data-entry-id="${uuid(41)}"]`))
+        .toContainText("—");
       await expect(page.locator(`[data-entry-id="${uuid(41)}"]`))
         .toContainText("3.2 MB");
       if (viewport.name === "phone") {

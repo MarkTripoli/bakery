@@ -361,7 +361,8 @@ export function FilesPage({ path }: { readonly path: string }) {
                               : [
                                 row.kind === "folder"
                                   ? translate("files.kind.folder")
-                                  : row.kindName ?? "",
+                                  : row.kindName ??
+                                    translate("files.kind.none"),
                                 row.kind === "file" ? size(row) : "",
                                 formatDate(new Date(row.updatedAt), locale, {
                                   dateStyle: "medium",
@@ -424,7 +425,7 @@ export function FilesPage({ path }: { readonly path: string }) {
                           header: translate("files.table.kind"),
                           cell: (row) => row.kind === "folder"
                             ? translate("files.kind.folder")
-                            : row.kindName ?? "",
+                            : row.kindName ?? translate("files.kind.none"),
                         },
                         {
                           id: "size",
