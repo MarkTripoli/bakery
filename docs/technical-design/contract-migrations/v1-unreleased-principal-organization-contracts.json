@@ -1,22 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a3a5a3400dc79a9ad646fc8631cf184dc8642d05"
+    "8476585c20880e34f6d9d6b0395ab4a0fee86e41"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:5b7876d520b06f6bdad74f90b7e5aead105dc7215af858fdfa4d913136283788",
-  "reason": "#448 S3-S6 write set, limits, undo and read set re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a3a5a3400dc79a9ad646fc8631cf184dc8642d05: the breaking drift is this PR's own; the digest moved because #766's skill-draft contracts joined the tree.",
+  "targetCompatibilityDigest": "sha256:49fbdcd3bb38a882e2d3f52eb1dcdfa475c311e4d22010970aa4564a3682f602",
+  "reason": "#448 S3-S6 write set, limits, undo and read set re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8476585c20880e34f6d9d6b0395ab4a0fee86e41: the breaking drift is this PR's own (step write and read sets, limits, revert). Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
-        "0332eba48dbe6c632a3010184624cd5de7f4765c"
+        "a3a5a3400dc79a9ad646fc8631cf184dc8642d05"
       ],
       "status": "displaced",
       "allowBreaking": true,
-      "targetCompatibilityDigest": "sha256:c9123ac96b5d4ff8dc5b9220ca379530b07964f90d5aaa136c5c0925f646c28e",
-      "reason": "#448 S3-S6 write set, limits, undo and read set re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 0332eba48dbe6c632a3010184624cd5de7f4765c: the breaking drift is this PR's own, unchanged."
+      "targetCompatibilityDigest": "sha256:766a91a3406a6ef488de878590269f396d6b646fb70be95418e27e01a7071c2c",
+      "reason": "#445 pin re-bind by dev-web on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a3a5a3400dc79a9ad646fc8631cf184dc8642d05: StorageFolderItem gains pinned, required and not nullable, whether an administrator pinned the file's artifact, so the file browser and the command line's stat show it; storageFiles.pin is a new action. Main's own approval is preserved unchanged first below."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
