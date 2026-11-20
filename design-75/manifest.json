@@ -1,0 +1,31 @@
+{
+  "schema": "bakery.evidence.usage-page/1",
+  "generatedAt": "2026-11-20T00:49:03.210Z",
+  "distinct": 4,
+  "files": [
+    {
+      "path": "empty--light--desktop-1440x900.png",
+      "bytes": 61031,
+      "sha256": "97c0a300fb3fffa19fe76675cbd2ad007b20c9afdd6b2e8a96e7411d5fcbf77d"
+    },
+    {
+      "path": "empty--dark--desktop-1440x900.png",
+      "bytes": 60948,
+      "sha256": "f26bb08ce8b92c8642ff22b16a479f69aa089a37750124bebe18ef79113604c8"
+    },
+    {
+      "path": "empty--light--phone-390x844.png",
+      "bytes": 30557,
+      "sha256": "263fa602d52113e7930d8ba42a7049299939814a016b26ecd3dc338b6d169b20"
+    },
+    {
+      "path": "empty--dark--phone-390x844.png",
+      "bytes": 30772,
+      "sha256": "3fede62e5621a5d8a2207a339815f1bd2228e839722baabfe1441be618c9047a"
+    }
+  ],
+  "web": "http://127.0.0.1:5200",
+  "api": "http://127.0.0.1:32780",
+  "mode": "empty",
+  "note": "The real /installation/usage page on a real stack. Reported-but-unconfirmed costs are named in words; no still draws $0.00 for a subscription."
+}
