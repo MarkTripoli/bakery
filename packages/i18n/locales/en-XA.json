@@ -4684,5 +4684,6 @@
   "auth.desktopSignIn.signedOut.title": "⟦Šïĝñ ïñ ŧô çôñŧïñûë ŧëšŧ⟧",
   "auth.desktopSignIn.signedOut.body": "⟦Ŧĥë Ɓàķëŕÿ àþþ ôñ ŧĥïš çôɱþûŧëŕ àšķëð ŧô šïĝñ ïñ. Šïĝñ ïñ ŧô Ɓàķëŕÿ ïñ ŧĥïš ƀŕôŵšëŕ ƒïŕšŧ; ŧĥë ǫûëšŧïôñ çôɱëš ƀàçķ àƒŧëŕŵàŕðš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "auth.desktopSignIn.confirm.askedAgo": "⟦{minutes, plural, =0 {just now} one {# minute ago} other {# minutes ago}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "auth.desktopSignIn.used.link": "⟦Àççôûñŧ àñð šëçûŕïŧÿ ŧëšŧ⟧"
+  "auth.desktopSignIn.used.link": "⟦Àççôûñŧ àñð šëçûŕïŧÿ ŧëšŧ⟧",
+  "settings.roles.verb.author": "⟦Çŕëàŧë, çĥàñĝë àñð þûƀļïšĥ {things} ŧëšŧ çôþÿŧ⟧"
 }
