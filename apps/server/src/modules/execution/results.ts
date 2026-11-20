@@ -41,7 +41,7 @@ import {
 } from "./shared.ts";
 import { settleWorkflowAction } from "../work/budget.ts";
 import {
-  emitExecutionEvent,
+  emitAttemptEvent,
   EXECUTION_TELEMETRY_EVENTS,
   type JobOutcome,
 } from "./telemetry.ts";
@@ -76,10 +76,12 @@ export async function renewLease(
     leaseSeconds: input.leaseSeconds,
     leaseTokenHash,
   }));
+  let renewalOrganizationId = "";
   const result = await workerTransaction(
     options.database,
     context.req.raw.headers,
     async (transaction, identity) => {
+      renewalOrganizationId = identity.host.organization_id;
       assertWorkerMutationSessionShape(
         identity.host,
         input.workerSessionId,
@@ -174,12 +176,13 @@ export async function renewLease(
   );
   // The renewal has committed. A replay renewed nothing, so it says nothing.
   if (!result.replayed) {
-    emitExecutionEvent(
+    await emitAttemptEvent(
+      options.database,
       options.telemetry,
+      renewalOrganizationId,
+      attemptId,
       EXECUTION_TELEMETRY_EVENTS.leaseRenewed,
-      {
-        "bakery.attempt.id": attemptId,
-      },
+      { "bakery.attempt.id": attemptId },
     );
   }
   return jsonResponse(result.response, 200, result.replayed);
@@ -726,8 +729,11 @@ export async function resultRoute(
   // outcome silently; this assignment turns that into a compile error.
   const outcome: JobOutcome = resultInput.status;
   if (!result.replayed) {
-    emitExecutionEvent(
+    await emitAttemptEvent(
+      options.database,
       options.telemetry,
+      resultOrganizationId,
+      attemptId,
       EXECUTION_TELEMETRY_EVENTS.jobCompleted,
       {
         "bakery.attempt.id": attemptId,
@@ -735,8 +741,11 @@ export async function resultRoute(
       },
     );
     if (usageSettled) {
-      emitExecutionEvent(
+      await emitAttemptEvent(
+        options.database,
         options.telemetry,
+        resultOrganizationId,
+        attemptId,
         EXECUTION_TELEMETRY_EVENTS.usageSettled,
         {
           "bakery.attempt.id": attemptId,

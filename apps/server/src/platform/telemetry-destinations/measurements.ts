@@ -36,6 +36,7 @@ const EVENT_MEASUREMENTS: Readonly<Record<string, readonly MeasurementKind[]>> =
     // Not mapped until the record carries what the kind promises: usage.settled
     // holds only the attempt id (no amount, no tokens), and job.completed holds
     // the outcome but no duration. A kind comes back here as it is emitted.
+    "attempt.started": ["results"],
     "job.completed": ["results"],
     "lease.renewed": ["health"],
   });
