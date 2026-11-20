@@ -59,7 +59,14 @@ import {
   installationCapabilities,
   installationSettingsGet,
   installationSettingsUpdate,
+  passwordResetLinksCreate,
+  passwordResetsRedeem,
 } from "./installation-handlers.ts";
+import type { PasswordHasher } from "../../../adapters/password-reset-links-postgres.ts";
+import {
+  desktopSignInsExchange,
+  desktopSignInsStart,
+} from "./desktop-sign-in-handlers.ts";
 import {
   scimConnectionCreate,
   scimConnectionGet,
@@ -118,6 +125,8 @@ export type AuthActionRegistryOptions = {
   availableLocales?: readonly string[];
   /** Public origin; the SCIM base URL shown to administrators derives from it. */
   publicBaseUrl?: string;
+  /** The auth provider's password hashing and length rule; password reset redemption refuses without it. */
+  passwordHasher?: () => Promise<PasswordHasher>;
 };
 
 /**
@@ -769,6 +778,65 @@ export function createAuthActionRegistry(
     },
     handler: installationAdministratorsRevoke,
   }).register({
+    name: AuthImplementedAction.PasswordResetLinksCreate,
+    method: HttpMethod.Post,
+    path: "/v1/installation/password-resets",
+    input: contractSchemas.PasswordResetLinkCreate,
+    output: contractSchemas.PasswordResetLinkIssued,
+    policy: {
+      // The link is a credential: returned once, never replayed, and only to
+      // a browser session (as the SCIM secret is).
+      sessionOnly: true,
+      type: ActionKind.Command,
+      access: ActionAccess.InstallationAdministrator,
+      organizationContext:
+        OrganizationContextPolicy.InstallationAdministratorScope,
+    },
+    handler: (context, input) =>
+      passwordResetLinksCreate(context, input, options.publicBaseUrl),
+  }).register({
+    name: AuthImplementedAction.PasswordResetsRedeem,
+    method: HttpMethod.Post,
+    path: "/v1/password-resets/redemptions",
+    input: contractSchemas.PasswordResetRedemption,
+    output: contractSchemas.NoContent,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Public,
+    },
+    handler: (context, input) =>
+      passwordResetsRedeem(context, input, {
+        database: options.database,
+        passwordHasher: options.passwordHasher,
+      }),
+  }).register({
+    name: AuthImplementedAction.DesktopSignInsStart,
+    method: HttpMethod.Post,
+    path: "/v1/desktop-sign-ins",
+    input: contractSchemas.DesktopSignInStart,
+    output: contractSchemas.DesktopSignInStarted,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Public,
+    },
+    handler: (context, input) =>
+      desktopSignInsStart(context, input, {
+        database: options.database,
+        publicBaseUrl: options.publicBaseUrl,
+      }),
+  }).register({
+    name: AuthImplementedAction.DesktopSignInsExchange,
+    method: HttpMethod.Post,
+    path: "/v1/desktop-sign-ins/:id/credential",
+    input: contractSchemas.DesktopSignInExchange,
+    output: contractSchemas.DesktopSignInCredential,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Public,
+    },
+    handler: (context, input) =>
+      desktopSignInsExchange(context, input, { database: options.database }),
+  }).register({
     name: AuthImplementedAction.InstallationStatus,
     method: HttpMethod.Get,
     path: "/v1/installation/status",
@@ -1083,6 +1151,7 @@ export function createAuthV1Routes(
   app.use("/v1/scim-connection/*", browserSession);
   app.use("/v1/installation/administrators", browserSession);
   app.use("/v1/installation/administrators/*", browserSession);
+  app.use("/v1/installation/password-resets", browserSession);
   app.use("/v1/user-preferences", browserSession);
   app.use("/v1/organizations", browserSession);
   app.use("/v1/organizations/*", browserSession);

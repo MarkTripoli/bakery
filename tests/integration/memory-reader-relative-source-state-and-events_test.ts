@@ -41,6 +41,27 @@ async function case1(suite: Suite) {
     seeded.artifactVersionId,
   );
   assertEquals(list.items[0].sourceState, "available");
+  // The current revision rides with the entry and the list row: wording, the
+  // source's name and version, confidence and expiry, so a list needs no read
+  // per row.
+  const current = entry.currentRevision;
+  assertEquals(current.id, created.currentRevisionId);
+  assertEquals(current.body, "Deploys run from main.");
+  assertEquals(current.sourceName, "secret-evidence-title");
+  assertEquals(current.sourceRevision, 1);
+  // The history names who made the wording: the creator's display name,
+  // resolved on the server in one query, not left to the page.
+  const creator = await seeded.fixture.fixture.pgDatabase.query<
+    { display_name: string }
+  >("select display_name from bakery.principals where id = $1", [
+    current.createdBy,
+  ]);
+  assert(creator.rows[0].display_name.trim() !== "");
+  assertEquals(current.createdByName, creator.rows[0].display_name);
+  assertEquals(current.sourceState, entry.sourceState);
+  assertEquals(current.confidence, revisions.items[0].confidence);
+  assertEquals(current, revisions.items[0]);
+  assertEquals(list.items[0].currentRevision, current);
 }
 
 async function case2(suite: Suite) {
@@ -62,6 +83,11 @@ async function case2(suite: Suite) {
     seeded.artifactVersionId,
   );
   assertEquals(list.items[0].sourceState, "deleted");
+  // A purged version is still a document this reader can name; the state says
+  // its content is gone.
+  assertEquals(entry.currentRevision.sourceState, "deleted");
+  assertEquals(entry.currentRevision.sourceName, "secret-evidence-title");
+  assertEquals(entry.currentRevision.sourceRevision, 1);
 }
 
 async function case3(suite: Suite) {
@@ -78,6 +104,21 @@ async function case3(suite: Suite) {
   assertEquals(reader.list.items[0].sourceState, "no_access");
   assertEquals(reader.revisions.items[0].sourceState, "no_access");
   assertEquals(reader.revisions.items[0].sourceArtifactVersionId, null);
+  // The projection leaks no more than the revision read does: no id, no name,
+  // no version number for a reader who may not read artifact versions.
+  for (
+    const shown of [
+      reader.entry.currentRevision,
+      reader.list.items[0].currentRevision,
+    ]
+  ) {
+    const revision = shown as Record<string, unknown>;
+    assertEquals(revision.sourceState, "no_access");
+    assertEquals(revision.sourceArtifactVersionId, null);
+    assertEquals(revision.sourceName, null);
+    assertEquals(revision.sourceRevision, null);
+    assertEquals(revision.body, "Deploys run from main.");
+  }
   // Nothing about the source leaks anywhere in any response: not the version
   // id, the artifact id, its task, or its title.
   const everything = JSON.stringify(reader);

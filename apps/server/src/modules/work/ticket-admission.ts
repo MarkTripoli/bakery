@@ -1038,6 +1038,9 @@ function evidenceOf(
     version: 1,
     origin: frame.call.origin,
     labelBasis: context.labelBasis,
+    labelName: context.labelBasis === "label"
+      ? requestLabelOf(issueLabels(frame.prefetch), frame.source.policy)
+      : null,
     actingPrincipalId: context.actor?.subject.principalId as string,
     callerPrincipalId: automatic
       ? null

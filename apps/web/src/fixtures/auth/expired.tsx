@@ -11,7 +11,6 @@ function Default() {
     <SignInScreen
       email=""
       onBackToSignIn={() => {}}
-      onReturnToSignIn={() => {}}
       onEmailChange={() => {}}
       onPasswordChange={() => {}}
       onRetry={() => {}}

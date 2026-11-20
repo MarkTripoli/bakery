@@ -245,13 +245,93 @@ export function readSkillFileRootConfig(
   return parsed.data;
 }
 
+export const ProbeSpoolDirConfigSchema = z.object({
+  root: z.string().min(1).max(4096).regex(/^\//).refine(
+    (value) =>
+      Array.from(value).every((character) =>
+        character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127
+      ),
+    "Invalid artifact-probe spool path.",
+  ).describe(
+    "Absolute Linux path where the server writes the one bounded copy of a blob that a sandboxed probe reads.",
+  ),
+}).strict().describe(
+  "Server-only directory the artifact probe spools to when the blob store cannot hand over a path.",
+);
+export type ProbeSpoolDirConfig = z.infer<typeof ProbeSpoolDirConfigSchema>;
+
+/**
+ * The spool directory, which is never created here.
+ *
+ * Whether it exists and is writable is a question about the running host, and
+ * the probe asks it at use time so the answer is `sandbox-unavailable` -- a
+ * version with no preview -- rather than a server that refuses to start because
+ * one optional directory is missing.
+ */
+export function readProbeSpoolDirConfig(
+  value: string | undefined,
+): ProbeSpoolDirConfig | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  const parsed = ProbeSpoolDirConfigSchema.safeParse({ root: value.trim() });
+  if (!parsed.success) throw new Error("PROBE_SPOOL_DIR_INVALID");
+  return parsed.data;
+}
+
 export type BudgetRuntimeConfig = {
   installationMonthlyLimitUsd: string;
   reservationTtlSeconds: number;
   maxRunDurationSeconds: number;
 };
 
+/**
+ * The bounds on what an agent may spawn (issue #413, chapter 25 section 18.1).
+ * An agent that starts runs can recurse, so depth and the live children of one
+ * run are limits an operator can see and set, not literals in code.
+ */
+export type AgentSpawnConfig = {
+  /** Deepest a spawn chain may go; a run started by a person is depth 0. */
+  maxDepth: number;
+  /** Most live (not finished) runs one run may have spawned at once. */
+  maxChildren: number;
+  /** Most steers one run's agent may send to the runs it spawned, in total. */
+  maxSteers: number;
+};
+
+export const DEFAULT_AGENT_SPAWN: AgentSpawnConfig = Object.freeze({
+  maxDepth: 3,
+  maxChildren: 5,
+  maxSteers: 20,
+});
+
+const AGENT_SPAWN_MAX_DEPTH = "BAKERY_AGENT_SPAWN_MAX_DEPTH";
+const AGENT_SPAWN_MAX_CHILDREN = "BAKERY_AGENT_SPAWN_MAX_CHILDREN";
+const AGENT_SPAWN_MAX_STEERS = "BAKERY_AGENT_SPAWN_MAX_STEERS";
+
+/** Reads the spawn bounds, falling back to the defaults for what is unset. */
+export function readAgentSpawnConfig(
+  env: Record<string, string | undefined> = Deno.env.toObject(),
+): AgentSpawnConfig {
+  const read = (name: string, fallback: number) => {
+    const raw = env[name]?.trim();
+    if (raw === undefined || raw === "") return fallback;
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value) || value < 1 || value > 100) {
+      throw new Error("AGENT_SPAWN_POLICY_INVALID");
+    }
+    return value;
+  };
+  return {
+    maxDepth: read(AGENT_SPAWN_MAX_DEPTH, DEFAULT_AGENT_SPAWN.maxDepth),
+    maxChildren: read(
+      AGENT_SPAWN_MAX_CHILDREN,
+      DEFAULT_AGENT_SPAWN.maxChildren,
+    ),
+    maxSteers: read(AGENT_SPAWN_MAX_STEERS, DEFAULT_AGENT_SPAWN.maxSteers),
+  };
+}
+
 export type RuntimeConfig = {
+  agentSpawn?: AgentSpawnConfig;
   sentry?: SentryConfig;
   environment: RuntimeEnvironment;
   host: string;
@@ -265,6 +345,12 @@ export type RuntimeConfig = {
   secretsKey?: SecretsKeyConfig;
   secretIdentityProviderFixture?: SecretIdentityProviderFixtureConfig;
   skillFileRoot?: SkillFileRootConfig;
+  /**
+   * Where the artifact probe spools bytes the store cannot hand over as a path
+   * (`BAKERY_PROBE_SPOOL_DIR`); server only. Absent means those blobs are
+   * reported `sandbox-unavailable` rather than described by other means.
+   */
+  probeSpoolDir?: ProbeSpoolDirConfig;
   auth?: ServerAuthConfig;
   /**
    * Separate origin that serves artifact previews (`BAKERY_ARTIFACT_PREVIEW_ORIGIN`).
@@ -725,6 +811,16 @@ export function readRuntimeConfig(
     BUDGET_RUN_DURATION,
   ];
   const budgetConfigured = budgetNames.some((name) => env[name]?.trim());
+  let agentSpawn: AgentSpawnConfig | undefined;
+  try {
+    agentSpawn = readAgentSpawnConfig(env);
+  } catch {
+    invalidConfig.push(
+      AGENT_SPAWN_MAX_DEPTH,
+      AGENT_SPAWN_MAX_CHILDREN,
+      AGENT_SPAWN_MAX_STEERS,
+    );
+  }
   let budget: BudgetRuntimeConfig | undefined;
   if (budgetConfigured) {
     const missingBudget = budgetNames.filter((name) => !env[name]?.trim());
@@ -841,6 +937,14 @@ export function readRuntimeConfig(
       invalidConfig.push("BAKERY_SKILL_FILE_ROOT");
     }
   }
+  let probeSpoolDir: ProbeSpoolDirConfig | undefined;
+  if (kind === "server" && env.BAKERY_PROBE_SPOOL_DIR !== undefined) {
+    try {
+      probeSpoolDir = readProbeSpoolDirConfig(env.BAKERY_PROBE_SPOOL_DIR);
+    } catch {
+      invalidConfig.push("BAKERY_PROBE_SPOOL_DIR");
+    }
+  }
   // An invalid size fails start-up (DRAFT_WORKER_POOL_SIZE_INVALID).
   const draftWorkerPoolSize = kind === "server"
     ? readDraftWorkerPoolSize(env)
@@ -855,6 +959,7 @@ export function readRuntimeConfig(
     ...(draftIsolationLauncher ? { draftIsolationLauncher } : {}),
     ...(draftWorkerPoolSize === undefined ? {} : { draftWorkerPoolSize }),
     ...(budget ? { budget } : {}),
+    ...(agentSpawn ? { agentSpawn } : {}),
     ...(configuredSecretsKey?.success
       ? { secretsKey: configuredSecretsKey.data }
       : {}),
@@ -862,6 +967,7 @@ export function readRuntimeConfig(
       ? { secretIdentityProviderFixture: configuredProviderFixture.data }
       : {}),
     ...(skillFileRoot ? { skillFileRoot } : {}),
+    ...(probeSpoolDir ? { probeSpoolDir } : {}),
     ...(artifactPreviewOrigin ? { artifactPreviewOrigin } : {}),
     environment,
     host,

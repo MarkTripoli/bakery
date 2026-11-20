@@ -76,8 +76,13 @@ export function createSessionToolRegistry(
       // and different arguments are a different act.
       const commandMetadata = definition &&
           definition.policy.type === ActionKind.Command
-        ? (async () =>
-          createNormalizedCommandMetadata(
+        ? (async () => {
+          // A replace, mv or rm names the version it read (If-Match), exactly
+          // as a person's request does; the session call carries it as the
+          // same header and it joins the derived key, so a retry against a
+          // newer version is a different act, not a replay (#448).
+          const ifMatch = context.request.headers.get("if-match");
+          return createNormalizedCommandMetadata(
             definition,
             new Request(context.request.url, {
               method: "POST",
@@ -88,17 +93,28 @@ export function createSessionToolRegistry(
                     tool: name,
                     params: split.params,
                     value: split.value,
+                    ...(ifMatch === null ? {} : { ifMatch }),
                   }),
                 )}`,
+                ...(ifMatch === null ? {} : { "if-match": ifMatch }),
               },
             }),
             split.params,
             split.value,
-          ))()
+          );
+        })()
         : undefined;
-      return Promise.resolve(commandMetadata).then((metadata) =>
-        registry.execute(name, dispatched, split.value, metadata)
-      );
+      return Promise.resolve(commandMetadata).then(async (metadata) => {
+        const result = await registry.execute(
+          name,
+          dispatched,
+          split.value,
+          metadata,
+        );
+        return definition?.policy.type === ActionKind.Command
+          ? decodeCommandResult(result)
+          : result;
+      });
     },
   };
 }
@@ -132,4 +148,21 @@ export function splitCallArguments(
     if (!(name in shape)) delete value[name];
   }
   return { params, value };
+}
+
+/**
+ * A command's result is the encoded HTTP response its replay record stores: a
+ * status and the body as bytes. Serialised as JSON the bytes become a numbered
+ * object, which an agent cannot read, so the body is decoded here and a session
+ * gets the same JSON a caller of the route would, and null for an empty body.
+ */
+export function decodeCommandResult(result: unknown): unknown {
+  if (
+    typeof result !== "object" || result === null || !("status" in result) ||
+    !("body" in result)
+  ) return result;
+  const { status, body } = result as { status: number; body: unknown };
+  if (status === 204 || !(body instanceof Uint8Array)) return null;
+  if (body.byteLength === 0) return null;
+  return JSON.parse(new TextDecoder().decode(body));
 }

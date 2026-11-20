@@ -35,6 +35,12 @@ export const FAULTS = {
   AUTH_FORBIDDEN: [403, false, "auth-forbidden"],
   RESOURCE_NOT_FOUND: [404, false, "resource-not-found"],
   ARTIFACT_CONTENT_EXPIRED: [410, false, "artifact-content-expired"],
+  // The stored bytes are not the bytes the version recorded (#437). This is not
+  // a missing file and must never be reported as one: the version is intact and
+  // its record is intact, and what is stored under it hashes to something else.
+  // A reader refuses to serve it, and the page that asked shows that the file
+  // does not match its record rather than an error it cannot explain.
+  ARTIFACT_CONTENT_MISMATCH: [409, false, "artifact-content-mismatch"],
   // Declared in the transport schema and unused until now. A range the server
   // will not serve for this object: the bytes exist and the range is valid, but
   // serving it would cost more than the server is willing to spend. 416 is the
@@ -49,6 +55,15 @@ export const FAULTS = {
   PRECONDITION_FAILED: [412, false, "precondition-failed"],
   PRECONDITION_REQUIRED: [428, false, "precondition-required"],
   STATE_CONFLICT: [409, false, "state-conflict"],
+  // The storage tree's folder policy refused the operation (#447): rm or mv in a
+  // record area, a file write into the library, /trash or /system, or a change
+  // to a folder Bakery made. `reason` names which.
+  STORAGE_AREA_REFUSED: [409, false, "storage-area-refused"],
+  // New writes are paused: usage would pass 90% of a quota (#447). `reason`
+  // names the quota: organization, project or personal.
+  STORAGE_QUOTA_EXCEEDED: [409, false, "storage-quota-exceeded"],
+  // The file is larger than the organization's maximum file size (#447).
+  STORAGE_FILE_TOO_LARGE: [422, false, "storage-file-too-large"],
   VERSION_CONFLICT: [409, false, "version-conflict"],
   EXPECTED_SEQUENCE: [409, true, "expected-sequence"],
   LEASE_EXPIRED: [409, true, "lease-expired"],
@@ -330,6 +345,28 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       // An agent acting without a grant, or on its own work or lineage (#414).
       "agent_power_requires_grant",
       "agent_target_own_work",
+      // An agent starting a run or creating a task without the run_start power
+      // along its spawn chain (#413).
+      "spawn_requires_grant",
+      // An agent steering without the steer power, its own run, or a reviewer
+      // (#413).
+      "steer_requires_grant",
+      "steer_own_run",
+      "steer_reviewer_unavailable",
+      // An agent's file write refused by its grant, the area, or the person it
+      // acts for; and a file grant only a person may make (#448).
+      "agent_file_grant_missing",
+      "agent_file_grant_read_only",
+      "agent_file_grant_expired",
+      "agent_file_grant_revoked",
+      "agent_file_library_area",
+      "agent_file_personal_area",
+      "agent_file_trash_area",
+      "agent_file_system_area",
+      "agent_file_record_area",
+      "agent_file_principal_cannot_read",
+      "agent_file_principal_cannot_write",
+      "agent_file_grant_requires_person",
     ]),
   } as const,
 );
@@ -472,7 +509,9 @@ export function toProblem(
   const resetMetadata = standard?.code === "STATE_CONFLICT"
     ? safeResetMetadata(rawParams)
     : undefined;
-  const reason = standard?.code === "STATE_CONFLICT"
+  const reason = standard?.code === "STATE_CONFLICT" ||
+      standard?.code === "STORAGE_AREA_REFUSED" ||
+      standard?.code === "STORAGE_QUOTA_EXCEEDED"
     ? safeConflictReason(rawParams?.reason)
     : standard?.code === "DEPENDENCY_UNAVAILABLE"
     ? safeUnavailableReason(rawParams?.reason)
@@ -529,7 +568,7 @@ export function toProblem(
     ...(existingResourceId === undefined ? {} : { existingResourceId }),
     ...(requiredScopes === undefined ? {} : { requiredScopes }),
     ...((code === "DEPENDENCY_UNAVAILABLE" ||
-        code === "PROVIDER_QUOTA_EXCEEDED") &&
+        code === "PROVIDER_QUOTA_EXCEEDED" || code === "RATE_LIMITED") &&
         typeof rawParams?.retryAfterSeconds === "number" &&
         Number.isInteger(rawParams.retryAfterSeconds) &&
         rawParams.retryAfterSeconds >= 1 && rawParams.retryAfterSeconds <= 3600
@@ -756,9 +795,14 @@ export function createNormalizedCommandMetadata(
   // parsed when sent and the handler decides whether it was required.
   const conditionalPutActions: ReadonlySet<ActionDefinition["name"]> = new Set(
     [
+      "emailSettings.put",
       "integrationAppRegistrations.put",
+      "integrationClientCredentials.put",
+      "mcpToolClassifications.put",
       "scopeProfiles.put",
       "skillStorageSettings.put",
+      "storageFiles.put",
+      "storageSettings.put",
     ],
   );
   const patchNeedsIfMatch = (method === "PATCH" &&
@@ -820,7 +864,12 @@ function emitSuccess(
 
 export type ActionContextSeed = Pick<
   ActionContext,
-  "principal" | "locale" | "sessionId" | "accessToken" | "transport"
+  | "principal"
+  | "locale"
+  | "sessionId"
+  | "accessToken"
+  | "transport"
+  | "clientAddress"
 >;
 function requestContext(
   context: Context,

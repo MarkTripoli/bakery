@@ -37,6 +37,12 @@ export type AuditEntry = {
   /** Null for installation-level and user-level mutations with no organization. */
   organizationId: string | null;
   principalId: string | null;
+  /**
+   * The agent session that made the call, for an agent's action through a
+   * session credential (O50: the audit names both the principal and the
+   * session). Null or absent for a person's own action and everything else.
+   */
+  agentSessionId?: string | null;
   operation: string;
   resourceType: string;
   resourceId: string;
@@ -80,6 +86,33 @@ export async function nextAggregateVersion(
     [organizationId, aggregateId, eventType],
   );
   return row.rows[0]?.version ?? 1;
+}
+
+/**
+ * What a projection is told about an event just committed to the journal: the
+ * event's id and everything the writer scoped it with. It runs in the writer's
+ * own transaction, so what it writes commits or rolls back with the event.
+ */
+export type DomainEventFacts = EventScope & { eventId: string };
+export type DomainEventProjection = (
+  transaction: PgTransactionClient,
+  event: DomainEventFacts,
+) => Promise<void>;
+
+const projections: DomainEventProjection[] = [];
+
+/**
+ * Registers a projection to run for every domain event, after it is stored and
+ * in the same transaction (the notification inbox is the first one). Registered
+ * once per function, so a second call with the same function is a no-op. A
+ * projection must return at once for an event type it does not read, and must
+ * be safe to run twice for one event: the journal is the source of truth and a
+ * projection only derives rows from it.
+ */
+export function registerDomainEventProjection(
+  projection: DomainEventProjection,
+): void {
+  if (!projections.includes(projection)) projections.push(projection);
 }
 
 export async function appendDomainEvent(
@@ -130,6 +163,9 @@ export async function appendDomainEvent(
       [options.organizationId, eventId, options.outboxDeliveryKey],
     );
   }
+  for (const projection of projections) {
+    await projection(transaction, { ...options, eventId });
+  }
   return eventId;
 }
 
@@ -140,8 +176,8 @@ export async function appendAudit(
   const result = await transaction.query(
     `insert into bakery.audit_events (
        organization_id, principal_id, operation, resource_type, resource_id,
-       outcome, request_id, trace_id, details
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+       outcome, request_id, trace_id, details, agent_session_id
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)`,
     [
       entry.organizationId,
       entry.principalId,
@@ -152,6 +188,7 @@ export async function appendAudit(
       entry.requestId,
       entry.traceId,
       JSON.stringify(entry.details ?? {}),
+      entry.agentSessionId ?? null,
     ],
   );
   return result.rowCount ?? 0;

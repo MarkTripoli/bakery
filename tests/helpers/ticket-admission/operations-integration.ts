@@ -2173,3 +2173,261 @@ Deno.test("issue 82 ops: readiness and request operations hold no transaction op
     assert(held >= 1, "the observer sees an idle transaction");
   }, { budget: true });
 });
+
+type RequestRead = {
+  id: string;
+  externalTicketId: string;
+  origin: string;
+  requestedByPrincipalId: string | null;
+  triggerLabelName: string | null;
+  disposition: string;
+  dispositionReasonCode: string | null;
+  pausedAt: string | null;
+  pausedReason: string | null;
+  progress: string;
+  targets: {
+    repositoryId: string;
+    role: string;
+    routingRuleId: string | null;
+  }[];
+};
+
+Deno.test("issue 69 reads: a ticket's requests list newest first with progress, pause state and targets, and another organization's ids are 404", async () => {
+  await withTicketFixture(async (fx) => {
+    // Human approval leaves a request waiting with no run.
+    const sourceId = await fx.insertSource({
+      policy: fx.policy({ approval: "human_approval" }),
+    });
+    // Issue 1 carries the request label, so a person's request adopts it.
+    seedIssues(fx, 2, 1);
+    await previewAll(fx, sourceId);
+    const plain = await ticketOf(fx, sourceId, 2);
+    const path = `${TICKETS}/${plain.id}/requests`;
+    const first = await read<RequestView>(
+      await post(fx, path, requestBody(plain)),
+      201,
+    );
+    // The first generation ends; a second one is admitted on the same ticket.
+    await withPgTransaction(fx.owner, async (transaction) => {
+      await transaction.query(
+        `update bakery.ticket_requests set disposition = 'canceled',
+           disposition_reason = 'task_canceled' where id = $1`,
+        [first.id],
+      );
+    });
+    const second = await read<RequestView>(
+      await post(fx, path, requestBody(await ticketOf(fx, sourceId, 2))),
+      201,
+    );
+    // The acceptance text changes: the recheck suspends it, and its run pause
+    // is recorded as the pause step would.
+    fx.reader.setIssue({ number: 2, body: EDITED_BODY("second wording") });
+    await fx.recheck(plain.id);
+    await withPgTransaction(fx.owner, async (transaction) => {
+      await transaction.query(
+        `update bakery.ticket_requests set pause_requested_at = now()
+          where id = $1`,
+        [second.id],
+      );
+    });
+
+    const list = (query: string) =>
+      ticketCall(fx, "GET", `/v1/ticket-requests?${query}`);
+    const page1 = await read<Page<RequestRead>>(
+      await list(`externalTicketId=${plain.id}&limit=1`),
+      200,
+    );
+    assertEquals(page1.items.map((item) => item.id), [second.id]);
+    const newest = page1.items[0];
+    assertEquals(
+      [
+        newest.origin,
+        newest.requestedByPrincipalId,
+        newest.triggerLabelName,
+        newest.disposition,
+        newest.dispositionReasonCode,
+        newest.pausedReason,
+        newest.progress,
+      ],
+      [
+        "manual",
+        fx.adminId,
+        null,
+        "suspended",
+        "acceptance_changed",
+        "edited_after_setup",
+        "suspended",
+      ],
+    );
+    assert(newest.pausedAt !== null);
+    // The fallback target: the source's own repository, no rule.
+    assertEquals(newest.targets.length, 1);
+    assertEquals(newest.targets[0].routingRuleId, null);
+    assert(page1.nextCursor !== null);
+    const page2 = await read<Page<RequestRead>>(
+      await list(
+        `externalTicketId=${plain.id}&limit=1&cursor=${
+          encodeURIComponent(page1.nextCursor)
+        }`,
+      ),
+      200,
+    );
+    assertEquals(page2.items.map((item) => item.id), [first.id]);
+    assertEquals(
+      [
+        page2.items[0].progress,
+        page2.items[0].dispositionReasonCode,
+        page2.items[0].pausedAt,
+        page2.items[0].pausedReason,
+      ],
+      ["canceled", "task_canceled", null, null],
+    );
+    assertEquals(page2.nextCursor, null);
+    // A cursor is bound to its ticket.
+    const labeled = await ticketOf(fx, sourceId, 1);
+    assertEquals(
+      (await list(
+        `externalTicketId=${labeled.id}&cursor=${
+          encodeURIComponent(page1.nextCursor)
+        }`,
+      )).status,
+      400,
+    );
+
+    // An adoption names the label it rested on and the person who asked.
+    const adopted = await read<RequestView>(
+      await post(
+        fx,
+        `${TICKETS}/${labeled.id}/requests`,
+        requestBody(labeled, { intent: "plan" }),
+      ),
+      201,
+    );
+    const got = await read<RequestRead>(
+      await ticketCall(fx, "GET", `/v1/ticket-requests/${adopted.id}`),
+      200,
+    );
+    assertEquals(
+      [
+        got.origin,
+        got.triggerLabelName,
+        got.requestedByPrincipalId,
+        got.progress,
+        got.pausedAt,
+      ],
+      ["adoption", EXECUTE_LABEL, fx.adminId, "waiting", null],
+    );
+
+    // Another organization gets what an unknown id gets.
+    try {
+      const other = await seedOrganization(fx.f, "ticket-requests-other", {
+        role: "admin",
+        agent: false,
+      });
+      const asOther = {
+        cookie: other.cookie,
+        organizationId: other.organizationId,
+      };
+      assertEquals(
+        (await ticketCall(
+          fx,
+          "GET",
+          `/v1/ticket-requests/${adopted.id}`,
+          asOther,
+        )).status,
+        404,
+      );
+      assertEquals(
+        (await ticketCall(
+          fx,
+          "GET",
+          `/v1/ticket-requests?externalTicketId=${plain.id}`,
+          asOther,
+        )).status,
+        404,
+      );
+      assertEquals(
+        (await ticketCall(
+          fx,
+          "GET",
+          `/v1/ticket-requests/${crypto.randomUUID()}`,
+        )).status,
+        404,
+      );
+    } finally {
+      await cleanupSeededOrganizations(fx.f);
+    }
+  }, { budget: true });
+});
+
+Deno.test("issue 69 reads: a source's provider labels are read live, paged by the provider, and an outage is 503", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    fx.reader.setLabels([
+      { id: "101", name: "bakery:execute", color: "0e8a16" },
+      { id: "102", name: "bakery:hold", color: null },
+      { id: "103", name: "area:web", color: "1d76db" },
+    ], 2);
+    const labels = (query = "") =>
+      ticketCall(fx, "GET", `${SOURCES}/${sourceId}/labels${query}`);
+    type LabelPage = Page<{ id: string; name: string; color: string | null }>;
+    const page1 = await read<LabelPage>(await labels(), 200);
+    assertEquals(page1.items, [
+      { id: "101", name: "bakery:execute", color: "0e8a16" },
+      { id: "102", name: "bakery:hold", color: null },
+    ]);
+    assert(page1.nextCursor !== null);
+    const page2 = await read<LabelPage>(
+      await labels(`?cursor=${encodeURIComponent(page1.nextCursor)}`),
+      200,
+    );
+    assertEquals(page2.items.map((label) => label.id), ["103"]);
+    assertEquals(page2.nextCursor, null);
+    // A limit below the provider page continues inside that page.
+    const cut = await read<LabelPage>(await labels("?limit=1"), 200);
+    assertEquals(cut.items.map((label) => label.id), ["101"]);
+    const rest = await read<LabelPage>(
+      await labels(`?limit=1&cursor=${encodeURIComponent(cut.nextCursor!)}`),
+      200,
+    );
+    assertEquals(rest.items.map((label) => label.id), ["102"]);
+    assertEquals(
+      fx.reader.callsOf("readLabels").map((call) => call.number),
+      [1, 2, 1, 1],
+    );
+
+    fx.reader.failNext("readLabels", {
+      kind: "unavailable",
+      reason: "rate_limited",
+      retryAfterSeconds: 20,
+    });
+    const down = await labels();
+    assertEquals(down.status, 503);
+    const problem = await down.json() as Problem & {
+      retryAfterSeconds?: number;
+    };
+    assertEquals([problem.code, problem.retryAfterSeconds], [
+      "DEPENDENCY_UNAVAILABLE",
+      20,
+    ]);
+
+    fx.reader.setLabels({ kind: "unsupported" });
+    const unsupported = await labels();
+    assertEquals(unsupported.status, 422);
+    assertEquals(
+      (await unsupported.json() as Problem).issues?.[0].code,
+      "labels_unsupported",
+    );
+    // An unknown source reads nothing.
+    fx.reader.clearCalls();
+    assertEquals(
+      (await ticketCall(
+        fx,
+        "GET",
+        `${SOURCES}/${crypto.randomUUID()}/labels`,
+      )).status,
+      404,
+    );
+    assertEquals(fx.reader.calls.length, 0);
+  });
+});

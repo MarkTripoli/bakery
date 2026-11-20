@@ -34,6 +34,9 @@ import { IssuesPage } from "./pages/IssuesPage.tsx";
 import { IssueSettingsListPage } from "./pages/IssueSettingsListPage.tsx";
 import { IssueSettingsPage } from "./pages/IssueSettingsPage.tsx";
 import { LibraryPage } from "./pages/LibraryPage.tsx";
+import { FilesPage } from "./pages/FilesPage.tsx";
+import { FileVersionPage } from "./pages/FileVersionPage.tsx";
+import { folderPathOf } from "./pages/files/files-state.ts";
 import { AgentPage } from "./pages/AgentPage.tsx";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
@@ -45,6 +48,7 @@ import { WorkflowEditorPage } from "./pages/library/WorkflowEditorPage.tsx";
 import { AppearancePage } from "./pages/AppearancePage.tsx";
 import { HealthPage } from "./pages/HealthPage.tsx";
 import { SetupPage } from "./pages/SetupPage.tsx";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage.tsx";
 import { SignInPage } from "./pages/SignInPage.tsx";
 import { TwoFactorChallengePage } from "./pages/TwoFactorChallengePage.tsx";
 import { RecoveryCodePage } from "./pages/RecoveryCodePage.tsx";
@@ -71,6 +75,8 @@ import { OrganizationRepositoryRulesPage } from "./pages/OrganizationRepositoryR
 import { RepositoryPage } from "./pages/RepositoryPage.tsx";
 import { RepositoryRulesPage } from "./pages/RepositoryRulesPage.tsx";
 import { OrganizationRolesPage } from "./pages/OrganizationRolesPage.tsx";
+import { PluginPage } from "./pages/PluginPage.tsx";
+import { PluginsPage } from "./pages/PluginsPage.tsx";
 import {
   CONNECTION_ID_PARAMETER,
   CONNECTION_OUTCOME_PARAMETER,
@@ -98,7 +104,9 @@ import { AddPasskeyPage } from "./pages/AddPasskeyPage.tsx";
 import { ReauthPage } from "./pages/ReauthPage.tsx";
 import { ConnectedClientsPage } from "./pages/ConnectedClientsPage.tsx";
 import { RevokeClientPage } from "./pages/RevokeClientPage.tsx";
+import { NotificationOpening } from "./notifications/NotificationOpening.tsx";
 import { NotificationsPage } from "./notifications/NotificationsPage.tsx";
+import { type LandingSearch, landingSearch } from "./notifications/landing.ts";
 import { isNotificationView } from "./notifications/presentation.ts";
 import { OAuthConsentPage } from "./pages/OAuthConsentPage.tsx";
 import { createConsentGateway } from "./app/consent-gateway.ts";
@@ -198,6 +206,48 @@ export const routeCoverage = [
       "forbidden",
       "conflict",
       "stale",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "files",
+    path: "/files",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "files-version",
+    path: "/files/versions/$versionId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "files-folder",
+    path: "/files/$",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
       "offline",
       "long-copy",
     ],
@@ -489,12 +539,19 @@ export const routeCoverage = [
       "github-disabled",
       "invalid",
       "loading",
+      "rate-limited",
+      "blocked",
       "offline",
       "unavailable",
-      "throttled",
       "expired",
       "factor-required",
     ],
+  },
+  {
+    id: "forgot-password",
+    path: "/sign-in/forgot-password",
+    classification: "production",
+    states: ["default"],
   },
   {
     id: "totp-challenge",
@@ -590,6 +647,18 @@ export const routeCoverage = [
     path: "/settings/organization/roles",
     classification: "production",
     states: ["loading", "default", "error", "forbidden"],
+  },
+  {
+    id: "settings-organization-plugins",
+    path: "/settings/organization/plugins",
+    classification: "production",
+    states: ["loading", "default", "empty", "error"],
+  },
+  {
+    id: "settings-organization-plugin",
+    path: "/settings/organization/plugins/$installId",
+    classification: "production",
+    states: ["loading", "default", "error"],
   },
   {
     id: "settings-organization-repository-rules",
@@ -882,7 +951,6 @@ export const routeCoverage = [
       "skeleton",
       "stale",
       "success",
-      "throttled",
       "unavailable",
       "unsupported",
       "wrong-account",
@@ -1049,9 +1117,25 @@ const taskNewRoute = createRoute({
 const taskDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/tasks/$taskId",
+  // `at`, `gone`, `n` and `r` carry a notification's landing (see landing.ts).
+  validateSearch: (search: Record<string, unknown>) => landingSearch(search),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
-  component: () => <TasksPage taskId={taskDetailRoute.useParams().taskId} />,
+  component: () => {
+    const landing = taskDetailRoute.useSearch();
+    const navigate = taskDetailRoute.useNavigate();
+    return (
+      <TasksPage
+        taskId={taskDetailRoute.useParams().taskId}
+        landing={landing}
+        stripLanding={() =>
+          void navigate({
+            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
+            replace: true,
+          })}
+      />
+    );
+  },
   errorComponent: ProtectedRouteError,
 });
 
@@ -1128,12 +1212,84 @@ const issueSettingsDetailRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+/** `?file=<id>&tab=versions|uses`: the file whose details are open, and its tab. */
+function validateFilesSearch(
+  search: Record<string, unknown>,
+): {
+  file?: string;
+  tab?: "versions" | "uses";
+  version?: number;
+  q?: string;
+  type?: "text" | "image" | "video" | "audio" | "data" | "archive" | "other";
+  in?: "all";
+} {
+  return {
+    ...(typeof search.file === "string" && search.file !== ""
+      ? { file: search.file }
+      : {}),
+    ...(search.tab === "versions" || search.tab === "uses"
+      ? { tab: search.tab }
+      : {}),
+    ...(typeof search.q === "string" && search.q !== "" ? { q: search.q } : {}),
+    ...(typeof search.type === "string" &&
+        ["text", "image", "video", "audio", "data", "archive", "other"]
+          .includes(search.type)
+      ? { type: search.type as "text" }
+      : {}),
+    ...(search.in === "all" ? { in: "all" as const } : {}),
+    ...(Number.isInteger(Number(search.version)) && Number(search.version) > 0
+      ? { version: Number(search.version) }
+      : {}),
+  };
+}
+
+const filesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files",
+  validateSearch: validateFilesSearch,
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <FilesPage path="" />,
+  errorComponent: ProtectedRouteError,
+});
+
+const fileVersionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files/versions/$versionId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <FileVersionPage versionId={fileVersionRoute.useParams().versionId} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const filesPathRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/files/$",
+  validateSearch: validateFilesSearch,
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <FilesPage path={folderPathOf(filesPathRoute.useParams()._splat)} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const libraryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/library",
   // `?tab=agents` opens the Agents list; Workflows is the page itself.
-  validateSearch: (search: Record<string, unknown>): { tab?: "agents" } =>
-    search.tab === "agents" ? { tab: "agents" } : {},
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { tab?: "agents" | "memory"; fact?: string } => {
+    if (search.tab === "agents") return { tab: "agents" };
+    if (search.tab !== "memory") return {};
+    // An open fact is only meaningful on the Memory tab.
+    return typeof search.fact === "string" && search.fact !== ""
+      ? { tab: "memory", fact: search.fact }
+      : { tab: "memory" };
+  },
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: LibraryPage,
@@ -1319,6 +1475,12 @@ const signInRoute = createRoute({
       <SignInPage invitation={invitation ?? null} reason={reason ?? null} />
     );
   },
+});
+
+const forgotPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sign-in/forgot-password",
+  component: ForgotPasswordPage,
 });
 
 const totpChallengeRoute = createRoute({
@@ -1529,6 +1691,27 @@ const organizationRolesRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const organizationPluginsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/plugins",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: PluginsPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const organizationPluginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/plugins/$installId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const { installId } = organizationPluginRoute.useParams();
+    return <PluginPage installId={installId} />;
+  },
+  errorComponent: ProtectedRouteError,
+});
+
 const organizationIntegrationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/organization/integrations",
@@ -1621,15 +1804,30 @@ const artifactRetrievalRoute = createRoute({
   path: "/tasks/$taskId/artifacts/$artifactId",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { version?: string; comment?: string } => ({
+  ): { version?: string; comment?: string } & LandingSearch => ({
     version: typeof search.version === "string" ? search.version : undefined,
     comment: typeof search.comment === "string" ? search.comment : undefined,
+    ...landingSearch(search),
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
     const { artifactId, taskId } = artifactRetrievalRoute.useParams();
-    return <ArtifactRetrievalPage artifactId={artifactId} taskId={taskId} />;
+    const { version: _version, comment: _comment, ...landing } =
+      artifactRetrievalRoute.useSearch();
+    const navigate = artifactRetrievalRoute.useNavigate();
+    return (
+      <ArtifactRetrievalPage
+        artifactId={artifactId}
+        taskId={taskId}
+        landing={landing}
+        stripLanding={() =>
+          void navigate({
+            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
+            replace: true,
+          })}
+      />
+    );
   },
   errorComponent: ProtectedRouteError,
 });
@@ -1855,17 +2053,60 @@ const notificationsRoute = createRoute({
   path: "/notifications",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { view?: "all" | "unread" | "mentions"; item?: string } => ({
+  ): {
+    view?: "all" | "unread" | "mentions";
+    item?: string;
+    open?: string;
+    r?: number;
+  } => ({
     view: isNotificationView(search.view) ? search.view : undefined,
     item: typeof search.item === "string" && isUuid(search.item)
       ? search.item
+      : undefined,
+    // `open` is a row being opened: resolved now, then replaced by its place.
+    open: typeof search.open === "string" && isUuid(search.open)
+      ? search.open
+      : undefined,
+    r: Number.isInteger(Number(search.r)) && Number(search.r) >= 1
+      ? Number(search.r)
       : undefined,
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
-    const { view, item } = notificationsRoute.useSearch();
+    const { view, item, open, r } = notificationsRoute.useSearch();
     const navigate = notificationsRoute.useNavigate();
+    const landNavigate = useNavigate();
+    if (open !== undefined) {
+      return (
+        <NotificationOpening
+          id={open}
+          revision={r ?? null}
+          onLand={(destination) => {
+            const { route, search } = destination;
+            void (route.to === "/tasks/$taskId"
+              ? landNavigate({
+                to: route.to,
+                params: route.params,
+                search,
+                replace: true,
+              })
+              : landNavigate({
+                to: route.to,
+                params: route.params,
+                search,
+                replace: true,
+              }));
+          }}
+          onBack={() =>
+            void navigate({
+              to: NOTIFICATIONS_PATH,
+              search: {},
+              replace: true,
+            })}
+        />
+      );
+    }
     return (
       <NotificationsPage
         item={item ?? null}
@@ -2158,6 +2399,9 @@ const routeTree = rootRoute.addChildren([
   issueSettingsRoute,
   issueSettingsDetailRoute,
   machinesRoute,
+  filesRoute,
+  fileVersionRoute,
+  filesPathRoute,
   libraryRoute,
   workflowRoute,
   workflowEditorRoute,
@@ -2172,6 +2416,7 @@ const routeTree = rootRoute.addChildren([
   accessRoute,
   setupRoute,
   signInRoute,
+  forgotPasswordRoute,
   totpChallengeRoute,
   recoveryCodeRoute,
   signOutRoute,
@@ -2188,6 +2433,8 @@ const routeTree = rootRoute.addChildren([
   organizationIntegrationsRoute,
   organizationIntegrationConnectionRoute,
   organizationRolesRoute,
+  organizationPluginsRoute,
+  organizationPluginRoute,
   organizationRepositoryRulesRoute,
   repositoryRoute,
   repositoryRulesRoute,

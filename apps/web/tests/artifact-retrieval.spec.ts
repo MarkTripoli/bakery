@@ -862,7 +862,7 @@ test.describe("artifact retrieval states", () => {
         nextPath: "/register",
         transition: async () => {
           await page.getByRole("link", {
-            name: "Join through an invitation",
+            name: "How to get one",
             exact: true,
           }).click();
         },

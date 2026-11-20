@@ -5,7 +5,7 @@ import { rememberReturnTo, safeSessionStorage } from "./auth-return.ts";
 
 /**
  * Search flag the account overview reads to confirm a fresh sign-in landed
- * (`AccountSettingsPage`'s `saved` state, "Your identity was confirmed.").
+ * (`SecurityHubScreen`'s `confirmed` notice, "Your identity was confirmed.").
  */
 const CONFIRMED_SEARCH = "?confirmed=1";
 
@@ -95,7 +95,7 @@ export function twoFactorFailure(error: unknown): TwoFactorFailure {
       return error.retryAfterSeconds === null
         ? {
           kind: "notice",
-          messageKey: "auth.signIn.unavailable",
+          messageKey: "auth.signIn.rateLimitedNoWait",
           retryAfterSeconds: null,
         }
         : {

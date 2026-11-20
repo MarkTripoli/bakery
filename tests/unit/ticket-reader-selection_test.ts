@@ -72,6 +72,10 @@ function recordingReader(name: string): {
       note(`listIssues:${held.provider}`);
       return Promise.resolve({ kind: "present", numbers: [], hasNext: false });
     },
+    readLabels: (held) => {
+      note(`readLabels:${held.provider}`);
+      return Promise.resolve({ kind: "unsupported" });
+    },
   };
   return { reader, calls };
 }
@@ -149,6 +153,10 @@ Deno.test("a provider with no reader fails closed on every read, never a plausib
   );
   assertEquals(
     await reader.listIssues(linear, { page: 1, since: null }, signal()),
+    failClosed,
+  );
+  assertEquals(
+    await reader.readLabels(linear, { page: 1 }, signal()),
     failClosed,
   );
 

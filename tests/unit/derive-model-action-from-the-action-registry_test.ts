@@ -77,12 +77,11 @@ Deno.test("every action a worker runs is classified, never refused (#226)", () =
 
 Deno.test("actions only a worker runs are classified from the worker table (#226)", () => {
   const workerOnly = workerActions.filter((action) => !registered(action));
-  // The four the first fix broke: a repository profile names mcp.discover, and
-  // admission names secret.identity.read.
+  // Three of the four the first fix broke: a repository profile names
+  // mcp.discover. secret.identity.read became a plan action in #400.
   for (
     const action of [
       "mcp.discover",
-      "secret.identity.read",
       "repository.inspect",
       "coordinator.turn",
     ]
@@ -99,6 +98,10 @@ Deno.test("actions only a worker runs are classified from the worker table (#226
   }
   assertEquals(isModelAction("mcp.discover"), false);
   assertEquals(isModelAction("secret.identity.read"), false);
+  assert(
+    !workerOnly.includes("secret.identity.read"),
+    "secret.identity.read is a registered plan action",
+  );
 });
 
 Deno.test("where both tables hold an action they agree, so the order of lookup cannot matter (#226)", () => {

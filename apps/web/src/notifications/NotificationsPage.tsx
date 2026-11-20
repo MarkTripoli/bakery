@@ -20,7 +20,6 @@ export type NotificationsPageProps = {
 };
 
 const PAGE_SIZE = 30;
-const NOTIFICATIONS_PATH = "/notifications";
 
 /**
  * `/notifications`: the whole inbox, with the three views in the URL so Back and
@@ -239,11 +238,6 @@ export function NotificationsPage(
               someoneLabel={translate("notifications.row.someone")}
               unavailableLabel={translate("notifications.row.unavailable")}
               onToggleRead={(row) => void toggleRead(row)}
-              onOpened={() => {
-                // Opening a row resolves its target at that moment; an
-                // unavailable target shows the "no longer available" view.
-                globalThis.location.assign(NOTIFICATIONS_PATH);
-              }}
             />
             {nextCursor === null ? null : (
               <UI.Button

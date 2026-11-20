@@ -20,7 +20,12 @@ export type AgentFixture = Parameters<
 >[0];
 
 /** The powers a person can grant an agent (#414, O52). */
-export type Power = "decide" | "run_control" | "run_start";
+export type Power =
+  | "decide"
+  | "run_control"
+  | "run_start"
+  | "steer"
+  | "steer_reviewer";
 
 /** Grants one power to a workflow, as a person, straight into the table. */
 export async function grantPower(
@@ -56,10 +61,13 @@ export async function agentSession(
   options: { granted: Power | null },
 ) {
   const worker = await registeredWorker(fixture, { slots: 1 });
+  // The session's workflow must compile: an agent spawns by admitting a run of
+  // it, and the plan compiler refuses the default fixture document.
   const own = await seedEligibleNonmodelJob(
     fixture.pgDatabase,
     fixture.organizationId,
     fixture.principalId,
+    { compilable: true },
   );
   const grantId = options.granted === null
     ? null

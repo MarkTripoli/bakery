@@ -90,6 +90,10 @@ export type ReviewFindingListResponse = ClientOutputMap["Page<ReviewFinding>"];
 export type DeliveryDecisionListResponse =
   ClientOutputMap["Page<DeliveryDecision>"];
 export type PullRequestListResponse = ClientOutputMap["Page<PullRequest>"];
+export type MergeAttemptListResponse = ClientOutputMap["Page<MergeAttempt>"];
+export type MergeAttemptResponse = ClientOutputMap["MergeAttempt"];
+export type MergeReconciliationResponse =
+  ClientOutputMap["MergeReconciliation"];
 export type SyncQuery = ClientInputMap["SyncQuery"];
 export type SyncResponse = ClientOutputMap["SyncSnapshot"];
 export type PrincipalIdentity = ClientOutputMap["PrincipalIdentity"];
@@ -109,6 +113,10 @@ export type IntegrationAppRegistrationBegin =
   ClientInputMap["IntegrationAppRegistrationBegin"];
 export type IntegrationAppRegistrationPut =
   ClientInputMap["IntegrationAppRegistrationPut"];
+export type IntegrationClientCredentials =
+  ClientOutputMap["IntegrationClientCredentials"];
+export type IntegrationClientCredentialsPut =
+  ClientInputMap["IntegrationClientCredentialsPut"];
 export type SkillStorageSettings = ClientOutputMap["SkillStorageSettings"];
 export type SkillStorageSettingsPut = ClientInputMap["SkillStorageSettingsPut"];
 export type SkillStorageVerification =
@@ -156,6 +164,10 @@ export type ExternalTicketListResponse =
 export type TicketSourceResponse = ClientOutputMap["TicketSource"];
 export type TicketSourcePersonResponse = ClientOutputMap["TicketSourcePerson"];
 export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
+export type PluginPackageListResponse = ClientOutputMap["Page<PluginPackage>"];
+export type PluginVersionListResponse = ClientOutputMap["Page<PluginVersion>"];
+export type PluginInstallListResponse = ClientOutputMap["Page<PluginInstall>"];
+export type PluginInstallResponse = ClientOutputMap["PluginInstall"];
 export type TicketSourceCreate = ClientInputMap["TicketSourceCreate"];
 export type TicketSourceUpdate = ClientInputMap["TicketSourceUpdate"];
 export type TicketOperationReceiptResponse =
@@ -164,6 +176,18 @@ export type TicketPreviewResultResponse =
   ClientOutputMap["TicketPreviewResult"];
 export type TicketRequestResponse = ClientOutputMap["TicketRequest"];
 export type TicketRequestIntent = "start" | "plan";
+export type TicketTaskLinkResponse = ClientOutputMap["TicketTaskLink"];
+export type TicketTaskLinkListResponse =
+  ClientOutputMap["Page<TicketTaskLink>"];
+export type TicketRequestViewResponse = ClientOutputMap["TicketRequestView"];
+export type TicketRequestViewListResponse =
+  ClientOutputMap["Page<TicketRequestView>"];
+export type TicketSourceLabelListResponse =
+  ClientOutputMap["Page<TicketSourceLabel>"];
+export type TicketRoutingRuleSetResponse =
+  ClientOutputMap["TicketRoutingRuleSet"];
+export type TicketRoutingRulesReplace =
+  ClientInputMap["TicketRoutingRulesReplace"];
 export type WorkerResponse = ClientOutputMap["WorkerHost"];
 export type DispatchBlockersResponse = ClientOutputMap["DispatchBlockers"];
 export type WorkerEnrollmentListResponse =
@@ -227,6 +251,12 @@ export type DefinitionUpdate = ClientInputMap["DefinitionUpdate"];
 export type AgentVersionResponse = ClientOutputMap["AgentVersion"];
 export type AgentVersionListResponse = ClientOutputMap["Page<AgentVersion>"];
 export type AgentDefinitionResponse = ClientOutputMap["AgentDefinition"];
+export type MemoryEntryResponse = ClientOutputMap["MemoryEntry"];
+export type MemoryEntryListResponse = ClientOutputMap["Page<MemoryEntry>"];
+export type MemoryRevisionResponse = ClientOutputMap["MemoryRevision"];
+export type MemoryRevisionCreateInput = ClientInputMap["MemoryRevisionCreate"];
+export type MemoryRevisionListResponse =
+  ClientOutputMap["Page<MemoryRevision>"];
 export type AgentDefinitionListResponse =
   ClientOutputMap["Page<AgentDefinition>"];
 export type RepositoryResponse = ClientOutputMap["Repository"];
@@ -510,7 +540,69 @@ export type OutputStreamPage = ClientOutputMap["OutputStreamPage"];
 export type OutputStream = OutputStreamPage["items"][number];
 export type OutputReadPage = ClientOutputMap["OutputReadPage"];
 
+export type StorageFolderPage = ClientOutputMap["Page<StorageFolderItem>"];
+export type StorageFolderItem = StorageFolderPage["items"][number];
+export type StorageFileVersionPage =
+  ClientOutputMap["Page<StorageFileVersion>"];
+export type StorageFileVersion = StorageFileVersionPage["items"][number];
+export type StorageFileUsePage = ClientOutputMap["Page<StorageFileUse>"];
+export type StorageFileUse = StorageFileUsePage["items"][number];
+
+export type StorageFileAtVersion = ClientOutputMap["StorageFileAtVersion"];
+export type FileSearchPage = ClientOutputMap["Page<FileSearchHit>"];
+export type FileSearchHit = FileSearchPage["items"][number];
+export type FileSearchInput = Pick<
+  ClientInputMap["FileSearchQuery"],
+  "query" | "path" | "kind" | "mediaGroup" | "cursor"
+>;
+
 export type BakeryApiClient = {
+  /** The stored files and their folders: the read-only files browser's reads. */
+  readonly files: {
+    /** The caller's top-level folders, in display order, on one page. */
+    readonly roots: (
+      organizationId: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFolderPage>>;
+    /** One folder's entries, folders first, by name. */
+    readonly entries: (
+      organizationId: string,
+      folderId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFolderPage>>;
+    readonly versions: (
+      organizationId: string,
+      fileId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFileVersionPage>>;
+    readonly uses: (
+      organizationId: string,
+      fileId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFileUsePage>>;
+    /** The file a saved version belongs to, from the version id alone. */
+    readonly atVersion: (
+      organizationId: string,
+      versionId: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFileAtVersion>>;
+    /** Files and library items by name, with the filters of the files page. */
+    readonly search: (
+      organizationId: string,
+      input: FileSearchInput,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<FileSearchPage>>;
+    /** A file's bytes: its current version, or the one at `revision`. */
+    readonly content: (
+      organizationId: string,
+      fileId: string,
+      revision: number | undefined,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<ClientOutputMap["BinaryArtifact"]>>;
+  };
   readonly output: {
     readonly attempts: (
       organizationId: string,
@@ -702,6 +794,53 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
     }) => Promise<ApiResult<void>>;
   };
+  /** Private plugins published to the organization, and who has them installed. */
+  readonly plugins: {
+    /** `GET /v1/plugin-packages`: the plugins published in this organization. */
+    readonly packages: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginPackageListResponse>>;
+    /** `GET /v1/plugin-packages/{id}/versions`: the published versions of one plugin. */
+    readonly versions: (options: {
+      readonly organizationId: string;
+      readonly packageId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginVersionListResponse>>;
+    /** `GET /v1/plugin-installs`: the installs this person may see. */
+    readonly installs: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginInstallListResponse>>;
+    /** `POST /v1/plugin-installs`: installs one published version, for everyone or for one person. */
+    readonly install: (options: {
+      readonly organizationId: string;
+      readonly packageId: string;
+      readonly versionId: string;
+      readonly scope: "organization" | "personal";
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginInstallResponse>>;
+    /** `PATCH /v1/plugin-installs/{id}`: turns an install on or off, moves it to another version, or removes it. */
+    readonly update: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly version: number;
+      readonly change: {
+        readonly versionId?: string;
+        readonly status?: "enabled" | "disabled" | "uninstalled";
+        readonly dismissUpdateFailure?: boolean;
+      };
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginInstallResponse>>;
+  };
   /** GitHub issues Bakery has read, and the repositories it takes them from. */
   readonly tickets: {
     /** `GET /v1/external-tickets`: the saved copy of the issues, newest first. */
@@ -787,6 +926,54 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<TicketOperationReceiptResponse>>;
+    /** `GET /v1/ticket-task-links`: the tasks linked to one issue, or the issues one task is linked to. Name exactly one of the two. */
+    readonly links: (options: {
+      readonly organizationId: string;
+      readonly externalTicketId?: string;
+      readonly taskId?: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketTaskLinkListResponse>>;
+    /** `GET /v1/ticket-requests`: the work started from one issue, newest first, with its progress. */
+    readonly requests: (options: {
+      readonly organizationId: string;
+      readonly externalTicketId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketRequestViewListResponse>>;
+    /** `GET /v1/ticket-sources/{id}/labels`: the labels GitHub lists for the repository, read live. */
+    readonly labels: (options: {
+      readonly organizationId: string;
+      readonly sourceId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketSourceLabelListResponse>>;
+    /** `POST /v1/ticket-task-links/{id}/note-syncs`: asks Bakery to update its note on the GitHub issue again. */
+    readonly resyncNote: (options: {
+      readonly organizationId: string;
+      readonly linkId: string;
+      readonly version: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketTaskLinkResponse>>;
+    /** `GET /v1/ticket-sources/{id}/routing-rules`: which labels send an issue to which repository. */
+    readonly routingRules: (options: {
+      readonly organizationId: string;
+      readonly sourceId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketRoutingRuleSetResponse>>;
+    /** `PUT /v1/ticket-sources/{id}/routing-rules`: replaces the whole list of rules. Admin only. */
+    readonly replaceRoutingRules: (options: {
+      readonly organizationId: string;
+      readonly sourceId: string;
+      readonly input: TicketRoutingRulesReplace;
+      readonly version: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketRoutingRuleSetResponse>>;
   };
   readonly workers: {
     readonly list: (options: {
@@ -989,6 +1176,28 @@ export type BakeryApiClient = {
       readonly idempotencyKey: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<IntegrationAppRegistration>>;
+  };
+  /**
+   * Provider OAuth client credentials, per provider (#410); installation
+   * administrators only. A result never carries the secret.
+   */
+  readonly integrationClientCredentials: {
+    /** `GET /v1/integration-client-credentials/{provider}`: configured or not, the client ID, when the secret was saved. */
+    readonly get: (options: {
+      readonly provider: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<IntegrationClientCredentials>>;
+    /**
+     * `PUT /v1/integration-client-credentials/{provider}`: registers the pair, or
+     * replaces it when `version` is set. The input carries a write-only secret.
+     */
+    readonly put: (options: {
+      readonly provider: string;
+      readonly input: IntegrationClientCredentialsPut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<IntegrationClientCredentials>>;
   };
   /** Installation skill object storage; administrators only, never a secret in a result. */
   readonly skillStorage: {
@@ -1246,6 +1455,36 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<PullRequestListResponse>>;
+  /**
+   * One pull request's merge attempts, newest first. An attempt whose outcome
+   * Bakery does not know reads as `unknown`, so the answer survives a reload.
+   */
+  readonly listMergeAttempts: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeAttemptListResponse>>;
+  /**
+   * Asks Bakery to merge a pull request at the exact head the person saw. The
+   * server re-reads GitHub, checks the results and records the attempt; the
+   * page never chooses the method (it sends the one the pull request served).
+   */
+  readonly mergePullRequest: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly expectedHeadSha: string;
+    readonly expectedBaseSha?: string;
+    readonly mergeMethod: "merge" | "squash" | "rebase";
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeAttemptResponse>>;
+  /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
+  readonly reconcileMergeAttempts: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeReconciliationResponse>>;
   readonly sync: (
     options: SyncQuery & {
       readonly organizationId: string;
@@ -1374,6 +1613,48 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<AgentVersionListResponse>>;
+  /** The organization's remembered facts, one page of a cursor list; each entry carries its current revision. */
+  readonly listMemories: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryListResponse>>;
+  /** One remembered fact with its current revision. */
+  readonly getMemory: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryResponse>>;
+  /** A fact's wordings, newest first: the history shown under it. */
+  readonly listMemoryRevisions: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryRevisionListResponse>>;
+  /**
+   * Puts a fact in use (approving a suggestion, or using it again) or stops
+   * using it. `version` is the fact's own, sent as If-Match; the server may
+   * refuse with a reason (a source it cannot hold, a conflicting fact).
+   */
+  readonly updateMemory: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly status: "active" | "retired";
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryResponse>>;
+  /** Corrects a fact: a new wording with the reason and the source version that says so. */
+  readonly createMemoryRevision: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: MemoryRevisionCreateInput;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryRevisionResponse>>;
   /** The organization's agent definitions, one page of a cursor list. */
   readonly listAgents: (options: {
     readonly organizationId: string;
@@ -2130,6 +2411,67 @@ export function createBakeryApiClient({
   };
 
   return {
+    plugins: {
+      packages(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginPackages.list"]({
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      versions(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginVersions.list"]({
+              id: options.packageId,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      installs(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginInstalls.list"]({
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      install(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginInstalls.create"]({
+              packageId: options.packageId,
+              versionId: options.versionId,
+              scope: options.scope,
+            }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      update(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginInstalls.update"]({
+              id: options.id,
+              ...options.change,
+            }, {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+    },
     tickets: {
       list(options) {
         return workerResult(
@@ -2250,6 +2592,87 @@ export function createBakeryApiClient({
           options.organizationId,
           (scoped) =>
             scoped.actions["ticketSources.sync"]({ id: options.sourceId }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      links(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketTaskLinks.list"]({
+              ...(options.externalTicketId === undefined
+                ? {}
+                : { externalTicketId: options.externalTicketId }),
+              ...(options.taskId === undefined
+                ? {}
+                : { taskId: options.taskId }),
+              ...(options.cursor === undefined
+                ? {}
+                : { cursor: options.cursor }),
+              ...(options.limit === undefined ? {} : { limit: options.limit }),
+            }, { signal: options.signal }),
+        );
+      },
+      requests(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketRequests.list"]({
+              externalTicketId: options.externalTicketId,
+              ...(options.cursor === undefined
+                ? {}
+                : { cursor: options.cursor }),
+              ...(options.limit === undefined ? {} : { limit: options.limit }),
+            }, { signal: options.signal }),
+        );
+      },
+      labels(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.labels"]({
+              id: options.sourceId,
+              ...(options.cursor === undefined
+                ? {}
+                : { cursor: options.cursor }),
+              ...(options.limit === undefined ? {} : { limit: options.limit }),
+            }, { signal: options.signal }),
+        );
+      },
+      resyncNote(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketTaskLinks.resyncNote"](
+              { id: options.linkId },
+              {
+                ifMatch: versionEtag(options.version),
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+        );
+      },
+      routingRules(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketRoutingRules.get"]({ id: options.sourceId }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      replaceRoutingRules(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketRoutingRules.replace"]({
+              id: options.sourceId,
+              ...options.input,
+            }, {
+              ifMatch: versionEtag(options.version),
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
@@ -2526,6 +2949,133 @@ export function createBakeryApiClient({
         url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
         url.searchParams.set("organizationId", org);
         return url.href;
+      },
+    },
+    files: {
+      async roots(org, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageRoots.list"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async entries(org, folderId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFolderEntries.list"]({
+              id: folderId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async versions(org, fileId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFileVersions.list"]({
+              id: fileId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async atVersion(org, versionId, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFiles.byVersion"]({
+              id: versionId,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async search(org, input, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["files.search"]({
+              ...input,
+              limit: 25,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async content(org, fileId, revision, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFiles.content"]({
+              id: fileId,
+              revision,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async uses(org, fileId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFileUses.list"]({
+              id: fileId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
       },
     },
     sessions: {
@@ -3164,6 +3714,40 @@ export function createBakeryApiClient({
             ok: true,
             data: await client.actions["integrationAppRegistrations.put"](
               options.input,
+              {
+                ...(options.version === undefined
+                  ? {}
+                  : { ifMatch: versionEtag(options.version) }),
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    integrationClientCredentials: {
+      async get(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["integrationClientCredentials.get"]({
+              provider: options.provider,
+            }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async put(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["integrationClientCredentials.put"](
+              { provider: options.provider, ...options.input },
               {
                 ...(options.version === undefined
                   ? {}
@@ -4431,6 +5015,62 @@ export function createBakeryApiClient({
       }
     },
 
+    async listMergeAttempts(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeAttempts.list"](
+          {
+            pullRequestId: options.pullRequestId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async mergePullRequest(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["pullRequests.merge"](
+          {
+            id: options.pullRequestId,
+            expectedHeadSha: options.expectedHeadSha,
+            ...(options.expectedBaseSha === undefined
+              ? {}
+              : { expectedBaseSha: options.expectedBaseSha }),
+            mergeMethod: options.mergeMethod,
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async reconcileMergeAttempts(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeAttempts.reconcile"](
+          { pullRequestId: options.pullRequestId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
     async sync(options) {
       organizationId = options.organizationId;
       try {
@@ -4786,6 +5426,104 @@ export function createBakeryApiClient({
           },
           { signal: options.signal },
         );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMemories(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.list"](
+          options.cursor === undefined && options.limit === undefined ? {} : {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getMemory(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMemoryRevisions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memoryRevisions.list"](
+          {
+            id: options.id,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateMemory(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.update"](
+          { id: options.id, status: options.status },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createMemoryRevision(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memoryRevisions.create"](
+          { id: options.id, ...options.input },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.memoryId !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
         return { ok: true, data };
       } catch (error) {
         return failed(error);
