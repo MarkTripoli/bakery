@@ -5796,6 +5796,15 @@ const transportSchemas = {
             "maxItems": 32
           },
           "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation."
+        },
+        {
+          "name": "resolveSkillSlots",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 64
+          },
+          "description": "Steps, by JSON Pointer, whose missing-skill slot the author settled with this save by choosing another skill or removing the step skill. A workflow copied from one that used a personal skill has one open slot per such step, and publishing is refused while any is open. A pointer with no open slot is ignored."
         }
       ],
       "description": "Replaces the content of the definition's shared draft under the draft's optimistic-concurrency version; published versions are immutable and cannot be updated."
@@ -21825,6 +21834,7 @@ const transportSchemas = {
         "topic",
         "tags",
         "currentRevisionId",
+        "currentRevision",
         "sourceState",
         "status",
         "createdAt",
@@ -21841,10 +21851,12 @@ const transportSchemas = {
         "status": "enum(proposed|active|retired)",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "currentRevision": "MemoryRevision|null"
       },
       "nullableFields": [
-        "currentRevisionId"
+        "currentRevisionId",
+        "currentRevision"
       ],
       "description": "Stable repository-scoped learning topic; its currentRevisionId points at the latest accepted memory_revisions row and advances only through the normal compare-and-swap update path, never by editing content in place.",
       "fieldDescriptions": {
@@ -21857,7 +21869,8 @@ const transportSchemas = {
         "status": "Current lifecycle status of the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "currentRevision": "The revision currentRevisionId points at, as this reader sees it (its sourceState, sourceName and sourceRevision are judged against the reader's live access at read time), so wording, source, confidence and expiry come with the entry. Null while the entry has no current revision."
       }
     },
     "MemoryRevision": {
@@ -21870,6 +21883,8 @@ const transportSchemas = {
         "reason",
         "sourceArtifactVersionId",
         "sourceState",
+        "sourceName",
+        "sourceRevision",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -21892,13 +21907,17 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "reason": "string|null"
+        "reason": "string|null",
+        "sourceName": "string|null",
+        "sourceRevision": "integer|null"
       },
       "nullableFields": [
         "supersedesId",
         "expiresAt",
         "reason",
-        "sourceArtifactVersionId"
+        "sourceArtifactVersionId",
+        "sourceName",
+        "sourceRevision"
       ],
       "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
@@ -21915,7 +21934,9 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "reason": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking."
+        "reason": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking.",
+        "sourceName": "Name of the artifact whose version this revision cites, so a reader sees which document it came from without a second read. Null unless sourceState is available or deleted: a reader who cannot read artifact versions, or a version that cannot be found, is never given a name.",
+        "sourceRevision": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null."
       },
       "optionalFields": [
         "reason"
@@ -31197,6 +31218,64 @@ const transportSchemas = {
         "credential": "Bearer credential starting with bkd_, sent as `Authorization: Bearer <credential>` to the page API and live updates. Returned only here; Bakery cannot show it again.",
         "sessionId": "UUID of the sign-in session it opened; the person sees it as the Bakery app in Active sessions and can revoke it there.",
         "expiresAt": "UTC instant the sign-in ends unless use renews it, as a browser sign-in renews."
+      }
+    },
+    "WorkflowStepSkill": {
+      "fields": [
+        "stepPath",
+        "skillVersionId",
+        "skillName",
+        "revision",
+        "scope",
+        "ownerDisplayName",
+        "mine",
+        "status",
+        "publishedVersionUsesIt"
+      ],
+      "fieldTypes": {
+        "stepPath": "string",
+        "skillVersionId": "uuid|null",
+        "skillName": "string|null",
+        "revision": "integer|null",
+        "scope": "enum(global|organization|personal)|null",
+        "ownerDisplayName": "string|null",
+        "mine": "boolean",
+        "status": "enum(available|stopped|unavailable|missing)",
+        "publishedVersionUsesIt": "boolean"
+      },
+      "nullableFields": [
+        "skillName",
+        "revision",
+        "scope",
+        "ownerDisplayName",
+        "skillVersionId"
+      ],
+      "description": "One skill version named by one step of a workflow version, as the reader may see it. For a personal skill that is not the reader's own it is a placeholder: its name, its owner's display name and its version, never a link, a file or a description. A copy of a workflow that used a personal skill lists the step with status missing, naming the original skill, until the author chooses another skill or removes it.",
+      "fieldDescriptions": {
+        "stepPath": "JSON Pointer of the step in the workflow definition that names the skill.",
+        "skillVersionId": "Immutable skill version the step names; null for a missing-skill slot, which names no skill.",
+        "skillName": "Display name of the skill, or for a missing-skill slot the name of the skill the original workflow used; null when the version no longer exists.",
+        "revision": "Revision number of the skill version; null when it no longer exists.",
+        "scope": "Whether the skill comes with Bakery (global), belongs to the organization, or is personal to one person; null when the version no longer exists.",
+        "ownerDisplayName": "Display name of the person who owns a personal skill; null for any other skill.",
+        "mine": "True when the reader owns this personal skill.",
+        "status": "available when the skill can be used at this step now; stopped when a personal skill has no live use grant for this step and version; unavailable when it was removed or switched off, or its owner left the organization; missing when the workflow was copied from one that used a personal skill, which did not come with the copy.",
+        "publishedVersionUsesIt": "True when a published version of this workflow still names the skill version; answered only to the skill owner, false for everyone else."
+      }
+    },
+    "WorkflowVersionSkills": {
+      "fields": [
+        "items"
+      ],
+      "fieldTypes": {
+        "items": "WorkflowStepSkill[]"
+      },
+      "bounds": {
+        "itemsMaxItems": 256
+      },
+      "description": "Every skill the steps of one workflow version name, ordered by step then skill version, with whether each can be used now. The same read serves a draft and a published version.",
+      "fieldDescriptions": {
+        "items": "One entry per step and skill version the workflow definition names."
       }
     }
   },

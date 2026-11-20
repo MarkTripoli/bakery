@@ -884,17 +884,26 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "7af7d8692f3c06834a7192c596341ff6d0cf9079",
+    "04c3fa8ffeccac98872c7cb9af1a7f35d43707d7",
   ];
   const approvedDigest =
-    "sha256:1dc457faed89729badde8c297c0080aa38d7e92bc22970c70bdca0f5c0fcb3a8";
+    "sha256:db26be672c81ba731601bf565e9e0e30c515a49514543bcf4280e1507a528482";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #42 skill copy re-bind: Skill gains required copiedFromSkillId
-    // and copiedFromVersionId, and skills.copy is a new action.
+    // Displaced by the #42 skill copy re-bind onto main 04c3fa8ff: main's own approval, kept unchanged.
+    "sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96",
+    // Displaced by the #72 memory re-bind onto main 4bd35c217 (#728 merged): main's own
+    // approval, kept unchanged.
     "sha256:f61c0f4a77facec344684ffb9915710f8ea65201a8c67b62bbef25382a56b7c3",
+    // Displaced by the same re-bind: my previous approval on the earlier main.
+    "sha256:7d9b85a83e5f5a41393e5e6dcc407866073723de501b560c7518c019ba25c14e",
+    // Displaced by the #72 memory current-revision projection re-bind: the same
+    // fields on earlier mains (#731 and #735, then #726 and #729, changed other
+    // contracts).
+    "sha256:0fb3b25cf12e177a1109c01437a66d54d4b52f7353c5b5bfa3715e2950ffef89",
+    "sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b",
     // Displaced when main moved again (#735 and #731 merged): the digest follows the
     // tree, so the earlier one no longer authorises it.
     "sha256:465b0eac418d01b44c8e533f81a2236c7e9a75bdfc572d13453c4d5f8c531537",

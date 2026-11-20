@@ -25,6 +25,15 @@ import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { reconcilePersonalSkillUse } from "../catalog/skill-use-grants.ts";
 import {
+  readWorkflowVersionSkills,
+  stepSkillIssues,
+} from "./version-skills.ts";
+import {
+  insertSkillSlots,
+  resolveSkillSlots,
+  stripPersonalSkills,
+} from "./skill-slots.ts";
+import {
   assertCompilerPinTogether,
   compilerPinOf,
   jsonPointerToSegments,
@@ -554,7 +563,15 @@ export async function insertWorkflowCopy(
       params: { reason: "digest_mismatch" },
     });
   }
-  const canonical = requireDraftDefinition(content.definition);
+  // A copy never carries a personal skill: it is visible to its owner alone and
+  // a use grant belongs to the workflow it was given to. Each step that named one
+  // keeps an open slot instead.
+  const stripped = await stripPersonalSkills(
+    transaction,
+    facts.organizationId,
+    content.definition,
+  );
+  const canonical = requireDraftDefinition(stripped.definition);
   const draftDigest = await sha256Hex(canonical);
   const workflowId = crypto.randomUUID();
   const inserted = await boundedMutation(() =>
@@ -579,6 +596,12 @@ export async function insertWorkflowCopy(
   );
   const row = inserted.rows[0];
   if (!row) throw new Error("WORKFLOW_DEFINITION_INSERT_FAILED");
+  await insertSkillSlots(
+    transaction,
+    facts.organizationId,
+    workflowId,
+    stripped.slots,
+  );
   const draftId = crypto.randomUUID();
   await boundedMutation(() =>
     transaction.query(
@@ -590,7 +613,9 @@ export async function insertWorkflowCopy(
         draftId,
         facts.organizationId,
         workflowId,
-        content.source_yaml,
+        // The YAML the source was authored from still names the personal skill,
+        // so a copy that dropped one stores the canonical JSON of what it kept.
+        stripped.slots.length > 0 ? canonical : content.source_yaml,
         canonical,
         draftDigest,
         facts.principalId,
@@ -790,6 +815,8 @@ export type DraftContentInput = {
   digest?: string;
   /** Personal skill versions the author confirms letting this workflow use. */
   confirmPersonalSkillUse?: string[];
+  /** Steps whose missing-skill slot the author settled with this save. */
+  resolveSkillSlots?: string[];
 };
 
 /** Settles the personal skills a draft's steps name before the draft is written. */
@@ -799,6 +826,12 @@ async function settlePersonalSkillUse(
   workflowId: string,
   value: DraftContentInput,
 ): Promise<void> {
+  await resolveSkillSlots(
+    transaction,
+    facts.organizationId,
+    workflowId,
+    value.resolveSkillSlots,
+  );
   await reconcilePersonalSkillUse(transaction, {
     organizationId: facts.organizationId,
     principalId: facts.principalId,
@@ -1213,7 +1246,21 @@ export async function publishWorkflowVersion(
     draft.source_yaml,
     draft.definition,
   );
-  const issues = [...report.errors, ...bindingErrors, ...sourceErrors];
+  // A step must not be published naming a skill nobody can use at it.
+  const skillErrors = report.valid
+    ? await stepSkillIssues(transaction, {
+      organizationId,
+      principalId,
+      workflowId,
+      definition: draft.definition,
+    })
+    : [];
+  const issues = [
+    ...report.errors,
+    ...bindingErrors,
+    ...skillErrors,
+    ...sourceErrors,
+  ];
   if (!report.valid || issues.length > 0 || report.normalizedDigest === null) {
     throw new StandardError({
       code: "UNPROCESSABLE",
@@ -1505,13 +1552,23 @@ export async function validateWorkflow(
   context: ActionContext,
   input: unknown,
 ) {
-  const { transaction, organizationId } = requireWorkTransaction(context);
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
   const { definition } = input as { definition: JsonValue };
   const report = await validateWorkflowDefinitionStatic(definition);
   const bindingResult = report.valid
     ? await validateWorkflowBindings(transaction, organizationId, definition)
     : { errors: [] as readonly WorkflowValidationIssue[], bindings: [] };
-  const bindingErrors = bindingResult.errors;
+  const skillErrors = report.valid
+    ? await stepSkillIssues(transaction, {
+      organizationId,
+      principalId,
+      workflowId: null,
+      definition,
+    })
+    : [];
+  const bindingErrors = [...bindingResult.errors, ...skillErrors];
   const failed = !report.valid || bindingErrors.length > 0;
   const { graph, requiresRepository, registryVersion, registryDigest } = report;
   return {
@@ -1550,6 +1607,7 @@ export function createWorkflowsHandlers(
     copyWorkflow: copyWorkflowDefinition,
     listVersions: createWorkflowVersionsListHandler(secret),
     getVersion: getWorkflowVersion,
+    getVersionSkills: readWorkflowVersionSkills,
     createVersion: createWorkflowVersion,
     updateVersion: updateWorkflowVersion,
     publishVersion: publishWorkflowVersion,

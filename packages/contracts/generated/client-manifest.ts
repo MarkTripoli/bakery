@@ -1693,6 +1693,28 @@ export const clientManifest = {
     },
     {
       "group": "Definitions",
+      "method": "GET",
+      "path": "/v1/workflows/{id}/versions/{versionId}/skills",
+      "action": "workflowVersions.skills",
+      "access": "Developer",
+      "permission": "workflowVersion:read",
+      "input": "WorkflowVersionPath",
+      "output": "WorkflowVersionSkills",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
       "method": "PATCH",
       "path": "/v1/workflows/{id}/versions/{versionId}",
       "action": "workflowVersions.update",
@@ -15671,6 +15693,7 @@ export const clientManifest = {
             "workflowVersions.list",
             "workflowVersions.create",
             "workflowVersions.get",
+            "workflowVersions.skills",
             "workflowVersions.update",
             "workflowVersions.publish",
             "workflowActivations.create",
@@ -19964,6 +19987,16 @@ export const clientManifest = {
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation. Each array item follows this format."
+          }
+        },
+        "resolveSkillSlots": {
+          "description": "Steps, by JSON Pointer, whose missing-skill slot the author settled with this save by choosing another skill or removing the step skill. A workflow copied from one that used a personal skill has one open slot per such step, and publishing is refused while any is open. A pointer with no open slot is ignored. WorkflowDraftUpdate.resolveSkillSlots must contain at most 64 items.",
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Steps, by JSON Pointer, whose missing-skill slot the author settled with this save by choosing another skill or removing the step skill. A workflow copied from one that used a personal skill has one open slot per such step, and publishing is refused while any is open. A pointer with no open slot is ignored. Each array item follows this format."
           }
         }
       },
@@ -39783,6 +39816,7 @@ export const clientManifest = {
                   "workflowVersions.list",
                   "workflowVersions.create",
                   "workflowVersions.get",
+                  "workflowVersions.skills",
                   "workflowVersions.update",
                   "workflowVersions.publish",
                   "workflowActivations.create",
@@ -40764,6 +40798,189 @@ export const clientManifest = {
                 ],
                 "description": "MemoryEntry.currentRevisionId may be null in this transport value."
               },
+              "currentRevision": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID identifying the memory revision record."
+                      },
+                      "memoryId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID linking this record to the related memory entity."
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Monotonic revision number used to order updates to the record."
+                      },
+                      "body": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "User-visible body content carried by the record."
+                      },
+                      "reason": {
+                        "description": "MemoryRevision.reason may be null in this transport value.",
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ]
+                      },
+                      "sourceArtifactVersionId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MemoryRevision.sourceArtifactVersionId may be null in this transport value."
+                      },
+                      "sourceState": {
+                        "type": "string",
+                        "enum": [
+                          "available",
+                          "deleted",
+                          "no_access",
+                          "unknown"
+                        ],
+                        "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
+                      },
+                      "sourceName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Name of the artifact whose version this revision cites, so a reader sees which document it came from without a second read. Null unless sourceState is available or deleted: a reader who cannot read artifact versions, or a version that cannot be found, is never given a name."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MemoryRevision.sourceName may be null in this transport value."
+                      },
+                      "sourceRevision": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991,
+                            "description": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MemoryRevision.sourceRevision may be null in this transport value."
+                      },
+                      "supersedesId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "Stable UUID linking this record to the related supersedes entity."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MemoryRevision.supersedesId may be null in this transport value."
+                      },
+                      "confidence": {
+                        "type": "string",
+                        "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                        "description": "Confidence assigned to the revision."
+                      },
+                      "expiresAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "description": "UTC timestamp when the record expires."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MemoryRevision.expiresAt may be null in this transport value."
+                      },
+                      "createdBy": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Principal who created the record."
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when the record was created."
+                      },
+                      "updatedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when the record was last updated."
+                      },
+                      "version": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Optimistic-concurrency version used when updating the record."
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "memoryId",
+                      "revision",
+                      "body",
+                      "sourceArtifactVersionId",
+                      "sourceState",
+                      "sourceName",
+                      "sourceRevision",
+                      "supersedesId",
+                      "confidence",
+                      "expiresAt",
+                      "createdBy",
+                      "createdAt",
+                      "updatedAt",
+                      "version"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The revision currentRevisionId points at, as this reader sees it (its sourceState, sourceName and sourceRevision are judged against the reader's live access at read time), so wording, source, confidence and expiry come with the entry. Null while the entry has no current revision."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryEntry.currentRevision may be null in this transport value."
+              },
               "sourceState": {
                 "type": "string",
                 "enum": [
@@ -40808,6 +41025,7 @@ export const clientManifest = {
               "topic",
               "tags",
               "currentRevisionId",
+              "currentRevision",
               "sourceState",
               "status",
               "createdAt",
@@ -41056,6 +41274,35 @@ export const clientManifest = {
                 ],
                 "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
               },
+              "sourceName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Name of the artifact whose version this revision cites, so a reader sees which document it came from without a second read. Null unless sourceState is available or deleted: a reader who cannot read artifact versions, or a version that cannot be found, is never given a name."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryRevision.sourceName may be null in this transport value."
+              },
+              "sourceRevision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryRevision.sourceRevision may be null in this transport value."
+              },
               "supersedesId": {
                 "anyOf": [
                   {
@@ -41123,6 +41370,8 @@ export const clientManifest = {
               "body",
               "sourceArtifactVersionId",
               "sourceState",
+              "sourceName",
+              "sourceRevision",
               "supersedesId",
               "confidence",
               "expiresAt",
@@ -58983,6 +59232,7 @@ export const clientManifest = {
             "workflowVersions.list",
             "workflowVersions.create",
             "workflowVersions.get",
+            "workflowVersions.skills",
             "workflowVersions.update",
             "workflowVersions.publish",
             "workflowActivations.create",
@@ -59784,6 +60034,189 @@ export const clientManifest = {
           ],
           "description": "MemoryEntry.currentRevisionId may be null in this transport value."
         },
+        "currentRevision": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID identifying the memory revision record."
+                },
+                "memoryId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID linking this record to the related memory entity."
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Monotonic revision number used to order updates to the record."
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "User-visible body content carried by the record."
+                },
+                "reason": {
+                  "description": "MemoryRevision.reason may be null in this transport value.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ]
+                },
+                "sourceArtifactVersionId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MemoryRevision.sourceArtifactVersionId may be null in this transport value."
+                },
+                "sourceState": {
+                  "type": "string",
+                  "enum": [
+                    "available",
+                    "deleted",
+                    "no_access",
+                    "unknown"
+                  ],
+                  "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
+                },
+                "sourceName": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Name of the artifact whose version this revision cites, so a reader sees which document it came from without a second read. Null unless sourceState is available or deleted: a reader who cannot read artifact versions, or a version that cannot be found, is never given a name."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MemoryRevision.sourceName may be null in this transport value."
+                },
+                "sourceRevision": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MemoryRevision.sourceRevision may be null in this transport value."
+                },
+                "supersedesId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Stable UUID linking this record to the related supersedes entity."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MemoryRevision.supersedesId may be null in this transport value."
+                },
+                "confidence": {
+                  "type": "string",
+                  "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                  "description": "Confidence assigned to the revision."
+                },
+                "expiresAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC timestamp when the record expires."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MemoryRevision.expiresAt may be null in this transport value."
+                },
+                "createdBy": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal who created the record."
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when the record was created."
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when the record was last updated."
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Optimistic-concurrency version used when updating the record."
+                }
+              },
+              "required": [
+                "id",
+                "memoryId",
+                "revision",
+                "body",
+                "sourceArtifactVersionId",
+                "sourceState",
+                "sourceName",
+                "sourceRevision",
+                "supersedesId",
+                "confidence",
+                "expiresAt",
+                "createdBy",
+                "createdAt",
+                "updatedAt",
+                "version"
+              ],
+              "additionalProperties": false,
+              "description": "The revision currentRevisionId points at, as this reader sees it (its sourceState, sourceName and sourceRevision are judged against the reader's live access at read time), so wording, source, confidence and expiry come with the entry. Null while the entry has no current revision."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryEntry.currentRevision may be null in this transport value."
+        },
         "sourceState": {
           "type": "string",
           "enum": [
@@ -59828,6 +60261,7 @@ export const clientManifest = {
         "topic",
         "tags",
         "currentRevisionId",
+        "currentRevision",
         "sourceState",
         "status",
         "createdAt",
@@ -60016,6 +60450,35 @@ export const clientManifest = {
           ],
           "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
         },
+        "sourceName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Name of the artifact whose version this revision cites, so a reader sees which document it came from without a second read. Null unless sourceState is available or deleted: a reader who cannot read artifact versions, or a version that cannot be found, is never given a name."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryRevision.sourceName may be null in this transport value."
+        },
+        "sourceRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryRevision.sourceRevision may be null in this transport value."
+        },
         "supersedesId": {
           "anyOf": [
             {
@@ -60083,6 +60546,8 @@ export const clientManifest = {
         "body",
         "sourceArtifactVersionId",
         "sourceState",
+        "sourceName",
+        "sourceRevision",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -91407,6 +91872,139 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The desktop app's credential, returned once. The app keeps it in the system secret store and sends it as an Authorization bearer value."
+    },
+    "WorkflowVersionSkills": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 256,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "stepPath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "JSON Pointer of the step in the workflow definition that names the skill."
+              },
+              "skillVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Immutable skill version the step names; null for a missing-skill slot, which names no skill."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowStepSkill.skillVersionId may be null in this transport value."
+              },
+              "skillName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the skill, or for a missing-skill slot the name of the skill the original workflow used; null when the version no longer exists."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowStepSkill.skillName may be null in this transport value."
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Revision number of the skill version; null when it no longer exists."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowStepSkill.revision may be null in this transport value."
+              },
+              "scope": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "global",
+                      "organization",
+                      "personal"
+                    ],
+                    "description": "Whether the skill comes with Bakery (global), belongs to the organization, or is personal to one person; null when the version no longer exists."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowStepSkill.scope may be null in this transport value."
+              },
+              "ownerDisplayName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the person who owns a personal skill; null for any other skill."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowStepSkill.ownerDisplayName may be null in this transport value."
+              },
+              "mine": {
+                "type": "boolean",
+                "description": "True when the reader owns this personal skill."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "stopped",
+                  "unavailable",
+                  "missing"
+                ],
+                "description": "available when the skill can be used at this step now; stopped when a personal skill has no live use grant for this step and version; unavailable when it was removed or switched off, or its owner left the organization; missing when the workflow was copied from one that used a personal skill, which did not come with the copy."
+              },
+              "publishedVersionUsesIt": {
+                "type": "boolean",
+                "description": "True when a published version of this workflow still names the skill version; answered only to the skill owner, false for everyone else."
+              }
+            },
+            "required": [
+              "stepPath",
+              "skillVersionId",
+              "skillName",
+              "revision",
+              "scope",
+              "ownerDisplayName",
+              "mine",
+              "status",
+              "publishedVersionUsesIt"
+            ],
+            "additionalProperties": false,
+            "description": "One entry per step and skill version the workflow definition names. Each array item follows this format."
+          },
+          "description": "One entry per step and skill version the workflow definition names. WorkflowVersionSkills.items must contain at most 256 items."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "Every skill the steps of one workflow version name, ordered by step then skill version, with whether each can be used now. The same read serves a draft and a published version."
     }
   }
 } as const;

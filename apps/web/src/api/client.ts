@@ -247,6 +247,12 @@ export type DefinitionUpdate = ClientInputMap["DefinitionUpdate"];
 export type AgentVersionResponse = ClientOutputMap["AgentVersion"];
 export type AgentVersionListResponse = ClientOutputMap["Page<AgentVersion>"];
 export type AgentDefinitionResponse = ClientOutputMap["AgentDefinition"];
+export type MemoryEntryResponse = ClientOutputMap["MemoryEntry"];
+export type MemoryEntryListResponse = ClientOutputMap["Page<MemoryEntry>"];
+export type MemoryRevisionResponse = ClientOutputMap["MemoryRevision"];
+export type MemoryRevisionCreateInput = ClientInputMap["MemoryRevisionCreate"];
+export type MemoryRevisionListResponse =
+  ClientOutputMap["Page<MemoryRevision>"];
 export type AgentDefinitionListResponse =
   ClientOutputMap["Page<AgentDefinition>"];
 export type RepositoryResponse = ClientOutputMap["Repository"];
@@ -530,7 +536,69 @@ export type OutputStreamPage = ClientOutputMap["OutputStreamPage"];
 export type OutputStream = OutputStreamPage["items"][number];
 export type OutputReadPage = ClientOutputMap["OutputReadPage"];
 
+export type StorageFolderPage = ClientOutputMap["Page<StorageFolderItem>"];
+export type StorageFolderItem = StorageFolderPage["items"][number];
+export type StorageFileVersionPage =
+  ClientOutputMap["Page<StorageFileVersion>"];
+export type StorageFileVersion = StorageFileVersionPage["items"][number];
+export type StorageFileUsePage = ClientOutputMap["Page<StorageFileUse>"];
+export type StorageFileUse = StorageFileUsePage["items"][number];
+
+export type StorageFileAtVersion = ClientOutputMap["StorageFileAtVersion"];
+export type FileSearchPage = ClientOutputMap["Page<FileSearchHit>"];
+export type FileSearchHit = FileSearchPage["items"][number];
+export type FileSearchInput = Pick<
+  ClientInputMap["FileSearchQuery"],
+  "query" | "path" | "kind" | "mediaGroup" | "cursor"
+>;
+
 export type BakeryApiClient = {
+  /** The stored files and their folders: the read-only files browser's reads. */
+  readonly files: {
+    /** The caller's top-level folders, in display order, on one page. */
+    readonly roots: (
+      organizationId: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFolderPage>>;
+    /** One folder's entries, folders first, by name. */
+    readonly entries: (
+      organizationId: string,
+      folderId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFolderPage>>;
+    readonly versions: (
+      organizationId: string,
+      fileId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFileVersionPage>>;
+    readonly uses: (
+      organizationId: string,
+      fileId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFileUsePage>>;
+    /** The file a saved version belongs to, from the version id alone. */
+    readonly atVersion: (
+      organizationId: string,
+      versionId: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFileAtVersion>>;
+    /** Files and library items by name, with the filters of the files page. */
+    readonly search: (
+      organizationId: string,
+      input: FileSearchInput,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<FileSearchPage>>;
+    /** A file's bytes: its current version, or the one at `revision`. */
+    readonly content: (
+      organizationId: string,
+      fileId: string,
+      revision: number | undefined,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<ClientOutputMap["BinaryArtifact"]>>;
+  };
   readonly output: {
     readonly attempts: (
       organizationId: string,
@@ -1519,6 +1587,48 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<AgentVersionListResponse>>;
+  /** The organization's remembered facts, one page of a cursor list; each entry carries its current revision. */
+  readonly listMemories: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryListResponse>>;
+  /** One remembered fact with its current revision. */
+  readonly getMemory: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryResponse>>;
+  /** A fact's wordings, newest first: the history shown under it. */
+  readonly listMemoryRevisions: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryRevisionListResponse>>;
+  /**
+   * Puts a fact in use (approving a suggestion, or using it again) or stops
+   * using it. `version` is the fact's own, sent as If-Match; the server may
+   * refuse with a reason (a source it cannot hold, a conflicting fact).
+   */
+  readonly updateMemory: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly status: "active" | "retired";
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryResponse>>;
+  /** Corrects a fact: a new wording with the reason and the source version that says so. */
+  readonly createMemoryRevision: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: MemoryRevisionCreateInput;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryRevisionResponse>>;
   /** The organization's agent definitions, one page of a cursor list. */
   readonly listAgents: (options: {
     readonly organizationId: string;
@@ -2813,6 +2923,133 @@ export function createBakeryApiClient({
         url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
         url.searchParams.set("organizationId", org);
         return url.href;
+      },
+    },
+    files: {
+      async roots(org, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageRoots.list"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async entries(org, folderId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFolderEntries.list"]({
+              id: folderId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async versions(org, fileId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFileVersions.list"]({
+              id: fileId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async atVersion(org, versionId, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFiles.byVersion"]({
+              id: versionId,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async search(org, input, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["files.search"]({
+              ...input,
+              limit: 25,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async content(org, fileId, revision, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFiles.content"]({
+              id: fileId,
+              revision,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async uses(org, fileId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFileUses.list"]({
+              id: fileId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
       },
     },
     sessions: {
@@ -5129,6 +5366,104 @@ export function createBakeryApiClient({
           },
           { signal: options.signal },
         );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMemories(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.list"](
+          options.cursor === undefined && options.limit === undefined ? {} : {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getMemory(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMemoryRevisions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memoryRevisions.list"](
+          {
+            id: options.id,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateMemory(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.update"](
+          { id: options.id, status: options.status },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createMemoryRevision(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memoryRevisions.create"](
+          { id: options.id, ...options.input },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.memoryId !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
         return { ok: true, data };
       } catch (error) {
         return failed(error);
