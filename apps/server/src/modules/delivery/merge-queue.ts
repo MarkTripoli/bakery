@@ -1,6 +1,8 @@
 import type { Inngest } from "inngest";
 import { INNGEST_EVENT_DEFINITIONS } from "@bakery/contracts/events";
 import { StandardError } from "@bakery/contracts/http";
+import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts";
+import { effectivePermissions } from "../auth/application/authorize.ts";
 import {
   type PgDatabase,
   type PgTransactionClient,
@@ -35,6 +37,7 @@ const MERGE_QUEUED_EVENT = INNGEST_EVENT_DEFINITIONS["merge.queued"].name;
 /** Why an entry was blocked: the dispatch refusals plus the queue's own. */
 export type BlockedReason =
   | MergeRefusalReason
+  | "not_permitted"
   | "evidence_changed"
   | "github_refused"
   | "not_merged"
@@ -109,6 +112,31 @@ async function setEntry(
   );
 }
 
+/**
+ * Whether the person who queued the entry may still merge, read live now. The
+ * queue acts as that person, so a member who was removed, deprovisioned or
+ * demoted after queuing must not still merge through it: authority is checked
+ * when the work is done, not only when it was asked for.
+ */
+async function requesterMayStillMerge(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+): Promise<boolean> {
+  try {
+    const actor = await resolveOrganizationActor(
+      transaction,
+      principalId as never,
+      organizationId as never,
+    );
+    return effectivePermissions(actor).includes("pullRequest:merge");
+  } catch (error) {
+    // A removed, disabled or deprovisioned member is not found.
+    if (error instanceof StandardError) return false;
+    throw error;
+  }
+}
+
 export type MergeQueueRequest = {
   organizationId: string;
   mergeEntryId: string;
@@ -166,6 +194,28 @@ export async function processMergeEntry(
     ])).rows[0];
     if (!entry || entry.status !== "validating") {
       return { kind: "skipped" } as const;
+    }
+    // The person who queued it must still be allowed to merge; if not, nothing
+    // is read from GitHub and nothing is sent.
+    if (
+      !await requesterMayStillMerge(
+        transaction,
+        request.organizationId,
+        entry.requestedById,
+      )
+    ) {
+      const outcome = {
+        status: "blocked",
+        reason: "not_permitted",
+      } as const;
+      await setEntry(
+        transaction,
+        request.organizationId,
+        entry.id,
+        "blocked",
+        outcome.reason,
+      );
+      return { kind: "processed", outcome } as const;
     }
     // The evidence the entry was admitted on is checked again before GitHub is
     // asked anything: a pull request, review or check that no longer says the

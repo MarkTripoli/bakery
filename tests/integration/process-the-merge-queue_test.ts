@@ -321,6 +321,47 @@ Deno.test("the merge queue works each entry once and says why it stopped (#57)",
         reason: "unavailable",
       });
 
+      // The queue acts as the person who queued the entry, so it asks again
+      // whether they may still merge: a member removed after queuing, or
+      // demoted below the merge permission, is blocked with no GitHub call.
+      const membership = (await database.query<
+        { role: string; status: string }
+      >(
+        `select role, status from bakery.organization_memberships
+          where organization_id = $1 and principal_id = $2`,
+        [organizationId, principal],
+      )).rows[0];
+      const becomes = (role: string, status: string) =>
+        database.query(
+          `update bakery.organization_memberships set role = $3, status = $4
+            where organization_id = $1 and principal_id = $2`,
+          [organizationId, principal, role, status],
+        );
+      try {
+        for (
+          const [label, role, status] of [
+            ["removed", membership.role, "inactive"],
+            ["demoted", "viewer", membership.status],
+          ] as const
+        ) {
+          const queued = await admit();
+          await becomes(role, status);
+          const untouchedByQueue = scripted({
+            kind: "attempt",
+            attempt: attemptOf("merged"),
+          });
+          await process(queued.id, untouchedByQueue.dispatch);
+          assertEquals(await stateOf(queued.id), {
+            status: "blocked",
+            reason: "not_permitted",
+          }, label);
+          assertEquals(untouchedByQueue.calls.count, 0, label);
+          await becomes(membership.role, membership.status);
+        }
+      } finally {
+        await becomes(membership.role, membership.status);
+      }
+
       // Evidence that no longer says the same candidate blocks before GitHub is
       // asked anything.
       const changed = await admit();
