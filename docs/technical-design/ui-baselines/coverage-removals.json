@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "records": [
+    {
+      "baseSha": "549a92b45e58537388b9b31d81351aca3c9df31e",
+      "kind": "visual-baseline",
+      "identity": "login.throttled.light.desktop",
+      "retired": true,
+      "rationale": "The separate \"A short pause\" sign-in screen was retired in #713 (#241 UX design): a rate-limited sign-in now says, under the form, when to try again. #713 recorded the route state as retired but left its four Paper design baselines behind, so the runtime capture timed out on the deleted /__fixtures__/auth/login-throttled route."
+    },
+    {
+      "baseSha": "549a92b45e58537388b9b31d81351aca3c9df31e",
+      "kind": "visual-baseline",
+      "identity": "login.throttled.light.phone",
+      "retired": true,
+      "rationale": "The separate \"A short pause\" sign-in screen was retired in #713 (#241 UX design): a rate-limited sign-in now says, under the form, when to try again. #713 recorded the route state as retired but left its four Paper design baselines behind, so the runtime capture timed out on the deleted /__fixtures__/auth/login-throttled route."
+    },
+    {
+      "baseSha": "549a92b45e58537388b9b31d81351aca3c9df31e",
+      "kind": "visual-baseline",
+      "identity": "login.throttled.dark.desktop",
+      "retired": true,
+      "rationale": "The separate \"A short pause\" sign-in screen was retired in #713 (#241 UX design): a rate-limited sign-in now says, under the form, when to try again. #713 recorded the route state as retired but left its four Paper design baselines behind, so the runtime capture timed out on the deleted /__fixtures__/auth/login-throttled route."
+    },
+    {
+      "baseSha": "549a92b45e58537388b9b31d81351aca3c9df31e",
+      "kind": "visual-baseline",
+      "identity": "login.throttled.dark.phone",
+      "retired": true,
+      "rationale": "The separate \"A short pause\" sign-in screen was retired in #713 (#241 UX design): a rate-limited sign-in now says, under the form, when to try again. #713 recorded the route state as retired but left its four Paper design baselines behind, so the runtime capture timed out on the deleted /__fixtures__/auth/login-throttled route."
+    }
+  ]
+}
