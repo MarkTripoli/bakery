@@ -329,47 +329,47 @@ function boundary(
       ackedLocalSeq: "3" as const,
       artifactRef: ARTIFACT,
     },
-    ...(kind === "worker"
-      ? {
-        replacementAttempt: {
-          attemptId: UUIDS.attemptNew,
-          fence: "8",
-          workerSessionId: UUIDS.sessionNew,
-          workerSessionGeneration: "3",
-          checkpointEventId: UUIDS.replacementCheckpoint,
-          checkpointLocalSeq: "3" as const,
-        },
-        secondCheckpoint: {
-          attemptId: UUIDS.attemptNew,
-          eventId: UUIDS.replacementCheckpoint,
-          localSeq: "3" as const,
-          ackedLocalSeq: "3" as const,
-          artifactRef: ARTIFACT,
-        },
-      }
-      : {}),
     restart: {
       service: kind === "worker" ? "worker" as const : "inngest" as const,
       beforeProcessId: "100",
       afterProcessId: "200",
     },
-    terminal: {
-      jobId: UUIDS.job,
-      attemptId: terminalAttemptId,
-      eventId: UUIDS.terminal,
-      taskId: UUIDS.task,
-      runId,
-      runStepId: UUIDS.runStep,
-      taskStatus: "completed",
-      runStatus: "completed",
-      runStepStatus: "completed",
-      terminalTaskCount: 1 as const,
-      terminalRunCount: 1 as const,
-      terminalStepCount: 1 as const,
-      acceptedCount: 1 as const,
-      effectCount: 1 as const,
-      artifactCount: 1 as const,
-    },
+    ...(kind === "worker"
+      ? {
+        // A plan run does not redeliver a lost effectful attempt: it fails.
+        lost: {
+          attemptId: checkpointAttemptId,
+          attemptStatus: "lost" as const,
+          attemptCount: 1 as const,
+          taskId: UUIDS.task,
+          jobId: UUIDS.job,
+          jobStatus: "failed" as const,
+          runId,
+          runStatus: "failed" as const,
+          runStepId: UUIDS.runStep,
+          runStepStatus: "failed" as const,
+          stepErrorCode: "ATTEMPT_BUDGET_EXHAUSTED" as const,
+        },
+      }
+      : {
+        terminal: {
+          jobId: UUIDS.job,
+          attemptId: terminalAttemptId,
+          eventId: UUIDS.terminal,
+          taskId: UUIDS.task,
+          runId,
+          runStepId: UUIDS.runStep,
+          taskStatus: "completed",
+          runStatus: "completed",
+          runStepStatus: "completed",
+          terminalTaskCount: 1 as const,
+          terminalRunCount: 1 as const,
+          terminalStepCount: 1 as const,
+          acceptedCount: 1 as const,
+          effectCount: 1 as const,
+          artifactCount: 1 as const,
+        },
+      }),
     artifact: {
       ref: ARTIFACT,
       sha256: DIGEST,
@@ -382,12 +382,6 @@ function boundary(
         kind === "engine" ? "3" : "2",
         kind === "engine" ? "4" : "3",
       ),
-      journalAfter: journalObservation(
-        UUIDS.attemptNew,
-        kind === "worker" ? UUIDS.replacementCheckpoint : UUIDS.checkpoint,
-        "3",
-        "4",
-      ),
       spoolBefore: spoolObservation(
         checkpointAttemptId,
         UUIDS.checkpoint,
@@ -395,16 +389,22 @@ function boundary(
         "3",
         "4",
       ),
-      spoolAfter: spoolObservation(
-        UUIDS.attemptNew,
-        kind === "worker" ? UUIDS.replacementCheckpoint : UUIDS.checkpoint,
-        kind === "worker" ? "8" : "7",
-        "3",
-        "4",
-        true,
-      ),
       ...(kind === "engine"
         ? {
+          journalAfter: journalObservation(
+            UUIDS.attemptNew,
+            UUIDS.checkpoint,
+            "3",
+            "4",
+          ),
+          spoolAfter: spoolObservation(
+            UUIDS.attemptNew,
+            UUIDS.checkpoint,
+            "7",
+            "3",
+            "4",
+            true,
+          ),
           engineBefore: engineObservation(
             runId,
             "100",
@@ -1385,6 +1385,52 @@ registerDurableCoreTest(
       await Deno.remove(contenderProofDirectory, { recursive: true });
       await Deno.remove(root, { recursive: true });
     }
+  },
+);
+
+registerDurableCoreTest(
+  "a worker boundary proof states the plan outcome: one attempt, a failed run, the named budget",
+  () => {
+    const valid = boundary("worker", UUIDS.workerRun);
+    assertDurableCoreBoundaryProof(valid, {
+      revision: REVISION,
+      runId: UUIDS.workerRun,
+    });
+    const lost = (change: Record<string, unknown>) => ({
+      ...valid,
+      lost: { ...(valid as unknown as { lost: object }).lost, ...change },
+    });
+    // A second attempt means the step was redelivered, which a plan run never does.
+    assertThrows(() =>
+      assertDurableCoreBoundaryProof(lost({ attemptCount: 2 }))
+    );
+    // The run must have failed, and for the named reason.
+    assertThrows(() =>
+      assertDurableCoreBoundaryProof(lost({ runStatus: "completed" }))
+    );
+    assertThrows(() =>
+      assertDurableCoreBoundaryProof(lost({ stepErrorCode: "WORKER_FAILED" }))
+    );
+    // The attempt that was lost is the one that checkpointed.
+    assertThrows(() =>
+      assertDurableCoreBoundaryProof(lost({ attemptId: UUIDS.attemptNew }))
+    );
+    // A successful terminal or a replacement attempt is no longer part of this proof.
+    assertThrows(() =>
+      assertDurableCoreBoundaryProof({
+        ...valid,
+        terminal: (boundary("engine", UUIDS.workerRun) as unknown as {
+          terminal: object;
+        })
+          .terminal,
+      })
+    );
+    assertThrows(() =>
+      assertDurableCoreBoundaryProof({
+        ...valid,
+        replacementAttempt: { attemptId: UUIDS.attemptNew },
+      })
+    );
   },
 );
 
