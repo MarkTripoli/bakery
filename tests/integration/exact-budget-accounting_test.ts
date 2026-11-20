@@ -884,6 +884,19 @@ Deno.test("real model admission and worker receipts preserve exact paired accoun
         [late.organizationId, lateUnknown.usageFactId],
       )).rows[0];
     assertEquals(lateBefore, { cost: null, status: "unknown" });
+    // A record that reported no cost is counted as unknown, and only there: it
+    // is not also "reported, not confirmed".
+    const silentSummary = await withPgTransaction(
+      database,
+      async (transaction) =>
+        await readUsageSummary(transaction, {
+          from: "2026-09-01T00:00:00.000Z",
+          to: "2026-10-01T00:00:00.000Z",
+          provider: "openai",
+        }),
+    );
+    assertEquals(silentSummary.unknownCount, 1);
+    assertEquals(silentSummary.unverifiedCount, 0);
     const lateOriginalResultEventId =
       (await database.query<{ resultEventId: string }>(
         `select result_event_id as "resultEventId"

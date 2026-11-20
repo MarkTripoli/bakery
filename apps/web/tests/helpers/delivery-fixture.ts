@@ -206,9 +206,14 @@ export async function deliveryFixture(
       (_, i) => task(merged + i + 1, "completed_run"),
     ),
   ];
+  // The organization each metrics read was made for, as the API sees it.
+  const organizationHeaders: (string | undefined)[] = [];
   await page.route(
     (url) => url.pathname === "/v1/metrics",
     (route) => {
+      organizationHeaders.push(
+        route.request().headers()["bakery-organization-id"],
+      );
       const metric = new URL(route.request().url()).searchParams.get("metric")!;
       if (metric === "tasks.leadTimeHours") {
         return json(
@@ -255,5 +260,5 @@ export async function deliveryFixture(
       });
     },
   );
-  return { records, pullRequests };
+  return { records, pullRequests, organizationHeaders };
 }

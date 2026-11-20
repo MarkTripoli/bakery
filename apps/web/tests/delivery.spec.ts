@@ -1,9 +1,22 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Route, test } from "@playwright/test";
 import { deliveryFixture } from "./helpers/delivery-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
+import { MOCK_ORGANIZATION_ID } from "./helpers/mock-session.ts";
 
 registerPageHealth(test);
+
+/** Answers the effective-access read with a role and the given capabilities. */
+const access = (route: Route, capabilities: string[]) => {
+  const organizationId = /organizations\/([^/]+)\/effective-access/.exec(
+    route.request().url(),
+  )![1];
+  return route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ organizationId, role: "developer", capabilities }),
+  });
+};
 
 /** The Delivery page (#75): what was delivered, how long a task took, where the time went. */
 for (
@@ -175,6 +188,46 @@ for (
       ).toEqual(heading);
       await page.mouse.move(700, 700);
       await still(page, "delivery-pull-requests");
+    });
+
+    test("every metrics read is made for the page's organization", async ({ page }) => {
+      const seen = await deliveryFixture(page);
+      await page.goto("/delivery");
+      await expect(page.getByRole("heading", { name: "Delivery", level: 1 }))
+        .toBeVisible();
+      expect(seen.organizationHeaders.length).toBeGreaterThanOrEqual(5);
+      expect(new Set(seen.organizationHeaders)).toEqual(
+        new Set([MOCK_ORGANIZATION_ID]),
+      );
+    });
+
+    test("the rail lists Delivery for a reader with metric:read", async ({ page }) => {
+      // A phone keeps the rail behind its menu; the rule is the same there.
+      test.skip(viewport.name === "phone");
+      await deliveryFixture(page);
+      await page.route(
+        "**/v1/organizations/*/effective-access",
+        (route) => access(route, ["metric:read"]),
+      );
+      await page.goto("/delivery");
+      await expect(page.getByRole("link", { name: "Delivery", exact: true }))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-rail");
+    });
+
+    test("the rail does not list Delivery without metric:read", async ({ page }) => {
+      test.skip(viewport.name === "phone");
+      await deliveryFixture(page);
+      await page.route(
+        "**/v1/organizations/*/effective-access",
+        (route) => access(route, []),
+      );
+      await page.goto("/delivery");
+      await expect(page.getByRole("link", { name: "Projects", exact: true }))
+        .toBeVisible();
+      await expect(page.getByRole("link", { name: "Delivery", exact: true }))
+        .toHaveCount(0);
     });
   });
 }
