@@ -6395,6 +6395,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
@@ -6417,6 +6418,8 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
@@ -6441,6 +6444,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
@@ -6463,6 +6467,8 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
@@ -6487,6 +6493,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
       ],
@@ -6509,6 +6516,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
       ],
@@ -6531,6 +6539,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
       ],
@@ -6553,6 +6562,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
       ],
@@ -6575,6 +6585,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
       ],
@@ -6597,6 +6608,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
       ],
@@ -6619,6 +6631,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
       ],
@@ -6641,6 +6654,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
       ],
@@ -6663,6 +6677,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
       ],

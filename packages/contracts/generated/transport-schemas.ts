@@ -33755,7 +33755,7 @@ const transportSchemas = {
     "evaluation.check": {
       "inputSchema": "EvaluationCheckInput",
       "outputSchema": "EvaluationCheckOutput",
-      "schemaSource": "packages/contracts/src/evaluation-scoring.ts",
+      "schemaSource": "packages/contracts/src/contracts.ts",
       "capabilities": [
         "storage"
       ],
@@ -33764,7 +33764,7 @@ const transportSchemas = {
     "evaluation.score": {
       "inputSchema": "EvaluationScoreInput",
       "outputSchema": "EvaluationScoreOutput",
-      "schemaSource": "packages/contracts/src/evaluation-scoring.ts",
+      "schemaSource": "packages/contracts/src/contracts.ts",
       "capabilities": [
         "model",
         "storage"
