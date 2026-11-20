@@ -77,6 +77,32 @@ type Agent = {
 };
 
 /**
+ * A session call that has not answered in 30 s fails the test by name. The
+ * gateway holds the attempt row while the operation runs on another
+ * connection; a lock the two wait on in turn never errors in Postgres (the
+ * cycle runs through the client), so without this a regression hangs.
+ */
+async function bounded(
+  call: Promise<Response>,
+  tool: string,
+): Promise<Response> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      call,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("session call " + tool + " hung for 30 s")),
+          30_000,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * An agent in a real session: a registered worker claims a seeded job and
  * calls Bakery's own operations through the self-connection with the session
  * credential the claim minted.
@@ -108,19 +134,22 @@ async function agentSession(
     attemptId: assignment.attemptId,
     job,
     call: (tool, args, ifMatch) =>
-      workerRequest(
-        fixture,
-        worker.credential,
-        "/v1/worker/attempts/" + assignment.attemptId + "/session-call",
-        { tool, arguments: args },
-        {
-          headers: {
-            "x-session-credential": token,
-            ...(ifMatch === undefined
-              ? {}
-              : { "If-Match": '"' + ifMatch + '"' }),
+      bounded(
+        workerRequest(
+          fixture,
+          worker.credential,
+          "/v1/worker/attempts/" + assignment.attemptId + "/session-call",
+          { tool, arguments: args },
+          {
+            headers: {
+              "x-session-credential": token,
+              ...(ifMatch === undefined
+                ? {}
+                : { "If-Match": '"' + ifMatch + '"' }),
+            },
           },
-        },
+        ),
+        tool,
       ),
   };
 }
@@ -227,6 +256,94 @@ Deno.test("an agent's write is audited with the person and the session, in the p
       Object.keys(personRow.details.actor).sort(),
       Object.keys(agentRow.details.actor).sort(),
     );
+  }));
+
+Deno.test("an agent's put writes exactly one write-set row, and its version reads as the agent's", () =>
+  withWorkerFixture(async (fixture) => {
+    const folder = await json(
+      await asPerson(fixture, "POST", "/v1/storage/folders", {
+        path: "/shared/agent-448-write-set",
+      }),
+      201,
+    );
+    const agent = await agentSession(
+      fixture,
+      "agent-448-write-set",
+      async (job) => {
+        await grantFolder(
+          fixture,
+          job.workflowId,
+          folder.id as string,
+          "write",
+        );
+      },
+    );
+    const written = await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-write-set/a.md"),
+      ),
+    );
+    // A person's own write in the same folder is in no step's set.
+    await json(
+      await asPerson(
+        fixture,
+        "PUT",
+        "/v1/storage/files",
+        file("/shared/agent-448-write-set/b.md", "person bytes"),
+      ),
+      200,
+    );
+    const rows = await fixture.pgDatabase.query<{
+      attempt_id: string;
+      agent_session_id: string | null;
+      entry_id: string;
+      op: string;
+      previous_version_id: string | null;
+      new_version_id: string | null;
+    }>(
+      "select attempt_id, agent_session_id, entry_id, op," +
+        " previous_version_id, new_version_id from bakery.step_write_set" +
+        " where organization_id = $1 and attempt_id = $2",
+      [fixture.organizationId, agent.attemptId],
+    );
+    assertEquals(rows.rows.length, 1);
+    const row = rows.rows[0];
+    assertEquals(row.entry_id, written.id);
+    assertEquals(row.op, "put");
+    assertEquals(row.previous_version_id, null);
+    assertEquals(row.new_version_id, written.currentVersionId);
+    const audit = await fixture.pgDatabase.query<
+      { agent_session_id: string | null }
+    >(
+      "select agent_session_id from bakery.audit_events" +
+        " where organization_id = $1 and operation = 'storageFiles.put'" +
+        " and resource_id = $2",
+      [fixture.organizationId, written.id],
+    );
+    assertEquals(audit.rows.length, 1);
+    assert(audit.rows[0].agent_session_id !== null);
+    assertEquals(audit.rows[0].agent_session_id, row.agent_session_id);
+    const person = await fixture.pgDatabase.query<{ n: string }>(
+      "select count(*)::text as n from bakery.step_write_set w" +
+        " join bakery.storage_entries e on e.organization_id = w.organization_id" +
+        " and e.id = w.entry_id" +
+        " where w.organization_id = $1 and e.name = 'b.md'",
+      [fixture.organizationId],
+    );
+    assertEquals(person.rows[0].n, "0");
+    // The version the agent wrote reads as the agent's, naming the person.
+    const versions = await json(
+      await asPerson(
+        fixture,
+        "GET",
+        "/v1/storage/files/" + written.id + "/versions",
+      ),
+      200,
+    ) as { items: Json[] };
+    assertEquals(versions.items[0].makerKind, "agent");
+    assertEquals(versions.items[0].makerPrincipalId, fixture.principalId);
+    assertEquals(versions.items[0].sessionId, row.agent_session_id);
   }));
 
 Deno.test("the guard reads only the caller's organization: a foreign organization sees no folder", () =>
@@ -388,6 +505,94 @@ Deno.test("the claim mints the step's files section (O44, O45) into the session 
     ) assert(scopes.includes(scope), scope + " in " + JSON.stringify(scopes));
     // No personal area is ever minted.
     assert(!scopes.some((scope) => scope.includes("users")));
+  }));
+
+Deno.test("an agent at its step's file limit is refused the next write; a person is not (O49)", () =>
+  withWorkerFixture(async (fixture) => {
+    const current = await json(
+      await asPerson(fixture, "GET", "/v1/storage/settings"),
+      200,
+    );
+    assertEquals(current.stepWriteFiles, 2000);
+    assertEquals(current.stepWriteBytes, 2 * 1024 ** 3);
+    const {
+      organizationUsedBytes: _used,
+      organizationQuotaState: _state,
+      customized: _customized,
+      version: _version,
+      ...limits
+    } = current;
+    const saved = await json(
+      await asPerson(fixture, "PUT", "/v1/storage/settings", {
+        ...limits,
+        stepWriteFiles: 2,
+      }),
+      200,
+    );
+    assertEquals(saved.stepWriteFiles, 2);
+    const folder = await json(
+      await asPerson(fixture, "POST", "/v1/storage/folders", {
+        path: "/shared/agent-448-limits",
+      }),
+      201,
+    );
+    const agent = await agentSession(
+      fixture,
+      "agent-448-limits",
+      async (job) => {
+        await grantFolder(
+          fixture,
+          job.workflowId,
+          folder.id as string,
+          "write",
+        );
+      },
+    );
+    const first = await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-limits/1.md"),
+      ),
+    );
+    await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-limits/2.md"),
+      ),
+    );
+    // A new version of a file the step already wrote is not a new file.
+    await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-limits/1.md", "agent bytes, again"),
+        first.version as number,
+      ),
+    );
+    const refused = await agent.call(
+      "storageFiles.put",
+      file("/shared/agent-448-limits/3.md"),
+    );
+    assertEquals(await refusal(refused), {
+      status: 409,
+      code: "STEP_WRITE_LIMIT_EXCEEDED",
+      reason: "files",
+    });
+    const kept = await fixture.pgDatabase.query<{ n: string }>(
+      "select count(*)::text as n from bakery.storage_entries" +
+        " where organization_id = $1 and parent_id = $2",
+      [fixture.organizationId, folder.id],
+    );
+    assertEquals(kept.rows[0].n, "2");
+    // A person's writes are never limited by a step's limit.
+    await json(
+      await asPerson(
+        fixture,
+        "PUT",
+        "/v1/storage/files",
+        file("/shared/agent-448-limits/3.md", "person bytes"),
+      ),
+      200,
+    );
   }));
 
 /**

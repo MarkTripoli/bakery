@@ -7,6 +7,7 @@ import {
   run,
   type Runtime,
 } from "@bakery/cli";
+import { madeBy } from "../../packages/cli/src/files.ts";
 
 const ORG = "00000000-0000-4000-8000-000000000003";
 const TOKEN = "bky_secret_token_value";
@@ -170,6 +171,7 @@ function fakeServer(options: { digest?: string; problem?: number } = {}) {
           workItemId: null,
           workItemTitle: null,
           sessionId: null,
+          agentName: null,
         });
         return Promise.resolve(json({
           items: [version(PLAN_V1, 1, false), version(PLAN_V2, 2, true)],
@@ -606,6 +608,26 @@ Deno.test("references: a path, a path at a revision, or a version id", () => {
   });
   assertEquals(normalizePath(""), "/");
   assertEquals(normalizePath("/x/y/"), "/x/y");
+});
+
+Deno.test("versions: an agent's version names the agent and the person, never the person alone", () => {
+  const base = { makerName: "Ada", agentName: "Reviewer" };
+  assertEquals(
+    madeBy({ ...base, makerKind: "agent" } as Parameters<typeof madeBy>[0]),
+    "agent Reviewer for Ada",
+  );
+  assertEquals(
+    madeBy(
+      { ...base, makerKind: "agent", agentName: null } as Parameters<
+        typeof madeBy
+      >[0],
+    ),
+    "an agent for Ada",
+  );
+  assertEquals(
+    madeBy({ ...base, makerKind: "person" } as Parameters<typeof madeBy>[0]),
+    "Ada",
+  );
 });
 
 Deno.test("stat shows whether a file is pinned", async () => {
