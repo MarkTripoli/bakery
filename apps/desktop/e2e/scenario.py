@@ -150,6 +150,16 @@ def stored():
     return r.stdout.strip() if r.returncode == 0 else ""
 
 
+def wait_until(condition, timeout=10):
+    """Waits for something the app does a moment after it shows a window, such as clearing a secret."""
+    end = time.time() + timeout
+    while time.time() < end:
+        if condition():
+            return True
+        time.sleep(0.25)
+    return condition()
+
+
 def clear_store():
     subprocess.run(["secret-tool", "clear", "service", SERVICE, "username", USER], capture_output=True)
 
@@ -308,7 +318,8 @@ def phase_ended_sign_in():
     check("[ended] the app opens signed in at first", wait_window(p, "app", timeout=30) is not None)
     check("[ended] then the server says no and the dialog appears",
           wait_window(p, "sign_in_again", dialog=True, timeout=40) is not None)
-    check("[ended] what was saved is cleared", stored() == "")
+    # The dialog is shown, then the saved sign-in is cleared: wait for the clear, within a limit.
+    check("[ended] what was saved is cleared", wait_until(lambda: stored() == ""))
     seen = len(views(p))
     press(p, "sign_in")
     check("[ended] signing in again stays in the dialog", wait_window(p, "waiting", dialog=True, after=seen) is not None)
