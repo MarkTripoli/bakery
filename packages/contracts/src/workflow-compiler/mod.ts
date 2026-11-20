@@ -119,6 +119,7 @@ export {
   DEFAULT_STEP_FILES,
   readsOnlyInputs,
   resolveStepFiles,
+  SEALED_STEP_FILES,
   WORKFLOW_FILE_READ_AREAS,
   WORKFLOW_FILE_TREE_READ_AREAS,
   WORKFLOW_FILE_TREE_WRITE_AREAS,
@@ -126,6 +127,7 @@ export {
   WorkflowFileReadAreaSchema,
   WorkflowFileWriteAreaSchema,
   WorkflowStepFilesSchema,
+  WorkflowStepSealedSchema,
 } from "./step-files.ts";
 export type {
   WorkflowFileReadArea,
