@@ -204,9 +204,6 @@ export function SecurityHubScreen(
             workspace={slackLink.workspace}
           />
         )}
-        <RouterLink to={SIGN_OUT_PATH}>
-          {translate("auth.settings.security.signOutOfSession")}
-        </RouterLink>
       </SecurityAsyncBoundary>
     </UI.SettingsContent>
   );
