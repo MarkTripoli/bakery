@@ -1,4 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert";
+import { chmod, lstat, readdir } from "node:fs/promises";
 import { REPOSITORY_INSPECTION_LIMITS as LIMITS } from "../../packages/config/src/env.ts";
 import {
   deriveRepositoryInspectionConfig,
@@ -74,6 +75,20 @@ async function git(
   assertEquals(result.code, 0, new TextDecoder().decode(result.stderr));
   return new TextDecoder().decode(result.stdout).trim();
 }
+/**
+ * The inspector refuses a repository that anyone but its owner can write. git
+ * creates what it writes under the host's umask (0002 on an account with a
+ * private group), so the fixture drops group and other write before it is read.
+ */
+async function ownerOnlyWritable(path: string): Promise<void> {
+  const info = await lstat(path);
+  await chmod(path, (info.mode & 0o7777) & ~0o022);
+  if (info.isDirectory()) {
+    for (const name of await readdir(path)) {
+      await ownerOnlyWritable(`${path}/${name}`);
+    }
+  }
+}
 const object = (cwd: string, type: string, bytes: Uint8Array) =>
   git(cwd, ["hash-object", "-w", "-t", type, "--stdin"], bytes);
 const treeEntry = (name: string, id: string): Uint8Array => {
@@ -140,6 +155,7 @@ Deno.test("inspection rejects oversized commit, tree and blob before content ext
       treeEntry("main.js", largeBlob),
     );
     const blobCommit = await object(directory, "commit", commit(blobTree));
+    await ownerOnlyWritable(directory);
     for (const snapshot of [oversizedCommit, treeCommit, blobCommit]) {
       const error = await assertRejects(
         () =>
