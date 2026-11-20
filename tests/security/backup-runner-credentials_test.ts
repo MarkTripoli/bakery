@@ -305,3 +305,36 @@ Deno.test("a report that carries bytes or key material is refused, whatever the 
     await o.finish();
   }
 });
+
+Deno.test("the report route authenticates before it reads the body", async () => {
+  const o = await open();
+  try {
+    const credential = await o.issue();
+    const path = `/v1/backup-runner/runs/${crypto.randomUUID()}/reports`;
+    // A body that fails every schema rule, and an oversized one: an
+    // unauthenticated caller must be refused on the credential alone, never
+    // answered with a validation error and never made to be read and parsed.
+    const bodies = [
+      { sequence: "not-a-number", status: 7, extra: { nested: true } },
+      { padding: "x".repeat(200_000) },
+    ];
+    for (const body of bodies) {
+      const wrong = await o.bearer("not-the-credential", "POST", path, body);
+      assertEquals(wrong.status, 403, JSON.stringify(body).slice(0, 40));
+      assertEquals((await wrong.json() as Problem).code, "AUTH_FORBIDDEN");
+      const none = await o.bearer(null, "POST", path, body);
+      assertEquals(none.status, 401);
+      await none.body?.cancel();
+    }
+    // The control: with the real credential the same body IS validated, so the
+    // 403 above is the credential check running first, not validation being off.
+    const real = await o.bearer(credential, "POST", path, bodies[0]);
+    assert(
+      real.status === 400 || real.status === 422,
+      `a bad body with the real credential answered ${real.status}`,
+    );
+    await real.body?.cancel();
+  } finally {
+    await o.finish();
+  }
+});
