@@ -180,10 +180,16 @@ Deno.test("re-publishing keeps sign-offs and refreshes open boxes", () => {
   const next = buildPrBody(
     spec({ purpose: "Admins see why a run was refused.", notApplicable: {} }),
   ).body;
-  const merged = carryVerification(next, live);
+  const merged = carryVerification(next, live, "0123abc" + "0".repeat(33));
   assert(merged.includes("- [x] UI verified (design-ux) @ 0123abc"));
   assert(merged.includes("Admins see why a run was refused."));
   assertEquals(differing(next, merged), 1);
+  // The branch moved on: the tick names code that is gone, so it is not carried.
+  const later = carryVerification(next, live, "f".repeat(40));
+  assertEquals(later, next);
+  // N/A lines are not about a commit and always carry.
+  const na = buildPrBody(spec()).body;
+  assertEquals(carryVerification(na, na, "f".repeat(40)), na);
 });
 
 Deno.test("a lone dash after a switch is the stdin marker, not its value", () => {
@@ -253,6 +259,52 @@ async function publishWithFakeGh(spec: unknown, ...args: string[]) {
     await Deno.remove(dir, { recursive: true });
   }
 }
+
+Deno.test("publish --pr refuses a live body whose carried line is a format error", async () => {
+  // The fake gh answers `pr view` with a live body whose tick has no claim, so
+  // the merged body has a real error: exit 1, and no `pr edit` is sent.
+  const dir = await Deno.makeTempDir();
+  try {
+    const live = buildPrBody(spec({ notApplicable: {} })).body.replace(
+      /^- \[ \] UI verified.*$/m,
+      "- [x] UI verified (design-ux) @ " + "a".repeat(8) + ":",
+    );
+    await Deno.writeTextFile(
+      dir + "/view.json",
+      JSON.stringify({ body: live, headRefOid: "a".repeat(40) }),
+    );
+    await Deno.writeTextFile(
+      dir + "/gh",
+      '#!/bin/sh\necho "$@" >> ' + dir + '/calls.txt\n[ "$2" = view ] && cat ' +
+        dir +
+        "/view.json\nexit 0\n",
+    );
+    await Deno.chmod(dir + "/gh", 0o755);
+    await Deno.writeTextFile(
+      dir + "/spec.json",
+      JSON.stringify(spec({ notApplicable: {} })),
+    );
+    const out = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "-A",
+        "scripts/authoring/pr-body.ts",
+        "publish",
+        dir + "/spec.json",
+        "--pr",
+        "9",
+      ],
+      env: { PATH: dir + ":" + Deno.env.get("PATH") },
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    const calls = await Deno.readTextFile(dir + "/calls.txt");
+    assertEquals(out.code, 1, new TextDecoder().decode(out.stderr));
+    assert(!calls.includes("edit"), calls);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
 
 const overlongPurpose = Array.from({ length: 45 }, (_, n) => "word" + n)
   .join(" ");

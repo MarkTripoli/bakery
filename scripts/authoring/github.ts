@@ -1,6 +1,7 @@
 import {
   relatedIssue,
   splitMessages,
+  staleVerification,
   validateDescription,
 } from "./validate.ts";
 
@@ -113,6 +114,8 @@ export async function inspect(api: Request, kind: "issue" | "pr", id: number) {
   const { errors, pending } = splitMessages(
     validateDescription("pr", item.body),
   );
+  // A tick names the commit it was made at; one at another commit is pending.
+  pending.push(...staleVerification(item.body, item.head));
   const owner = relatedIssue(item.body);
   const linked = owner ? await issue(api, owner) : undefined;
   if (linked) {

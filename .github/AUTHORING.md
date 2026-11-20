@@ -145,9 +145,10 @@ code.
 - Verification lines nobody has ticked yet are pending, not errors. The job
   reports them as the `verification` commit status on the PR head (it needs
   `statuses: write`): pending, listing what is open, until every line is ticked
-  or marked N/A, then success. A push that changes the head puts it back to
-  pending, because earlier ticks name an older head; the next edit of the body
-  re-reads it. Only format errors fail `pull-request`.
+  or marked N/A, then success. A tick counts only when its `@ <sha>` is the PR
+  head; a tick at an older commit, or with no commit, is pending again, so an
+  edit after a push cannot turn the status green. A push that changes the head
+  puts it back to pending at once. Only format errors fail `pull-request`.
 - An issue edit does not rerun every PR linking that issue; edit the PR (or push
   to it) to re-run the check.
 - Other labels and native parent/dependency links are preserved.

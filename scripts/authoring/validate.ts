@@ -34,6 +34,14 @@ export const fields = {
 export type Kind = keyof typeof fields;
 const key = (text: string) =>
   text.trim().toLowerCase().replace(/:$/, "").replace(/\s+@\s+\S+$/, "");
+/** The four merge-gate checklist items, as the validator names them. */
+export const VERIFICATION_ITEMS = [
+  "backend verified",
+  "ui verified",
+  "implementation clean",
+  "tests cover",
+] as const;
+
 const HEAD_LINE = /^\*{0,2}Head:\*{0,2}[ \t]*`?[0-9a-f]{7,40}`?[ \t]*$/i;
 const known = new Set(Object.values(fields).flat().map(key));
 
@@ -241,6 +249,34 @@ export function relatedIssue(body: string): number | null {
 export const isPendingVerification = (message: string): boolean =>
   message.startsWith("Verification pending:");
 
+/**
+ * Ticked verification lines that do not name the PR head. A tick is written as
+ * `@ <sha>`; one at an older commit, or with no commit, says nothing about the
+ * code now on the branch, so it is pending again until someone re-confirms it.
+ * N/A lines are about whether the item applies, not about a commit, and stay.
+ */
+export function staleVerification(body: string, head: string): string[] {
+  const lines = (parseDescription(body).sections.get("verification") ?? "")
+    .split("\n").filter((line) => /^[-*] /.test(line));
+  const now = head.toLowerCase();
+  const messages: string[] = [];
+  for (const item of VERIFICATION_ITEMS) {
+    const line = lines.find((l) =>
+      new RegExp(`^[-*] \\[[xX]\\]\\s*${item}\\b`, "i").test(l)
+    );
+    if (line === undefined) continue;
+    const sha = /@\s*([0-9a-f]{7,40})\b/i.exec(line)?.[1]?.toLowerCase();
+    if (sha === undefined || !now.startsWith(sha)) {
+      messages.push(
+        `Verification pending: "${item}" is ticked ${
+          sha === undefined ? "with no commit" : "at " + sha.slice(0, 8)
+        }, not at the current head ${now.slice(0, 8)}; confirm it again.`,
+      );
+    }
+  }
+  return messages;
+}
+
 /** Splits validator messages into format errors and pending verification lines. */
 export function splitMessages(
   messages: readonly string[],
@@ -375,12 +411,7 @@ export function validateDescription(kind: Kind, body: string): string[] {
     // The verification checklist is the merge gate: reviewers tick each box or
     // replace it with "N/A: <reason>"; any open box keeps the check red.
     const verification = sections.get("verification") ?? "";
-    const required = [
-      "backend verified",
-      "ui verified",
-      "implementation clean",
-      "tests cover",
-    ];
+    const required = VERIFICATION_ITEMS;
     const lines = verification.split("\n").filter((line) =>
       /^[-*] /.test(line)
     );
@@ -435,6 +466,8 @@ export function validateDescription(kind: Kind, body: string): string[] {
         const claim = line.replace(/^[-*] \[[xX]\]\s*/, "")
           .replace(new RegExp(`^${item}\\b`, "i"), "")
           .replace(/^\s*\([^)]*\)/, "")
+          // The `@ <sha>` a verifier writes names the commit; it is not the claim.
+          .replace(/^\s*@\s*[0-9a-f]{7,40}\b/i, "")
           .replace(/^[\s:,-]*/, "")
           .trim();
         if (!/\S/.test(claim)) {

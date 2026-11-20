@@ -1,6 +1,11 @@
 import { execFileSync } from "node:child_process";
 import process from "node:process";
-import { isPendingVerification, validateDescription } from "./validate.ts";
+import {
+  isPendingVerification,
+  splitMessages,
+  staleVerification,
+  validateDescription,
+} from "./validate.ts";
 
 /**
  * Structured PR descriptions. An author writes a small JSON spec (never raw
@@ -388,16 +393,29 @@ export function setVerification(
 
 /**
  * Re-publishing a spec must not erase sign-offs already on the live body:
- * the verifiers own those lines. Ticked and N/A lines carry over; open ones
- * take the freshly rendered line.
+ * the verifiers own those lines. N/A lines carry over, and so do ticks made at
+ * the PR head; a tick at another commit names code that is gone, so it takes
+ * the freshly rendered open line like any other open box.
  */
-export function carryVerification(rendered: string, live: string): string {
+export function carryVerification(
+  rendered: string,
+  live: string,
+  head: string,
+): string {
+  const now = head.toLowerCase();
+  const atHead = (line: string): boolean => {
+    const sha = /@\s*([0-9a-f]{7,40})\b/i.exec(line)?.[1]?.toLowerCase();
+    return sha !== undefined && now.startsWith(sha);
+  };
   let result = rendered;
   for (const item of itemOrder) {
     try {
       const liveLines = live.split(/\r?\n/);
       const kept = liveLines[itemIndex(liveLines, item)];
-      if (/^[-*] \[[xX]\]/.test(kept) || /\bN\/A:\s*\S/.test(kept)) {
+      if (
+        (/^[-*] \[[xX]\]/.test(kept) && atHead(kept)) ||
+        /\bN\/A:\s*\S/.test(kept)
+      ) {
         const lines = result.split("\n");
         lines[itemIndex(lines, item)] = kept;
         result = lines.join("\n");
@@ -488,10 +506,19 @@ async function main(): Promise<void> {
     } else if (options.has("pr")) {
       const number = options.get("pr")!;
       const live = livePull(number);
-      const body = carryVerification(built.body, live.body);
+      const body = carryVerification(built.body, live.body, live.headRefOid);
+      const found = splitMessages(validateDescription("pr", body));
+      // A format error stops here: nothing is sent, the fix is printed.
+      if (found.errors.length) {
+        report(found.errors, found.pending);
+        process.exit(1);
+      }
       if (options.has("dry-run")) process.stdout.write(body);
       else gh(["pr", "edit", number, "--body-file", "-"], body);
-      report([], validateDescription("pr", body));
+      report([], [
+        ...found.pending,
+        ...staleVerification(body, live.headRefOid),
+      ]);
     } else if (options.has("create") && options.has("title")) {
       process.stdout.write(
         gh([
@@ -549,7 +576,7 @@ async function main(): Promise<void> {
       }
       if (options.has("dry-run")) process.stdout.write(next);
       else gh(["pr", "edit", number, "--body-file", "-"], next);
-      report([], validateDescription("pr", next));
+      report([], splitMessages(validateDescription("pr", next)).pending);
     } else {
       const source = positional[1];
       if (!source) {

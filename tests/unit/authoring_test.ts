@@ -3,6 +3,7 @@ import {
   fields,
   relatedIssue,
   splitMessages,
+  staleVerification,
   validateDescription,
   validateReview,
 } from "../../scripts/authoring/validate.ts";
@@ -57,7 +58,7 @@ const pr = [
   "## Change outline\n\n```text\nTemplates -> authoring skill -> shared validator -> GitHub feedback/status\n```",
   "## Decisions\n\n- None.",
   "## Evidence\n\n- New test `authoring_test.ts`: rejects a PR body over 300 words.",
-  "## Verification\n\n- [x] Backend verified (reviewer): ok.\n- [x] UI verified (design-ux): ok.\n- [x] Implementation clean (reviewer): ok.\n- [ ] Tests cover the change (qa) N/A: docs-only change.",
+  "## Verification\n\n- [x] Backend verified (reviewer) @ aaaaaaaa: ok.\n- [x] UI verified (design-ux) @ aaaaaaaa: ok.\n- [x] Implementation clean (reviewer) @ aaaaaaaa: ok.\n- [ ] Tests cover the change (qa) N/A: docs-only change.",
 ].join("\n\n");
 const head = "a".repeat(40);
 const base = "b".repeat(40);
@@ -794,6 +795,39 @@ Deno.test("a Head: line under the metadata line is not part of the Walkthrough",
       e.startsWith("Walkthrough must")
     ),
   );
+});
+
+Deno.test("a tick at an older head is pending again, so a later edit cannot turn verification green", async () => {
+  // Ticked at the head: nothing stale.
+  assertEquals(staleVerification(pr, head), []);
+  // The branch moved on: every tick now names code that is gone.
+  const moved = "c".repeat(40);
+  const stale = staleVerification(pr, moved);
+  assertEquals(stale.length, 3);
+  assert(
+    stale[0].includes('"backend verified"') && stale[0].includes("aaaaaaaa"),
+  );
+  // A tick with no commit at all says nothing about the code either.
+  assertEquals(
+    staleVerification(
+      pr.replaceAll("(reviewer) @ aaaaaaaa: ok.", "(reviewer): ok."),
+      head,
+    )
+      .length,
+    2,
+  );
+  // N/A is about whether the item applies, not a commit.
+  assert(!stale.some((m) => m.includes("tests cover")));
+
+  // End to end: an edit after a push (headChanged false) must stay pending.
+  const f = fixture();
+  f.data.pull.head = { sha: moved };
+  const checked = await checkLive(f.api, "pr", 170);
+  assertEquals(checked.ok, true, checked.errors.join(" "));
+  assertEquals(checked.pending.length, 3);
+  const status = await reportVerification(f.api, moved, checked.pending, false);
+  assertEquals(status.state, "pending");
+  assert(status.description.startsWith("3 verification lines open"));
 });
 
 Deno.test("format errors and pending lines are split by one rule", () => {
