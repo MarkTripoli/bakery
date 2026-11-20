@@ -51,12 +51,16 @@ async function withEnvironment<T>(
     credential: string;
     receiver: ReturnType<typeof startS3Receiver>;
     stub: { calls: number; name: string | null };
+    /** The settings-release audit rows written since this test began. */
+    audit: () => Promise<Awaited<ReturnType<typeof runnerAuditRows>>>;
     pass: () => Promise<number>;
     runs: () => Promise<Run[]>;
     state: () => Promise<string>;
   }) => Promise<T>,
   receiverOptions: Parameters<typeof startS3Receiver>[0] = {},
 ): Promise<T> {
+  // Audit rows are not cleared between fixtures: count only what this test adds.
+  const auditBase = (await runnerAuditRows(o)).length;
   const root = await Deno.makeTempDir({ prefix: "bakery-runner-e2e-" });
   const receiver = startS3Receiver(receiverOptions);
   try {
@@ -110,7 +114,17 @@ async function withEnvironment<T>(
       const response = await o.admin("GET", "/v1/installation/backups/status");
       return (await response.json() as { state: string }).state;
     };
-    return await run({ root, credential, receiver, stub, pass, runs, state });
+    const audit = async () => (await runnerAuditRows(o)).slice(auditBase);
+    return await run({
+      root,
+      credential,
+      receiver,
+      stub,
+      audit,
+      pass,
+      runs,
+      state,
+    });
   } finally {
     await receiver.stop();
     await Deno.remove(root, { recursive: true });
@@ -158,7 +172,7 @@ Deno.test("an administrator's backup is claimed, taken, copied off-site and show
       assertEquals(await e.state(), "protected");
 
       // The one read that released the pair was audited, without any key.
-      const audit = await runnerAuditRows(o);
+      const audit = await e.audit();
       assertEquals(audit.length, 1);
       assertEquals(audit[0].details.released, true);
       const text = JSON.stringify(audit);
@@ -181,7 +195,7 @@ Deno.test("an idle poll claims nothing, reads no settings and writes no audit ro
       assertEquals(saved.status, 200);
       for (let poll = 0; poll < 3; poll++) assertEquals(await e.pass(), 0);
       assertEquals(e.stub.calls, 0);
-      assertEquals((await runnerAuditRows(o)).length, 0);
+      assertEquals((await e.audit()).length, 0);
       assertEquals((await e.runs()).length, 0);
     });
   } finally {
@@ -246,7 +260,7 @@ Deno.test("a name re-pointed at a private address is withheld by the server and 
       assertEquals(e.stub.calls, 1); // the local backup was still taken
       assertEquals(e.receiver.requests.length, 0);
       // The server refused to release the pair and said so in the audit row.
-      const audit = await runnerAuditRows(o);
+      const audit = await e.audit();
       assertEquals(audit.length, 1);
       assertEquals(audit[0].details.released, false);
       assertEquals(audit[0].details.refusal, "destination_private_address");
