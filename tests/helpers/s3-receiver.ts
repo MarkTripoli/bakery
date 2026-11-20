@@ -5,7 +5,12 @@
  * (naming the key in its message).
  */
 export function startS3Receiver(
-  options: { rejectKey?: string; failPutUnder?: string } = {},
+  options: {
+    rejectKey?: string;
+    failPutUnder?: string;
+    /** Makes HEAD report this many bytes more (or fewer) than the object holds. */
+    headSizeDelta?: number;
+  } = {},
 ) {
   const objects = new Map<string, Uint8Array<ArrayBuffer>>();
   const requests: string[] = [];
@@ -132,9 +137,12 @@ export function startS3Receiver(
             ? new Response(null, { status: 404 })
             : xml("<Error><Code>NoSuchKey</Code></Error>", 404);
         }
-        return new Response(request.method === "HEAD" ? null : body, {
+        // Deno.serve drops the body of a HEAD answer but keeps the length it implies.
+        const lie = request.method === "HEAD" ? options.headSizeDelta ?? 0 : 0;
+        const answer = lie === 0 ? body : new Uint8Array(body.length + lie);
+        return new Response(answer, {
           status: 200,
-          headers: { "content-length": String(body.length) },
+          headers: { "content-length": String(answer.length) },
         });
       }
       if (request.method === "DELETE") {
