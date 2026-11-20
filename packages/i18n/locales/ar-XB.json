@@ -5266,7 +5266,6 @@
   "organizationStorage.readOnly": "⟪Only an organization Admin can change these.⟫",
   "tasks.waiting.badge": "⟪Waiting on a model⟫",
   "tasks.waiting.title": "⟪Waiting: {agent} cannot reach its model⟫",
-  "tasks.waiting.runsOn": "⟪The step \"{step}\" runs on {agent} with {model}, paid by {payment}.⟫",
   "tasks.waiting.reason.rate_limited": "⟪{provider} has been limiting requests since {time}.⟫",
   "tasks.waiting.reason.quota_exhausted": "⟪It has been at its usage limit since {time}.⟫",
   "tasks.waiting.reason.credential_invalid": "⟪{provider} has refused its sign-in since {time}.⟫",
@@ -5286,7 +5285,6 @@
   "tasks.waiting.payment.api_metered": "⟪Charged per use to an API key⟫",
   "tasks.waiting.payment.local": "⟪A model running on a machine⟫",
   "tasks.waiting.payment.subscription.inline": "⟪the subscription on a machine⟫",
-  "tasks.waiting.payment.api_metered.inline": "⟪an API key, charged per use⟫",
   "tasks.waiting.payment.local.inline": "⟪a model running on a machine⟫",
   "tasks.waiting.dialog.title": "⟪Choose another way to run \"{step}\"⟫",
   "tasks.waiting.dialog.choice": "⟪{agent} with {model}⟫",
@@ -5312,5 +5310,7 @@
   "tasks.waiting.refused.confirming": "⟪Bakery is still confirming what the last attempt did. Try again in a moment.⟫",
   "tasks.waiting.refused.noBudget": "⟪This step has no budget or attempts left, so it cannot be moved.⟫",
   "tasks.waiting.refused.other": "⟪Nothing was switched. Try again.⟫",
-  "tasks.waiting.dialog.continueNone": "⟪Continue⟫"
+  "tasks.waiting.dialog.continueNone": "⟪Continue⟫",
+  "tasks.waiting.runsOn": "⟪The step \"{step}\" runs on {agent} with {model}, using {payment}.⟫",
+  "tasks.waiting.payment.api_metered.inline": "⟪an API key charged per use⟫"
 }
