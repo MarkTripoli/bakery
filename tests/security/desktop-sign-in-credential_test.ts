@@ -170,6 +170,59 @@ Deno.test("live updates accept a desktop credential and close when it is revoked
   }
 });
 
+Deno.test("a web-view socket carries the desktop credential as a subprotocol, from the app's own origin", async () => {
+  const f = await openSocketFixture();
+  let client: WsClient | undefined;
+  try {
+    const issued = await signInDesktop(f, f.cookie);
+    const carrier = {
+      origin: "tauri://localhost",
+      headers: {
+        "sec-websocket-protocol": "bakery.desktop, bakery.credential." +
+          issued.credential,
+      },
+    };
+    const connected = await f.connect(carrier);
+    assert(isClient(connected), JSON.stringify(connected));
+    client = connected;
+    // The server selects the desktop protocol and never echoes the credential.
+    assertEquals(
+      client.protocol,
+      "bakery.desktop",
+    );
+    const hello = await client.next(2_500);
+    assertEquals(typeof hello, "string");
+    assertEquals(f.assertFrame(hello as string).type, "hello");
+    await client.close();
+    client = undefined;
+
+    // A malformed carried value is no credential: the origin guard refuses
+    // it as it refuses a malformed Authorization header from that origin.
+    const malformed = await f.connect({
+      origin: "tauri://localhost",
+      headers: {
+        "sec-websocket-protocol": "bakery.desktop, bakery.credential.bkd_short",
+      },
+    });
+    assert(!isClient(malformed), "a malformed credential opened a socket");
+    assertEquals(malformed.status, 403);
+
+    const deleted = await f.pgDatabase.query(
+      "delete from public.session where id = $1",
+      [issued.sessionId],
+    );
+    assertEquals(deleted.rowCount, 1);
+    const revoked = await f.connect(carrier);
+    assert(!isClient(revoked), "a revoked credential cannot open a socket");
+    assertEquals(revoked.status, 401);
+  } finally {
+    await client?.close();
+    await cleanupDesktopSignIns(f);
+    await cleanupAuthFixture(f.pgDatabase, [f.email]);
+    await f.close();
+  }
+});
+
 Deno.test("no credential, code or verifier reaches the logs", async () => {
   const lines: string[] = [];
   const original = {

@@ -23,6 +23,7 @@ import {
   IdentityResolutionError,
 } from "../auth/application/identity.ts";
 import { readSessionToken } from "../auth/middleware.ts";
+import { desktopSocketUpgrade } from "../auth/domain/desktop-sign-in.ts";
 import type { SessionStore } from "../auth/adapters/postgres.ts";
 import {
   resolveSessionAssurance,
@@ -1431,6 +1432,7 @@ export function createCollaborationSocketHandler(
       try {
         upgraded = upgradeWebSocket(request, {
           idleTimeout: limits.heartbeatSeconds * 3,
+          ...desktopSocketUpgrade(request.headers),
         });
       } catch (cause) {
         throw cause instanceof TypeError

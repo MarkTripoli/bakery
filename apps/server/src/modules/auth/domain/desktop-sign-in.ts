@@ -91,6 +91,60 @@ export function generateDesktopCredential(): string {
   return `${DESKTOP_CREDENTIAL_PREFIX}${randomSecret()}`;
 }
 
+/**
+ * A desktop web view cannot set headers on a WebSocket, only subprotocols, so
+ * a live-update socket may carry the credential as the subprotocol pair
+ * `bakery.desktop, bakery.credential.<credential>`. The server answers with
+ * `bakery.desktop` alone, so the credential is never echoed back.
+ */
+export const DESKTOP_SOCKET_PROTOCOL = "bakery.desktop";
+const SOCKET_CREDENTIAL_PREFIX = "bakery.credential.";
+
+function socketProtocols(headers: Headers): string[] {
+  if (headers.get("upgrade")?.toLowerCase() !== "websocket") return [];
+  return (headers.get("sec-websocket-protocol") ?? "").split(",")
+    .map((value) => value.trim()).filter((value) => value !== "");
+}
+
+/**
+ * True when a WebSocket upgrade offers the desktop subprotocol; the upgrade
+ * must then select it, or the web view drops the connection.
+ */
+export function offersDesktopSocketProtocol(headers: Headers): boolean {
+  return socketProtocols(headers).includes(DESKTOP_SOCKET_PROTOCOL);
+}
+
+/**
+ * The Authorization value a request authenticates with: the header itself,
+ * or, on a WebSocket upgrade that offers the desktop subprotocol and carries
+ * exactly one credential entry, that credential as a bearer value. The
+ * carrier yields only a desktop credential, never an access token, and never
+ * applies to an ordinary request.
+ */
+export function desktopAuthorization(headers: Headers): string | null {
+  const header = headers.get("authorization");
+  if (header !== null) return header;
+  const protocols = socketProtocols(headers);
+  if (!protocols.includes(DESKTOP_SOCKET_PROTOCOL)) return null;
+  const carried = protocols.filter((value) =>
+    value.startsWith(SOCKET_CREDENTIAL_PREFIX)
+  );
+  if (carried.length !== 1) return null;
+  const credential = carried[0].slice(SOCKET_CREDENTIAL_PREFIX.length);
+  return credential.startsWith(DESKTOP_CREDENTIAL_PREFIX)
+    ? `Bearer ${credential}`
+    : null;
+}
+
+/** The upgrade option that selects the desktop subprotocol when it was offered. */
+export function desktopSocketUpgrade(
+  headers: Headers,
+): { protocol?: string } {
+  return offersDesktopSocketProtocol(headers)
+    ? { protocol: DESKTOP_SOCKET_PROTOCOL }
+    : {};
+}
+
 /** True when an Authorization header claims to carry a desktop credential, well formed or not. */
 export function claimsDesktopCredential(header: string | null): boolean {
   return header !== null && LOOKS_LIKE_DESKTOP.test(header);

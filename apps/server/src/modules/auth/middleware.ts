@@ -29,6 +29,7 @@ import {
 } from "./domain/assurance.ts";
 import {
   claimsDesktopCredential,
+  desktopAuthorization,
   desktopCredentialFromAuthorization,
 } from "./domain/desktop-sign-in.ts";
 
@@ -101,7 +102,7 @@ export async function readSessionToken(
   secret: string,
 ): Promise<string | null> {
   const desktop = desktopCredentialFromAuthorization(
-    headers.get("authorization"),
+    desktopAuthorization(headers),
   );
   if (desktop !== null) return desktop;
   const cookie = getSessionCookie(headers);
@@ -143,6 +144,9 @@ export async function desktopSessionHeaders(
 ): Promise<Headers> {
   const headers = new Headers(source);
   headers.delete("authorization");
+  // A socket's carried credential is consumed here; the provider sees only
+  // the cookie.
+  headers.delete("sec-websocket-protocol");
   const signed = await signSessionToken(credential, secret);
   headers.set(
     "cookie",
@@ -161,7 +165,7 @@ export function createOriginGuard(options: {
     // session middleware after this guard validates it.
     if (
       desktopCredentialFromAuthorization(
-        context.req.raw.headers.get("authorization"),
+        desktopAuthorization(context.req.raw.headers),
       ) !== null
     ) {
       return await next();
@@ -252,8 +256,9 @@ export function createBrowserSessionMiddleware(options: {
     // browser path below, unchanged. Bearer, so no origin check applies.
     let headers = context.req.raw.headers;
     let desktop = false;
-    if (claimsDesktopCredential(authorization)) {
-      const credential = desktopCredentialFromAuthorization(authorization);
+    const desktopClaim = desktopAuthorization(context.req.raw.headers);
+    if (claimsDesktopCredential(desktopClaim)) {
+      const credential = desktopCredentialFromAuthorization(desktopClaim);
       if (credential === null) {
         return problemResponse(
           context,
