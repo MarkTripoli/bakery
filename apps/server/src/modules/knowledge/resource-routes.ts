@@ -47,6 +47,15 @@ import {
   restoreStorageEntry,
   trashStorageEntry,
 } from "./storage-working-areas.ts";
+import {
+  createFileContentReader,
+  createFileUseLister,
+  createFileVersionLister,
+  createFolderLister,
+  listStorageRoots,
+  parseRevision,
+  type StorageReader,
+} from "./storage-reads.ts";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import {
   createFileSearchHandler,
@@ -151,6 +160,24 @@ function storageWritePolicy(action: CatalogActionName) {
       requireArtifactPermission(context, "artifact:create", action);
     },
   } as const;
+}
+
+/**
+ * The files browser's reads need one fact about the caller beyond membership:
+ * whether they are an organization Admin, who alone sees /system. Asked of the
+ * same permission the Admin storage actions require, so the two cannot drift.
+ */
+function storageReader(
+  context: ActionContext,
+  action: CatalogActionName,
+): StorageReader {
+  try {
+    requireArtifactPermission(context, "artifact:manage", action);
+    return { isAdmin: true };
+  } catch (error) {
+    if (error instanceof StandardError) return { isAdmin: false };
+    throw error;
+  }
 }
 
 /** Storage limits and the purge are an organization Admin's. */
@@ -592,8 +619,87 @@ export function createArtifactActions(
 /** The working-area actions over the storage tree (#447). */
 function registerStorageActions(registry: ActionRegistry, secret: string) {
   const listTrash = createTrashLister(secret);
+  const listFolder = createFolderLister(secret);
+  const listVersions = createFileVersionLister(secret);
+  const listUses = createFileUseLister(secret);
   const A = StorageImplementedAction;
   registry
+    .register({
+      name: A.StorageRootsList,
+      method: HttpMethod.Get,
+      path: "/v1/storage/roots",
+      input: contractSchemas.Empty,
+      output: contractSchemas["Page<StorageFolderItem>"],
+      policy: readPolicy,
+      handler: async (context) =>
+        contractSchemas["Page<StorageFolderItem>"].parse(
+          await listStorageRoots(
+            context,
+            storageReader(context, A.StorageRootsList),
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageFolderEntriesList,
+      method: HttpMethod.Get,
+      path: "/v1/storage/folders/:id/entries",
+      input: contractSchemas.CursorQuery,
+      output: contractSchemas["Page<StorageFolderItem>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<StorageFolderItem>"].parse(
+          await listFolder(
+            context,
+            storageReader(context, A.StorageFolderEntriesList),
+            input,
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageFileVersionsList,
+      method: HttpMethod.Get,
+      path: "/v1/storage/files/:id/versions",
+      input: contractSchemas.CursorQuery,
+      output: contractSchemas["Page<StorageFileVersion>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<StorageFileVersion>"].parse(
+          await listVersions(
+            context,
+            storageReader(context, A.StorageFileVersionsList),
+            input,
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageFileUsesList,
+      method: HttpMethod.Get,
+      path: "/v1/storage/files/:id/uses",
+      input: contractSchemas.CursorQuery,
+      output: contractSchemas["Page<StorageFileUse>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<StorageFileUse>"].parse(
+          await listUses(
+            context,
+            storageReader(context, A.StorageFileUsesList),
+            input,
+          ),
+        ),
+    })
+    // The bytes are a raw Response served by the route below, under this
+    // action's authority; the registered handler is never reached.
+    .register({
+      name: A.StorageFilesContent,
+      method: HttpMethod.Get,
+      path: "/v1/storage/files/:id/content",
+      input: contractSchemas.StorageFileContentQuery,
+      output: contractSchemas.BinaryArtifact,
+      policy: readPolicy,
+      handler: () => {
+        throw new StandardError({ code: "INTERNAL" });
+      },
+    })
     .register({
       name: A.StorageFilesPut,
       method: HttpMethod.Put,
@@ -749,6 +855,30 @@ export function createArtifactResourceRoutes(
     problemResponse(context, error, { publicBaseUrl: options.publicBaseUrl })
   );
 
+  const readStorageContent = createFileContentReader(options.blobStore);
+  app.get("/v1/storage/files/:id/content", async (context) => {
+    const { id } = contractSchemas.IdPath.parse(context.req.param());
+    const range = context.req.header("Range");
+    const revisionText = context.req.query("revision");
+    const input = contractSchemas.StorageFileContentQuery.parse({
+      range: range ?? undefined,
+      revision: revisionText === undefined ? undefined : Number(revisionText),
+    });
+    const revision = parseRevision(revisionText);
+    const action = StorageImplementedAction.StorageFilesContent;
+    const result = await authority.run(
+      registry.get(action),
+      { ...actionContext(context), params: { id } },
+      input,
+      (authorizedContext) =>
+        readStorageContent(
+          authorizedContext,
+          storageReader(authorizedContext, action),
+          { revision },
+        ),
+    );
+    return result as Response;
+  });
   app.get("/v1/artifact-versions/:id/content", async (context) => {
     const { id } = contractSchemas.IdPath.parse(context.req.param());
     const range = context.req.header("Range");
