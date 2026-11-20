@@ -13,6 +13,8 @@ export type StackedRowProps =
     title: ReactNode;
     /** Drops the side inset, so the row starts where the page's own heading does. */
     flush?: boolean;
+    /** Marks the row whose detail is open beside the list. */
+    selected?: boolean;
   };
 
 /**
@@ -20,13 +22,15 @@ export type StackedRowProps =
  * and short detail lines below. It is the phone form of a table row.
  */
 export function StackedRow(
-  { children, flush = false, status, title, ...props }: StackedRowProps,
+  { children, flush = false, selected = false, status, title, ...props }:
+    StackedRowProps,
 ) {
   return (
     <article
       className="ui-stacked-row"
       {...props}
       data-inset={flush ? "none" : undefined}
+      data-selected={selected ? "true" : undefined}
       data-state="default"
       data-ui-component="stackedRow"
       data-variant="default"
