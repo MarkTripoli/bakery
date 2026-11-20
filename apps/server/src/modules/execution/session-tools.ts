@@ -76,6 +76,18 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     // operations' guard, and leaves artifacts out for a session without
     // `artifacts.read` (the dispatched context carries the session's scopes).
     "library.search": "library.read",
+    // Bakery Files (#448, section 17.6): an agent writes files and folders
+    // through the same storage operations a person uses. The scope only offers
+    // the tools; it is minted where a person granted the workflow a folder,
+    // and every call is judged again by the file grant guard, which checks the
+    // grant's folder, access, expiry and revocation at the time of the write.
+    // Granting itself, restore and the Admin purge are not offered: delegating
+    // and destroying stay with people (O51).
+    "storageFiles.put": "files.write",
+    "storageFolders.create": "files.write",
+    "storageEntries.copy": "files.write",
+    "storageEntries.move": "files.write",
+    "storageEntries.trash": "files.write",
   });
 
 /**
