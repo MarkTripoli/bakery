@@ -22,7 +22,9 @@ for size in $SIZES; do
       name="$state-$size-$theme"
       report="$OUT/$name.report.jsonl"
       rm -f "$report"
-      Xvfb :99 -screen 0 "${W}x${H}x24" -nolisten tcp >/dev/null 2>&1 &
+      # Xvfb keeps its screen in a file in the X dump format: that file is the screenshot.
+      fb="$(mktemp -d)"
+      Xvfb :99 -screen 0 "${W}x${H}x24" -nolisten tcp -fbdir "$fb" >/dev/null 2>&1 &
       xvfb=$!
       sleep 1
       GTK_THEME="$gtk" BAKERY_DESKTOP_PREVIEW="$state" BAKERY_DESKTOP_SIZE="$size" \
@@ -30,7 +32,7 @@ for size in $SIZES; do
       app=$!
       for _ in $(seq 1 40); do grep -q '"event":"view"' "$report" 2>/dev/null && break; sleep 0.5; done
       sleep 2
-      if xwd -root -display :99 -out "$OUT/$name.xwd" 2>/dev/null; then
+      if cp "$fb/Xvfb_screen0" "$OUT/$name.xwd" 2>/dev/null; then
         result="$(python3 "$HERE/xwd2png.py" "$OUT/$name.xwd" "$OUT/$name.png")"
       else
         result="no screenshot"
@@ -39,6 +41,7 @@ for size in $SIZES; do
       printf '%s\t%s\t%s\t%s\n' "$state" "$size" "$theme" "$result" >> "$OUT/results.tsv"
       pkill -f "$BIN" 2>/dev/null; kill "$app" 2>/dev/null; wait "$app" 2>/dev/null
       kill "$xvfb" 2>/dev/null; wait "$xvfb" 2>/dev/null
+      rm -rf "$fb"
       sleep 0.5
     done
   done
