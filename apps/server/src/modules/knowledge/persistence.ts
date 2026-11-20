@@ -4,6 +4,7 @@ import {
 } from "../../platform/storage-capacity.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
+import { enqueueProbeSubject } from "./probe-runner.ts";
 import {
   publicationRetention,
   type PublicationSource,
@@ -220,6 +221,17 @@ export async function commitArtifactVersion(
     ],
   );
   const versionRow = versionResult.rows[0];
+  // Queue the probe here, in the write's own transaction, so a version cannot
+  // exist that nobody has asked about. Nothing is probed on this path: the probe
+  // needs a sandbox, and a write must not wait for one. An inline version has no
+  // blob to be keyed on and no subject row in 0278's schema, so it is left to a
+  // later slice rather than keyed on something that would collide.
+  if (blobId !== null) {
+    await enqueueProbeSubject(transaction, {
+      organizationId: scope.organizationId,
+      blobId,
+    });
+  }
   const createdAt = iso(versionRow.created_at);
   const response = {
     id: versionRow.id,

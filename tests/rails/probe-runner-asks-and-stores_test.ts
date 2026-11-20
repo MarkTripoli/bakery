@@ -158,14 +158,16 @@ const cleared = (database: ReturnType<typeof fakeDatabase>) =>
     statement.text.startsWith("delete from bakery.probe_requests")
   );
 
-Deno.test("a host that cannot run the sandbox is not recorded as a fact about the file", async () => {
+Deno.test("a host with no sandbox claims nothing, so no request burns an attempt", async () => {
   forgetSandboxPreflight();
   const dir = await Deno.makeTempDir();
   const spoolDir = await Deno.makeTempDir();
   try {
-    // The stub fails the network self-test the way a host with no sandbox does:
-    // systemd could not build the unit's namespaces.
-    const launcher = await writeStub(dir, "unavailable", {
+    // The failure this guards against is subtle and permanent: a tick that
+    // claimed anyway would spend one attempt per request per tick, abandon the
+    // whole workspace after five, and leave it with no answers and nothing
+    // queued -- on a host that might be fixed a minute later.
+    const launcher = await writeStub(dir, "no-sandbox", {
       selfTest: "exit:226",
       probe: `printf '%s' '${PNG_FRAME}'`,
     });
@@ -175,14 +177,63 @@ Deno.test("a host that cannot run the sandbox is not recorded as a fact about th
       runnerFor(database, { launcherPath: launcher, spoolDir }),
       { limit: 1 },
     );
-    assertEquals(result.deferred, 1);
+    assertEquals(result.sandboxUnavailable, true);
+    assertEquals(result.claimed, 0);
     assertEquals(result.answered, 0);
-    assertEquals(stored(database), undefined, "a host answer is never stored");
-    assert(
+    assertEquals(result.deferred, 0);
+    assertEquals(result.abandoned, 0);
+    // Nothing was read, written, counted or cleared.
+    assertEquals(
       database.statements.some((statement) =>
-        statement.text.includes("update bakery.probe_requests set attempts")
+        statement.text.includes("from bakery.probe_requests")
       ),
-      "the request is kept and its attempt counted",
+      false,
+      "a host with no sandbox must not even look at the queue",
+    );
+    assertEquals(
+      database.statements.some((statement) =>
+        statement.text.includes("update bakery.probe_requests")
+      ),
+      false,
+    );
+    assertEquals(cleared(database), false);
+  } finally {
+    forgetSandboxPreflight();
+    await Deno.remove(dir, { recursive: true });
+    await Deno.remove(spoolDir, { recursive: true });
+  }
+});
+
+Deno.test("a sandbox that dies mid-tick stops the tick instead of spending attempts", async () => {
+  forgetSandboxPreflight();
+  const dir = await Deno.makeTempDir();
+  const spoolDir = await Deno.makeTempDir();
+  try {
+    // The preflight passes -- the host looks healthy -- and then systemd fails to
+    // build the unit for the real probe. Calling that "unreadable" would store a
+    // host's bad moment as a property of a perfectly good file, and counting it
+    // would abandon the request for the same reason.
+    const launcher = await writeStub(dir, "dies-mid-tick", {
+      selfTest: SEALED,
+      filesystem: READ_ONLY,
+      probe: "exit 226",
+    });
+    const database = fakeDatabase({ subject: "blob", content: null });
+    const result = await runProbeTick(
+      database as never,
+      runnerFor(database, { launcherPath: launcher, spoolDir }),
+      { limit: 1 },
+    );
+    assertEquals(result.sandboxUnavailable, true);
+    assertEquals(result.answered, 0);
+    assertEquals(result.abandoned, 0);
+    assertEquals(stored(database), undefined, "a host answer is never stored");
+    assertEquals(
+      database.statements.some((statement) =>
+        statement.text.includes("update bakery.probe_requests")
+      ),
+      false,
+      "the request is left exactly as it was found",
     );
     assertEquals(cleared(database), false);
   } finally {

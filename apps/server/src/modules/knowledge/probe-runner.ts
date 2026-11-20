@@ -31,12 +31,17 @@
  * must not become a permanent verdict on a healthy file. The request stays queued
  * with its attempt counted, and the next tick tries again.
  */
-import type { PgDatabase } from "@bakery/persistence";
+import type { PgDatabase, PgTransactionClient } from "@bakery/persistence";
 import type { ArtifactProbeResult } from "@bakery/contracts/artifact-probe";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { readBlobProbe, writeBlobProbe } from "./blob-probes.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
-import { type ArtifactProbeOptions, probeArtifactAttempt } from "./probe.ts";
+import {
+  type ArtifactProbeOptions,
+  probeArtifactAttempt,
+  sandboxHoldsFilesystem,
+  sandboxHoldsNetwork,
+} from "./probe.ts";
 
 /** One tick's budget: enough to be useful, small enough to bound a run. */
 export const PROBE_TICK_LIMIT = 25;
@@ -73,17 +78,25 @@ export type ProbeRunnerResult = Readonly<{
   claimed: number;
   /** Answers actually stored. */
   answered: number;
-  /** Answers about the host, dropped rather than stored. */
+  /** Real failures of an attempt, counted against the request's ceiling. */
   deferred: number;
-  /** Requests given up on after repeated host-side failures. */
+  /** Requests given up on after repeated failures. */
   abandoned: number;
   /** Subjects the backfill found and queued. */
   queued: number;
+  /**
+   * True when the host could not run the sandbox, so this tick claimed nothing
+   * and left every request exactly as it found it. Not a failure: the next tick
+   * on a healthy host picks the same rows up again.
+   */
+  sandboxUnavailable: boolean;
 }>;
 
 /** Queues one subject. Writing the same subject twice queues it once. */
 export async function enqueueProbeSubject(
-  database: Pick<PgDatabase, "query">,
+  // The transaction signature, which a pool also satisfies: a write site queues
+  // inside its own transaction so a version cannot exist unqueued.
+  database: Pick<PgTransactionClient, "query">,
   input:
     & { organizationId: string }
     & (
@@ -246,6 +259,23 @@ export async function runProbeTick(
   } = {},
 ): Promise<ProbeRunnerResult> {
   const limit = options.limit ?? PROBE_TICK_LIMIT;
+  // The host is asked once, before anything is claimed. A host that cannot build
+  // the sandbox is not going to build it twenty-five times in a row, and a tick
+  // that claimed anyway would spend five attempts per request and then abandon a
+  // whole workspace -- which is a fact about today's host recorded as a fact
+  // about every file in it. So: nothing claimed, nothing counted, requests
+  // untouched, and a later tick on a healthy host simply picks them up.
+  const sandbox = await sandboxAvailable(deps.probeOptions);
+  if (!sandbox) {
+    return {
+      claimed: 0,
+      answered: 0,
+      deferred: 0,
+      abandoned: 0,
+      queued: 0,
+      sandboxUnavailable: true,
+    };
+  }
   const page = await enqueueUnprobedPage(database, {
     afterId: options.backfillAfter ?? null,
     limit,
@@ -255,21 +285,39 @@ export async function runProbeTick(
   let deferred = 0;
   let abandoned = 0;
   for (const request of claimed) {
-    const stored = await probeOne(database, request, deps);
+    let stored: Awaited<ReturnType<typeof probeOne>>;
+    try {
+      stored = await probeOne(database, request, deps);
+    } catch {
+      // A real failure of this attempt, not a verdict on the file: count it, and
+      // the ceiling eventually stops a request that cannot be answered at all.
+      const outcome = await failProbeRequest(database, {
+        id: request.id,
+        attempts: request.attempts,
+        error: "probe-failed",
+      });
+      if (outcome === "abandoned") abandoned++;
+      else deferred++;
+      continue;
+    }
     if (stored === "answered") {
       await completeProbeRequest(database, request.id);
       answered++;
     } else if (stored === "gone") {
       // The bytes are gone: there is nothing to ask about and never will be.
       await completeProbeRequest(database, request.id);
-    } else if (stored === "deferred") {
-      const outcome = await failProbeRequest(database, {
-        id: request.id,
-        attempts: request.attempts,
-        error: "sandbox-unavailable",
-      });
-      if (outcome === "abandoned") abandoned++;
-      else deferred++;
+    } else {
+      // The sandbox stopped answering partway through the tick. That is the same
+      // host fact as an unbuildable sandbox, so it stops the tick rather than
+      // spending attempts: this request is left exactly as it was found.
+      return {
+        claimed: claimed.length,
+        answered,
+        deferred,
+        abandoned,
+        queued: page.queued,
+        sandboxUnavailable: true,
+      };
     }
   }
   return {
@@ -278,7 +326,16 @@ export async function runProbeTick(
     deferred,
     abandoned,
     queued: page.queued,
+    sandboxUnavailable: false,
   };
+}
+
+/** Both seals, for the same reason the probe asks both before touching bytes. */
+async function sandboxAvailable(
+  options: ArtifactProbeOptions | undefined,
+): Promise<boolean> {
+  if (!(await sandboxHoldsNetwork(options ?? {}))) return false;
+  return await sandboxHoldsFilesystem(options ?? {});
 }
 
 /**
@@ -292,7 +349,7 @@ async function probeOne(
   database: PgDatabase,
   request: RequestRow,
   deps: ProbeRunnerDeps,
-): Promise<"answered" | "deferred" | "gone"> {
+): Promise<"answered" | "host-gone" | "gone"> {
   const subject = request.blob_id !== null
     ? await deps.readBlobBytes(request.organization_id, request.blob_id)
     : await deps.readInlineBytes(
@@ -318,7 +375,9 @@ async function probeOne(
     readBytes: () => Promise.resolve(subject.bytes),
     sizeBytes: subject.sizeBytes,
   }, deps.probeOptions);
-  if (!isStorable(attempt.result)) return "deferred";
+  // The only unstorable answer is a refusal about the host: the sandbox is not
+  // there. That is not this request's fault and must not count against it.
+  if (!isStorable(attempt.result)) return "host-gone";
   await writeBlobProbe(
     database,
     request.blob_id !== null
