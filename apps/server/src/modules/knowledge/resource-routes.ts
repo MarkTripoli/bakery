@@ -32,6 +32,8 @@ import {
   assertImplementedActionRegistry,
   BlobUploadImplementedAction,
   blobUploadImplementedActions,
+  ContextPackImplementedAction,
+  contextPackImplementedActions,
   PreviewImplementedAction,
   previewImplementedActions,
   StorageImplementedAction,
@@ -95,6 +97,7 @@ import {
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { registerCommentActions } from "./comments/routes.ts";
 import { extractArtifactVersion } from "./extraction.ts";
+import { buildContextPack } from "./context-packs.ts";
 import {
   createPreviewGrant,
   previewAvailability,
@@ -215,6 +218,18 @@ function storageAdminPolicy(action: CatalogActionName) {
     },
   } as const;
 }
+const contextPackPolicy = {
+  ...readPolicy,
+  authorize: (context: ActionContext) => {
+    // A pack is built from artifact versions the caller may read, so it needs
+    // exactly that permission and no more: building a pack grants nothing.
+    requireArtifactPermission(
+      context,
+      "artifactVersion:read",
+      ContextPackImplementedAction.ContextPacksBuild,
+    );
+  },
+} as const;
 
 const extractionPolicy = {
   ...readPolicy,
@@ -572,6 +587,21 @@ export function createArtifactActions(
         ),
     })
     .register({
+      name: ContextPackImplementedAction.ContextPacksBuild,
+      method: HttpMethod.Post,
+      path: "/v1/context-packs",
+      input: contractSchemas.ContextPackBuild,
+      output: contractSchemas.ContextPack,
+      // A pack is computed and returned, never created: nothing is stored, so
+      // 201 would say something was.
+      successStatus: 200,
+      policy: contextPackPolicy,
+      handler: async (context, input) =>
+        contractSchemas.ContextPack.parse(
+          await buildContextPack(context, input),
+        ),
+    })
+    .register({
       name: ArtifactImplementedAction.ArtifactPreviewsAvailability,
       method: HttpMethod.Get,
       path: "/v1/artifact-preview-availability",
@@ -733,6 +763,7 @@ export function createArtifactActions(
     ...previewImplementedActions,
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
+    ...contextPackImplementedActions,
   ]);
   return { registry, authority, handlers };
 }
@@ -1036,6 +1067,9 @@ export function createArtifactResourceRoutes(
   app.use("/v1/preview-grants/*", session);
   app.use("/v1/preview-availability", session);
   app.use("/v1/artifact-versions/*", session);
+  // Without this a pack is built with no resolved principal and refused as an
+  // anonymous call even for a signed-in Developer.
+  app.use("/v1/context-packs", session);
   // Without this the blob routes run with no resolved principal, and every call
   // is refused as an anonymous one - a 403 that looks like a permission problem
   // and is really a missing middleware.
