@@ -210,10 +210,10 @@ pub fn panel_for(window: &Window, ctx: &Context) -> Option<Panel> {
                 Detail::Warning { text: "Unlock or start your keyring, then sign in again.".into() },
                 vec![sign_in_button(), button(ButtonId::SetUpKeyring, "How to set up a keyring", false)],
             ),
-            // Not in the design's table; the first design's wording, until slice 4 owns server problems.
+            // design-ux's words for #804; slice 4 adds "Use a different server" to this window.
             Refusal::CannotStart => panel(
-                &format!("Bakery could not reach {}", ctx.server),
-                Some("Check that the server is running and that the address is right."),
+                "Bakery could not reach the server",
+                Some(&format!("{} did not answer. Check that the Bakery server is running, then try again.", ctx.server)),
                 server(ctx),
                 vec![button(ButtonId::SignIn, "Try again", true)],
             ),

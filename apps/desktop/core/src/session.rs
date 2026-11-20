@@ -24,7 +24,7 @@ pub enum Refusal {
     /// The computer has no unlocked keyring to keep the sign-in in.
     NoKeyring,
     /// The server could not be reached to start a sign-in. Not in the design's table: it is the
-    /// first design's "could not reach" window, kept until slice 4 owns server problems.
+    /// "could not reach the server" window, kept until slice 4 owns server problems.
     CannotStart,
 }
 
