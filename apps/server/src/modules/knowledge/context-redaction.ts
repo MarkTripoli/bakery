@@ -16,7 +16,7 @@
  */
 
 /** Identity of the redaction rules; bumps whenever a rule is added or changed. */
-export const CONTEXT_REDACTOR_VERSION = "bakery.redact@5";
+export const CONTEXT_REDACTOR_VERSION = "bakery.redact@6";
 
 /** What replaces a redacted credential. */
 export const REDACTION_MARKER = "[redacted]";
@@ -60,7 +60,7 @@ const WHOLE_RULES: readonly RegExp[] = [
   /\bntn_[A-Za-z0-9]{30,}/g,
   /\bSK[0-9a-f]{32}\b/g,
   // Google API keys.
-  /\bAIza[0-9A-Za-z_-]{35}/g,
+  /\bAIza[0-9A-Za-z_-]{35,}/g,
   // Stripe.
   /\b[rs]k_(?:live|test)_[0-9A-Za-z]{16,}/g,
   // JSON web tokens.
@@ -120,10 +120,16 @@ export function redactContextText(text: string): RedactionResult {
   replaceWhole(TRAILING_PREFIX);
   for (const { pattern, keep } of PARTIAL_RULES) {
     current = current.replace(pattern, (...match: unknown[]) => {
-      // A value that is already the marker is not a second credential.
+      // A value that is already the marker is not a second credential, with or
+      // without the scheme word before it (`Bearer [redacted]`, left by a whole
+      // rule that took the token itself).
       const prefix = match.slice(1, 1 + keep).join("");
       const whole = String(match[0]);
-      if (whole.slice(prefix.length) === REDACTION_MARKER) return whole;
+      const value = whole.slice(prefix.length).replace(
+        /^(?:Bearer|Basic|Token)[ \t]+/i,
+        "",
+      );
+      if (value === REDACTION_MARKER) return whole;
       count += 1;
       return prefix + REDACTION_MARKER;
     });

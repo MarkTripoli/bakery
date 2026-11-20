@@ -271,6 +271,15 @@ Deno.test("an Authorization header is one credential, scheme and all", () => {
     assertEquals(result.text.split(REDACTION_MARKER).length - 1, 1, line);
     assert(result.text.startsWith(line.split(":")[0] + ":"), line);
   }
+  // A token a whole rule recognises is one credential after a scheme word too,
+  // not two (the whole rule's marker, then the key-value rule's).
+  for (const [shape, secret] of Object.entries(SECRETS)) {
+    for (const header of ["Authorization: Bearer ", "authorization: token "]) {
+      const result = redactContextText(header + secret);
+      assertFalse(result.text.includes(secret), shape);
+      assertEquals(result.count, 1, header + shape);
+    }
+  }
   // A bare bearer credential keeps its scheme word and counts once.
   assertEquals(
     redactContextText("Bearer abcdefghijklmnop1234"),
@@ -279,7 +288,7 @@ Deno.test("an Authorization header is one credential, scheme and all", () => {
 });
 
 Deno.test("the redactor version is pinned, so a rule change cannot ship without bumping it", () => {
-  assertEquals(CONTEXT_REDACTOR_VERSION, "bakery.redact@5");
+  assertEquals(CONTEXT_REDACTOR_VERSION, "bakery.redact@6");
 });
 
 Deno.test("a hostile window cannot make a rule run away", () => {
