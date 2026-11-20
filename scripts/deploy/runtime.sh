@@ -227,5 +227,18 @@ JS
   backup)
     exec bash "$root/deploy/backup.sh"
     ;;
+  backup-runner)
+    # One pass of the host backup runner (issue #80): claim a requested backup
+    # from the API with the runner credential (EnvironmentFile), run backup.sh,
+    # copy off-site, report. Runs as root (backup.sh needs docker and the data
+    # directories) from the release the background services run, so the runner
+    # and the address policy it shares with the server are the same bytes.
+    [[ "$(id -u)" == 0 ]] || exit 77
+    [[ -L "$root/background" ]] || exit 0
+    export HOME=/root DENO_DIR=/var/lib/bakery/backup-runner/deno
+    install -d -m 0700 /var/lib/bakery/backup-runner
+    cd "$root/background/apps/server"
+    exec deno run --no-prompt --allow-env --allow-net --allow-read=/var/lib/bakery/backups --allow-write=/var/lib/bakery/backups "--allow-run=$root/deploy/backup.sh" ../../scripts/deploy/backup-runner.ts
+    ;;
   *) echo UNKNOWN_DEPLOY_ACTION >&2; exit 64 ;;
 esac

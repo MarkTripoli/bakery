@@ -168,7 +168,8 @@ export function uploadOrder(artifact: Artifact) {
   const rank = (name: string) =>
     name === "SHA256SUMS" ? 2 : name === "release.json" ? 1 : 0;
   return [...artifact.files].sort((a, b) =>
-    rank(a.name) - rank(b.name) || a.name.localeCompare(b.name)
+    rank(a.name) - rank(b.name) ||
+    (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
   );
 }
 

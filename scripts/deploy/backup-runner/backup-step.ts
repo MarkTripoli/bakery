@@ -55,6 +55,7 @@ export function classifyBackupFailure(input: {
 const SET_FILE = /^[A-Za-z0-9._-]+$/;
 const COMPLETED = /^BACKUP_COMPLETED (\S+)$/m;
 const STDERR_TAIL_BYTES = 8192;
+const STDOUT_TAIL_BYTES = 65536;
 
 /** Reads the finished set's directory into an Artifact. */
 export async function readArtifact(
@@ -77,7 +78,7 @@ export async function readArtifact(
   if (files.length === 0) {
     throw new StepError("runner_error", "The finished backup set is empty.");
   }
-  files.sort((a, b) => a.name.localeCompare(b.name));
+  files.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   return {
     name,
     directory,
@@ -108,21 +109,14 @@ export async function runBackupScript(
   const signal = options.signal
     ? AbortSignal.any([options.signal, timeout])
     : timeout;
-  let output: Deno.CommandOutput;
+  let child: Deno.ChildProcess;
   try {
-    output = await new Deno.Command(options.script, {
+    child = new Deno.Command(options.script, {
       stdin: "null",
       stdout: "piped",
       stderr: "piped",
-      signal,
-    }).output();
+    }).spawn();
   } catch (error) {
-    if (signal.aborted) {
-      throw new StepError(
-        "runner_error",
-        "The backup did not finish in time or was cancelled.",
-      );
-    }
     throw new StepError(
       "runner_error",
       redact(
@@ -131,21 +125,52 @@ export async function runBackupScript(
       ),
     );
   }
-  const stderr = new TextDecoder().decode(
-    output.stderr.slice(-STDERR_TAIL_BYTES),
-  );
-  if (output.code !== 0) {
-    const code = classifyBackupFailure({ exitCode: output.code, stderr });
+  // Both streams are read bounded, keeping only the end: the set's name is the
+  // last stdout line, and the cause of a failure is in the last stderr lines.
+  const stdoutTail = readTail(child.stdout, STDOUT_TAIL_BYTES);
+  const stderrTail = readTail(child.stderr, STDERR_TAIL_BYTES);
+  // Cancelling asks the script to stop (its EXIT trap removes the half-written
+  // set). Children it started may outlive it and hold the pipes open, so after
+  // the script itself has gone the pipes are abandoned, not waited for.
+  let killTimer: ReturnType<typeof setTimeout> | undefined;
+  const stop = () => {
+    try {
+      child.kill("SIGTERM");
+    } catch { /* already gone */ }
+    killTimer = setTimeout(() => {
+      try {
+        child.kill("SIGKILL");
+      } catch { /* already gone */ }
+    }, 10_000);
+  };
+  if (signal.aborted) stop();
+  else signal.addEventListener("abort", stop, { once: true });
+  const status = await child.status;
+  clearTimeout(killTimer);
+  signal.removeEventListener("abort", stop);
+  if (signal.aborted) {
+    await Promise.allSettled([
+      child.stdout.cancel(),
+      child.stderr.cancel(),
+    ]);
+    throw new StepError(
+      "runner_error",
+      "The backup did not finish in time or was cancelled.",
+    );
+  }
+  const stderr = new TextDecoder().decode(await stderrTail);
+  const stdout = new TextDecoder().decode(await stdoutTail);
+  if (status.code !== 0) {
+    const code = classifyBackupFailure({ exitCode: status.code, stderr });
     const tail = stderr.trim().split("\n").slice(-12).join("\n");
     throw new StepError(
       code,
       redact(
-        `The backup script failed (exit ${output.code}). ${tail}`,
+        `The backup script failed (exit ${status.code}). ${tail}`,
         options.secrets,
       ),
     );
   }
-  const stdout = new TextDecoder().decode(output.stdout);
   const match = COMPLETED.exec(stdout);
   if (!match) {
     throw new StepError(
@@ -154,4 +179,21 @@ export async function runBackupScript(
     );
   }
   return await readArtifact(options.root, match[1]);
+}
+
+/** Reads a stream to its end, keeping only the last `max` bytes. */
+async function readTail(
+  stream: ReadableStream<Uint8Array>,
+  max: number,
+): Promise<Uint8Array> {
+  let tail = new Uint8Array(0);
+  try {
+    for await (const chunk of stream) {
+      const joined = new Uint8Array(tail.length + chunk.length);
+      joined.set(tail);
+      joined.set(chunk, tail.length);
+      tail = joined.length > max ? joined.slice(joined.length - max) : joined;
+    }
+  } catch { /* cancelled or closed */ }
+  return tail;
 }
