@@ -12,7 +12,7 @@
   "url": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/p-17-0",
   "rootNodeId": "root_node_p-17-0",
   "nodeCount": 6233,
-  "artboardCount": 84,
+  "artboardCount": 54,
   "artboards": [
     {
       "id": "2C24-0",
@@ -51,24 +51,6 @@
       "worldY": 980
     },
     {
-      "id": "2CVY-0",
-      "name": "05 · Seat banner · Over limit and invite refused · Desktop · Light",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 9120,
-      "worldY": 0
-    },
-    {
-      "id": "2CYW-0",
-      "name": "06 · FeatureGate upsell · Full section · Desktop · Light",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 4560,
-      "worldY": 980
-    },
-    {
       "id": "2CJE-0",
       "name": "09 · Audit log · List · Desktop · Light",
       "childCount": 2,
@@ -96,24 +78,6 @@
       "worldY": 0
     },
     {
-      "id": "2C74-0",
-      "name": "03 · Licence page · Active · Desktop · Light",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 3040,
-      "worldY": 0
-    },
-    {
-      "id": "2CA4-0",
-      "name": "04 · Licence banner · Grace · Desktop · Light",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 4560,
-      "worldY": 0
-    },
-    {
       "id": "2D27-0",
       "name": "01 · Installation settings · Default · Phone · Light",
       "childCount": 2,
@@ -129,42 +93,6 @@
       "width": 390,
       "height": 844,
       "worldX": 11110,
-      "worldY": 0
-    },
-    {
-      "id": "2D29-0",
-      "name": "03 · Licence page · Active · Phone · Light",
-      "childCount": 2,
-      "width": 390,
-      "height": 844,
-      "worldX": 11579.999,
-      "worldY": 0
-    },
-    {
-      "id": "2D2A-0",
-      "name": "04 · Licence banner · Expired · Phone · Light",
-      "childCount": 3,
-      "width": 390,
-      "height": 844,
-      "worldX": 12050,
-      "worldY": 0
-    },
-    {
-      "id": "2D2B-0",
-      "name": "05 · Seat banner · Over limit and invite refused · Phone · Light",
-      "childCount": 3,
-      "width": 390,
-      "height": 844,
-      "worldX": 12520.001,
-      "worldY": 0
-    },
-    {
-      "id": "2D2C-0",
-      "name": "06 · FeatureGate upsell · Inline · Phone · Light",
-      "childCount": 2,
-      "width": 390,
-      "height": 844,
-      "worldX": 12990,
       "worldY": 0
     },
     {
@@ -231,42 +159,6 @@
       "worldY": 0
     },
     {
-      "id": "2DCS-0",
-      "name": "03 · Licence page · Active · Desktop · Dark",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 18849.999,
-      "worldY": 0
-    },
-    {
-      "id": "2DCT-0",
-      "name": "04 · Licence banner · Grace · Desktop · Dark",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 20369.999,
-      "worldY": 0
-    },
-    {
-      "id": "2DCU-0",
-      "name": "05 · Seat banner · Over free limit · Desktop · Dark",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 21890.001,
-      "worldY": 0
-    },
-    {
-      "id": "2DCV-0",
-      "name": "06 · FeatureGate upsell · Full section · Desktop · Dark",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 23410.001,
-      "worldY": 0
-    },
-    {
       "id": "2DCW-0",
       "name": "07 · Organization access · Members · Desktop · Dark",
       "childCount": 2,
@@ -327,42 +219,6 @@
       "width": 390,
       "height": 844,
       "worldX": 33000,
-      "worldY": 0
-    },
-    {
-      "id": "2DYE-0",
-      "name": "03 · Licence page · Active · Phone · Dark",
-      "childCount": 2,
-      "width": 390,
-      "height": 844,
-      "worldX": 33470,
-      "worldY": 0
-    },
-    {
-      "id": "2DYF-0",
-      "name": "04 · Licence banner · Grace · Phone · Dark",
-      "childCount": 3,
-      "width": 390,
-      "height": 844,
-      "worldX": 33940,
-      "worldY": 0
-    },
-    {
-      "id": "2DYG-0",
-      "name": "05 · Seat banner · Over free limit · Phone · Dark",
-      "childCount": 3,
-      "width": 390,
-      "height": 844,
-      "worldX": 34410,
-      "worldY": 0
-    },
-    {
-      "id": "2DYH-0",
-      "name": "06 · FeatureGate upsell · Inline · Phone · Dark",
-      "childCount": 2,
-      "width": 390,
-      "height": 844,
-      "worldX": 34880,
       "worldY": 0
     },
     {
@@ -480,132 +336,6 @@
       "width": 390,
       "height": 844,
       "worldX": 45190,
-      "worldY": 0
-    },
-    {
-      "id": "2EDM-0",
-      "name": "03 · Licence page · No key (Community) · Desktop · Light",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 45660,
-      "worldY": 0
-    },
-    {
-      "id": "2EDN-0",
-      "name": "03 · Licence page · Grace · Desktop · Light",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 47180,
-      "worldY": 0
-    },
-    {
-      "id": "2EDO-0",
-      "name": "03 · Licence page · Expired · Desktop · Light",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 48700,
-      "worldY": 0
-    },
-    {
-      "id": "2EDP-0",
-      "name": "03 · Licence page · Invalid key · Desktop · Light",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 50220,
-      "worldY": 0
-    },
-    {
-      "id": "2EDQ-0",
-      "name": "03 · Licence page · Paste and update · Desktop · Light",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 51740,
-      "worldY": 0
-    },
-    {
-      "id": "2EDR-0",
-      "name": "03 · Licence page · No key (Community) · Phone · Light",
-      "childCount": 2,
-      "width": 390,
-      "height": 844,
-      "worldX": 53260,
-      "worldY": 0
-    },
-    {
-      "id": "2EDS-0",
-      "name": "03 · Licence page · Grace · Phone · Light",
-      "childCount": 2,
-      "width": 390,
-      "height": 844,
-      "worldX": 53730,
-      "worldY": 0
-    },
-    {
-      "id": "2EDT-0",
-      "name": "03 · Licence page · Expired · Phone · Light",
-      "childCount": 2,
-      "width": 390,
-      "height": 844,
-      "worldX": 54200.001,
-      "worldY": 0
-    },
-    {
-      "id": "2EDU-0",
-      "name": "03 · Licence page · Invalid key · Phone · Light",
-      "childCount": 2,
-      "width": 390,
-      "height": 844,
-      "worldX": 54670,
-      "worldY": 0
-    },
-    {
-      "id": "2EDV-0",
-      "name": "03 · Licence page · Paste and update · Phone · Light",
-      "childCount": 2,
-      "width": 390,
-      "height": 844,
-      "worldX": 55140.001,
-      "worldY": 0
-    },
-    {
-      "id": "2ENR-0",
-      "name": "04 · Licence banner · Expired · Desktop · Light",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 55610,
-      "worldY": 0
-    },
-    {
-      "id": "2ENS-0",
-      "name": "04 · Licence banner · Grace · Phone · Light",
-      "childCount": 3,
-      "width": 390,
-      "height": 844,
-      "worldX": 57129.999,
-      "worldY": 0
-    },
-    {
-      "id": "2ENT-0",
-      "name": "06 · FeatureGate upsell · Inline · Desktop · Light",
-      "childCount": 2,
-      "width": 1440,
-      "height": 900,
-      "worldX": 57600,
-      "worldY": 0
-    },
-    {
-      "id": "2ENU-0",
-      "name": "06 · FeatureGate upsell · Full section · Phone · Light",
-      "childCount": 2,
-      "width": 390,
-      "height": 844,
-      "worldX": 59120,
       "worldY": 0
     },
     {

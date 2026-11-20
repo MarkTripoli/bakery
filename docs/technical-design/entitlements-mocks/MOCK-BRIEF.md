@@ -15,10 +15,9 @@ sections as desktop, stacked for 390 px: Members, Invitations, Service accounts
 and tokens, Connected clients.
 
 Semantics: system roles are Admin, Developer, Viewer, Guest; one paid custom
-role example (Release manager) appears on custom-role frames only. Seat friction
-is the community limit (the free plan allows 5 people); a licensed seat count
-appears only on licence-page frames. User-facing copy never shows raw error
-codes.
+role example (Release manager) appears on custom-role frames only. The seat,
+licence and upsell frames are retired (see Retired frames). User-facing copy never
+shows raw error codes.
 
 | surface                     | frame id | device  | theme | state                            | source            |
 | --------------------------- | -------- | ------- | ----- | -------------------------------- | ----------------- |
@@ -38,36 +37,6 @@ codes.
 | Installation administrators | 2D28-0   | phone   | light | List                             | source/2D28-0.jsx |
 | Installation administrators | 2E60-0   | desktop | light | Revoke confirm                   | source/2E60-0.jsx |
 | Installation administrators | 2E64-0   | phone   | light | Revoke confirm                   | source/2E64-0.jsx |
-| Licence page                | 2DCS-0   | desktop | dark  | Active                           | source/2DCS-0.jsx |
-| Licence page                | 2C74-0   | desktop | light | Active                           | source/2C74-0.jsx |
-| Licence page                | 2DYE-0   | phone   | dark  | Active                           | source/2DYE-0.jsx |
-| Licence page                | 2D29-0   | phone   | light | Active                           | source/2D29-0.jsx |
-| Licence page                | 2EDO-0   | desktop | light | Expired                          | source/2EDO-0.jsx |
-| Licence page                | 2EDT-0   | phone   | light | Expired                          | source/2EDT-0.jsx |
-| Licence page                | 2EDN-0   | desktop | light | Grace                            | source/2EDN-0.jsx |
-| Licence page                | 2EDS-0   | phone   | light | Grace                            | source/2EDS-0.jsx |
-| Licence page                | 2EDP-0   | desktop | light | Invalid key                      | source/2EDP-0.jsx |
-| Licence page                | 2EDU-0   | phone   | light | Invalid key                      | source/2EDU-0.jsx |
-| Licence page                | 2EDM-0   | desktop | light | No key (Community)               | source/2EDM-0.jsx |
-| Licence page                | 2EDR-0   | phone   | light | No key (Community)               | source/2EDR-0.jsx |
-| Licence page                | 2EDQ-0   | desktop | light | Paste and update                 | source/2EDQ-0.jsx |
-| Licence page                | 2EDV-0   | phone   | light | Paste and update                 | source/2EDV-0.jsx |
-| Licence banners             | 2ENR-0   | desktop | light | Expired                          | source/2ENR-0.jsx |
-| Licence banners             | 2D2A-0   | phone   | light | Expired                          | source/2D2A-0.jsx |
-| Licence banners             | 2DCT-0   | desktop | dark  | Grace                            | source/2DCT-0.jsx |
-| Licence banners             | 2CA4-0   | desktop | light | Grace                            | source/2CA4-0.jsx |
-| Licence banners             | 2DYF-0   | phone   | dark  | Grace                            | source/2DYF-0.jsx |
-| Licence banners             | 2ENS-0   | phone   | light | Grace                            | source/2ENS-0.jsx |
-| Seat banner                 | 2DCU-0   | desktop | dark  | Over free limit                  | source/2DCU-0.jsx |
-| Seat banner                 | 2DYG-0   | phone   | dark  | Over free limit                  | source/2DYG-0.jsx |
-| Seat banner                 | 2CVY-0   | desktop | light | Over limit and invite refused    | source/2CVY-0.jsx |
-| Seat banner                 | 2D2B-0   | phone   | light | Over limit and invite refused    | source/2D2B-0.jsx |
-| FeatureGate upsell          | 2DCV-0   | desktop | dark  | Full section                     | source/2DCV-0.jsx |
-| FeatureGate upsell          | 2CYW-0   | desktop | light | Full section                     | source/2CYW-0.jsx |
-| FeatureGate upsell          | 2ENU-0   | phone   | light | Full section                     | source/2ENU-0.jsx |
-| FeatureGate upsell          | 2ENT-0   | desktop | light | Inline                           | source/2ENT-0.jsx |
-| FeatureGate upsell          | 2DYH-0   | phone   | dark  | Inline                           | source/2DYH-0.jsx |
-| FeatureGate upsell          | 2D2C-0   | phone   | light | Inline                           | source/2D2C-0.jsx |
 | Access page                 | 2ENV-0   | desktop | light | Empty                            | source/2ENV-0.jsx |
 | Access page                 | 2ENY-0   | phone   | light | Empty                            | source/2ENY-0.jsx |
 | Access page                 | 2ENX-0   | desktop | light | Error                            | source/2ENX-0.jsx |
@@ -110,9 +79,19 @@ codes.
 ## Coverage notes
 
 - Dark theme: main screen of every surface, desktop and phone.
-- Audit export upsell is the inline FeatureGate frames of surface 6 (audit log,
-  desktop; phone); the audit export dialog is surface 9. Custom roles upsell
-  (not entitled) is the full-section FeatureGate frames of surface 6.
+- The audit export dialog is surface 9. The FeatureGate upsell frames of surface 6
+  are retired (see Retired frames).
 - Revoke confirm and decommission confirm share one SCIM frame per device.
-- Banners: grace and expired on both devices (surface 4); seat banner and invite
-  refusal (surface 5).
+- Invite refusal is surface 5. The grace, expired and seat banners (surfaces 4
+  and 5) are retired (see Retired frames).
+
+## Retired frames
+
+Thirty frames were retired because Bakery is a single edition with no paid gate
+(PM decision on #80,
+https://github.com/MarkTripoli/bakery/issues/80#issuecomment-7031029946;
+docs/technical-design/PRODUCT.md line 55): Licence page (14), Licence banners
+(6, grace and expired), Seat banner (4) and FeatureGate upsell (6). None had a
+baseline case or a committed reference image. Their JSX, computed styles and
+generated fragments are deleted, and the source manifest lists the 54 frames
+that remain.

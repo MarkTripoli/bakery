@@ -1,20 +1,21 @@
 # Entitlements
 
 <!--
-THESIS: Access, licence and paid features sit in the existing settings shell; a missing entitlement explains itself instead of hiding the section.
+THESIS: Access management and the single-edition feature set sit in the existing settings shell; every feature is always available.
 OWN-WORLD: Reuse Bakery's approved Geist, neutral surfaces, cobalt selection, 208px application rail, 224px SectionNavigation and explicit light/dark token maps. No new visual language.
-STORY: An administrator checks the licence, manages who has access, and meets one honest upsell where a paid feature is not entitled.
-FIRST VIEWPORT: Page title and the one decision (licence status, people count, or the list) lead; banners sit above the top bar.
+STORY: An administrator manages who has access, with no licence, seat limit or upsell in the way.
+FIRST VIEWPORT: Page title and the one decision (the list or the primary action) lead.
 FORM: Extend the E03 settings surface. Phone uses one column with 44px controls.
 -->
 
 Mode: Operate. Editable design in
 [Paper](https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/p-17-0).
 
-The original Paper design covers84 frames. Seventy-six active sources remain
+The original Paper design covered84 frames; 30 of them are retired (see
+[Retired frames](#retired-frames)), leaving 54. Forty-six active sources remain
 the original exports for future routes. The eight installation-settings sources
 now use owner-approved repository-authored derivatives; the original Paper
-exports and all84 original reference PNGs remain unchanged. Source of truth is
+exports and the reference PNGs of the remaining frames are unchanged. Source of truth is
 the declared JSX path/hash in `source-manifest.json`. The Paper link and existing
 frame IDs identify original ancestry, not the repository-only derivatives.
 See [MOCK-BRIEF.md](MOCK-BRIEF.md) for the original frame table and the successor
@@ -22,7 +23,7 @@ record below for installation settings.
 
 ## Section navigation
 
-Installation (Settings, Administrators, Licence) and Organization (Access,
+Installation (Settings, Administrators) and Organization (Access,
 Custom roles, Audit log, Single sign-on, SCIM) use the
 [repo-wide SectionNavigation standard](../DESIGN.md#section-navigation).
 
@@ -30,25 +31,27 @@ Custom roles, Audit log, Single sign-on, SCIM) use the
 | -------------- | ------------------------------ | ------------------------------------------------------------------------ |
 | Settings       | `/installation/settings`       | Registration mode and organization creation policy                       |
 | Administrators | `/installation/administrators` | Installation administrators: list, add, revoke                           |
-| Licence        | `/installation/licence`        | Licence status, key update                                               |
 | Access         | `/organization/access`         | Members, invitations, roles per scope, service accounts, tokens, clients |
-| Custom roles   | `/organization/roles`          | Paid: role list and permission picker                                    |
-| Audit log      | `/organization/audit`          | Filtered log; paid export                                                |
-| Single sign-on | `/organization/sso`            | Paid: OIDC and SAML providers, domain verification, enforcement          |
-| SCIM           | `/organization/scim`           | Paid: token shown once, rotate, revoke, decommission                     |
+| Custom roles   | `/organization/roles`          | Role list and permission picker                                          |
+| Audit log      | `/organization/audit`          | Filtered log and export                                                  |
+| Single sign-on | `/organization/sso`            | OIDC and SAML providers, domain verification, enforcement                |
+| SCIM           | `/organization/scim`           | Token shown once, rotate, revoke, decommission                           |
 
-## Roles and limits
+## Roles
 
-- System roles: Admin, Developer, Viewer, Guest. Custom roles are a paid
-  feature.
-- Community plan: up to 5 people; over the limit, invitations are blocked until
-  a licence is added or people are removed.
-- Licence banners (grace, expired): installation administrators only, above the
-  top bar.
-- Seat banner over the free limit: persistent, non-dismissible, links to the
-  licence page.
-- FeatureGate upsell: inline (audit export) and full section (custom roles);
-  built-in behaviour keeps working.
+- System roles: Admin, Developer, Viewer, Guest. Custom roles, audit export,
+  single sign-on and SCIM are always available: Bakery is a single edition with
+  no licence keys, seat limits or paid-feature gates
+  ([PRODUCT.md](../PRODUCT.md), single-edition paragraph).
+
+## Retired frames
+
+Thirty frames were retired with the single-edition decision (PM decision on
+[#80](https://github.com/MarkTripoli/bakery/issues/80#issuecomment-7031029946)):
+Licence page (14), Licence banners (6), Seat banner (4) and FeatureGate upsell
+(6). Their JSX, computed styles and generated fragments are deleted and the
+source manifest lists the 54 that remain. [MOCK-BRIEF.md](MOCK-BRIEF.md) records
+the same list.
 
 ## Installation settings repository successor
 
