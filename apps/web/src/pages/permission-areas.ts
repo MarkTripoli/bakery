@@ -33,6 +33,7 @@ export const RESOURCE_AREAS = {
   run: "work",
   runStep: "work",
   runRequest: "work",
+  batch: "work",
   job: "work",
   jobAttempt: "work",
   session: "work",

@@ -342,10 +342,16 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
     await until(() =>
       collector.seen.some((s) => s.body.includes("job.completed"))
     );
-    // usage.settled carries no amount yet, so no destination receives it.
+    // usage.settled is a results record (the usage span under an attempt, with
+    // token counts), so a destination that takes results receives it...
+    await until(() =>
+      collector.seen.some((s) => s.body.includes("usage.settled"))
+    );
+    // ...and a destination that takes only health does not.
     assertEquals(
-      collector.seen.filter((s) => s.body.includes("usage.settled")),
+      other.seen.filter((s) => s.body.includes("usage.settled")),
       [],
+      "a health-only destination got a results record",
     );
     const traces = collector.seen.filter((s) =>
       s.path === "/v1/traces" && s.body.includes("job.completed")
