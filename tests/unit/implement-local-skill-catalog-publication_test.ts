@@ -267,6 +267,8 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0288_alert_channels",
       "0289_alert_rules",
       "0290_attempt_traceparent",
+      "0291_handoff_manifests",
+      "0292_handoff_continuations",
       "0293_backup_settings",
       "0297_draft_compaction",
       "0298_draft_epoch_rollover",
