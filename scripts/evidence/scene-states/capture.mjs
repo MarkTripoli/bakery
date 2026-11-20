@@ -34,7 +34,6 @@ const WEB = args.get("--web") ?? "http://127.0.0.1:5199";
 const API = args.get("--api") ?? "http://127.0.0.1:32772";
 const OUT = args.get("--out") ?? "stills/81-scene-states";
 const EMAIL = args.get("--email") ?? "evidence@example.test";
-const OUTSIDER_EMAIL = "outsider@example.test";
 const PASSWORD = args.get("--password") ?? "Evidence-Pass-1";
 const SEED = new URL("./seed.ts", import.meta.url).pathname;
 
@@ -53,11 +52,28 @@ const STATES = [
     headings: ["Page not found"],
     scene: "not-found",
   },
-  // A 500 on the page's own data was tried and did not reach the error
-  // boundary: the startup gate reports the failed bootstrap instead, so the
-  // shot would have proved the wrong page. "Something went wrong" needs a
-  // failure inside a page that has already rendered, which this harness does
-  // not produce, so it is not part of this set.
+  {
+    // The refusal a reader actually meets: the startup gate asks which
+    // organizations they belong to and the server says no. The body is the
+    // shape `tasks.spec.ts` answers, because that is the shape the gate reads.
+    id: "forbidden",
+    path: "/tasks",
+    headings: ["You do not have access to this organization"],
+    expect: /choose another organization/i,
+    // The gate draws its own panel; the scene template covers whole-page
+    // states and this refusal is not one.
+    noScene: true,
+    refuseOrganizations: true,
+  },
+  {
+    // A page that crashes while rendering: the router's error boundary, which
+    // no answer from the server can reach.
+    id: "server-error",
+    path: "/__fixtures__/shell/crash",
+    headings: ["Something went wrong"],
+    expect: /could not complete this request|try again/i,
+    scene: "server-error",
+  },
   {
     id: "empty-machines",
     path: "/machines",
@@ -86,28 +102,26 @@ function seed(mode) {
 
 const browser = await chromium.launch();
 
-// One sign-in per identity for the whole run: the auth endpoint rate-limits
-// repeated attempts, and every context can carry the same real session cookie.
-const sessions = new Map();
-async function getSession(email) {
-  if (sessions.has(email)) return sessions.get(email);
-  const context = await browser.newContext();
-  let signIn;
-  for (let attempt = 1; attempt <= 4; attempt += 1) {
-    signIn = await context.request.post(
+/**
+ * Signs in inside the context that will use the session.
+ *
+ * Copying cookies from a context that has been closed gives the app a session
+ * it reads as signed out, so each context signs in for itself. The retry is
+ * for the auth endpoint's rate limit, which a run of twenty contexts meets.
+ */
+async function signIn(context, email) {
+  let response;
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    response = await context.request.post(
       `${API}/api/auth/sign-in/email`,
       { data: { email, password: PASSWORD } },
     );
-    if (signIn.status() !== 429) break;
-    const wait = attempt * 20000;
-    console.log(`  signin rate-limited; waiting ${wait / 1000}s`);
-    await new Promise((resolve) => setTimeout(resolve, wait));
+    if (response.status() !== 429) break;
+    await new Promise((resolve) => setTimeout(resolve, attempt * 20000));
   }
-  if (!signIn.ok()) throw new Error(`signin ${email}: ${signIn.status()}`);
-  const cookies = await context.cookies(API);
-  sessions.set(email, cookies);
-  await context.close();
-  return cookies;
+  if (!response?.ok()) {
+    throw new Error(`signin ${email}: ${response?.status()}`);
+  }
 }
 
 await rm(OUT, { recursive: true, force: true });
@@ -118,31 +132,50 @@ const files = [];
 for (const state of STATES) {
   if (state.seed !== undefined) seed(state.seed);
 
+  // One context per state, signing in once: the auth endpoint rate-limits a
+  // run of twenty sign-ins, and a context that has to sign in again mid-run
+  // leaves the page blank while it waits. The viewport and the colour scheme
+  // are changed between shots instead.
+  const context = await browser.newContext({
+    viewport: VIEWPORTS[0][1],
+    colorScheme: THEMES[0],
+    deviceScaleFactor: 1,
+  });
+  await signIn(context, EMAIL);
+  const page = await context.newPage();
+
+  if (state.offline === true) {
+    await page.route("**/v1/**", (route) => route.abort());
+    await page.route("**/api/auth/**", (route) => route.abort());
+  }
+  if (state.refuseOrganizations === true) {
+    await page.route("**/v1/organizations*", (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          type: "about:blank",
+          title: "AUTH_FORBIDDEN",
+          status: 403,
+          code: "AUTH_FORBIDDEN",
+          detail: "Stubbed AUTH_FORBIDDEN.",
+          requestId: "00000000-0000-4000-8000-000000000301",
+          traceId: "00000000-0000-4000-8000-000000000302",
+          retryable: false,
+        }),
+      }));
+  }
   for (const [label, viewport] of VIEWPORTS) {
     for (const theme of THEMES) {
-      const context = await browser.newContext({
-        viewport,
-        colorScheme: theme,
-        deviceScaleFactor: 1,
-      });
-      const email = state.identity === "outsider" ? OUTSIDER_EMAIL : EMAIL;
-      await context.addCookies(await getSession(email));
-      const page = await context.newPage();
+      await page.setViewportSize(viewport);
+      await page.emulateMedia({ colorScheme: theme });
 
-      if (state.offline === true) {
-        await page.route("**/v1/**", (route) => route.abort());
-        await page.route("**/api/auth/**", (route) => route.abort());
-      }
-      if (state.fail === "error") {
-        await page.route("**/v1/**", (route) =>
-          route.fulfill({
-            status: 500,
-            contentType: "application/problem+json",
-            body: JSON.stringify({ title: "Server error", status: 500 }),
-          }));
-      }
-
-      await page.goto(`${WEB}${state.path}`, { waitUntil: "domcontentloaded" });
+      // `load`, then quiet: a dev server that is re-optimising dependencies
+      // reloads the page under a `domcontentloaded` navigation, and a poll that
+      // starts before React mounts reports an empty body as if it were a
+      // missing heading.
+      await page.goto(`${WEB}${state.path}`, { waitUntil: "load" });
+      await page.waitForLoadState("networkidle").catch(() => {});
 
       // The heading is checked with a poll rather than three 20s waits: a
       // failure must say what the page actually showed, and waiting 60s to
@@ -193,14 +226,17 @@ for (const state of STATES) {
       }
 
       // The scene is decoration: it must carry no accessible name, or a screen
-      // reader would hear the art as well as the heading.
-      const image = scene.locator("img");
-      const alt = await image.getAttribute("alt");
-      const hidden = await image.getAttribute("aria-hidden");
-      if (alt !== "" || hidden !== "true") {
-        throw new Error(
-          `${state.id}: scene image is not decoration (alt=${alt}, aria-hidden=${hidden})`,
-        );
+      // reader would hear the art as well as the heading. A state the gate
+      // draws itself has no scene, so there is nothing to check.
+      if (state.noScene !== true) {
+        const image = scene.locator("img");
+        const alt = await image.getAttribute("alt");
+        const hidden = await image.getAttribute("aria-hidden");
+        if (alt !== "" || hidden !== "true") {
+          throw new Error(
+            `${state.id}: scene image is not decoration (alt=${alt}, aria-hidden=${hidden})`,
+          );
+        }
       }
 
       await page.waitForTimeout(500);
@@ -209,9 +245,9 @@ for (const state of STATES) {
       await page.screenshot({ path });
       files.push(path);
       console.log("  shot", name);
-      await context.close();
     }
   }
+  await context.close();
 }
 
 const distinct = await assertDistinct(files);

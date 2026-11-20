@@ -13,6 +13,11 @@ function currentFixtureState(pathname: string): ShellFixtureState {
     : "error";
 }
 
+/** Throws where the router catches: a page that crashed, not a failed read. */
+function CrashFixture(): never {
+  throw new Error("ShellStateFixture: crash state");
+}
+
 export function ShellStateFixture() {
   const { translate } = useI18n();
   const state = useRouterState({
@@ -37,6 +42,8 @@ export function ShellStateFixture() {
     : state === "long-copy"
     ? translate("shell.states.worstCaseTitle")
     : translate("shell.states.errorTitle");
+
+  if (state === "crash") return <CrashFixture />;
 
   return (
     <UI.Stack data-testid="synthetic-fixture" gap="spacious">

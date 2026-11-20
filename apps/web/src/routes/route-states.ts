@@ -13,6 +13,9 @@ export const shellFixtureStates = [
   "reconnecting",
   "busy",
   "long-copy",
+  // A page that throws while rendering: the router's error boundary, which no
+  // answer from the server can reach.
+  "crash",
 ] as const;
 
 export type ShellFixtureState = (typeof shellFixtureStates)[number];

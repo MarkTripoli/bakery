@@ -870,10 +870,31 @@ export function RoutePending() {
  * has one thing to say, so they carry the character scene. The copy is
  * unchanged: the scene is decoration and the heading still says what happened.
  */
-export function RouteError(_props: ErrorComponentProps) {
+export function RouteError({ reset }: ErrorComponentProps) {
   const { translate } = useI18n();
+  const navigate = useNavigate();
   return (
     <UI.SceneState
+      // A page that crashed is not a dead end either: the reader can ask for
+      // the page again, or leave for somewhere that works.
+      action={
+        <UI.Inline gap="compact">
+          <UI.Button
+            onClick={() => {
+              reset();
+              void navigate({ to: "." });
+            }}
+          >
+            {translate("core.actions.retry")}
+          </UI.Button>
+          <UI.Button
+            onClick={() => void navigate({ to: WORK_HOME })}
+            variant="secondary"
+          >
+            {translate("shell.states.notFoundAction")}
+          </UI.Button>
+        </UI.Inline>
+      }
       description={translate("shell.states.errorDescription")}
       inset="page"
       scene="server-error"
