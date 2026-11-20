@@ -33,6 +33,19 @@ export function mergeWorkingCopy(t: Translator): MergeCardCopy {
 }
 
 /**
+ * Approved, but the reviewed commit has no check results, so a queued merge
+ * would have nothing to name. Never "Ready to merge" with no button: the card
+ * says why and sends the person to the pull request's checks.
+ */
+export function mergeNoChecksCopy(t: Translator, head: string): MergeCardCopy {
+  return {
+    title: t("tasks.delivery.now.mergeNoChecks.title"),
+    body: t("tasks.delivery.now.mergeNoChecks.body", { head }),
+    action: "openOnGitHub",
+  };
+}
+
+/**
  * A stopped merge: what happened, and a button only when pressing it can help.
  * Merge again is for a reader who may merge; a check, a closed pull request or
  * a reason nobody told Bakery sends the person to GitHub.
@@ -45,7 +58,7 @@ export function mergeBlockedCopy(
   switch (now.reason) {
     case "head_moved":
       return {
-        title: t("tasks.delivery.now.mergeBlocked.head_moved.title"),
+        title: t("tasks.delivery.now.mergeMoved.title"),
         body: t("tasks.delivery.now.mergeBlocked.head_moved.body"),
         action: null,
       };

@@ -19,6 +19,7 @@ import {
   MERGE_REFUSAL_ABOVE,
   mergeBlockedCopy,
   type MergeCardAction,
+  mergeNoChecksCopy,
   mergeStepCopy,
   type MergeTarget,
   mergeWorkingCopy,
@@ -149,6 +150,8 @@ function nowCopy(t: Translate, now: NowCard): NowCopy {
       return mergeWorkingCopy(t);
     case "mergeBlocked":
       return mergeBlockedCopy(t, now);
+    case "mergeNoChecks":
+      return mergeNoChecksCopy(t, now.head);
     case "mergeRefused":
       return {
         title: t("tasks.delivery.now.mergeRefused.title"),
@@ -276,6 +279,7 @@ function nowTone(now: NowCard): "success" | "information" | "warning" {
     case "mergeWorking":
       return "information";
     case "mergeBlocked":
+    case "mergeNoChecks":
     case "mergeReady":
     case "mergeNoPermission":
     case "mergeRefused":
@@ -412,7 +416,11 @@ export function DeliverySectionView(
           tone={AFTER_APPROVAL_TONE[model.afterApproval.badge]}
         >
           {t(
-            `tasks.delivery.afterApproval.badge.${model.afterApproval.badge}` as MessageKey,
+            `tasks.delivery.afterApproval.badge.${
+              model.afterApproval.badge === "mergeBlocked"
+                ? "notMerged"
+                : model.afterApproval.badge
+            }` as MessageKey,
           )}
         </UI.Badge>
       )}

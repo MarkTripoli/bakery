@@ -5024,10 +5024,8 @@
   "settings.roles.thing.backup": "⟦ƀàçķûþš…⟧",
   "tasks.delivery.status.inProgress": "⟦Ïñ þŕôĝŕëšš ŧ⟧",
   "tasks.delivery.afterApproval.badge.merging": "⟦Ṁëŕĝïñĝ…⟧",
-  "tasks.delivery.afterApproval.badge.mergeBlocked": "⟦Ñôŧ ɱëŕĝëð ŧ⟧",
   "tasks.delivery.now.mergeChecking.title": "⟦Çĥëçķïñĝ ƀëƒôŕë ŧĥë ɱëŕĝë ŧëšŧ ç⟧",
   "tasks.delivery.now.mergeChecking.body": "⟦Ɓàķëŕÿ ïš çĥëçķïñĝ ŧĥàŧ ñôŧĥïñĝ çĥàñĝëð šïñçë ŧĥë ŕëṽïëŵ, ŧĥëñ ïŧ ɱëŕĝëš. Ñôŧĥïñĝ ƒôŕ ÿôû ŧô ðô. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "tasks.delivery.now.mergeBlocked.head_moved.title": "⟦Ñôŧ ɱëŕĝëð: ŧĥë þûļļ ŕëǫûëšŧ çĥàñĝëð ŧëšŧ çôþÿŧ⟧",
   "tasks.delivery.now.mergeBlocked.head_moved.body": "⟦Ŧĥë þûļļ ŕëǫûëšŧ çĥàñĝëð àƒŧëŕ ŧĥë çĥëçķš ŕàñ, àñð Ɓàķëŕÿ ɱëŕĝëš ôñļÿ ŵĥàŧ ŵàš çĥëçķëð. Çĥëçķš àñð ŧĥë ŕëṽïëŵ ñëëð ŧô þàšš ƒôŕ ŧĥë ñëŵ çôɱɱïŧ, àñð ïŧ ñëëðš àþþŕôṽïñĝ àĝàïñ, ƀëƒôŕë ïŧ çàñ ɱëŕĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "tasks.delivery.now.mergeBlocked.base_moved.title": "⟦Ñôŧ ɱëŕĝëð: {branch} çĥàñĝëð ŧëšŧ çô⟧",
   "tasks.delivery.now.mergeBlocked.base_moved.body": "⟦{branch} ĝôŧ ñëŵ çôɱɱïŧš àƒŧëŕ ŧĥë çĥëçķš ŕàñ, àñð Ɓàķëŕÿ ɱëŕĝëš ôñļÿ ŵĥàŧ ŵàš çĥëçķëð. Çĥëçķš àñð ŧĥë ŕëṽïëŵ ñëëð ŧô þàšš àĝàïñ ôñ ŧôþ ôƒ {branch}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
@@ -5052,7 +5050,6 @@
   "tasks.delivery.afterApproval.merge.blocked.checks_not_passed": "⟦Ɓàķëŕÿ ðïð ñôŧ ɱëŕĝë. À ŕëǫûïŕëð çĥëçķ ñô ļôñĝëŕ þàššëš. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.delivery.afterApproval.merge.blocked.not_open": "⟦Ɓàķëŕÿ ðïð ñôŧ ɱëŕĝë. Ŧĥë þûļļ ŕëǫûëšŧ ŵàš çļôšëð. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "tasks.delivery.afterApproval.merge.blocked.not_permitted": "⟦Ɓàķëŕÿ ðïð ñôŧ ɱëŕĝë. Þëŕɱïššïôñ ŵàš ŕëɱôṽëð. ŧëšŧ çôþÿ ŧëš⟧",
-  "tasks.delivery.afterApproval.merge.blocked.not_merged": "⟦Ɓàķëŕÿ ðïð ñôŧ ɱëŕĝë. ĜïŧĤûƀ ðïð ñôŧ ɱëŕĝë ïŧ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.delivery.afterApproval.merge.blocked.unavailable": "⟦Ɓàķëŕÿ ðïð ñôŧ ɱëŕĝë. Ïŧ çôûļð ñôŧ ŕëàçĥ ĜïŧĤûƀ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.delivery.afterApproval.merge.blocked.unknown": "⟦Ɓàķëŕÿ ðïð ñôŧ ɱëŕĝë. Ïŧ ŵàš ñôŧ ŧôļð ŵĥÿ. ŧëšŧ çôþÿ ŧë⟧",
   "tasks.delivery.merge.again.button": "⟦Ṁëŕĝë àĝàïñ ŧ⟧",
@@ -5060,5 +5057,8 @@
   "tasks.delivery.merge.notice.baseMoved": "⟦{branch} çĥàñĝëð ĵûšŧ ñôŵ. Ŧĥë ļàŧëšŧ ïš šĥôŵñ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.delivery.merge.notice.notOpen": "⟦Ŧĥïš þûļļ ŕëǫûëšŧ ïš ñô ļôñĝëŕ ôþëñ. Ñôŧĥïñĝ ŵàš ɱëŕĝëð. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.delivery.merge.notice.findingsBlocking": "⟦Ŧĥë ŕëṽïëŵ ĥàš ƒïñðïñĝš ŧĥàŧ ƀļôçķ ŧĥë ɱëŕĝë. ŧëšŧ çôþÿ ŧëš⟧",
-  "tasks.delivery.merge.notice.checksNotPassed": "⟦À ŕëǫûïŕëð çĥëçķ ĥàš ñôŧ þàššëð ƒôŕ çôɱɱïŧ {head}. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "tasks.delivery.merge.notice.checksNotPassed": "⟦À ŕëǫûïŕëð çĥëçķ ĥàš ñôŧ þàššëð ƒôŕ çôɱɱïŧ {head}. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "tasks.delivery.now.mergeNoChecks.title": "⟦Ñô çĥëçķ ŕëšûļŧš ƒôŕ ŧĥïš çôɱɱïŧ ŧëšŧ çôþÿ⟧",
+  "tasks.delivery.now.mergeNoChecks.body": "⟦Ɓàķëŕÿ ɱëŕĝëš ôñļÿ ŵĥàŧ ŵàš çĥëçķëð, àñð ïŧ ĥàš ñô çĥëçķ ŕëšûļŧš ƒôŕ çôɱɱïŧ {head}. Ôþëñ ŧĥë þûļļ ŕëǫûëšŧ ŧô šëë ïŧš çĥëçķš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "tasks.delivery.afterApproval.merge.blocked.not_merged": "⟦ĜïŧĤûƀ ðïð ñôŧ ɱëŕĝë ïŧ. ŧëšŧ ç⟧"
 }

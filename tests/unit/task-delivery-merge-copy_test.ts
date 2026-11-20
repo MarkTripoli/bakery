@@ -4,6 +4,7 @@ import {
   MERGE_NOTICE_KEYS,
   MERGE_REFUSAL_ABOVE,
   mergeBlockedCopy,
+  mergeNoChecksCopy,
   mergeStepCopy,
   mergeWorkingCopy,
 } from "../../apps/web/src/pages/task-delivery/merge-copy.ts";
@@ -55,6 +56,22 @@ Deno.test("while Bakery works the card says so, has nothing for the person to do
       "Bakery is checking that nothing changed since the review, then it merges. Nothing for you to do.",
     action: null,
   });
+});
+
+Deno.test("an approved commit with no check results says so and sends the person to its checks, never offering Merge", () => {
+  assertEquals(mergeNoChecksCopy(t, "91d0aa3"), {
+    title: "No check results for this commit",
+    body:
+      "Bakery merges only what was checked, and it has no check results for commit 91d0aa3. Open the pull request to see its checks.",
+    action: "openOnGitHub",
+  });
+});
+
+Deno.test("a stopped merge for a moved head reuses the moved card's title", () => {
+  assertEquals(
+    mergeBlockedCopy(t, blocked("head_moved")).title,
+    t("tasks.delivery.now.mergeMoved.title"),
+  );
 });
 
 Deno.test("each reason a merge was stopped says what happened, in the design's words", () => {
@@ -216,10 +233,7 @@ Deno.test("a merge GitHub did not make and a canceled merge fail the step with t
       pullRequest: { status: "open" },
       mergeCommit: null,
     }),
-    {
-      status: "failed",
-      summary: "Bakery did not merge. GitHub did not merge it.",
-    },
+    { status: "failed", summary: "GitHub did not merge it." },
   );
   assertEquals(
     mergeStepCopy(t, {

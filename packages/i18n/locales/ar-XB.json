@@ -5024,10 +5024,8 @@
   "settings.roles.thing.backup": "⟪backups⟫",
   "tasks.delivery.status.inProgress": "⟪In progress⟫",
   "tasks.delivery.afterApproval.badge.merging": "⟪Merging⟫",
-  "tasks.delivery.afterApproval.badge.mergeBlocked": "⟪Not merged⟫",
   "tasks.delivery.now.mergeChecking.title": "⟪Checking before the merge⟫",
   "tasks.delivery.now.mergeChecking.body": "⟪Bakery is checking that nothing changed since the review, then it merges. Nothing for you to do.⟫",
-  "tasks.delivery.now.mergeBlocked.head_moved.title": "⟪Not merged: the pull request changed⟫",
   "tasks.delivery.now.mergeBlocked.head_moved.body": "⟪The pull request changed after the checks ran, and Bakery merges only what was checked. Checks and the review need to pass for the new commit, and it needs approving again, before it can merge.⟫",
   "tasks.delivery.now.mergeBlocked.base_moved.title": "⟪Not merged: {branch} changed⟫",
   "tasks.delivery.now.mergeBlocked.base_moved.body": "⟪{branch} got new commits after the checks ran, and Bakery merges only what was checked. Checks and the review need to pass again on top of {branch}.⟫",
@@ -5052,7 +5050,6 @@
   "tasks.delivery.afterApproval.merge.blocked.checks_not_passed": "⟪Bakery did not merge. A required check no longer passes.⟫",
   "tasks.delivery.afterApproval.merge.blocked.not_open": "⟪Bakery did not merge. The pull request was closed.⟫",
   "tasks.delivery.afterApproval.merge.blocked.not_permitted": "⟪Bakery did not merge. Permission was removed.⟫",
-  "tasks.delivery.afterApproval.merge.blocked.not_merged": "⟪Bakery did not merge. GitHub did not merge it.⟫",
   "tasks.delivery.afterApproval.merge.blocked.unavailable": "⟪Bakery did not merge. It could not reach GitHub.⟫",
   "tasks.delivery.afterApproval.merge.blocked.unknown": "⟪Bakery did not merge. It was not told why.⟫",
   "tasks.delivery.merge.again.button": "⟪Merge again⟫",
@@ -5060,5 +5057,8 @@
   "tasks.delivery.merge.notice.baseMoved": "⟪{branch} changed just now. The latest is shown.⟫",
   "tasks.delivery.merge.notice.notOpen": "⟪This pull request is no longer open. Nothing was merged.⟫",
   "tasks.delivery.merge.notice.findingsBlocking": "⟪The review has findings that block the merge.⟫",
-  "tasks.delivery.merge.notice.checksNotPassed": "⟪A required check has not passed for commit {head}.⟫"
+  "tasks.delivery.merge.notice.checksNotPassed": "⟪A required check has not passed for commit {head}.⟫",
+  "tasks.delivery.now.mergeNoChecks.title": "⟪No check results for this commit⟫",
+  "tasks.delivery.now.mergeNoChecks.body": "⟪Bakery merges only what was checked, and it has no check results for commit {head}. Open the pull request to see its checks.⟫",
+  "tasks.delivery.afterApproval.merge.blocked.not_merged": "⟪GitHub did not merge it.⟫"
 }

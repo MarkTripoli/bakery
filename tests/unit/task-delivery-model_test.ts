@@ -920,9 +920,13 @@ Deno.test("a queued merge names the candidate: head, base, run, rules, review an
   assertEquals(model.merge?.startable, true);
 });
 
-Deno.test("without a check result on the reviewed commit there is nothing a queued merge could name, so none is offered", () => {
+Deno.test("without a check result on the reviewed commit there is nothing a queued merge could name: the card says so, offers no Merge, and the badge stays Approved", () => {
   const model = deliveryModel(approvedWithPullRequest({ checks: [] }));
-  assertEquals(model.merge, null);
+  assertEquals(model.merge?.state, "noChecks");
+  assertEquals(model.merge?.request, null);
+  assertEquals(model.merge?.startable, false);
+  assertEquals(model.now, { kind: "mergeNoChecks", head: NEW.slice(0, 7) });
+  assertEquals(model.afterApproval.badge, "approved");
 });
 
 Deno.test("someone who may not merge cannot start one, whatever stopped the last", () => {

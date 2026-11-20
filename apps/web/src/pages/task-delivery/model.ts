@@ -213,7 +213,8 @@ export type MergeView = Readonly<{
     | "refused"
     | "moved"
     | "working"
-    | "blocked";
+    | "blocked"
+    | "noChecks";
   pullRequestId: string;
   providerNumber: number;
   url: string;
@@ -406,6 +407,8 @@ export type NowCard =
   | Readonly<{ kind: "mergeNoPermission" }>
   | Readonly<{ kind: "mergeUnknown"; head: string }>
   | Readonly<{ kind: "mergeWorking" }>
+  /** Approved, but the reviewed commit has no check results to merge on. */
+  | Readonly<{ kind: "mergeNoChecks"; head: string }>
   | Readonly<
     {
       kind: "mergeBlocked";
@@ -686,8 +689,16 @@ export function mergeView(
       attemptedSha: newest?.expectedHeadSha ?? entry?.expectedHeadSha ?? null,
     };
   }
-  // A merge cannot be queued without the evidence it names.
-  if (request === null) return null;
+  // A merge cannot be queued without the evidence it names (the review and the
+  // check results of this commit): say so instead of offering nothing.
+  if (request === null) {
+    return {
+      ...base,
+      state: "noChecks",
+      approvedSha: null,
+      attemptedSha: null,
+    };
+  }
   const mayStart = pullRequest.mayMerge;
   const ready = {
     ...base,
@@ -946,6 +957,7 @@ function mergeBadge(
   if (merge === null) return after;
   if (merge.state === "unknown") return { ...after, badge: "mergeUnknown" };
   if (merge.state === "working") return { ...after, badge: "merging" };
+  if (merge.state === "noChecks") return { ...after, badge: "approved" };
   if (
     merge.state === "blocked" ||
     (merge.state === "refused" && merge.blockedReason !== null)
@@ -991,6 +1003,8 @@ function mergeNow(
       };
     case "noPermission":
       return { kind: "mergeNoPermission" };
+    case "noChecks":
+      return { kind: "mergeNoChecks", head: shortSha(merge.headSha) };
     case "refused":
       return {
         kind: "mergeRefused",

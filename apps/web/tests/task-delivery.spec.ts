@@ -120,7 +120,7 @@ const checkRow = (
   headSha: head,
   baseSha: BASE,
   profileDigest: null,
-  policyDigest: "policy-1",
+  policyDigest: sha("c"),
   subjectDigest: sha("a"),
   checkerDigest: null,
   titleDigest: null,
@@ -158,7 +158,7 @@ const reviewRow = (
   implementerPrincipalId: uuid(34),
   headSha: over.head,
   baseSha: BASE,
-  policyDigest: "policy-1",
+  policyDigest: sha("c"),
   status: over.status,
   findingCount: over.findings,
   blockingCount: over.blocking,
@@ -202,7 +202,7 @@ const decisionRow = (
   reason,
   headSha: head,
   baseSha: BASE,
-  policyDigest: "policy-1",
+  policyDigest: sha("c"),
   failedChecks: [],
   blockingFingerprints: fingerprints,
   limits: { maxRepairCycles: 2, maxLoopDurationMs: 600000, maxFindings: 25 },
@@ -257,7 +257,7 @@ const mergeEntryRow = (
   status,
   externalEffectId: null,
   runId,
-  policyDigest: "policy-1",
+  policyDigest: sha("c"),
   reviewCycleId: reviewId,
   createdAt: at(7),
   updatedAt: at(8),
@@ -1844,7 +1844,7 @@ test("an approved candidate at the reviewed head offers Merge, asks first, and q
     expectedHeadSha: NEW,
     expectedBaseSha: BASE,
     runId,
-    policyDigest: "policy-1",
+    policyDigest: sha("c"),
     reviewCycleId: reviewId,
     checkRunIds: [uuid(100), uuid(101)],
   });
@@ -1875,6 +1875,9 @@ for (
     );
     await expect(mergeStep(page)).toContainText(sentence);
     await expect(mergeStep(page)).toHaveAttribute("data-state", "running");
+    // The mark says In progress; "Running" is for the run's own steps.
+    await expect(mergeStep(page)).toContainText("In progress");
+    await expect(mergeStep(page)).not.toContainText("Running");
     // A reload, or another person looking, sees the same.
     await page.reload();
     await expect(nowCard(page)).toContainText("Checking before the merge");
@@ -1954,7 +1957,7 @@ for (
       true,
     ],
     [
-      "from_the_future",
+      null,
       "Bakery did not merge this",
       "The merge was stopped and Bakery was not told why. Open the pull request to check it.",
       "Open on GitHub",
@@ -2372,6 +2375,27 @@ for (
   });
 }
 
+test("an approved commit with no check results says so, offers no Merge, and never says Ready to merge", async ({ page }) => {
+  const seen = await openMerge(page, {
+    ...CLEAN,
+    checks: [],
+    pullRequests: [pullRequestRow(482)],
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("No check results for this commit");
+  await expect(now).toContainText(
+    "Bakery merges only what was checked, and it has no check results for commit 91d0aa3. Open the pull request to see its checks.",
+  );
+  await expect(now).not.toContainText("Ready to merge");
+  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(now.getByRole("link", { name: /Open on GitHub/ }))
+    .toHaveAttribute("href", "https://github.com/o/r/pull/482");
+  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
+    "Approved",
+  );
+  expect(seen.merges).toHaveLength(0);
+});
+
 test("offline, merging is disabled", async ({ page, context }) => {
   await openMerge(page, { ...CLEAN, pullRequests: [pullRequestRow(482)] });
   await context.setOffline(true);
@@ -2417,6 +2441,10 @@ const MERGE_STILLS = [
       pullRequests: [pullRequestRow(482)],
       mergeEntries: [mergeEntryRow("validating")],
     },
+  ],
+  [
+    "no-checks",
+    { checks: [], pullRequests: [pullRequestRow(482)] },
   ],
   [
     "stopped-branch",
@@ -2513,6 +2541,42 @@ for (const [name, scenario] of MERGE_STILLS) {
         }
       });
     }
+  }
+}
+
+for (const scheme of ["light", "dark"] as const) {
+  for (const [size, width, height] of STILL_SIZES) {
+    test(`still: merge, the branch is busy, ${size} ${scheme}`, async ({ page }) => {
+      test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+      test.setTimeout(laneBudgetMs(90_000));
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width, height });
+      await openMerge(
+        page,
+        { ...CLEAN, pullRequests: [pullRequestRow(482)] },
+        {
+          stub: stubStillsPage,
+          merge: (route) =>
+            route.fulfill({
+              status: 409,
+              contentType: "application/problem+json",
+              json: problemBody(
+                409,
+                "STATE_CONFLICT",
+                "target_merge_in_progress",
+              ),
+            }),
+        },
+      );
+      await button(nowCard(page), "Merge").click();
+      await button(page.getByRole("alertdialog"), "Merge").click();
+      await expect(page.getByTestId("delivery-merge-notice")).toContainText(
+        "Another change is merging into main right now.",
+      );
+      await expect(page.getByRole("alertdialog")).toBeHidden();
+      await page.setViewportSize({ width, height: TALL[size] });
+      await stillOfSection(page, `merge-branch-busy-${size}-${scheme}.png`);
+    });
   }
 }
 
