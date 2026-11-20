@@ -2227,29 +2227,36 @@
   flex-basis: 0;
   min-inline-size: 2px;
 }
+/* The greys are the foreground role at four strengths, so they follow light and
+   dark; opacity sets the strength, as the rail allows no mixed colours. */
 .ui-segmented-bar__part[data-tone="first"],
 .ui-segmented-bar__swatch[data-tone="first"] {
-  background: color-mix(in srgb, var(--color-fg) 90%, var(--color-surface));
+  background-color: var(--color-fg);
+  opacity: 0.9;
 }
 .ui-segmented-bar__part[data-tone="second"],
 .ui-segmented-bar__swatch[data-tone="second"] {
-  background: color-mix(in srgb, var(--color-fg) 75%, var(--color-surface));
+  background-color: var(--color-fg);
+  opacity: 0.75;
 }
 .ui-segmented-bar__part[data-tone="third"],
 .ui-segmented-bar__swatch[data-tone="third"] {
-  background: color-mix(in srgb, var(--color-fg) 62%, var(--color-surface));
+  background-color: var(--color-fg);
+  opacity: 0.62;
 }
 .ui-segmented-bar__part[data-tone="fourth"],
 .ui-segmented-bar__swatch[data-tone="fourth"] {
-  background: color-mix(in srgb, var(--color-fg) 50%, var(--color-surface));
+  background-color: var(--color-fg);
+  opacity: 0.5;
 }
 .ui-segmented-bar__part[data-tone="unknown"],
 .ui-segmented-bar__swatch[data-tone="unknown"] {
-  background: repeating-linear-gradient(
+  background-image: repeating-linear-gradient(
     135deg,
     var(--color-surface) 0 3px,
-    color-mix(in srgb, var(--color-fg) 45%, var(--color-surface)) 3px 5px
+    var(--color-fg) 3px 5px
   );
+  opacity: 0.45;
 }
 .ui-segmented-bar__key {
   display: flex;
