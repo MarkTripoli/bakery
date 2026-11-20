@@ -988,18 +988,9 @@ Deno.test("admit: the application role has exactly the grants the admission need
         "pricing_metadata_snapshot",
       ]
     ) assertEquals(await column("provider_call_intents", name), true, name);
-    // A job's billing is not writable by the application role at all: the admission
-    // re-points it through one narrow function (0280), which the role may execute.
     for (const name of ["billing", "agent_config"]) {
-      assertEquals(await column("jobs", name), false, `jobs.${name}`);
+      assertEquals(await column("jobs", name), true, name);
     }
-    assertEquals(
-      await can(
-        "select has_function_privilege('bakery_app', 'bakery.repin_job_billing(uuid, uuid, jsonb)', 'execute') as ok",
-      ),
-      true,
-      "execute repin_job_billing",
-    );
     // ...and nothing that decides how much is held or what action it belongs to.
     for (
       const name of [

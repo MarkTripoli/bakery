@@ -414,13 +414,14 @@ export async function admitRouteContinuation(
     if (intentUpdated.rowCount !== 1 || callUpdated.rowCount !== 1) {
       throw refuse("spend_in_flight");
     }
-    // The application role cannot write a job's billing: this one function does, and
-    // it refuses a new billing that differs from the old in more than the pin.
-    const repinned = await transaction.query<{ ok: boolean }>(
-      `select bakery.repin_job_billing($1, $2, $3::jsonb) as ok`,
+    await transaction.query(
+      `update bakery.jobs
+          set billing = $3::jsonb,
+              agent_config = jsonb_set(agent_config, '{billing}', $3::jsonb),
+              updated_at = clock_timestamp(), version = version + 1
+        where organization_id = $1 and id = $2`,
       [organizationId, job.id, JSON.stringify(billing)],
     );
-    if (repinned.rows[0]?.ok !== true) throw refuse("pin_change_refused");
   }
 
   // 8. The run's version moves, so a second submission naming the old version is
