@@ -19,10 +19,13 @@ import {
   createBatchesListHandler,
   loadBatch,
 } from "../../apps/server/src/modules/work/batch-commands.ts";
+import { createBatchStartPort } from "../../apps/server/src/modules/work/batch-start-port.ts";
 import {
   type BatchPorts,
+  readIssueOutcome,
   superviseBatches,
 } from "../../apps/server/src/modules/work/batch-tick.ts";
+import { admitTicket } from "../../apps/server/src/modules/work/ticket-admission.ts";
 import {
   AFTER_SINCE,
   automaticPolicy,
@@ -605,4 +608,283 @@ Deno.test("batches: a tick skips a batch another tick holds, and acts once it is
     await superviseBatches(fx.runtime, ports);
     assertEquals(calls.start.length, 1);
     assertEquals((await issueRows(fx, batchId)).length, 1);
+  }));
+
+Deno.test("batches: every way a run can end is an end, and a run waiting on its merge is not", () =>
+  withBatches(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const batchId = await insertBatch(fx);
+    const { ports } = admittingPorts(fx, sourceId);
+    await superviseBatches(fx.runtime, ports);
+    const requestId = (await issueRows(fx, batchId))[0].ticket_request_id!;
+    const runId = await runOf(fx, requestId);
+    const outcome = () =>
+      readIssueOutcome(fx.runtime as never, fx.organizationId, requestId);
+
+    // Still moving, or waiting on a person or on capacity: not an end.
+    for (
+      const status of [
+        "queued",
+        "running",
+        "waiting_input",
+        "waiting_capacity",
+        "paused",
+        "canceling",
+      ]
+    ) {
+      await setRunStatus(fx, runId, status);
+      assertEquals(await outcome(), "running", `run ${status}`);
+    }
+    // Over: cancelled, failed, or blocked (it waits for a person, which a batch cannot).
+    for (
+      const [status, expected] of [
+        ["canceled", "cancelled"],
+        ["failed", "failed"],
+        ["blocked", "failed"],
+      ] as const
+    ) {
+      await setRunStatus(fx, runId, status);
+      assertEquals(await outcome(), expected, `run ${status}`);
+    }
+
+    // Completed with nothing left to merge: the run will not merge, so the issue ended.
+    await setRunStatus(fx, runId, "completed");
+    assertEquals(
+      await outcome(),
+      "failed",
+      "completed, no pull request, no merge",
+    );
+
+    // Completed, but its pull request is still open: it is waiting on its merge.
+    const task = await fx.owner.query<{ task_id: string }>(
+      `select task_id from bakery.ticket_requests
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, requestId],
+    );
+    await insertWithoutForeignKeys(fx.owner, "pull_requests", {
+      organization_id: fx.organizationId,
+      task_id: task.rows[0].task_id,
+      status: "open",
+    });
+    assertEquals(await outcome(), "running", "completed, pull request open");
+    // ...and once that pull request is closed without merging, it ended.
+    await fx.owner.query(
+      `update bakery.pull_requests set status = 'closed'
+        where organization_id = $1 and task_id = $2`,
+      [fx.organizationId, task.rows[0].task_id],
+    );
+    assertEquals(
+      await outcome(),
+      "failed",
+      "completed, pull request closed unmerged",
+    );
+
+    // A merge in flight is not an end either; a cancelled one is, and a merged one is a merge.
+    await insertWithoutForeignKeys(fx.owner, "merge_entries", {
+      organization_id: fx.organizationId,
+      run_id: runId,
+      status: "queued",
+    });
+    assertEquals(await outcome(), "running", "completed, merge queued");
+    for (const status of ["validating", "merging"]) {
+      await fx.owner.query(
+        `update bakery.merge_entries set status = $3
+          where organization_id = $1 and run_id = $2`,
+        [fx.organizationId, runId, status],
+      );
+      assertEquals(await outcome(), "running", `completed, merge ${status}`);
+    }
+    await fx.owner.query(
+      `update bakery.merge_entries set status = 'canceled'
+        where organization_id = $1 and run_id = $2`,
+      [fx.organizationId, runId],
+    );
+    assertEquals(await outcome(), "failed", "completed, merge cancelled");
+    await fx.owner.query(
+      `update bakery.merge_entries set status = 'merged'
+        where organization_id = $1 and run_id = $2`,
+      [fx.organizationId, runId],
+    );
+    assertEquals(await outcome(), "merged");
+  }));
+
+Deno.test("batches: a stop that cancels ends once the run has completed without merging", () =>
+  withBatches(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const batchId = await insertBatch(fx, { maxIssues: 5 });
+    const { ports, calls } = admittingPorts(fx, sourceId);
+    await superviseBatches(fx.runtime, ports);
+    const requestId = (await issueRows(fx, batchId))[0].ticket_request_id!;
+    await fx.runtime.query(
+      `update bakery.batches
+          set state = 'stopping', stop_cancelled_current = true, stopped_by = $2
+        where id = $1`,
+      [batchId, fx.adminId],
+    );
+
+    // Ana's run completes, but its pull request is closed unmerged. A cancel now only finds the
+    // run already over, so the batch used to read it as running and stay Stopping for good.
+    await setRunStatus(fx, await runOf(fx, requestId), "completed");
+    await superviseBatches(fx.runtime, ports);
+    await superviseBatches(fx.runtime, ports);
+    assertEquals((await batchRow(fx, batchId)).state, "stopped");
+    assertEquals((await issueRows(fx, batchId))[0].state, "failed");
+    assertEquals(calls.start.length, 1, "nothing started while stopping");
+  }));
+
+Deno.test("batches: a stop that cancels ends when its starter has lost authority", () =>
+  withBatches(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const batchId = await insertBatch(fx, { startedBy: fx.developerId! });
+    const { ports, calls } = admittingPorts(fx, sourceId);
+    await superviseBatches(fx.runtime, ports);
+    assertEquals(calls.start.length, 1);
+    await fx.runtime.query(
+      `update bakery.batches
+          set state = 'stopping', stop_cancelled_current = true, stopped_by = $2
+        where id = $1`,
+      [batchId, fx.adminId],
+    );
+    await fx.owner.query(
+      `delete from bakery.organization_memberships
+        where organization_id = $1 and principal_id = $2`,
+      [fx.organizationId, fx.developerId],
+    );
+
+    // The cancel is made as the starter, who can no longer act: it ends and says why, rather
+    // than asking for a cancel it can never make.
+    await superviseBatches(fx.runtime, ports);
+    const ended = await batchRow(fx, batchId);
+    assertEquals(ended.state, "finished");
+    assertEquals(ended.finish_reason, "authority_lost");
+    assertEquals(
+      calls.cancel.length,
+      0,
+      "no cancel was attempted as someone who cannot",
+    );
+  }));
+
+Deno.test("batches: a tick that fails says which batch and why, and the batch is tried again", () =>
+  withBatches(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const batchId = await insertBatch(fx);
+    const failures: {
+      organizationId: string;
+      batchId: string;
+      error: unknown;
+    }[] = [];
+    const down: BatchPorts = {
+      startNext: () => Promise.reject(new Error("PROVIDER_UNAVAILABLE")),
+    };
+
+    const failed = await superviseBatches(
+      fx.runtime,
+      down,
+      new Date(),
+      (failure) => failures.push(failure),
+    );
+    assertEquals(failed, { looked: 1, acted: 0, failed: 1 });
+    assertEquals(failures.length, 1);
+    assertEquals(failures[0].batchId, batchId);
+    assertEquals(failures[0].organizationId, fx.organizationId);
+    assertEquals((failures[0].error as Error).message, "PROVIDER_UNAVAILABLE");
+    // Nothing was half done: the batch is as it was, and the next tick tries it again.
+    assertEquals((await batchRow(fx, batchId)).state, "running");
+    assertEquals((await issueRows(fx, batchId)).length, 0);
+
+    const { ports, calls } = admittingPorts(fx, sourceId);
+    await superviseBatches(fx.runtime, ports);
+    assertEquals(calls.start.length, 1);
+  }));
+
+/** One real admission as a manual start, stamped with the trace id it was asked under. */
+async function admitWithTrace(
+  fx: TicketFixture,
+  sourceId: string,
+  number: number,
+  trace: string,
+): Promise<string> {
+  fx.reader.setIssue({ number, labels: [EXECUTE_LABEL] });
+  fx.reader.setLabelApplied(number, EXECUTE_LABEL, { appliedAt: AFTER_SINCE });
+  const result = await admitTicket(fx.automationDeps(), {
+    organizationId: fx.organizationId,
+    sourceId,
+    number,
+    intent: "start",
+    origin: "manual",
+    caller: await fx.actor(fx.adminId),
+    prefetch: null,
+    signal: new AbortController().signal,
+    trace: { requestId: trace, traceId: trace },
+  } as never);
+  assert(result.request, "the admission produced a request");
+  return result.request.id;
+}
+
+function realStartPort(
+  fx: TicketFixture,
+): NonNullable<BatchPorts["startNext"]> {
+  return createBatchStartPort({
+    database: fx.runtime,
+    reader: fx.reader as never,
+    budget: undefined,
+    admit: ((_deps: unknown, call: Parameters<typeof admitTicket>[1]) =>
+      admitTicket(fx.automationDeps(), call)) as typeof admitTicket,
+    resolveCaller: (_database, _organizationId, principalId) =>
+      fx.actor(principalId),
+  });
+}
+
+async function requestCount(fx: TicketFixture): Promise<number> {
+  const result = await fx.owner.query<{ n: string }>(
+    `select count(*)::text as n from bakery.ticket_requests where organization_id = $1`,
+    [fx.organizationId],
+  );
+  return Number(result.rows[0].n);
+}
+
+Deno.test("batches: a request this batch admitted before its tick failed is taken back, not passed over", () =>
+  withBatches(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const batchId = await insertBatch(fx);
+    // The admission committed under this batch's trace id; the tick that asked for it then
+    // lost its transaction, so the batch has no row for the issue.
+    const orphan = await admitWithTrace(fx, sourceId, 1, `batch:${batchId}`);
+    assertEquals((await issueRows(fx, batchId)).length, 0);
+
+    await superviseBatches(fx.runtime, { startNext: realStartPort(fx) });
+
+    const issues = await issueRows(fx, batchId);
+    assertEquals(issues.map((issue) => issue.state), ["started"]);
+    assertEquals(issues[0].ticket_request_id, orphan);
+    assertEquals(
+      await requestCount(fx),
+      1,
+      "no second request was made for the issue",
+    );
+    assertEquals((await batchRow(fx, batchId)).state, "running");
+  }));
+
+Deno.test("batches: a request a person made for the issue is not taken, only passed over", () =>
+  withBatches(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const batchId = await insertBatch(fx);
+    await admitWithTrace(fx, sourceId, 1, "a-person-pressed-start");
+
+    await superviseBatches(fx.runtime, { startNext: realStartPort(fx) });
+
+    const issues = await issueRows(fx, batchId);
+    assertEquals(issues.map((issue) => issue.state), ["passed_over"]);
+    assertEquals(issues[0].ticket_request_id, null);
+    assertEquals(await requestCount(fx), 1);
+    assertEquals(
+      (await batchRow(fx, batchId)).finish_reason,
+      "nothing_eligible",
+    );
   }));

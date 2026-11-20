@@ -126,6 +126,12 @@ export function decideBatchStep(batch: StepBatch, world: StepWorld): Decision {
     // A stop that asked to cancel: the run still going must be cancelled. The batch
     // stays Stopping until the issue has actually ended.
     if (batch.state === "stopping" && batch.stopCancelledCurrent) {
+      // The cancel is made as the person who started the batch. If they can no longer act
+      // here it can never be made, and asking again each tick would leave the batch
+      // Stopping for good: end it and say why. The run is left for a person to cancel.
+      if (!world.authorityOk) {
+        return { kind: "finish", reason: "authority_lost" };
+      }
       return { kind: "cancel_current", issueId: current.issueId };
     }
     // An issue is running. Nothing new starts after a limit; it finishes first.

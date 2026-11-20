@@ -19,17 +19,23 @@ const STARTER = "44444444-4444-4444-8444-444444444444";
 
 type Candidate = { id: string; source_id: string; number: number };
 
-function transaction(candidates: Candidate[]) {
+/**
+ * The candidate query answers with the candidates. The audit lookup (did this batch admit the
+ * request?) answers with a row only for the request ids named in `madeByBatch`.
+ */
+function transaction(candidates: Candidate[], madeByBatch: string[] = []) {
   const queries: { sql: string; values: unknown[] }[] = [];
   return {
     queries,
     transaction: {
       query: (sql: string, values: unknown[] = []) => {
         queries.push({ sql, values });
-        return Promise.resolve({
-          rows: candidates,
-          rowCount: candidates.length,
-        });
+        const rows = sql.includes("bakery.audit_events")
+          ? (madeByBatch.includes(values[1] as string)
+            ? [{ "?column?": 1 }]
+            : [])
+          : candidates;
+        return Promise.resolve({ rows, rowCount: rows.length });
       },
     } as never,
   };
@@ -71,8 +77,8 @@ function harness(verdicts: Record<number, Verdict>) {
       ticketId: `ticket-${number}`,
     });
   }) as never;
-  const port = (rows: Candidate[]) => {
-    const t = transaction(rows);
+  const port = (rows: Candidate[], madeByBatch: string[] = []) => {
+    const t = transaction(rows, madeByBatch);
     const start = createBatchStartPort({
       database: {} as never,
       reader: {} as never,
@@ -203,4 +209,44 @@ Deno.test("candidates are the repository's open issues in number order, minus th
   // Anything the batch took and did not merely pass over is excluded; a passed-over
   // issue stays a candidate because GitHub is read again each time.
   assertEquals(/taken\.state <> 'passed_over'/.test(sql), true);
+});
+
+Deno.test("an issue this batch admitted on an earlier tick that lost its transaction is taken back as the started one", async () => {
+  const h = harness({
+    7: { kind: "unadmitted", reason: "dependency_open" },
+    8: { kind: "existing" },
+    9: { kind: "admitted", id: "request-9" },
+  });
+  // The admission committed in its own transaction, then the tick failed before recording the
+  // issue. The audit row admission wrote under this batch's trace id is how it is recognised.
+  const adopting = h.port([7, 8, 9].map(candidate), ["existing-request"]);
+  const result = await adopting.start();
+  assertEquals(result, {
+    started: true,
+    externalTicketId: "ticket-8",
+    ticketRequestId: "existing-request",
+    passedOver: [{ externalTicketId: "ticket-7", reason: "dependency_open" }],
+  });
+  // It asked who made the request with this batch's trace id, and never admitted issue 9.
+  const lookup = adopting.queries.find((q) =>
+    q.sql.includes("bakery.audit_events")
+  );
+  assertEquals(lookup?.values, [ORG, "existing-request", `batch:${BATCH}`]);
+  assertEquals(h.calls.map((c) => c.number), [7, 8]);
+});
+
+Deno.test("a request a person made for the issue is not taken, even with a batch's other requests around", async () => {
+  const h = harness({
+    8: { kind: "existing" },
+    9: { kind: "admitted", id: "request-9" },
+  });
+  // Another request id is the batch's own; this one is not.
+  const result = await h.port([8, 9].map(candidate), ["some-other-request"])
+    .start();
+  assertEquals(result, {
+    started: true,
+    externalTicketId: "ticket-9",
+    ticketRequestId: "request-9",
+    passedOver: [{ externalTicketId: "ticket-8", reason: "already_requested" }],
+  });
 });

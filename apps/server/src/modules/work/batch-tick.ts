@@ -1,5 +1,6 @@
 import type { Inngest } from "inngest";
 import { appendAudit } from "@bakery/persistence";
+import { StandardError } from "@bakery/contracts/http";
 import {
   type PgDatabase,
   type PgTransactionClient,
@@ -70,9 +71,16 @@ export type BatchPorts = {
 export type IssueOutcome = "running" | "merged" | "failed" | "cancelled";
 
 /**
- * What became of an issue's request: merged when its run's merge entry is, failed or
- * cancelled when its run is, otherwise still running (a request that has not started
- * a run yet, or whose run is in flight, is not an end).
+ * What became of an issue's request. Every way a run can end is an end, so a batch never
+ * waits on something that will not change:
+ *
+ * - merged: its run's merge entry is.
+ * - failed: the run failed, or is blocked (a blocked run waits for a person, which a batch
+ *   cannot), or it completed and will not merge: no merge is in flight and no pull request is
+ *   still open, as when the pull request was closed unmerged or never opened.
+ * - cancelled: the run was cancelled.
+ * - running: anything still moving or waiting on its merge, including a request that has not
+ *   started a run yet.
  */
 export async function readIssueOutcome(
   transaction: PgTransactionClient,
@@ -80,7 +88,12 @@ export async function readIssueOutcome(
   ticketRequestId: string,
 ): Promise<IssueOutcome> {
   const result = await transaction.query<
-    { status: string | null; merged: boolean }
+    {
+      status: string | null;
+      merged: boolean;
+      merging: boolean;
+      pr_open: boolean;
+    }
   >(
     `select run.status as status,
             exists (
@@ -88,7 +101,19 @@ export async function readIssueOutcome(
                where entry.organization_id = request.organization_id
                  and entry.run_id = request.workflow_run_id
                  and entry.status = 'merged'
-            ) as merged
+            ) as merged,
+            exists (
+              select 1 from bakery.merge_entries as entry
+               where entry.organization_id = request.organization_id
+                 and entry.run_id = request.workflow_run_id
+                 and entry.status in ('queued', 'validating', 'merging')
+            ) as merging,
+            exists (
+              select 1 from bakery.pull_requests as pr
+               where pr.organization_id = request.organization_id
+                 and pr.task_id = request.task_id
+                 and pr.status = 'open'
+            ) as pr_open
        from bakery.ticket_requests as request
        left join bakery.workflow_runs as run
          on run.organization_id = request.organization_id
@@ -99,8 +124,11 @@ export async function readIssueOutcome(
   const row = result.rows[0];
   if (!row) return "failed";
   if (row.merged) return "merged";
-  if (row.status === "failed") return "failed";
+  if (row.status === "failed" || row.status === "blocked") return "failed";
   if (row.status === "canceled") return "cancelled";
+  if (row.status === "completed" && !row.merging && !row.pr_open) {
+    return "failed";
+  }
   return "running";
 }
 
@@ -371,10 +399,33 @@ async function superviseOne(
  * One sweep over the live batches. A failure in one batch is counted and does not stop
  * the others; the next tick tries it again.
  */
+export type BatchTickFailure = {
+  organizationId: string;
+  batchId: string;
+  error: unknown;
+};
+
+/** One structured line, like the other work logs: names the batch and the error, never its message. */
+function logTickFailure(failure: BatchTickFailure): void {
+  console.error(JSON.stringify({
+    component: "work",
+    event: "batch_tick_failed",
+    organizationId: failure.organizationId,
+    batchId: failure.batchId,
+    errorName: failure.error instanceof Error
+      ? failure.error.name
+      : typeof failure.error,
+    ...(failure.error instanceof StandardError
+      ? { code: failure.error.code }
+      : {}),
+  }));
+}
+
 export async function superviseBatches(
   database: PgDatabase,
   ports: BatchPorts = {},
   now: Date = new Date(),
+  onFailure: (failure: BatchTickFailure) => void = logTickFailure,
 ): Promise<{ looked: number; acted: number; failed: number }> {
   const live = await database.query<{ id: string; organization_id: string }>(
     `select id, organization_id from bakery.batches
@@ -393,8 +444,15 @@ export async function superviseBatches(
         now,
       );
       if (decision.kind !== "none") acted += 1;
-    } catch {
+    } catch (error) {
       failed += 1;
+      // A batch that cannot move, behind a provider that is down for one, would otherwise show
+      // nothing at all: say so, and try again next tick.
+      onFailure({
+        organizationId: row.organization_id,
+        batchId: row.id,
+        error,
+      });
     }
   }
   return { looked: live.rows.length, acted, failed };

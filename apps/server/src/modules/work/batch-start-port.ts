@@ -93,6 +93,29 @@ export async function listBatchCandidates(
   }));
 }
 
+/**
+ * Whether this batch's own admission made the request. Admission commits in its own
+ * transactions, so a tick that fails after it has admitted an issue leaves a request the
+ * batch has no row for. Admission stamps the request id it was called with (`batch:<id>`) on
+ * the audit row it writes, which is how the batch recognizes its own request later and not
+ * one a person made.
+ */
+async function admittedByThisBatch(
+  transaction: PgTransactionClient,
+  input: { organizationId: string; batchId: string },
+  ticketRequestId: string,
+): Promise<boolean> {
+  const found = await transaction.query(
+    `select 1 from bakery.audit_events
+      where organization_id = $1
+        and resource_type = 'ticket_request' and resource_id = $2
+        and operation = 'ticketRequests.create' and request_id = $3
+      limit 1`,
+    [input.organizationId, ticketRequestId, `batch:${input.batchId}`],
+  );
+  return found.rows.length > 0;
+}
+
 export function createBatchStartPort(deps: BatchStartPortDeps) {
   const admit = deps.admit ?? admitTicket;
   const resolveCaller = deps.resolveCaller ??
@@ -147,6 +170,19 @@ export function createBatchStartPort(deps: BatchStartPortDeps) {
         },
       );
       if (result.kind === "admitted" && result.request) {
+        return {
+          started: true,
+          externalTicketId: candidate.id,
+          ticketRequestId: result.request.id,
+          passedOver,
+        };
+      }
+      // This batch admitted it on an earlier tick that then lost its transaction: take it
+      // back as the started issue. Passing it over would leave its run going untracked.
+      if (
+        result.kind === "existing" && result.request &&
+        await admittedByThisBatch(transaction, input, result.request.id)
+      ) {
         return {
           started: true,
           externalTicketId: candidate.id,

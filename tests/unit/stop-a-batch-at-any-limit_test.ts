@@ -292,3 +292,44 @@ Deno.test("carry on starts the next issue by itself; ask first waits for a yes, 
     { kind: "finish", reason: "time_exhausted" },
   );
 });
+
+Deno.test("a Stopping batch whose starter has lost authority ends, instead of asking for a cancel it cannot make", () => {
+  const stopping = batch({
+    state: "stopping",
+    stopCancelledCurrent: true,
+    issues: ["started"],
+  });
+  // With authority the cancel is asked for, every tick, until the run ends.
+  assertEquals(decideBatchStep(stopping, world({ current: running })), {
+    kind: "cancel_current",
+    issueId: "i0",
+  });
+  // Without it the cancel can never be made as that person: the batch ends and says why.
+  assertEquals(
+    decideBatchStep(stopping, world({ current: running, authorityOk: false })),
+    { kind: "finish", reason: "authority_lost" },
+  );
+  // A stop that did not ask to cancel waits for the run, whoever the starter is.
+  assertEquals(
+    decideBatchStep(
+      batch({
+        state: "stopping",
+        stopCancelledCurrent: false,
+        issues: ["started"],
+      }),
+      world({ current: running, authorityOk: false }),
+    ),
+    { kind: "none" },
+  );
+  // The issue's own end still comes first.
+  assertEquals(
+    decideBatchStep(
+      stopping,
+      world({
+        current: { issueId: "i0", outcome: "failed" },
+        authorityOk: false,
+      }),
+    ),
+    { kind: "record_end", issueId: "i0", outcome: "failed" },
+  );
+});
