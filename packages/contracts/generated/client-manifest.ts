@@ -6143,7 +6143,7 @@ export const clientManifest = {
       "action": "mergeEntries.list",
       "access": "Developer",
       "permission": "mergeEntry:read",
-      "input": "RepositoryQuery",
+      "input": "MergeEntryQuery",
       "output": "Page<MergeEntry>",
       "event": "",
       "mcp": "bakery_mergeEntries_list",
@@ -9811,6 +9811,29 @@ export const clientManifest = {
         "INTERNAL"
       ],
       "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "GET",
+      "path": "/v1/merge-attempts",
+      "action": "mergeAttempts.list",
+      "access": "Developer",
+      "permission": "pullRequest:read",
+      "input": "MergeAttemptQuery",
+      "output": "Page<MergeAttempt>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     }
   ],
@@ -15836,7 +15859,8 @@ export const clientManifest = {
             "emailSettings.get",
             "emailSettings.put",
             "emailSettings.test",
-            "emailSettings.delete"
+            "emailSettings.delete",
+            "mergeAttempts.list"
           ],
           "description": "Exact registered Bakery action name to grant within the selected organization; wildcard and prefix matching are forbidden."
         },
@@ -16532,41 +16556,6 @@ export const clientManifest = {
           ]
         }
       }
-    },
-    "RepositoryQuery": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "repositoryId": {
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "environment": {
-          "description": "Restrict deployment results to one environment: `preview`, `staging`, or `production`.",
-          "type": "string",
-          "enum": [
-            "preview",
-            "staging",
-            "production"
-          ]
-        },
-        "cursor": {
-          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. RepositoryQuery.cursor must contain at most 512 UTF-8 bytes.",
-          "type": "string",
-          "maxLength": 65536,
-          "x-utf8-max-bytes": 512
-        },
-        "limit": {
-          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. RepositoryQuery.limit must be at least 1. RepositoryQuery.limit must be at most 100.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "additionalProperties": false,
-      "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
     },
     "PullRequestQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -25843,6 +25832,73 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
+    },
+    "MergeAttemptQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pullRequestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
+        },
+        "cursor": {
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. MergeAttemptQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. MergeAttemptQuery.limit must be at least 1. MergeAttemptQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "pullRequestId"
+      ],
+      "additionalProperties": false,
+      "description": "Filters for listing one pull request's merge attempts, newest first."
+    },
+    "MergeEntryQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "pullRequestId": {
+          "description": "Restrict results to this tracked pull request's merge entries.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "runId": {
+          "description": "Restrict results to the merge entries admitted for this run, so a page can read one run's entry without listing a whole repository's queue.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "cursor": {
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. MergeEntryQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. MergeEntryQuery.limit must be at least 1. MergeEntryQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -39651,7 +39707,8 @@ export const clientManifest = {
                   "emailSettings.get",
                   "emailSettings.put",
                   "emailSettings.test",
-                  "emailSettings.delete"
+                  "emailSettings.delete",
+                  "mergeAttempts.list"
                 ],
                 "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
               },
@@ -42499,6 +42556,19 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "mayMerge": {
+                "type": "boolean",
+                "description": "Whether the caller holds the permission to merge this pull request from Bakery (the pullRequest:merge permission). It says nothing about whether the pull request is ready to merge; the checks and the dispatch still decide that."
+              },
+              "mergeMethod": {
+                "type": "string",
+                "enum": [
+                  "merge",
+                  "squash",
+                  "rebase"
+                ],
+                "description": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one."
               }
             },
             "required": [
@@ -42514,7 +42584,9 @@ export const clientManifest = {
               "mergedSha",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "mayMerge",
+              "mergeMethod"
             ],
             "additionalProperties": false,
             "description": "Bakery's mirror of a provider pull request's identity and latest known SHAs for a task's repository; provider webhooks reconcile status, mergedSha and the head/base SHAs against the provider's current state, so this record can lag briefly behind Git history."
@@ -58769,7 +58841,8 @@ export const clientManifest = {
             "emailSettings.get",
             "emailSettings.put",
             "emailSettings.test",
-            "emailSettings.delete"
+            "emailSettings.delete",
+            "mergeAttempts.list"
           ],
           "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
         },
@@ -89823,6 +89896,180 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of StorageFileUse."
+    },
+    "Page<MergeAttempt>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the merge attempt record."
+              },
+              "pullRequestId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this attempt to the pull request it merges."
+              },
+              "providerNumber": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "GitHub's pull request number for the attempt."
+              },
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this attempt to the repository it merges into."
+              },
+              "baseBranch": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Target branch the merge was dispatched against."
+              },
+              "expectedHeadSha": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Head commit the caller verified and the attempt was dispatched against."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "merged",
+                  "refused",
+                  "unknown"
+                ],
+                "description": "Outcome of the attempt: merged, refused, or unknown while a lost provider answer waits for reconciliation."
+              },
+              "providerStatus": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "GitHub's HTTP status for a refused or merged answer; null when no provider call was made or the answer was lost."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MergeAttempt.providerStatus may be null in this transport value."
+              },
+              "mergedSha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Commit GitHub reports for a merged attempt; null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MergeAttempt.mergedSha may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the attempt was recorded."
+              },
+              "settledAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when an unknown attempt was settled by reconciliation; null while unknown."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MergeAttempt.settledAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "pullRequestId",
+              "providerNumber",
+              "repositoryId",
+              "baseBranch",
+              "expectedHeadSha",
+              "state",
+              "providerStatus",
+              "mergedSha",
+              "createdAt",
+              "settledAt"
+            ],
+            "additionalProperties": false,
+            "description": "One recorded merge attempt: the exact head it was dispatched against, the outcome, and the provider status or merged commit when GitHub answered."
+          },
+          "description": "MergeAttempt items in this cursor page. Page<MergeAttempt>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<MergeAttempt>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MergeAttempt>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<MergeAttempt>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<MergeAttempt>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of MergeAttempt."
     }
   }
 } as const;
