@@ -1,3 +1,5 @@
+import { withPgTransaction } from "@bakery/persistence/postgres";
+import { requestHumanApproval } from "../../apps/server/src/modules/work/human-approval-store.ts";
 import { authTestOrigin, signSessionCookie } from "./auth.ts";
 import type { SocketFixture } from "./events-socket.ts";
 
@@ -145,4 +147,62 @@ export function api(
         : { body: JSON.stringify(body ?? {}) }),
     }),
   ));
+}
+
+/**
+ * A step approval on the run, private to `approverId` (#456 slice 2a). It is
+ * made by the store itself, so the row is whatever a real wait writes.
+ */
+export async function seedStepApproval(
+  fixture: SocketFixture,
+  run: SeededRun,
+  approverId: string,
+  stepKey = "human.approval",
+): Promise<string> {
+  const asked = await withPgTransaction(
+    fixture.pgDatabase,
+    (transaction) =>
+      requestHumanApproval(transaction, {
+        organizationId: fixture.organizationId,
+        runId: run.runId,
+        taskId: run.taskId,
+        conversationId: fixture.conversationId,
+        stepKey,
+        prompt: "Ship it?",
+        ownerPrincipalId: approverId,
+        traceId: crypto.randomUUID(),
+        applicationId: fixture.applicationId,
+        repositoryId: null,
+      }),
+  );
+  return asked.approvalId;
+}
+
+/** An open question on the run, private to `audience` (or to the task). */
+export async function seedQuestion(
+  fixture: SocketFixture,
+  run: SeededRun,
+  audience: readonly string[] | null,
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await fixture.pgDatabase.query(
+    `insert into bakery.questions (
+       id, organization_id, kind, conversation_id, task_id, run_id, generation,
+       prompt, allow_free_text, audience, status)
+     values ($1, $2, 'question', $3, $4, $5, 1, 'Which branch?', true,
+             $6::jsonb, 'open')`,
+    [
+      id,
+      fixture.organizationId,
+      fixture.conversationId,
+      run.taskId,
+      run.runId,
+      JSON.stringify(
+        audience === null
+          ? { type: "task_participants" }
+          : { type: "principals", principalIds: audience },
+      ),
+    ],
+  );
+  return id;
 }

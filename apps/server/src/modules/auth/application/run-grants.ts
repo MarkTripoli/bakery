@@ -51,3 +51,79 @@ export async function hasLiveRunGrant(
   );
   return found.rows.length > 0;
 }
+
+/**
+ * The one things a person can be given the right to do on a run (#456 slice 2a),
+ * each on exactly one row. The vocabulary is closed and lives here, not in the
+ * database.
+ */
+export type RunPower = "approve" | "answer";
+
+/**
+ * The actions a power reaches, each with the power it needs. `:id` is the
+ * question row in every one of them: an approval is a question of kind
+ * approval. The power grant is looked up by person, power and exactly that id,
+ * so it reaches no other row, run or organization. Anything not listed here
+ * stays closed to a grant-holder, whatever grants they hold; approvals.revoke
+ * in particular is not a power.
+ */
+export const RUN_POWER_ACTIONS: Readonly<
+  Partial<Record<CatalogActionName, RunPower>>
+> = Object.freeze({
+  "approvals.get": "approve",
+  "approvals.decide": "approve",
+  "questions.get": "answer",
+  "questions.answer": "answer",
+});
+
+/**
+ * Whether the person holds a live, unexpired power on this one row. Read
+ * `for share`, so a concurrent revoke is ordered before or after the request,
+ * never in the middle; every lookup carries organization_id.
+ */
+export async function hasLivePowerGrant(
+  transaction: Pick<PgTransactionClient, "query">,
+  organizationId: string,
+  principalId: string,
+  power: RunPower,
+  targetId: string | undefined,
+): Promise<boolean> {
+  // A malformed id is no grant, not a database error.
+  if (targetId === undefined || !UUID.test(targetId)) return false;
+  const found = await transaction.query(
+    `select 1 from bakery.run_power_grants
+      where organization_id = $1 and principal_id = $2 and power = $3
+        and target_id = $4::uuid and revoked_at is null and expires_at > now()
+      limit 1
+      for share`,
+    [organizationId, principalId, power, targetId],
+  );
+  return found.rows.length > 0;
+}
+
+/**
+ * Whether the person may act on a question row that names an audience: they are
+ * one of the named people, or they hold the power on exactly this row. The
+ * grant replaces the audience check for that one row; it does not widen
+ * anything else.
+ */
+export async function mayActOnQuestion(
+  transaction: Pick<PgTransactionClient, "query">,
+  organizationId: string,
+  principalId: string,
+  row: {
+    id: string;
+    audience: { type: string; principalIds?: readonly string[] };
+  },
+  power: RunPower,
+): Promise<boolean> {
+  if (row.audience.type !== "principals") return true;
+  if ((row.audience.principalIds ?? []).includes(principalId)) return true;
+  return await hasLivePowerGrant(
+    transaction,
+    organizationId,
+    principalId,
+    power,
+    row.id,
+  );
+}

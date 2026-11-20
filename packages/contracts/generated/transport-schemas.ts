@@ -11867,7 +11867,7 @@ const transportSchemas = {
           "name": "intent",
           "type": "enum(fyi|review|approve|answer|take_over)",
           "required": true,
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
         },
         {
           "name": "stepKey",
@@ -11893,6 +11893,12 @@ const transportSchemas = {
           "type": "timestamp",
           "required": false,
           "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
+        },
+        {
+          "name": "questionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
         }
       ],
       "rules": [
@@ -30181,7 +30187,8 @@ const transportSchemas = {
         "fallbackForName",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "questionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -30199,14 +30206,16 @@ const transportSchemas = {
         "fallbackForName": "string|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "questionId": "uuid|null"
       },
       "nullableFields": [
         "stepKey",
         "askedBy",
         "note",
         "neededBy",
-        "fallbackForName"
+        "fallbackForName",
+        "questionId"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -30225,8 +30234,12 @@ const transportSchemas = {
         "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
         "createdAt": "UTC time the request was made.",
         "updatedAt": "UTC time it last changed.",
-        "version": "Optimistic-concurrency version used as If-Match."
-      }
+        "version": "Optimistic-concurrency version used as If-Match.",
+        "questionId": "The approval or question the request asks about, or null when it asks for none."
+      },
+      "optionalFields": [
+        "questionId"
+      ]
     },
     "RunRequests": {
       "fields": [

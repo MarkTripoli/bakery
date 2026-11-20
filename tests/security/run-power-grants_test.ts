@@ -1,0 +1,262 @@
+import { assertEquals, assertNotEquals } from "@std/assert";
+import { cleanupAuthFixture } from "../helpers/auth.ts";
+import { openSocketFixture } from "../helpers/events-socket.ts";
+import {
+  addMember,
+  api,
+  seedOtherTask,
+  seedQuestion,
+  seedRun,
+  seedStepApproval,
+} from "../helpers/run-requests.ts";
+
+/**
+ * #456 slice 2a, security: a person asked to approve is given the right to
+ * decide exactly one approval, and a person asked to answer exactly one
+ * question; nothing else. The grantee here is a bare Guest, who holds no
+ * permission of their own, so every refusal below is the gate or the audience
+ * check closing and every success is the grant. Real rows are used throughout,
+ * so a gate that wrongly opened would answer 200 or a handler error rather
+ * than the same 404 a missing id gives.
+ */
+
+async function open() {
+  const fixture = await openSocketFixture();
+  const approver = await addMember(fixture, "Approver", "developer");
+  const guest = await addMember(fixture, "Grantee", "guest");
+  const stranger = await addMember(fixture, "Stranger", "guest");
+  const run = await seedRun(fixture);
+  // Two approvals and a question on the SAME run, and an approval on ANOTHER
+  // run: each private to the approver, so the guest is in none of them.
+  const approval = await seedStepApproval(
+    fixture,
+    run,
+    approver.principalId,
+    "human.approval",
+  );
+  const sibling = await seedStepApproval(
+    fixture,
+    run,
+    approver.principalId,
+    "human.second",
+  );
+  const question = await seedQuestion(fixture, run, [approver.principalId]);
+  const otherRun = await seedRun(fixture, await seedOtherTask(fixture));
+  const foreign = await seedStepApproval(
+    fixture,
+    otherRun,
+    approver.principalId,
+    "human.approval",
+  );
+  const ask = (intent: string, questionId: string) =>
+    api(fixture, fixture.cookie, "POST", `/v1/runs/${run.runId}/requests`, {
+      recipientId: guest.principalId,
+      intent,
+      questionId,
+    });
+  return {
+    fixture,
+    approver,
+    guest,
+    stranger,
+    run,
+    approval,
+    sibling,
+    question,
+    foreign,
+    ask,
+    get: (cookie: string, path: string) => api(fixture, cookie, "GET", path),
+    decide: (cookie: string, id: string, decision = "approve") =>
+      api(fixture, cookie, "POST", `/v1/approvals/${id}/decision`, {
+        decision,
+        expectedVersion: 1,
+      }),
+    finish: async () => {
+      await cleanupAuthFixture(fixture.pgDatabase, [
+        fixture.email,
+        approver.email,
+        guest.email,
+        stranger.email,
+      ]);
+      await fixture.close();
+    },
+  };
+}
+
+Deno.test("before a request the guest cannot read or decide the approval", async () => {
+  const o = await open();
+  try {
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      404,
+    );
+    assertEquals((await o.decide(o.guest.cookie, o.approval)).status, 404);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("an approve power reaches exactly its one approval", async () => {
+  const o = await open();
+  try {
+    const made = await o.ask("approve", o.approval);
+    assertEquals(made.status, 201, await made.text());
+    // It reads and decides that one approval...
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      200,
+    );
+    // ...and no other: not a sibling on the same run, not one on another run,
+    // not a question on this run.
+    for (const id of [o.sibling, o.foreign]) {
+      assertEquals(
+        (await o.get(o.guest.cookie, `/v1/approvals/${id}`)).status,
+        404,
+        id,
+      );
+      assertEquals((await o.decide(o.guest.cookie, id)).status, 404, id);
+    }
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/questions/${o.question}`)).status,
+      404,
+    );
+    // Nobody else gains anything from it.
+    assertEquals(
+      (await o.get(o.stranger.cookie, `/v1/approvals/${o.approval}`)).status,
+      404,
+    );
+    assertEquals((await o.decide(o.stranger.cookie, o.approval)).status, 404);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("an approve power is not an answer power, and cannot undo an approval", async () => {
+  const o = await open();
+  try {
+    assertEquals((await o.ask("approve", o.approval)).status, 201);
+    assertEquals(
+      (await api(
+        o.fixture,
+        o.guest.cookie,
+        "POST",
+        `/v1/questions/${o.question}/answer`,
+        {
+          text: "main",
+        },
+      )).status,
+      404,
+    );
+    // Decide it, then try to revoke it: revoke is not a power.
+    assertEquals((await o.decide(o.guest.cookie, o.approval)).status, 200);
+    const revoke = await api(
+      o.fixture,
+      o.guest.cookie,
+      "POST",
+      `/v1/approvals/${o.approval}/revoke`,
+      { expectedVersion: 2 },
+    );
+    assertNotEquals(revoke.status, 200);
+    assertEquals(
+      [403, 404].includes(revoke.status),
+      true,
+      String(revoke.status),
+    );
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a decision spends the power: the same approval cannot be decided again", async () => {
+  const o = await open();
+  try {
+    assertEquals((await o.ask("approve", o.approval)).status, 201);
+    assertEquals((await o.decide(o.guest.cookie, o.approval)).status, 200);
+    const again = await o.decide(o.guest.cookie, o.approval, "reject");
+    assertNotEquals(again.status, 200);
+    // The request that asked for it is done, and says so.
+    const mine = await (await api(
+      o.fixture,
+      o.guest.cookie,
+      "GET",
+      `/v1/runs/${o.run.runId}/requests/mine`,
+    )).json() as { requests: { status: string; questionId: string | null }[] };
+    assertEquals(mine.requests.map((r) => [r.status, r.questionId]), [[
+      "handled",
+      o.approval,
+    ]]);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("an expired power is no power, and so is a withdrawn one", async () => {
+  const o = await open();
+  try {
+    const made = await o.ask("approve", o.approval);
+    assertEquals(made.status, 201);
+    const request = await made.json() as { id: string; version: number };
+    // Expiry: the lookup carries the clock, not only the revoked flag.
+    await o.fixture.pgDatabase.query(
+      `update bakery.run_power_grants set expires_at = now() - interval '1 minute'
+        where organization_id = $1 and target_id = $2`,
+      [o.fixture.organizationId, o.approval],
+    );
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      404,
+    );
+    assertEquals((await o.decide(o.guest.cookie, o.approval)).status, 404);
+    // Withdrawal: asking again after the power is gone makes a fresh one, and
+    // withdrawing that takes it away at once.
+    await o.fixture.pgDatabase.query(
+      `update bakery.run_power_grants set expires_at = now() + interval '1 day'
+        where organization_id = $1 and target_id = $2`,
+      [o.fixture.organizationId, o.approval],
+    );
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      200,
+    );
+    const withdrawn = await api(
+      o.fixture,
+      o.fixture.cookie,
+      "POST",
+      `/v1/run-requests/${request.id}/withdraw`,
+      {},
+      request.version,
+    );
+    assertEquals(withdrawn.status, 200, await withdrawn.text());
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      404,
+    );
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("an answer power reaches exactly its one question", async () => {
+  const o = await open();
+  try {
+    const other = await seedQuestion(o.fixture, o.run, [
+      o.approver.principalId,
+    ]);
+    assertEquals((await o.ask("answer", o.question)).status, 201);
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/questions/${o.question}`)).status,
+      200,
+    );
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/questions/${other}`)).status,
+      404,
+    );
+    // It is not an approve power either.
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      404,
+    );
+  } finally {
+    await o.finish();
+  }
+});

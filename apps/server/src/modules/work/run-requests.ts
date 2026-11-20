@@ -7,6 +7,7 @@ import {
 } from "@bakery/persistence";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import { accessScopeClause } from "../auth/application/bindings.ts";
+import type { RunPower } from "../auth/application/run-grants.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 /**
@@ -39,7 +40,19 @@ export type RequestIntent =
  * refused here until their power is built, so no request promises a right it
  * cannot grant.
  */
-const AVAILABLE_INTENTS: readonly RequestIntent[] = ["fyi"];
+const AVAILABLE_INTENTS: readonly RequestIntent[] = [
+  "fyi",
+  "approve",
+  "answer",
+];
+
+/** The intents that give one expiring power on one question row (#456 2a). */
+const POWER_OF_INTENT: Readonly<Partial<Record<RequestIntent, RunPower>>> = {
+  approve: "approve",
+  answer: "answer",
+};
+
+const NO_TARGET = "00000000-0000-0000-0000-000000000000";
 
 /** Roles that already read every run, so a grant would add nothing. */
 const STANDING_READ_ROLES = ["admin", "developer", "viewer"];
@@ -48,6 +61,7 @@ type RequestRow = {
   id: string;
   run_id: string;
   step_key: string | null;
+  target_id: string | null;
   intent: RequestIntent;
   recipient_id: string;
   recipient_name: string;
@@ -65,7 +79,8 @@ type RequestRow = {
 };
 
 const REQUEST_SELECT = `
-  select request.id, request.run_id, request.step_key, request.intent,
+  select request.id, request.run_id, request.step_key, request.target_id,
+         request.intent,
          request.recipient_id, recipient.display_name as recipient_name,
          request.asked_by, asker.display_name as asked_by_name,
          request.asked_by_kind, request.note, request.needed_by,
@@ -93,6 +108,7 @@ function toRunRequest(row: RequestRow) {
     id: row.id,
     runId: row.run_id,
     stepKey: row.step_key,
+    questionId: row.target_id,
     intent: row.intent,
     recipient: {
       principalId: row.recipient_id,
@@ -294,6 +310,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     recipientId: string;
     intent: RequestIntent;
     stepKey?: string;
+    questionId?: string;
     note?: string;
     neededBy?: string;
   };
@@ -303,8 +320,68 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     unprocessable(
       ["intent"],
       "request_intent_unavailable",
-      "Only a request to just let someone know can be made yet",
+      "Only a request to let someone know, approve or answer can be made yet",
     );
+  }
+  // An approval or a question is asked about by name: the person asked is
+  // given the right to act on that one row, so it has to exist, be open and be
+  // on this run, and be the kind the intent says.
+  const power = POWER_OF_INTENT[value.intent];
+  if (power === undefined && value.questionId !== undefined) {
+    unprocessable(
+      ["questionId"],
+      "request_question_unexpected",
+      "Only an approve or answer request names a question",
+    );
+  }
+  if (power !== undefined) {
+    if (value.questionId === undefined) {
+      unprocessable(
+        ["questionId"],
+        "request_question_required",
+        "Name the approval or question the request asks about",
+      );
+    }
+    const target = await transaction.query<{
+      kind: string;
+      subject_type: string | null;
+      status: string;
+      expires_at: Date | null;
+    }>(
+      `select kind, subject_type, status, expires_at from bakery.questions
+        where organization_id = $1 and id = $2 and run_id = $3`,
+      [organizationId, value.questionId, run.id],
+    );
+    const found = target.rows[0];
+    if (!found) {
+      unprocessable(
+        ["questionId"],
+        "request_question_not_found",
+        "No such approval or question on this run",
+      );
+    }
+    const kindMatches = power === "approve"
+      ? found.kind === "approval" && found.subject_type === "run_step"
+      : found.kind === "question";
+    if (!kindMatches) {
+      unprocessable(
+        ["questionId"],
+        "request_question_wrong_kind",
+        power === "approve"
+          ? "That is not a step approval"
+          : "That is not a question",
+      );
+    }
+    if (
+      found.status !== "open" ||
+      (found.expires_at !== null && found.expires_at.getTime() <= Date.now())
+    ) {
+      unprocessable(
+        ["questionId"],
+        "request_question_closed",
+        "That approval or question is no longer open",
+      );
+    }
   }
   const note = value.note?.trim() ?? "";
   if (note.length > REQUEST_NOTE_MAX) {
@@ -378,8 +455,17 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     `select id from bakery.person_requests
       where organization_id = $1 and run_id = $2 and recipient_id = $3
         and intent = $4 and coalesce(step_key, '') = $5 and status = 'open'
+        and coalesce(target_id, $6::uuid) = coalesce($7::uuid, $6::uuid)
       for update`,
-    [organizationId, run.id, recipientId, value.intent, value.stepKey ?? ""],
+    [
+      organizationId,
+      run.id,
+      recipientId,
+      value.intent,
+      value.stepKey ?? "",
+      NO_TARGET,
+      value.questionId ?? null,
+    ],
   );
   if (open.rows[0]) {
     // Asking again reminds: the same open request, touched. A reminder is an
@@ -433,9 +519,10 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
   const created = await transaction.query<{ id: string }>(
     `insert into bakery.person_requests (
        organization_id, run_id, task_id, step_key, intent, recipient_id,
-       fallback_for_name, asked_by, asked_by_kind, note, needed_by, expires_at)
+       fallback_for_name, asked_by, asked_by_kind, note, needed_by, expires_at,
+       target_id)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-             now() + make_interval(days => $12))
+             now() + make_interval(days => $12), $13)
      returning id`,
     [
       organizationId,
@@ -450,10 +537,28 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       note === "" ? null : note,
       neededBy,
       REQUEST_LIFETIME_DAYS,
+      value.questionId ?? null,
     ],
   );
   const requestId = created.rows[0]?.id;
   if (!requestId) throw new Error("REQUEST_INSERT_FAILED");
+
+  // The one power, on exactly that row, for as long as the request lasts. It
+  // is given whatever role the person already has: observe says nothing about
+  // doing, and the gate asks the grant only when the role refuses.
+  if (power !== undefined) {
+    await transaction.query(
+      `insert into bakery.run_power_grants (
+         organization_id, run_id, principal_id, power, target_id,
+         source_request_id, expires_at)
+       select $1, $2, $3, $4, $5, $6, expires_at
+         from bakery.person_requests
+        where organization_id = $1 and id = $6
+       on conflict (organization_id, principal_id, power, target_id)
+         where revoked_at is null do nothing`,
+      [organizationId, run.id, recipientId, power, value.questionId, requestId],
+    );
+  }
 
   // The right to see this run, unless the person already can through a role.
   // Observe stays after the request ends; only removing access takes it away.
@@ -613,6 +718,15 @@ export async function withdrawRunRequest(context: ActionContext) {
       where organization_id = $1 and id = $2`,
     [organizationId, requestId, principalId],
   );
+  // A withdrawn request takes its power with it; observe stays (only removing
+  // access ends that).
+  await transaction.query(
+    `update bakery.run_power_grants
+        set revoked_at = now(), revoked_by = $3, version = version + 1
+      where organization_id = $1 and source_request_id = $2
+        and revoked_at is null`,
+    [organizationId, requestId, principalId],
+  );
   await ledger(transaction, {
     organizationId,
     taskId: row.task_id,
@@ -635,5 +749,36 @@ export async function withdrawRunRequest(context: ActionContext) {
   });
   return toRunRequest(
     await readRequest(transaction, organizationId, requestId),
+  );
+}
+
+/**
+ * A decision or an answer on a row ends the request that asked for it, and the
+ * power it gave: a row is decided once, and the right to act on it is spent.
+ * Called by the handlers in the transaction that decides, so the request never
+ * says "open" about a row that is done. Only the asked person's own open
+ * request moves.
+ */
+export async function completeRequestsOnQuestion(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  questionId: string,
+  status: "answered" | "handled",
+): Promise<void> {
+  await transaction.query(
+    `update bakery.person_requests
+        set status = $4, responded_at = now(), updated_at = now(),
+            version = version + 1
+      where organization_id = $1 and recipient_id = $2 and target_id = $3
+        and status = 'open'`,
+    [organizationId, principalId, questionId, status],
+  );
+  await transaction.query(
+    `update bakery.run_power_grants
+        set revoked_at = now(), revoked_by = $2, version = version + 1
+      where organization_id = $1 and principal_id = $2 and target_id = $3
+        and revoked_at is null`,
+    [organizationId, principalId, questionId],
   );
 }

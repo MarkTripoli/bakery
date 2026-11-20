@@ -47,8 +47,11 @@ import {
   type BindingTarget,
 } from "../application/bindings.ts";
 import {
+  hasLivePowerGrant,
   hasLiveRunGrant,
   RUN_GRANT_ACTIONS,
+  RUN_POWER_ACTIONS,
+  type RunPower,
 } from "../application/run-grants.ts";
 import {
   authorizeOrganizationAction,
@@ -352,6 +355,8 @@ export function authorizeWithBindings(
   ) => Promise<BindingTarget | undefined>,
   holdsRunGrant: (kind: "run" | "task") => Promise<boolean> = () =>
     Promise.resolve(false),
+  holdsRunPower: (power: RunPower) => Promise<boolean> = () =>
+    Promise.resolve(false),
 ): Promise<OrganizationActor> {
   return (async () => {
     try {
@@ -363,12 +368,13 @@ export function authorizeWithBindings(
       // the actions in RUN_GRANT_ACTIONS ask; any other action keeps the answer
       // the role and the bindings gave.
       const kind = RUN_GRANT_ACTIONS[action.name as CatalogActionName];
-      if (
-        isPermissionMiss(denied) && kind !== undefined &&
-        actor.subject.principalType ===
-          PrincipalType.Human &&
-        await holdsRunGrant(kind)
-      ) {
+      const power = RUN_POWER_ACTIONS[action.name as CatalogActionName];
+      const human = actor.subject.principalType === PrincipalType.Human;
+      const widened = isPermissionMiss(denied) && human && (
+        (kind !== undefined && await holdsRunGrant(kind)) ||
+        (power !== undefined && await holdsRunPower(power))
+      );
+      if (widened) {
         const permission = permissionForAction(
           action.name as CatalogActionName,
         );
@@ -746,6 +752,14 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
                 organizationId,
                 claimedSubject.principalId,
                 kind,
+                context.params.id,
+              ),
+            (power) =>
+              hasLivePowerGrant(
+                transaction,
+                organizationId,
+                claimedSubject.principalId,
+                power,
                 context.params.id,
               ),
           )
