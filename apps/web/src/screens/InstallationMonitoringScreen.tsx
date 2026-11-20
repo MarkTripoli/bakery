@@ -393,9 +393,14 @@ function DestinationRow(
           onChange={(event) => onToggle(event.currentTarget.checked)}
           pending={pending}
         >
-          {translate("installation.monitoring.row.switch", {
-            name: destination.name,
-          })}
+          <UI.VisuallyHidden>
+            {translate(
+              destination.enabled
+                ? "installation.monitoring.row.switchOn"
+                : "installation.monitoring.row.switchOff",
+              { name: destination.name },
+            )}
+          </UI.VisuallyHidden>
         </UI.Switch>
       </UI.Inline>
     </UI.Inline>
@@ -601,46 +606,54 @@ function DestinationDialog(props: InstallationMonitoringScreenProps) {
             : null}
         </UI.Stack>
         <TestResult test={props.test} />
-        <UI.Inline data-form-actions gap="standard">
-          <UI.Button
-            disabled={props.test?.state === "sending" ||
-              (again && problem === "reenter")}
-            onClick={props.onTest}
-            type="button"
-            variant="secondary"
-          >
-            {translate(
-              props.test?.state === "sending"
-                ? "installation.monitoring.test.sending"
-                : "installation.monitoring.test.button",
-            )}
-          </UI.Button>
-          {editing !== null
-            ? (
-              <UI.Button
-                onClick={() => props.onRemoveAsk(editing)}
-                type="button"
-                variant="secondary"
-              >
-                {translate("installation.monitoring.form.remove")}
-              </UI.Button>
-            )
-            : null}
-          <UI.Button onClick={props.onClose} type="button" variant="secondary">
-            {translate("installation.monitoring.form.cancel")}
-          </UI.Button>
-          <UI.Button
-            disabled={problem !== null}
-            loading={props.saving}
-            onClick={props.onSave}
-            type="button"
-          >
-            {translate(
-              editing === null
-                ? "installation.monitoring.form.saveAdd"
-                : "installation.monitoring.form.save",
-            )}
-          </UI.Button>
+        <UI.Inline data-form-actions gap="standard" variant="between">
+          <UI.Inline gap="standard">
+            <UI.Button
+              disabled={props.test?.state === "sending" ||
+                (again && problem === "reenter")}
+              onClick={props.onTest}
+              type="button"
+              variant="secondary"
+            >
+              {translate(
+                props.test?.state === "sending"
+                  ? "installation.monitoring.test.sending"
+                  : "installation.monitoring.test.button",
+              )}
+            </UI.Button>
+            {editing !== null
+              ? (
+                <UI.Button
+                  onClick={() => props.onRemoveAsk(editing)}
+                  type="button"
+                  variant="destructive-outline"
+                >
+                  {translate("installation.monitoring.form.remove")}
+                </UI.Button>
+              )
+              : null}
+          </UI.Inline>
+          <UI.Inline gap="standard">
+            <UI.Button
+              onClick={props.onClose}
+              type="button"
+              variant="secondary"
+            >
+              {translate("installation.monitoring.form.cancel")}
+            </UI.Button>
+            <UI.Button
+              disabled={problem !== null}
+              loading={props.saving}
+              onClick={props.onSave}
+              type="button"
+            >
+              {translate(
+                editing === null
+                  ? "installation.monitoring.form.saveAdd"
+                  : "installation.monitoring.form.save",
+              )}
+            </UI.Button>
+          </UI.Inline>
         </UI.Inline>
       </UI.Stack>
     </UI.Dialog>
@@ -678,14 +691,11 @@ function TestResult({ test }: { readonly test: MonitoringTest }) {
                 {translate("installation.monitoring.test.failed")}
               </strong>{" "}
               {result.reason ?? ""}
-              {result.status === null
-                ? ""
-                : ` ${
-                  translate("installation.monitoring.test.answered", {
-                    status: result.status,
-                    ms: result.tookMs,
-                  })
-                }`}
+              {` ${
+                translate("installation.monitoring.test.took", {
+                  ms: result.tookMs,
+                })
+              }`}
             </UI.InlineNotice>
             {result.answer !== null
               ? <UI.DataText>{result.answer}</UI.DataText>

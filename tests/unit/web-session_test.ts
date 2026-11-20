@@ -180,6 +180,13 @@ function fakeApi(
       update: rejecting,
     },
     installationCapabilities: { get: rejecting },
+    telemetryDestinations: {
+      list: rejecting,
+      create: rejecting,
+      update: rejecting,
+      remove: rejecting,
+      test: rejecting,
+    },
     installationSettings: { get: rejecting, update: rejecting },
     storageSettings: { get: rejecting, put: rejecting },
     usage: { list: rejecting },

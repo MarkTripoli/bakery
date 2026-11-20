@@ -2330,13 +2330,36 @@
   flex: 1 1 0;
   min-inline-size: 0;
 }
-.ui-settings-content[data-page="installation-monitoring"] .ui-inline--between > .ui-inline {
+.ui-settings-content[data-page="installation-monitoring"] .ui-inline--between:not([data-form-actions]) > .ui-inline {
   align-items: center;
   flex: none;
 }
 @media (max-width: 743px) {
   .ui-settings-content[data-page="installation-monitoring"] .ui-inline--between > .ui-stack {
     flex-basis: 100%;
+  }
+  /* On a phone the button sits at the start of its line and the switch at the end. */
+  .ui-settings-content[data-page="installation-monitoring"] .ui-inline--between:not([data-form-actions]) {
+    align-items: stretch;
+  }
+  .ui-settings-content[data-page="installation-monitoring"] .ui-inline--between:not([data-form-actions]) > .ui-inline {
+    justify-content: space-between;
+  }
+  /* The dialog's buttons stack full width, Save first. */
+  .ui-dialog .ui-inline--between[data-form-actions] {
+    flex-direction: column-reverse;
+  }
+  .ui-dialog .ui-inline--between[data-form-actions] > .ui-inline {
+    inline-size: 100%;
+  }
+  .ui-dialog .ui-inline--between[data-form-actions] > .ui-inline:last-child {
+    flex-direction: column-reverse;
+  }
+  .ui-dialog .ui-inline--between[data-form-actions] > .ui-inline:first-child {
+    flex-direction: column;
+  }
+  .ui-dialog .ui-inline--between[data-form-actions] .ui-button {
+    inline-size: 100%;
   }
 }
 

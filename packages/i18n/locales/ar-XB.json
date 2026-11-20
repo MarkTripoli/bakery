@@ -5283,7 +5283,6 @@
   "installation.monitoring.form.name": "⟪Name⟫",
   "installation.monitoring.form.nameHelp": "⟪Shown in the list and in alerts.⟫",
   "installation.monitoring.form.reenter": "⟪Enter the value again. A saved value is never sent to a different address.⟫",
-  "installation.monitoring.form.remove": "⟪Remove⟫",
   "installation.monitoring.form.removeSecret": "⟪Remove⟫",
   "installation.monitoring.form.replace": "⟪Replace⟫",
   "installation.monitoring.form.save": "⟪Save⟫",
@@ -5312,7 +5311,6 @@
   "installation.monitoring.row.manage": "⟪Manage⟫",
   "installation.monitoring.row.nothingSent": "⟪Nothing has been sent since Bakery last started.⟫",
   "installation.monitoring.row.off": "⟪turned off⟫",
-  "installation.monitoring.row.switch": "⟪{name}: sending⟫",
   "installation.monitoring.section": "⟪Where measurements go⟫",
   "installation.monitoring.sectionLine": "⟪Each destination has its own queue. A slow or failing one never holds up work or another destination. Prompts, code, diffs and credentials are never sent.⟫",
   "installation.monitoring.state.dropping": "⟪Dropping data⟫",
@@ -5320,7 +5318,6 @@
   "installation.monitoring.state.notSent": "⟪Nothing sent yet⟫",
   "installation.monitoring.state.off": "⟪Off⟫",
   "installation.monitoring.state.working": "⟪Working⟫",
-  "installation.monitoring.test.answered": "⟪It answered {status} in {ms} ms.⟫",
   "installation.monitoring.test.button": "⟪Send a test⟫",
   "installation.monitoring.test.failed": "⟪Test failed.⟫",
   "installation.monitoring.test.passed": "⟪Test passed.⟫",
@@ -5328,5 +5325,9 @@
   "installation.monitoring.test.sending": "⟪Sending…⟫",
   "installation.monitoring.title": "⟪Monitoring⟫",
   "installation.monitoring.updated": "⟪Last updated {time}⟫",
-  "shell.navigation.monitoring": "⟪Monitoring⟫"
+  "shell.navigation.monitoring": "⟪Monitoring⟫",
+  "installation.monitoring.row.switchOn": "⟪{name}: sending on⟫",
+  "installation.monitoring.row.switchOff": "⟪{name}: sending off⟫",
+  "installation.monitoring.test.took": "⟪It took {ms} ms.⟫",
+  "installation.monitoring.form.remove": "⟪Remove destination⟫"
 }

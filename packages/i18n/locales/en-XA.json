@@ -5283,7 +5283,6 @@
   "installation.monitoring.form.name": "⟦Ñàɱë⟧",
   "installation.monitoring.form.nameHelp": "⟦Šĥôŵñ ïñ ŧĥë ļïšŧ àñð ïñ àļëŕŧš. ŧëšŧ çôþÿ⟧",
   "installation.monitoring.form.reenter": "⟦Ëñŧëŕ ŧĥë ṽàļûë àĝàïñ. À šàṽëð ṽàļûë ïš ñëṽëŕ šëñŧ ŧô à ðïƒƒëŕëñŧ àððŕëšš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "installation.monitoring.form.remove": "⟦Ŕëɱôṽë…⟧",
   "installation.monitoring.form.removeSecret": "⟦Ŕëɱôṽë…⟧",
   "installation.monitoring.form.replace": "⟦Ŕëþļàçë…⟧",
   "installation.monitoring.form.save": "⟦Šàṽë⟧",
@@ -5312,7 +5311,6 @@
   "installation.monitoring.row.manage": "⟦Ṁàñàĝë…⟧",
   "installation.monitoring.row.nothingSent": "⟦Ñôŧĥïñĝ ĥàš ƀëëñ šëñŧ šïñçë Ɓàķëŕÿ ļàšŧ šŧàŕŧëð. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "installation.monitoring.row.off": "⟦ŧûŕñëð ôƒƒ ŧ⟧",
-  "installation.monitoring.row.switch": "⟦{name}: šëñðïñĝ ŧëš⟧",
   "installation.monitoring.section": "⟦Ŵĥëŕë ɱëàšûŕëɱëñŧš ĝô ŧëšŧŧ⟧",
   "installation.monitoring.sectionLine": "⟦Ëàçĥ ðëšŧïñàŧïôñ ĥàš ïŧš ôŵñ ǫûëûë. À šļôŵ ôŕ ƒàïļïñĝ ôñë ñëṽëŕ ĥôļðš ûþ ŵôŕķ ôŕ àñôŧĥëŕ ðëšŧïñàŧïôñ. Þŕôɱþŧš, çôðë, ðïƒƒš àñð çŕëðëñŧïàļš àŕë ñëṽëŕ šëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "installation.monitoring.state.dropping": "⟦Ðŕôþþïñĝ ðàŧà ŧë⟧",
@@ -5320,7 +5318,6 @@
   "installation.monitoring.state.notSent": "⟦Ñôŧĥïñĝ šëñŧ ÿëŧ ŧëš⟧",
   "installation.monitoring.state.off": "⟦Ôƒƒ⟧",
   "installation.monitoring.state.working": "⟦Ŵôŕķïñĝ…⟧",
-  "installation.monitoring.test.answered": "⟦Ïŧ àñšŵëŕëð {status} ïñ {ms} ɱš. ŧëšŧ çôþÿ⟧",
   "installation.monitoring.test.button": "⟦Šëñð à ŧëšŧ ŧ⟧",
   "installation.monitoring.test.failed": "⟦Ŧëšŧ ƒàïļëð. ŧë⟧",
   "installation.monitoring.test.passed": "⟦Ŧëšŧ þàššëð. ŧë⟧",
@@ -5328,5 +5325,9 @@
   "installation.monitoring.test.sending": "⟦Šëñðïñĝ……⟧",
   "installation.monitoring.title": "⟦Ṁôñïŧôŕïñĝ ŧ⟧",
   "installation.monitoring.updated": "⟦Ļàšŧ ûþðàŧëð {time} ŧëšŧ⟧",
-  "shell.navigation.monitoring": "⟦Ṁôñïŧôŕïñĝ ŧ⟧"
+  "shell.navigation.monitoring": "⟦Ṁôñïŧôŕïñĝ ŧ⟧",
+  "installation.monitoring.row.switchOn": "⟦{name}: šëñðïñĝ ôñ ŧëšŧ⟧",
+  "installation.monitoring.row.switchOff": "⟦{name}: šëñðïñĝ ôƒƒ ŧëšŧ⟧",
+  "installation.monitoring.test.took": "⟦Ïŧ ŧôôķ {ms} ɱš. ŧëš⟧",
+  "installation.monitoring.form.remove": "⟦Ŕëɱôṽë ðëšŧïñàŧïôñ ŧëšŧ⟧"
 }

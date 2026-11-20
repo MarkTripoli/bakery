@@ -146,6 +146,7 @@ for (
       }).click();
       await expect(page.getByText("Test failed.")).toBeVisible();
       await expect(page.getByText("invalid token")).toBeVisible();
+      await expect(page.getByText(/It took 120 ms\./)).toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "monitoring-test-failed");
     });
@@ -184,7 +185,7 @@ for (
       const seen = await monitoringFixture(page);
       await page.goto("/installation/monitoring");
       // The switch is controlled by the server's answer, so click it rather than wait for it to flip.
-      await page.getByLabel("Grafana Cloud: sending").click();
+      await page.getByLabel("Grafana Cloud: sending on").click();
       await expect.poll(() => seen.seen.some((s) => s.method === "PATCH")).toBe(
         true,
       );
@@ -193,10 +194,10 @@ for (
       expect(patch.body).toMatchObject({ enabled: false });
       expect(patch.body).not.toHaveProperty("values");
       await page.getByRole("button", { name: "Manage" }).nth(1).click();
-      // The saved secret also has a Remove; the footer one comes last.
-      await page.getByRole("dialog").getByRole("button", { name: "Remove" })
-        .last()
-        .click();
+      // The saved secret also has a Remove; the destination's own is named in full.
+      await page.getByRole("dialog").getByRole("button", {
+        name: "Remove destination",
+      }).click();
       await page.getByRole("alertdialog").getByRole("button", {
         name: "Remove",
       }).click();
