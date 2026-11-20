@@ -23,6 +23,7 @@ export async function pinStorageFile(
     context,
   );
   const file = await readableEntry(
+    context,
     transaction,
     organizationId,
     principalId,

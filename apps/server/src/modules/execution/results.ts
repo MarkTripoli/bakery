@@ -6,6 +6,10 @@ import {
 import { RepositoryInspectionReportSchema } from "@bakery/contracts/repository-inspection";
 import { finalizeOrDenyQualityCheck } from "../delivery/finalize-quality-check.ts";
 import {
+  finalizeEvaluationAttempt,
+  isEvaluationAction,
+} from "../evaluations/finalize-attempt.ts";
+import {
   finalizeOrDenyReview,
   recordReviewJobFailure,
 } from "../delivery/finalize-review.ts";
@@ -437,7 +441,18 @@ export async function resultRoute(
             );
           } else {
             const outputSchema = workerActionOutputSchema(jobRow.action);
-            if (!outputSchema.safeParse(resultPayload).success) {
+            // An evaluation report that does not match its contract is still
+            // recorded, as unscored with the reason, so a bad scorer shows up
+            // in the batch instead of retrying until the attempt is lost.
+            if (isEvaluationAction(jobRow.action)) {
+              await finalizeEvaluationAttempt(transaction, {
+                organizationId: attempt.organization_id,
+                attemptId: attempt.id,
+                jobId: attempt.job_id,
+                action: jobRow.action,
+                resultPayload,
+              });
+            } else if (!outputSchema.safeParse(resultPayload).success) {
               throw new StandardError({ code: "VALIDATION_FAILED" });
             }
             // A check report is a claim until the server has recomputed every
