@@ -2416,18 +2416,28 @@ const transportSchemas = {
           "description": "MCP server definition this connection instantiates; its transport (stdio or streamable_http) and configSchema govern what this connection's config and worker/integration binding must satisfy."
         },
         {
+          "name": "scope",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "organization",
+            "personal"
+          ],
+          "description": "organization (the default) is registered by an Admin and usable by the organization's work; personal is registered by any member for their own runs, belongs to them alone, and is used on a shared workflow only with their explicit use grant."
+        },
+        {
           "name": "integrationConnectionId",
           "type": "uuid",
           "required": false,
           "nullable": true,
-          "description": "For a streamable_http server whose OAuth authorization flows through an existing integration connection, that integration connection; left null for a stdio connection, which sets workerHostId instead."
+          "description": "Reserved for a streamable_http server whose OAuth authorization flows through an integration connection; not accepted yet, so it must be null."
         },
         {
           "name": "workerHostId",
           "type": "uuid",
           "required": false,
           "nullable": true,
-          "description": "For a stdio server, the specific worker host that launches and owns this server's subprocess; left null for a streamable_http connection, which sets integrationConnectionId instead."
+          "description": "Reserved for a stdio server's worker host; stdio is not accepted yet, so it must be null."
         },
         {
           "name": "label",
@@ -2445,14 +2455,14 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 32000
           },
-          "description": "Per-connection configuration validated against the server's configSchema, including any OAuth issuer, clientId, resource and granted scopes under config.auth; live token bytes are never stored here, only referenced via secretId."
+          "description": "Per-connection configuration validated against the server's configSchema. It carries no credential: a credential is sent as secret and kept sealed."
         },
         {
-          "name": "secretId",
-          "type": "uuid",
+          "name": "secret",
+          "type": "secretString",
           "required": false,
           "nullable": true,
-          "description": "Reference to the encrypted secret version holding this connection's OAuth or credential material; the config object never carries live token bytes directly."
+          "description": "The connection's credential, such as a bearer token or API key. Write-only: it is sealed under the installation key in Postgres, is never returned, audited or logged, and is shown back only as the connection's secretId."
         },
         {
           "name": "enabledCapabilities",
@@ -2461,13 +2471,15 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 100
           },
-          "description": "Subset of the server's discovered tools/resources/prompts this connection actually exposes for capability binding; a newly discovered server capability is never auto-enabled here."
+          "description": "Tools this connection exposes. It starts empty: a tool is enabled only after discovery has pinned a snapshot that lists it, and a newly discovered tool is never enabled automatically."
         }
       ],
       "rules": [
-        "exactly one of integrationConnectionId and workerHostId is required according to the server transport"
+        "a streamable_http connection sets neither integrationConnectionId nor workerHostId; stdio is not accepted yet",
+        "enabledCapabilities starts empty and is changed after discovery",
+        "an organization connection is registered by an Admin; a personal one by its owner"
       ],
-      "description": "Registers a connection between the organization and an MCP server, bound either to a worker host for a local stdio subprocess or to an integration connection carrying OAuth authorization for a remote streamable_http endpoint."
+      "description": "Registers a connection between the organization, or one member, and a remote MCP server definition. The credential is sent once as a write-only secret and sealed in Postgres."
     },
     "McpConnectionUpdate": {
       "fields": [
@@ -2487,11 +2499,11 @@ const transportSchemas = {
           "description": "Replaces this connection's configuration, revalidated against the server's configSchema; changing the OAuth issuer under config.auth requires full reauthorization rather than reusing existing tokens."
         },
         {
-          "name": "secretId",
-          "type": "uuid",
+          "name": "secret",
+          "type": "secretString",
           "required": false,
           "nullable": true,
-          "description": "Replaces the reference to the encrypted secret version holding this connection's credential material, typically set once a corresponding reauthorization has completed."
+          "description": "Replaces the connection's credential with a new sealed revision. Write-only: never returned, audited or logged."
         },
         {
           "name": "enabledCapabilities",
@@ -2500,7 +2512,7 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 100
           },
-          "description": "Replaces the subset of the server's discovered capabilities this connection exposes for capability binding."
+          "description": "Replaces the tools this connection exposes; every name must be a tool in the current pinned snapshot."
         },
         {
           "name": "status",
@@ -2515,7 +2527,7 @@ const transportSchemas = {
           "description": "Sets this connection's lifecycle state: enabled for active use, disabled to block new dispatch while retaining configuration, degraded when connectivity or capability checks are currently failing, or revoked once access has been permanently withdrawn."
         }
       ],
-      "description": "Updates an existing MCP connection's label, config, credential reference, enabled capabilities, or lifecycle status; the server, worker host and integration connection bindings set at creation cannot be changed here."
+      "description": "Updates a connection's label, config, credential, enabled tools or lifecycle status. The server, owner and scope set at creation cannot be changed. An organization connection is changed by an Admin; a personal one only by its owner."
     },
     "McpServerCreate": {
       "fields": [
@@ -7778,7 +7790,7 @@ const transportSchemas = {
           "name": "versionId",
           "type": "uuid",
           "required": true,
-          "description": "Immutable package version this install pins; installing this version grants no capabilities by itself until any needed permission_grants are separately approved."
+          "description": "Immutable package version this install pins; installing it grants the install every capability that version's manifest requests, all at once."
         },
         {
           "name": "scope",
@@ -7798,9 +7810,9 @@ const transportSchemas = {
         }
       ],
       "rules": [
-        "Personal scope requires the current principal owner; organization scope forbids an owner. Installation grants no capabilities."
+        "Personal scope requires the current principal owner; organization scope forbids an owner. Installation grants the install every capability the version's manifest requests, all at once. Turning the install off or removing it revokes them all in the same step, turning it back on restores exactly the manifest's set, and moving to another version re-reads that version's manifest."
       ],
-      "description": "Installs one immutable, published plugin version into the organization (Admin-only, shared) or for one principal personally (Developer, private); installing pins the version but grants no capabilities on its own."
+      "description": "Installs one immutable, published plugin version into the organization (Admin-only, shared) or for one principal personally (Developer, private); installing pins the version and gives the install every capability that version's manifest requests, all at once, with no way to give some and not others."
     },
     "PluginInstallUpdate": {
       "fields": [
@@ -7820,12 +7832,18 @@ const transportSchemas = {
             "uninstalled"
           ],
           "description": "New lifecycle status to apply: enabled to activate, disabled to block new authority while retaining configuration, or uninstalled to remove it; in-flight work under the pinned version still observes live revocation."
+        },
+        {
+          "name": "dismissUpdateFailure",
+          "type": "boolean",
+          "required": false,
+          "description": "True to clear the install's recorded last update failure without changing its version or status."
         }
       ],
       "rules": [
-        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version."
+        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version. A version that does not pass its checks (plugin_sdk_incompatible, plugin_manifest_*) is not an error: the refusal is recorded as lastUpdateFailure and the install is answered, still on its prior version, because an error would discard the record. The other fields in the same request still apply, so a disable sent with a refused version still disables and revokes; a refusal wins over a dismissUpdateFailure in the same request. A missing, draft or withdrawn version is still RESOURCE_NOT_FOUND, and an uninstalled install refuses any change."
       ],
-      "description": "Updates an existing plugin install's pinned version or lifecycle status; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active."
+      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
     },
     "PluginStatePut": {
       "fields": [
@@ -12179,6 +12197,59 @@ const transportSchemas = {
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query. Every filter given must match."
       ],
       "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
+    },
+    "McpToolClassificationPut": {
+      "fields": [
+        {
+          "name": "effectClass",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+        },
+        {
+          "name": "effectKeyArgument",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
+        },
+        {
+          "name": "pairedReadTool",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
+        }
+      ],
+      "rules": [
+        "effectKeyArgument is required for write_idempotent and refused for any other class",
+        "pairedReadTool is required for write_reconcilable and refused for any other class",
+        "the tool must be in the connection's current snapshot"
+      ],
+      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "McpUseGrantCreate": {
+      "fields": [
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
+        }
+      ],
+      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
     }
   },
   "projections": {
@@ -21214,6 +21285,7 @@ const transportSchemas = {
         "serverId",
         "integrationConnectionId",
         "workerHostId",
+        "ownerPrincipalId",
         "label",
         "config",
         "secretId",
@@ -21237,16 +21309,19 @@ const transportSchemas = {
         "currentSnapshotId": "uuid|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "ownerPrincipalId": "uuid|null"
       },
       "rules": [
-        "stdio connections require a workerHostId; localhost endpoint resolution is host-local"
+        "stdio connections require a workerHostId; localhost endpoint resolution is host-local",
+        "a personal connection is visible only to its owner"
       ],
       "nullableFields": [
         "integrationConnectionId",
         "workerHostId",
         "secretId",
-        "currentSnapshotId"
+        "currentSnapshotId",
+        "ownerPrincipalId"
       ],
       "description": "One organization's configured binding to an external MCP server, scoped to either a linked integration connection or a specific worker host for stdio locality; enabledCapabilities is the admin-approved subset of the server's discovered manifest and is never auto-expanded when new tools appear.",
       "fieldDescriptions": {
@@ -21262,7 +21337,8 @@ const transportSchemas = {
         "currentSnapshotId": "Stable UUID linking this record to the related current snapshot entity.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "ownerPrincipalId": "The member a personal connection belongs to, or null for an organization connection."
       }
     },
     "McpCapabilitySnapshot": {
@@ -25995,7 +26071,8 @@ const transportSchemas = {
         "disabledAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "lastUpdateFailure"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -26010,14 +26087,16 @@ const transportSchemas = {
         "disabledAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "lastUpdateFailure": "json|null"
       },
       "nullableFields": [
         "ownerPrincipalId",
         "activatedAt",
-        "disabledAt"
+        "disabledAt",
+        "lastUpdateFailure"
       ],
-      "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install.",
+      "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install. lastUpdateFailure records an update that was refused because the new version did not pass its checks.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying this plugin install record.",
         "organizationId": "UUID of the organization that owns this record.",
@@ -26031,8 +26110,12 @@ const transportSchemas = {
         "disabledAt": "Timestamp recording when the disabled event occurred for this plugin install record. May be null when unavailable.",
         "createdAt": "Timestamp recording when the created event occurred for this plugin install record.",
         "updatedAt": "Timestamp recording the last update to this plugin install record.",
-        "version": "Monotonic revision used to order or conditionally update this plugin install record."
-      }
+        "version": "Monotonic revision used to order or conditionally update this plugin install record.",
+        "lastUpdateFailure": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+      },
+      "optionalFields": [
+        "lastUpdateFailure"
+      ]
     },
     "Page<PluginInstall>": {
       "pageOf": "PluginInstall"
@@ -30661,6 +30744,104 @@ const transportSchemas = {
     "Page<MergeAttempt>": {
       "pageOf": "MergeAttempt",
       "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "McpToolClassification": {
+      "fields": [
+        "toolName",
+        "effectClass",
+        "classified",
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAgainstCurrentSnapshot",
+        "classifiedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAt"
+      ],
+      "fieldTypes": {
+        "toolName": "string",
+        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
+        "classified": "boolean",
+        "effectKeyArgument": "string",
+        "pairedReadTool": "string",
+        "classifiedAgainstCurrentSnapshot": "boolean",
+        "classifiedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it.",
+      "fieldDescriptions": {
+        "toolName": "The tool's name in the pinned snapshot.",
+        "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
+        "classified": "True once an Admin has classified this tool.",
+        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
+        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
+        "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
+        "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
+        "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+      }
+    },
+    "McpToolClassificationList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpToolClassification[]"
+      },
+      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered.",
+      "fieldDescriptions": {
+        "items": "The snapshot's tools with their classifications."
+      }
+    },
+    "McpUseGrant": {
+      "fields": [
+        "id",
+        "connectionId",
+        "workflowId",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "revokedBy"
+      ],
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "connectionId": "uuid",
+        "workflowId": "uuid",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "revokedAt": "timestamp",
+        "revokedBy": "uuid"
+      },
+      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "connectionId": "The personal connection the grant covers.",
+        "workflowId": "The workflow the grant lets use the connection.",
+        "grantedBy": "The owner who granted it.",
+        "createdAt": "UTC timestamp when the grant was made.",
+        "revokedAt": "UTC timestamp when the grant was revoked, or null while it is live.",
+        "revokedBy": "The principal who revoked it, or null while it is live."
+      }
+    },
+    "McpUseGrantList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpUseGrant[]"
+      },
+      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant.",
+      "fieldDescriptions": {
+        "items": "The connection's grants, newest first."
+      }
     }
   },
   "pageEnvelope": {
