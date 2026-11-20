@@ -9,6 +9,7 @@
  */
 import { assertEquals } from "@std/assert";
 import {
+  declaredPreviewState,
   PREVIEW_IMAGE_LIMIT_BYTES,
   PREVIEW_TEXT_LIMIT_BYTES,
   previewState,
@@ -121,4 +122,21 @@ Deno.test("a digest mismatch outranks every other answer", () => {
     previewState(probeSaying({ kind: "image" }), { mismatch: true }),
     { kind: "mismatch" },
   );
+});
+
+Deno.test("a declared name can only justify a kind, never a refusal", () => {
+  // A name is weaker evidence than bytes: it may say "show it as an image", but
+  // it may never claim the file is damaged, too large, or that a host failed.
+  assertEquals(declaredPreviewState("image/png"), { kind: "image" });
+  assertEquals(declaredPreviewState("video/mp4"), { kind: "video" });
+  assertEquals(declaredPreviewState("audio/mpeg"), { kind: "audio" });
+  assertEquals(declaredPreviewState("text/markdown"), { kind: "text" });
+  assertEquals(declaredPreviewState("application/json"), { kind: "text" });
+  assertEquals(declaredPreviewState("application/zip"), {
+    kind: "unsupported",
+  });
+  // A name with parameters still reads as its type.
+  assertEquals(declaredPreviewState("text/plain; charset=utf-8"), {
+    kind: "text",
+  });
 });

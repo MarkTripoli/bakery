@@ -15,6 +15,13 @@ import {
   MAX_TEXT_PREVIEW_BYTES,
 } from "../artifact-media.ts";
 import { ArtifactPreviewView } from "../ArtifactRetrievalView.tsx";
+import { previewFacts } from "../preview-facts.ts";
+import { probeFromAnswer } from "../probe-answer.ts";
+import {
+  declaredPreviewState,
+  type PreviewState,
+  previewState,
+} from "../preview-state.ts";
 import { sizeParts } from "./files-state.ts";
 
 const textModes: Readonly<Record<string, "text" | "markdown" | "patch">> = {
@@ -54,6 +61,49 @@ export function FilePreview(
   const supported = image || textMode !== undefined;
   const limit = image ? MAX_IMAGE_PREVIEW_BYTES : MAX_TEXT_PREVIEW_BYTES;
   const tooLarge = (sizeBytes ?? 0) > limit;
+  // What the probe measured, if anything has asked yet. A file stored inline has
+  // no blob to probe, so it answers nothing for ever; that is "no answer", and
+  // the declared name is what this panel falls back to, exactly as before the
+  // probe existed.
+  const probe = useQuery({
+    queryKey: protectedQueryKey(scope, "storageFiles.probe", {
+      fileId: file.id,
+      revision: version?.revision ?? null,
+    }),
+    enabled: scope.organizationId !== null && !contentRemoved,
+    retry: false,
+    staleTime: Infinity,
+    queryFn: async ({ signal }) => {
+      if (scope.organizationId === null) {
+        throw new Error("ORGANIZATION_REQUIRED");
+      }
+      const result = await api.files.probe(
+        scope.organizationId,
+        file.id,
+        version?.revision,
+        signal,
+      );
+      if (!result.ok) throw result.error;
+      return result.data;
+    },
+  });
+  const answer = probeFromAnswer(probe.data ?? null);
+  const state: PreviewState = answer !== null
+    ? previewState(answer)
+    : probe.isPending
+    ? { kind: "pending" }
+    : declaredPreviewState(mediaType);
+  const facts = answer === null
+    ? ""
+    : previewFacts(answer, locale, (key, values) =>
+      (translate as (
+        id: string,
+        v?: Record<string, string | number>,
+      ) => string)(
+        key,
+        values,
+      ));
+  const footer = facts ? <UI.Text variant="muted">{facts}</UI.Text> : undefined;
   const content = useQuery({
     queryKey: protectedQueryKey(scope, "storageFiles.preview", {
       fileId: file.id,
@@ -97,6 +147,44 @@ export function FilePreview(
   }, [content.data, image, mediaType]);
 
   if (contentRemoved) return null;
+  // A refusal about the file, or a host that could not check it, is said the
+  // same way the artifact page says it. Unsupported and too-large keep the copy
+  // this panel already had, because a storage file's size is known without a
+  // probe and the declared name is all a blob-less file can offer.
+  if (
+    state.kind === "unreadable" || state.kind === "unchecked" ||
+    state.kind === "host-unavailable"
+  ) {
+    return (
+      <UI.Stack gap="compact">
+        <UI.Text variant="muted">
+          {translate(
+            state.kind === "unreadable"
+              ? "files.preview.state.unreadable"
+              : state.kind === "unchecked"
+              ? "files.preview.state.unchecked"
+              : "files.preview.state.hostUnavailable",
+            { kind: translate("files.preview.facts.unknown") },
+          )}
+        </UI.Text>
+        <UI.Button variant="secondary" onClick={() => void probe.refetch()}>
+          {translate("files.preview.state.retry")}
+        </UI.Button>
+      </UI.Stack>
+    );
+  }
+  if (state.kind === "mismatch") {
+    return (
+      <UI.Stack gap="compact">
+        <UI.AlertBanner tone="error">
+          {translate("files.preview.state.mismatchTitle")}
+        </UI.AlertBanner>
+        <UI.Text variant="muted">
+          {translate("files.preview.state.mismatchDescription")}
+        </UI.Text>
+      </UI.Stack>
+    );
+  }
   if (!supported) {
     return (
       <UI.Text variant="muted">
@@ -134,6 +222,7 @@ export function FilePreview(
   return (
     <ArtifactPreviewView
       state="content"
+      footer={footer}
       label={translate("files.preview.title")}
       content={image && imageUrl !== null
         ? {

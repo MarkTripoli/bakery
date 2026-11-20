@@ -606,6 +606,16 @@ export type BakeryApiClient = {
       revision: number | undefined,
       signal?: AbortSignal,
     ) => Promise<ApiResult<ClientOutputMap["BinaryArtifact"]>>;
+    /**
+     * What the probe measured about this version's bytes, or nulls. A file
+     * stored inline has no blob and so no answer yet, which is not a refusal.
+     */
+    readonly probe: (
+      organizationId: string,
+      fileId: string,
+      revision: number | undefined,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<ClientOutputMap["ArtifactProbeAnswer"]>>;
   };
   readonly output: {
     readonly attempts: (
@@ -3035,6 +3045,24 @@ export function createBakeryApiClient({
           return {
             ok: true,
             data: await scoped.actions["storageFiles.content"]({
+              id: fileId,
+              revision,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async probe(org, fileId, revision, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFiles.probe"]({
               id: fileId,
               revision,
             }, { signal }),

@@ -87,3 +87,25 @@ export function previewState(
       return { kind: "unsupported" };
   }
 }
+
+/**
+ * The states a declared media type can justify, for a file nothing has probed.
+ *
+ * A name is weaker evidence than bytes, so this is deliberately narrower than
+ * `previewState`: it never claims a refusal, never claims a size limit the
+ * caller has not measured itself, and anything it does not recognise is simply
+ * unsupported. A version whose bytes are stored inline has no blob to probe, so
+ * this is the only answer it will ever get.
+ */
+export function declaredPreviewState(mediaType: string): PreviewState {
+  if (mediaType.startsWith("image/")) return { kind: "image" };
+  if (mediaType.startsWith("video/")) return { kind: "video" };
+  if (mediaType.startsWith("audio/")) return { kind: "audio" };
+  if (
+    mediaType.startsWith("text/") || mediaType === "application/json" ||
+    mediaType === "application/xml"
+  ) {
+    return { kind: "text" };
+  }
+  return { kind: "unsupported" };
+}
