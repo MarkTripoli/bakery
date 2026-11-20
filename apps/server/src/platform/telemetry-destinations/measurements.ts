@@ -33,8 +33,10 @@ export function isMeasurementKind(value: unknown): value is MeasurementKind {
  */
 const EVENT_MEASUREMENTS: Readonly<Record<string, readonly MeasurementKind[]>> =
   Object.freeze({
-    "usage.settled": ["cost"],
-    "job.completed": ["durations", "results"],
+    // Not mapped until the record carries what the kind promises: usage.settled
+    // holds only the attempt id (no amount, no tokens), and job.completed holds
+    // the outcome but no duration. A kind comes back here as it is emitted.
+    "job.completed": ["results"],
     "lease.renewed": ["health"],
   });
 
