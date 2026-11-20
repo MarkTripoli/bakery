@@ -3007,7 +3007,7 @@ const transportSchemas = {
     "PreviewAccess": {
       "fields": [
         {
-          "name": "expiresInSeconds",
+          "name": "sessionSeconds",
           "type": "integer",
           "required": false,
           "bounds": {
@@ -3015,10 +3015,10 @@ const transportSchemas = {
             "max": 86400,
             "default": 3600
           },
-          "description": "How long the issued preview access grant stays valid before the caller must request a new one; bounded between one minute and 24 hours."
+          "description": "How long the signed-in preview session lasts once the grant is exchanged, from 60 seconds to 24 hours; it does not change how long the one-use grant can be exchanged, which is always 30 seconds."
         }
       ],
-      "description": "Requests a one-use access grant for a running preview; the caller's client posts the grant to the separate preview origin, which exchanges it for its own short-lived HttpOnly cookie."
+      "description": "Requests a one-use access grant for a running preview. The grant is exchangeable for 30 seconds only; the session it opens lasts sessionSeconds. The caller's client posts the grant to the separate preview origin, which exchanges it for its own HttpOnly cookie."
     },
     "PrincipalCreate": {
       "fields": [
@@ -4932,6 +4932,18 @@ const transportSchemas = {
           "type": "gitSha",
           "required": true,
           "description": "Commit SHA the running preview was built from."
+        },
+        {
+          "name": "workerSessionId",
+          "type": "uuid",
+          "required": false,
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts."
+        },
+        {
+          "name": "workerSessionGeneration",
+          "type": "decimalString",
+          "required": false,
+          "description": "Generation of that worker session; required with workerSessionId."
         }
       ],
       "description": "Registers a running preview upstream for an attempt so Bakery can proxy client traffic to it; the record tracks its route, port and expiry until the preview stops."
@@ -10183,6 +10195,137 @@ const transportSchemas = {
       ],
       "description": "Saves the R2 account, bucket and credentials that hold skill bundle objects for this installation. Credentials are write-only and never appear in a response, error, log, trace, event or audit record."
     },
+    "TelemetryDestinationCreate": {
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Which kind of destination this is, as listed by telemetryDestinations.list (for example otlp for OpenTelemetry); it decides which values the destination needs and which measurements it can receive."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Name people see in the list and in alerts, unique across destinations ignoring case."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether the destination receives measurements now; defaults to true. Turning it off keeps its settings and queues nothing for it."
+        },
+        {
+          "name": "measurements",
+          "type": "string[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 6
+          },
+          "description": "The kinds of measurement to send: any of cost, durations, results, skills, health and errors that the destination's kind can take; at least one."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8000
+          },
+          "description": "The destination's settings by field name, as the kind lists them: a string for each. Fields the kind marks secret are write-only and stored encrypted; they are never returned."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session; access tokens are refused. Idempotency-Key is required.",
+        "An unknown kind, a missing required value or a value the kind refuses answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 20 destinations exist; one more answers 409 STATE_CONFLICT. Storing a secret value with no secrets key configured answers 409 STATE_CONFLICT and stores nothing."
+      ],
+      "description": "Adds a telemetry destination: a place Bakery sends the measurements it takes, with its own queue, its own settings and encrypted credentials."
+    },
+    "TelemetryDestinationUpdate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the destination to change; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "New name, unique across destinations ignoring case; omit to keep the current one."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Turns the destination on or off without losing its settings; omit to keep the current state."
+        },
+        {
+          "name": "measurements",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 6
+          },
+          "description": "Replaces the kinds of measurement the destination receives; omit to keep them."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8000
+          },
+          "description": "Only the settings to change, by field name. A secret field supplied here replaces the stored value; one left out keeps it. An empty string clears an optional field."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session. Idempotency-Key and a strong If-Match with the destination's version are required (428 when missing, 412 when stale)."
+      ],
+      "description": "Changes a telemetry destination's name, on or off state, measurements or settings; the stored secret is replaced only when a new one is supplied."
+    },
+    "TelemetryDestinationTest": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": false,
+          "description": "A saved destination whose stored settings and secrets are used for any value not supplied; omit to test values that are not saved."
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "The kind of destination to test when no saved destination is named."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8000
+          },
+          "description": "Unsaved settings to test, by field name; they win over the saved ones. Nothing here is stored or returned."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session. Idempotency-Key is required. The address must be https and not private or local, no redirect is followed, and the test gives up after 10 seconds."
+      ],
+      "description": "Sends one harmless test message to a destination, using unsaved values or a saved destination's own, and reports the destination's real answer."
+    },
     "TicketSourcePersonPath": {
       "fields": [
         {
@@ -12024,6 +12167,24 @@ const transportSchemas = {
       ],
       "description": "Searches the organization's file tree and its read-only library mirror by name, path, kind, media type, producer and a metadata fact, newest first. Only files and library items the caller may read are returned, and nothing of another organization is ever counted or listed."
     },
+    "FileFactQuery": {
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "Restricts the list to one kind: the artifact type of the files whose facts are listed. Omit it to list the facts of every kind the caller can read."
+        }
+      ],
+      "rules": [
+        "Returns one bounded list, never continued: at most 50 fact keys per kind, at most 50 values per key and at most 500 rows in all, ordered by kind, key and value. Files the caller may not read are never counted; another organization's are never listed."
+      ],
+      "description": "Lists the facts files carry, by kind: each fact key with each string value it holds on the current version of a file the caller may read, and how many files hold it. It is the source for the file search's fact filter (files.search factKey and factValue). Until kind validators publish typed facts, a version's metadata is where its facts live."
+    },
     "LibraryFolderQuery": {
       "fields": [
         {
@@ -12539,6 +12700,50 @@ const transportSchemas = {
         }
       ],
       "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
+    },
+    "PreviewQuery": {
+      "fields": [
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to the previews registered by attempts of this workflow run, newest first."
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 50
+          },
+          "description": "Restrict results to the current state of the preview: starting, ready, stopped or expired."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque cursor carried from a prior page of this exact query; leave unset to start from the newest page."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of items returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Filters for listing the running-app previews of an organization, newest first."
     },
     "EvaluationCheckSpec": {
       "description": "The deterministic check evaluation.check runs over one output. kind selects the check and config carries its parameters: json_schema reads config.schema (a JSON-schema subset of type, required, properties and items), contains reads config.substring (non-empty text the output must include), equals reads config.expected (the JSON value the parsed output must deep-equal).",
@@ -15616,11 +15821,13 @@ const transportSchemas = {
     "previews": {
       "fields": [
         "id",
-        "workspaceId",
+        "runId",
+        "attemptId",
         "headSha",
-        "routeKey",
-        "upstreamPort",
         "status",
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt",
         "expiresAt",
         "createdAt",
         "updatedAt",
@@ -15628,24 +15835,32 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "workspaceId": "uuid",
         "headSha": "string",
-        "routeKey": "string",
-        "upstreamPort": "integer",
         "status": "enum(starting|ready|stopped|expired)",
         "expiresAt": "timestamp",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "runId": "uuid",
+        "attemptId": "uuid",
+        "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
+        "stoppedBy": "uuid",
+        "stoppedAt": "timestamp"
       },
-      "nullableFields": [],
+      "nullableFields": [
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt"
+      ],
       "sourceColumns": {
         "id": "id",
-        "workspaceId": "workspace_id",
+        "runId": "run_id",
+        "attemptId": "attempt_id",
         "headSha": "head_sha",
-        "routeKey": "route_key",
-        "upstreamPort": "upstream_port",
         "status": "status",
+        "stopReason": "stop_reason",
+        "stoppedBy": "stopped_by",
+        "stoppedAt": "stopped_at",
         "expiresAt": "expires_at",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
@@ -15654,15 +15869,17 @@ const transportSchemas = {
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the preview record.",
-        "workspaceId": "Stable UUID linking this preview record to the related workspace entity.",
-        "headSha": "Head commit SHA associated with the record.",
-        "routeKey": "Routing key used to reach the preview.",
-        "upstreamPort": "Local port exposed by the preview upstream.",
-        "status": "Current lifecycle status of the preview record.",
-        "expiresAt": "UTC timestamp when the preview record expires.",
-        "createdAt": "UTC timestamp when the preview record was created.",
-        "updatedAt": "UTC timestamp when the preview record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the preview record."
+        "headSha": "Commit SHA the running preview was built from.",
+        "status": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready.",
+        "expiresAt": "UTC timestamp when the preview stops by itself.",
+        "createdAt": "UTC timestamp when the record was created.",
+        "updatedAt": "UTC timestamp when the record was last updated.",
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "runId": "The workflow run whose attempt registered this preview.",
+        "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
+        "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
+        "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
     "pull_requests": {
@@ -22351,11 +22568,13 @@ const transportSchemas = {
       "projection": "previews",
       "fields": [
         "id",
-        "workspaceId",
+        "runId",
+        "attemptId",
         "headSha",
-        "routeKey",
-        "upstreamPort",
         "status",
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt",
         "expiresAt",
         "createdAt",
         "updatedAt",
@@ -22363,29 +22582,37 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "workspaceId": "uuid",
         "headSha": "string",
-        "routeKey": "string",
-        "upstreamPort": "integer",
         "status": "enum(starting|ready|stopped|expired)",
         "expiresAt": "timestamp",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "runId": "uuid",
+        "attemptId": "uuid",
+        "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
+        "stoppedBy": "uuid",
+        "stoppedAt": "timestamp"
       },
-      "nullableFields": [],
-      "description": "Registration for an authenticated developer preview URL exposing a worker's live workspace port during an attempt; returned when worker.previews registers it. status tracks starting/ready/stopped/expired, and access is private, session-bound, and served from a separate origin with no API cookies forwarded.",
+      "nullableFields": [
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt"
+      ],
+      "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the preview record.",
-        "workspaceId": "Stable UUID linking this record to the related workspace entity.",
-        "headSha": "Head commit SHA associated with the record.",
-        "routeKey": "Contract-defined route key associated with the preview record.",
-        "upstreamPort": "Contract-defined upstream port associated with the preview record.",
-        "status": "Current lifecycle status of the record.",
-        "expiresAt": "UTC timestamp when the record expires.",
+        "headSha": "Commit SHA the running preview was built from.",
+        "status": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready.",
+        "expiresAt": "UTC timestamp when the preview stops by itself.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "runId": "The workflow run whose attempt registered this preview.",
+        "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
+        "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
+        "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
     "MergeEntry": {
@@ -23134,26 +23361,32 @@ const transportSchemas = {
     },
     "PreviewAccessResult": {
       "fields": [
+        "grantId",
         "grant",
         "exchangeUrl",
         "previewUrl",
-        "expiresAt"
+        "expiresAt",
+        "sessionSeconds"
       ],
       "fieldTypes": {
         "grant": "secretString",
         "exchangeUrl": "uri",
         "previewUrl": "uri",
-        "expiresAt": "timestamp"
+        "expiresAt": "timestamp",
+        "grantId": "uuid",
+        "sessionSeconds": "integer"
       },
       "sensitiveFields": [
         "grant"
       ],
-      "description": "One-use grant is POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs.",
+      "description": "One-use grant, exchangeable for 30 seconds, POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs. The session it opens lasts sessionSeconds.",
       "fieldDescriptions": {
-        "grant": "Capability grant issued for the preview.",
-        "exchangeUrl": "One-time URL used to exchange preview access.",
-        "previewUrl": "URL used to access the preview.",
-        "expiresAt": "UTC timestamp when the record expires."
+        "grant": "One-use secret handoff value: 32 random bytes, base64url. Post it once, in a form body; never put it in a URL, log, event or cache. Only its sha256 is stored.",
+        "exchangeUrl": "Absolute URL on the separate preview origin that exchanges the posted grant for a preview session.",
+        "previewUrl": "Absolute URL on the preview origin where the preview is shown after the exchange.",
+        "expiresAt": "When the grant stops being exchangeable, 30 seconds after it was issued. This is not the session length.",
+        "grantId": "Identifier of this access grant, used to end one person's access before it expires. Not a secret.",
+        "sessionSeconds": "How long the session lasts after the grant is exchanged."
       }
     },
     "BinaryArtifact": {
@@ -28754,6 +28987,125 @@ const transportSchemas = {
         "checkedAt": "When the probe finished."
       }
     },
+    "TelemetryDestination": {
+      "fields": [
+        "id",
+        "kind",
+        "name",
+        "enabled",
+        "measurements",
+        "settings",
+        "secretFieldsSet",
+        "credentialUpdatedAt",
+        "state",
+        "lastAcceptedAt",
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason",
+        "dropped",
+        "droppedSince",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "kind": "string",
+        "name": "string",
+        "enabled": "boolean",
+        "measurements": "string[]",
+        "settings": "json",
+        "secretFieldsSet": "string[]",
+        "credentialUpdatedAt": "timestamp|null",
+        "state": "enum(working|not_tested_yet|failing|dropping_data|off)",
+        "lastAcceptedAt": "timestamp|null",
+        "lastAnswerAt": "timestamp|null",
+        "lastAnswerOk": "boolean|null",
+        "lastAnswerReason": "string|null",
+        "dropped": "integer",
+        "droppedSince": "timestamp|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "credentialUpdatedAt",
+        "lastAcceptedAt",
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason",
+        "droppedSince"
+      ],
+      "description": "One telemetry destination as an installation administrator may see it, with how it is doing. Secret values are reported only as the names of the fields that are set and when they were last replaced; no value, ciphertext or key identifier is ever returned.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the destination.",
+        "kind": "Which kind of destination this is, for example otlp.",
+        "name": "Name shown in the list and in alerts.",
+        "enabled": "Whether the destination receives measurements now.",
+        "measurements": "The kinds of measurement it receives: cost, durations, results, skills, health, errors.",
+        "settings": "The non-secret values saved for it, by field name.",
+        "secretFieldsSet": "Names of the secret fields that hold a stored value; the values are never returned.",
+        "credentialUpdatedAt": "When its secret values were last replaced, or null when it has none.",
+        "state": "working, not_tested_yet (on, nothing sent yet), failing (the last sends were refused or timed out), dropping_data (its queue overflowed recently) or off.",
+        "lastAcceptedAt": "When it last accepted a batch, or null when it never has since the server started.",
+        "lastAnswerAt": "When it last answered a send, accepted or not, or null.",
+        "lastAnswerOk": "Whether that last answer was an acceptance, or null before any.",
+        "lastAnswerReason": "A short plain reason when the last answer was a refusal, or null.",
+        "dropped": "Records dropped for this destination since the server started.",
+        "droppedSince": "When the first of those was dropped, or null when none were.",
+        "createdAt": "UTC time the destination was added.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Monotonic revision; submit it as If-Match when changing or removing the destination."
+      }
+    },
+    "TelemetryDestinationList": {
+      "fields": [
+        "kinds",
+        "measurements",
+        "destinations"
+      ],
+      "fieldTypes": {
+        "kinds": "json[]",
+        "measurements": "json[]",
+        "destinations": "json[]"
+      },
+      "nullableFields": [],
+      "description": "Everything the Monitoring page needs about destinations in one read: the kinds the server can deliver to with their fields, the six kinds of measurement, and the destinations that exist (at most 20) with their state.",
+      "fieldDescriptions": {
+        "kinds": "Each kind of destination: its identifier, label, fields (name, label, help, secret, required), the measurements it can take and why any it cannot take is unavailable.",
+        "measurements": "The six kinds of measurement, each with its identifier, label and one line of help.",
+        "destinations": "The destinations, oldest first, each shaped as a TelemetryDestination."
+      }
+    },
+    "TelemetryDestinationTestResult": {
+      "fields": [
+        "ok",
+        "status",
+        "reason",
+        "answer",
+        "tookMs"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "status": "integer|null",
+        "reason": "string|null",
+        "answer": "string|null",
+        "tookMs": "integer"
+      },
+      "nullableFields": [
+        "status",
+        "reason",
+        "answer"
+      ],
+      "description": "The destination's real answer to one test message: whether it accepted it, its HTTP status, a short plain reason when it did not, a bounded piece of what it said and how long it took.",
+      "fieldDescriptions": {
+        "ok": "True only when the destination accepted the test message.",
+        "status": "The destination's HTTP status, or null when it never answered.",
+        "reason": "A short plain reason when it did not accept, or null.",
+        "answer": "At most 300 characters of what it answered, or null; never a credential.",
+        "tookMs": "Milliseconds the test took."
+      }
+    },
     "IntegrationAppManifestStart": {
       "fields": [
         "provider",
@@ -31047,6 +31399,31 @@ const transportSchemas = {
       "pageOf": "FileSearchHit",
       "description": "Cursor page of file search hits, newest first, returned by GET /v1/files/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
+    "FileFact": {
+      "fields": [
+        "kind",
+        "key",
+        "value",
+        "files"
+      ],
+      "fieldTypes": {
+        "kind": "string",
+        "key": "string",
+        "value": "string",
+        "files": "integer"
+      },
+      "description": "One fact a kind of file carries: a metadata key and one string value it holds on the current version of some files the caller may read, with the number of those files. Pass key and value to files.search as factKey and factValue, and kind as kind, to list the files.",
+      "fieldDescriptions": {
+        "kind": "The artifact type of the files that hold the fact.",
+        "key": "The metadata key, at most 100 characters.",
+        "value": "One value the key holds on the current version of at least one such file, at most 500 characters; an empty value is not listed.",
+        "files": "How many files of this kind the caller may read hold this key with this value on their current version."
+      }
+    },
+    "Page<FileFact>": {
+      "pageOf": "FileFact",
+      "description": "The facts of the files the caller may read, by kind, key and value, returned by GET /v1/files/facts. items and nextCursor are always present; the list is one bounded page, so nextCursor is always null and there are no page numbers or offsets."
+    },
     "Page<LibraryEntry>": {
       "pageOf": "LibraryEntry",
       "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
@@ -31247,6 +31624,41 @@ const transportSchemas = {
         "createdAt": "When the grant was made.",
         "version": "Optimistic-concurrency version a stop must name in If-Match."
       }
+    },
+    "SkillUsage": {
+      "fields": [
+        "kind",
+        "definitionId",
+        "definitionName",
+        "versionId",
+        "revision",
+        "skillVersionIds",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "kind": "enum(workflow|agent)",
+        "definitionId": "uuid",
+        "definitionName": "string",
+        "versionId": "uuid",
+        "revision": "integer",
+        "skillVersionIds": "uuid[]",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [],
+      "description": "One workflow version or agent version that pins a version of a skill: what it is, which version of it, and which versions of the skill it names. A workflow version uses a skill when one of its steps lists the version; an agent version uses it when its skill bindings name the version.",
+      "fieldDescriptions": {
+        "kind": "workflow for a published workflow version, agent for an agent version.",
+        "definitionId": "Stable UUID of the workflow or agent the version belongs to.",
+        "definitionName": "Name of that workflow or agent, as shown in the Library.",
+        "versionId": "Immutable UUID of the workflow version or agent version that names the skill.",
+        "revision": "Revision number of that workflow or agent version.",
+        "skillVersionIds": "The versions of this skill the workflow or agent version pins, oldest first; at least one.",
+        "createdAt": "UTC time that workflow or agent version was created, which orders the list newest first."
+      }
+    },
+    "Page<SkillUsage>": {
+      "pageOf": "SkillUsage",
+      "description": "Cursor page of SkillUsage rows, newest first. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
     },
     "Page<SkillUseGrant>": {
       "pageOf": "SkillUseGrant",
@@ -31747,6 +32159,18 @@ const transportSchemas = {
     "Page<PluginStateItem>": {
       "pageOf": "PluginStateItem",
       "description": "Cursor page of saved items for one plugin install, newest first, returned by GET /v1/plugin-installs/{id}/state-items. The saved values are never part of it. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "PreviewAvailability": {
+      "fields": [
+        "available"
+      ],
+      "fieldTypes": {
+        "available": "boolean"
+      },
+      "fieldDescriptions": {
+        "available": "True when the deployment configures a separate preview origin. When false every preview operation fails closed and clients show that previews are not set up."
+      },
+      "description": "Whether this deployment can serve running-app previews."
     },
     "EvaluationDataset": {
       "fields": [
