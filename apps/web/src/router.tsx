@@ -217,13 +217,13 @@ export const routeCoverage = [
     path: "/delivery",
     classification: "production",
     // Not a fifth kind of failure: `partial` is the page with figures and a
-    // note that some records are missing, and `disconnected` is a source that
+    // note that some records are missing, and `degraded` is a source that
     // stopped, whose figures are unknown rather than zero.
     states: [
       "loading",
       "default",
       "partial",
-      "disconnected",
+      "degraded",
       "stale",
       "empty",
       "error",

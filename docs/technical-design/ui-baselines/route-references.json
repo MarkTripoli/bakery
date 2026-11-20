@@ -5199,6 +5199,13 @@
       "status": "no-mock",
       "rationale": "The installation usage page (#75) is designed by design-ux on #75 (revision 2, mock at pr-evidence design-75/v2/usage.png); Paper has no frame for it.",
       "frames": []
+    },
+    {
+      "routeId": "delivery",
+      "path": "/delivery",
+      "status": "no-mock",
+      "rationale": "The Delivery page (#75) is designed by design-ux on #75 (revision 3 and its two later changes, mocks at pr-evidence design-75/v3/); Paper has no frame for it.",
+      "frames": []
     }
   ]
 }
