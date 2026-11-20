@@ -81,6 +81,10 @@ export type TaskResponse = ClientOutputMap["Task"];
 export type RunListResponse = ClientOutputMap["Page<Run>"];
 export type RunResponse = ClientOutputMap["Run"];
 export type RunControlCapabilities = ClientOutputMap["RunControlCapabilities"];
+export type RouteContinuationOffersResponse =
+  ClientOutputMap["RouteContinuationOffers"];
+export type RouteContinuationAdmit = ClientInputMap["RouteContinuationAdmit"];
+export type RouteContinuationResponse = ClientOutputMap["RouteContinuation"];
 export type RunStepListResponse = ClientOutputMap["Page<RunStep>"];
 export type AgentSessionPageResponse = ClientOutputMap["AgentSessionPage"];
 export type SessionFeedResponse = ClientOutputMap["SessionFeed"];
@@ -1516,6 +1520,29 @@ export type BakeryApiClient = {
     readonly runId: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RunResponse>>;
+  /**
+   * The choices a run is waiting on: each step whose model has an open incident,
+   * what it waits on and the other routes it could continue on. A read of
+   * current state; nothing is switched by reading it. Developers and Admins only.
+   */
+  readonly listRouteContinuations: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RouteContinuationOffersResponse>>;
+  /**
+   * A person's choice to continue one waiting step on another route, against the
+   * exact offer they saw. A stale or refused choice commits nothing and names why
+   * (`ApiFailure.problem.reason`). Reuse the key and input when the outcome is
+   * unknown.
+   */
+  readonly admitRouteContinuation: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly input: RouteContinuationAdmit;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RouteContinuationResponse>>;
   readonly getRunControlCapabilities: (options: {
     readonly organizationId: string;
     readonly runId: string;
@@ -5067,6 +5094,45 @@ export function createBakeryApiClient({
           { signal: options.signal },
         );
         if (data.id !== options.runId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listRouteContinuations(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["routeContinuations.list"](
+          { id: options.runId },
+          { signal: options.signal },
+        );
+        if (data.runId !== options.runId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async admitRouteContinuation(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["routeContinuations.admit"](
+          { id: options.runId, ...options.input },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.runId !== options.runId) {
           throw new ApiTransportError("protocol", 200);
         }
         return { ok: true, data };
