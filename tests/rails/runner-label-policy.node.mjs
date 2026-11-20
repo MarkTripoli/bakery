@@ -930,6 +930,19 @@ test("accepts the bakery-heavy pool label, with or without an architecture pin",
   }
 });
 
+test("the full integration lane stays in the heavy pool and asks for an x64 runner", () => {
+  // The integration suite fails on ARM64 runners (onboarding answers 500, the
+  // release manifest has no ARM64 build), so the lane must not land on one.
+  const document = parseDocument(
+    readFileSync(join(WORKFLOW_DIR, "ci.yml"), "utf8"),
+  ).toJS();
+  const labels = document.jobs.integration["runs-on"].map((label) =>
+    String(label).toLowerCase()
+  );
+  assert(labels.includes("bakery-heavy"));
+  assert(labels.includes("x64"));
+});
+
 test("a self-hosted label set without a pool label is still refused, naming the pools", () => {
   rejectsCandidate(
     "jobs:\n  build:\n    runs-on: [self-hosted, linux, x64]\n    steps: []\n",
