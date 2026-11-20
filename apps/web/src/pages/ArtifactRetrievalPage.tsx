@@ -50,6 +50,7 @@ import { useShellViewport } from "../app/responsive.ts";
 import { ArtifactEditor } from "./ArtifactEditor.tsx";
 import { isExtractableMediaType } from "./artifact-media.ts";
 import { invalidateArtifactQueries } from "./artifact-live.ts";
+import { offersDownload } from "./preview-actions.ts";
 
 const MAX_EXTRACTION_BYTES = 65_536;
 /** Session Problems meaning "authenticate again", not "this artifact failed". */
@@ -1015,7 +1016,10 @@ export function ArtifactRetrievalPage(
               search: { version },
             });
           }}
-          download={selectedVersion && !digestMismatch
+          download={selectedVersion && offersDownload({
+              mismatch: digestMismatch,
+              contentRemoved: false,
+            })
             ? {
               label: downloadState === "loading"
                 ? translate("artifact.retrieval.downloading")
@@ -1053,7 +1057,13 @@ export function ArtifactRetrievalPage(
               }}
             />
           }
-          previewHandoff={selectedVersion
+          // A damaged file's page must not offer to open a preview of it: the
+          // Banner below says Bakery will not show it, and a handoff beside it
+          // would say the opposite (#437).
+          previewHandoff={selectedVersion && offersDownload({
+              mismatch: digestMismatch,
+              contentRemoved: false,
+            })
             ? (
               <ArtifactPreviewHandoff
                 key={`handoff:${scope.sessionGeneration}:${selectedVersion.id}`}

@@ -15,6 +15,7 @@ import type { DurableSyncConnectivity } from "../api/durable-sync.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { formatFileSize } from "./file-size.ts";
 import {
   isDiffMediaType,
   isExtractableMediaType,
@@ -53,7 +54,15 @@ export function TaskArtifactPane(
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const { translate: t } = useI18n();
+  const { translate: t, locale } = useI18n();
+  const translateForSize = (
+    key: string,
+    values?: Record<string, string | number>,
+  ) =>
+    (t as (id: string, v?: Record<string, string | number>) => string)(
+      key,
+      values,
+    );
   const [picked, setPicked] = useState<
     { artifactId: string; versionId: string } | null
   >(null);
@@ -250,8 +259,12 @@ export function TaskArtifactPane(
     ? "loading"
     : artifact === undefined || selected === undefined
     ? "empty"
+    // Extraction is how a *text* file is read; an image, a video or a refusal is
+    // decided by `previewState` inside the body, which owns that table. Marking
+    // anything else "unavailable" here hid every picture and every refusal the
+    // pane could have shown (#437).
     : !extractable
-    ? "unavailable"
+    ? "ready"
     : extraction === undefined
     ? "error"
     : extraction.hasMore
@@ -323,7 +336,13 @@ export function TaskArtifactPane(
               testId="artifact-fingerprint-row"
             />
             <UI.DetailRow label={t("tasks.artifact.size")}>
-              {t("artifact.retrieval.sizeValue", { size: selected.sizeBytes })}
+              {t("artifact.retrieval.sizeValue", {
+                size: formatFileSize(
+                  selected.sizeBytes,
+                  locale,
+                  translateForSize,
+                ),
+              })}
             </UI.DetailRow>
             <UI.DetailRow label={t("tasks.artifact.madeBy")}>
               {madeBy}
@@ -336,7 +355,7 @@ export function TaskArtifactPane(
           artifactId: artifact.id,
           version: String(selected.revision),
           digest: selected.sha256,
-          size: t("artifact.retrieval.sizeValue", { size: selected.sizeBytes }),
+          size: formatFileSize(selected.sizeBytes, locale, translateForSize),
           mediaType: selected.mediaType,
           provenance: selected.runStepId ?? t("tasks.artifact.unknown"),
           labels: {

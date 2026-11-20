@@ -443,7 +443,6 @@
   "artifact.retrieval.provenanceTitle": "⟦Ṽëŕïƒïëð þŕôṽëñàñçë àñð ṽëŕšïôñ ŧëšŧ çôþ⟧",
   "artifact.retrieval.runStepLabel": "⟦Þŕôðûçïñĝ ŕûñ šŧëþ ŧëšŧ⟧",
   "artifact.retrieval.sizeLabel": "⟦Çàñôñïçàļ šïžë ŧë⟧",
-  "artifact.retrieval.sizeValue": "⟦{size, number} ƀÿŧëš ŧëšŧ⟧",
   "artifact.retrieval.startByteLabel": "⟦Šŧàŕŧ ƀÿŧë ŧ⟧",
   "artifact.retrieval.subjectBaseLabel": "⟦Šûƀĵëçŧ ƀàšë çôɱɱïŧ ŧëšŧ⟧",
   "artifact.retrieval.subjectHeadLabel": "⟦Šûƀĵëçŧ ĥëàð çôɱɱïŧ ŧëšŧ⟧",
@@ -453,7 +452,6 @@
   "artifact.retrieval.unavailableTitle": "⟦Àŕŧïƒàçŧ ñôŧ ƒôûñð ŧëšŧ⟧",
   "artifact.retrieval.unsupportedMediaDescription": "⟦Ŧĥïš ɱëðïà ŧÿþë ïš àŧŧàçĥɱëñŧ-ôñļÿ ôŕ ñôŧ àþþŕôṽëð ƒôŕ šàƒë ŧëẋŧ ëẋŧŕàçŧïôñ. Ðôŵñļôàð ŧĥë ṽëŕïƒïëð ƀÿŧëš ïñšŧëàð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "artifact.retrieval.updatedLabel": "⟦Ûþðàŧëð…⟧",
-  "artifact.retrieval.versionSummary": "⟦{mediaType} · {size, number} ƀÿŧëš ŧëšŧ çôþÿ⟧",
   "artifact.retrieval.versionsTitle": "⟦Ïɱɱûŧàƀļë ṽëŕšïôñš ŧëšŧ⟧",
   "auth.common.pendingAction": "⟦Working… — ŧëšŧ çôþÿ⟧",
   "projects.onboarding.pagination.controls": "⟦Onboarding list controls — ŧëšŧ çôþÿ⟧",
@@ -4988,5 +4986,8 @@
   "files.preview.state.mismatchTitle": "⟦Ŧĥïš ƒïļë ðôëš ñôŧ ɱàŧçĥ ïŧš ŕëçôŕð ŧëšŧ çôþÿŧ⟧",
   "files.preview.state.mismatchDescription": "⟦Ŵĥàŧ ïš šŧôŕëð ïš ñôŧ ŵĥàŧ ŵàš ŕëçôŕðëð, šô Ɓàķëŕÿ ŵïļļ ñôŧ šĥôŵ ôŕ ðôŵñļôàð ïŧ. Àšķ àñ ôŕĝàñïžàŧïôñ Àðɱïñ ŧô çĥëçķ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "files.preview.state.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
-  "files.preview.state.unreadableUnknown": "⟦Ŧĥïš ƒïļë çôûļð ñôŧ ƀë ŕëàð. Ïŧ ɱàÿ ƀë ðàɱàĝëð. ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "files.preview.state.unreadableUnknown": "⟦Ŧĥïš ƒïļë çôûļð ñôŧ ƀë ŕëàð. Ïŧ ɱàÿ ƀë ðàɱàĝëð. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "files.preview.facts.durationSeconds": "⟦{seconds} š ŧ⟧",
+  "artifact.retrieval.sizeValue": "⟦{size}…⟧",
+  "artifact.retrieval.versionSummary": "⟦{mediaType} · {size} ŧëšŧ⟧"
 }

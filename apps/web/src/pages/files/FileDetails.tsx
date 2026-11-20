@@ -16,6 +16,7 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { sizeParts } from "./files-state.ts";
 import { FilePreview } from "./FilePreview.tsx";
+import { offersDownload } from "../preview-actions.ts";
 import { type ReactNode, useState } from "react";
 
 export type FileTab = "details" | "versions" | "uses";
@@ -92,9 +93,16 @@ export function FileDetails(
   // The preview says when the bytes and the record disagree; this panel must not
   // offer to save them, since the design promises exactly that (#437).
   const [bytesMismatch, setBytesMismatch] = useState(false);
+
   const shown = revision === undefined || revision === current?.revision
     ? null
     : versionRows.find((version) => version.revision === revision) ?? null;
+  // With Download gone, "More" would open a menu with one item in it: on a phone
+  // the path itself becomes the button (#437, UX review).
+  const downloadWithheld = !offersDownload({
+    mismatch: bytesMismatch,
+    contentRemoved: shown?.contentRemoved ?? file.contentRemoved,
+  });
 
   const day = (value: string) =>
     formatDate(new Date(value), locale, { dateStyle: "medium", timeZone });
@@ -407,19 +415,17 @@ export function FileDetails(
             {translate("files.action.open")}
           </UI.Button>
         )}
-        {(shown?.contentRemoved ?? file.contentRemoved) || bytesMismatch
-          ? null
-          : (
-            <UI.Button
-              variant={artifactTarget === null ? "primary" : "secondary"}
-              onClick={() => void download()}
-            >
-              {shown === null
-                ? translate("files.action.download")
-                : translate("files.action.downloadVersion")}
-            </UI.Button>
-          )}
-        {phone
+        {downloadWithheld ? null : (
+          <UI.Button
+            variant={artifactTarget === null ? "primary" : "secondary"}
+            onClick={() => void download()}
+          >
+            {shown === null
+              ? translate("files.action.download")
+              : translate("files.action.downloadVersion")}
+          </UI.Button>
+        )}
+        {phone && !downloadWithheld
           ? (
             <UI.Button
               variant="secondary"
@@ -443,7 +449,7 @@ export function FileDetails(
             </UI.Button>
           )}
       </UI.Inline>
-      {phone && moreOpen
+      {phone && moreOpen && !downloadWithheld
         ? (
           <UI.Menu
             aria-label={translate("files.action.moreLabel")}

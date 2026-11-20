@@ -31,6 +31,7 @@ import {
 import { createSuperuser } from "../../../apps/server/src/modules/auth/index.ts";
 import type { QueryResultRow } from "pg";
 import { sha256Bytes } from "../../../apps/server/src/modules/knowledge/bytes.ts";
+import { ensurePersonalFolder } from "../../../apps/server/src/modules/knowledge/storage-working-areas.ts";
 
 const OWNER = {
   email: "evidence@example.test",
@@ -373,7 +374,21 @@ async function writeArtifact(input: {
       where organization_id = $1 and id = $3`,
     [input.organizationId, versionId, artifactId],
   );
-  if (input.answer !== undefined) {
+  if (input.answer !== undefined && input.answer.status === "refused") {
+    // A refusal says which fault, and never a kind: nothing measured the bytes.
+    await q(
+      `insert into bakery.blob_probes
+         (organization_id, artifact_version_id, status, failure_code,
+          failure_limit, probed_at)
+       values ($1, $2, 'refused', $3, $4, now())`,
+      [
+        input.organizationId,
+        versionId,
+        input.answer.code ?? null,
+        input.answer.limit ?? null,
+      ],
+    );
+  } else if (input.answer !== undefined) {
     // A store-less version keys its answer on the version itself, which is the
     // same key `readArtifactProbe` reads.
     await q(
@@ -426,6 +441,20 @@ try {
     { length: 12 },
     (_, index) => `line ${index + 1} of the first version`,
   ).join("\n");
+
+  // A fresh database has the tables and no folders: the tree is made on first use
+  // by the server. Bake it here, with the server's own function, so a seeded file
+  // lands in the folder the page opens rather than in a folder this script invented.
+  const folders = await pg.connect();
+  try {
+    await ensurePersonalFolder(
+      folders as unknown as Parameters<typeof ensurePersonalFolder>[0],
+      owner.organizationId,
+      owner.principalId,
+    );
+  } finally {
+    folders.release();
+  }
 
   const files: Record<string, { id: string; path: string; name: string }> = {};
   // 1. A text file the sandbox read: the facts line has something to say, and the
@@ -542,8 +571,42 @@ try {
     recordedSha256: "0".repeat(64),
     answer: { status: "described", kind: "image", width: 2, height: 2 },
   });
+  // The task pane shows one artifact per task, so a pane still gets a task of its
+  // own: the cut text under the fade, and a file nothing could read.
+  const paneTextTarget = await writeTarget(
+    owner.organizationId,
+    owner.principalId,
+  );
+  await writeArtifact({
+    organizationId: owner.organizationId,
+    taskId: paneTextTarget.taskId,
+    runStepId: paneTextTarget.stepId,
+    principalId: owner.principalId,
+    name: "release-notes.md",
+    mediaType: "text/markdown",
+    bytes: new TextEncoder().encode(lines),
+    answer: { status: "described", kind: "text", lineCount: 42 },
+  });
+  const paneUnreadableTarget = await writeTarget(
+    owner.organizationId,
+    owner.principalId,
+  );
+  await writeArtifact({
+    organizationId: owner.organizationId,
+    taskId: paneUnreadableTarget.taskId,
+    runStepId: paneUnreadableTarget.stepId,
+    principalId: owner.principalId,
+    name: "scan.dat",
+    mediaType: "application/octet-stream",
+    bytes: new TextEncoder().encode("not bytes anything can read"),
+    answer: { status: "refused", code: "unreadable" },
+  });
   console.log(JSON.stringify({
     files,
+    pane: {
+      textTaskId: paneTextTarget.taskId,
+      unreadableTaskId: paneUnreadableTarget.taskId,
+    },
     task: {
       damagedArtifactId: damaged.artifactId,
       taskId: target.taskId,

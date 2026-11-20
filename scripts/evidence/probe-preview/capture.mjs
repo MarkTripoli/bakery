@@ -77,6 +77,42 @@ const ARTIFACT_STATES = [
   },
 ];
 
+/** The task pane's own states: one artifact per seeded task, so the pane picks it. */
+const PANE_STATES = [
+  {
+    // The pane caps the text and fades the cut, so its Open stays above the fold.
+    id: "pane-text",
+    task: "textTaskId",
+    says: /line 1 of a file whose bytes nobody opened/,
+    assert: async (page) => {
+      const cut = page.locator('[data-cut="panel"]').first();
+      const box = await cut.boundingBox();
+      if (box === null || box.height > 320) {
+        throw new Error(`no pane cut: ${box?.height ?? "absent"}px tall`);
+      }
+    },
+    views: [[DESKTOP, LIGHT]],
+  },
+  {
+    // A file nothing could read, in the pane that has no Download of its own: the
+    // sentence is the whole answer, and no button offers what the file cannot give.
+    id: "pane-unreadable",
+    task: "unreadableTaskId",
+    says: /could not be read\./,
+    assert: async (page) => {
+      const pane = page.locator('[aria-label="Artifact"]').first();
+      const scope = (await pane.count()) > 0 ? pane : page;
+      if (await scope.getByText(/try again/i).count() > 0) {
+        throw new Error("pane offers Try again for a damaged file");
+      }
+      if (await scope.getByText(/^download/i).count() > 0) {
+        throw new Error("pane offers Download for a damaged file");
+      }
+    },
+    views: [[DESKTOP, LIGHT]],
+  },
+];
+
 /**
  * Each state names what its words must say. The numbers are the point: "42 lines"
  * and "2 x 2" are measurements, and a still showing the word "Image" alone would
@@ -277,7 +313,9 @@ for (const state of ONLY === "artifact" ? [] : STATES) {
   await context.close();
 }
 
-for (const state of ONLY === "files" ? [] : ARTIFACT_STATES) {
+for (
+  const state of ONLY === "pane" || ONLY === "files" ? [] : ARTIFACT_STATES
+) {
   const artifactId = seeded.task[state.artifact];
   const taskId = seeded.task.taskId;
   if (artifactId === undefined || taskId === undefined) {
@@ -328,6 +366,46 @@ for (const state of ONLY === "files" ? [] : ARTIFACT_STATES) {
   await context.close();
 }
 
+for (const state of ONLY === "pane" ? PANE_STATES : []) {
+  const taskId = seeded.pane[state.task];
+  if (taskId === undefined) throw new Error(`seed did not name ${state.task}`);
+  const context = await browser.newContext({
+    viewport: DESKTOP[1],
+    colorScheme: LIGHT,
+    deviceScaleFactor: 1,
+  });
+  await signIn(context);
+  const page = await context.newPage();
+  for (const [viewport, theme] of state.views) {
+    await page.setViewportSize(viewport[1]);
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto(`${WEB}/tasks/${taskId}`, { waitUntil: "load" });
+    await page.waitForLoadState("networkidle").catch(() => {});
+    let body = "";
+    let found = false;
+    for (let attempt = 0; attempt < 40 && !found; attempt += 1) {
+      body = await page.locator("body").innerText();
+      found = state.says.test(body);
+      if (!found) await page.waitForTimeout(1000);
+    }
+    if (!found) {
+      await page.screenshot({ path: join(OUT, `${state.id}.failed.png`) });
+      throw new Error(
+        `${state.id}: page did not say ${state.says}; it said ${
+          JSON.stringify(body.slice(0, 400))
+        }`,
+      );
+    }
+    if (state.assert !== undefined) await state.assert(page);
+    const name = `${state.id}--${theme}--${viewport[0]}`;
+    const path = join(OUT, `${name}.png`);
+    await page.screenshot({ path, fullPage: true });
+    files.push(path);
+    console.log("  shot", name);
+  }
+  await context.close();
+}
+
 // A partial run reports only what it shot, so the manifest never claims more
 // than the folder holds.
 const shot = KEEP
@@ -338,6 +416,9 @@ await writeManifest(OUT, {
   schema: "bakery.evidence.probe-preview/1",
   files: shot,
   distinct,
+  // The commit the stills were taken from, so the set can be checked against the
+  // diff it is evidence for.
+  head: args.get("--head") ?? "",
   web: WEB,
   api: API,
   note:

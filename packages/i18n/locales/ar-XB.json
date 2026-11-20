@@ -445,7 +445,6 @@
   "artifact.retrieval.provenanceTitle": "⟪Verified provenance and version⟫",
   "artifact.retrieval.runStepLabel": "⟪Producing run step⟫",
   "artifact.retrieval.sizeLabel": "⟪Canonical size⟫",
-  "artifact.retrieval.sizeValue": "⟪{size, number} bytes⟫",
   "artifact.retrieval.startByteLabel": "⟪Start byte⟫",
   "artifact.retrieval.subjectBaseLabel": "⟪Subject base commit⟫",
   "artifact.retrieval.subjectHeadLabel": "⟪Subject head commit⟫",
@@ -455,7 +454,6 @@
   "artifact.retrieval.unavailableTitle": "⟪Artifact not found⟫",
   "artifact.retrieval.unsupportedMediaDescription": "⟪This media type is attachment-only or not approved for safe text extraction. Download the verified bytes instead.⟫",
   "artifact.retrieval.updatedLabel": "⟪Updated⟫",
-  "artifact.retrieval.versionSummary": "⟪{mediaType} · {size, number} bytes⟫",
   "artifact.retrieval.versionsTitle": "⟪Immutable versions⟫",
   "auth.common.pendingAction": "⟪Working…⟫",
   "projects.onboarding.pagination.controls": "⟪Onboarding list controls⟫",
@@ -4988,5 +4986,8 @@
   "files.preview.state.mismatchTitle": "⟪This file does not match its record⟫",
   "files.preview.state.mismatchDescription": "⟪What is stored is not what was recorded, so Bakery will not show or download it. Ask an organization Admin to check it.⟫",
   "files.preview.state.retry": "⟪Try again⟫",
-  "files.preview.state.unreadableUnknown": "⟪This file could not be read. It may be damaged.⟫"
+  "files.preview.state.unreadableUnknown": "⟪This file could not be read. It may be damaged.⟫",
+  "files.preview.facts.durationSeconds": "⟪{seconds} s⟫",
+  "artifact.retrieval.sizeValue": "⟪{size}⟫",
+  "artifact.retrieval.versionSummary": "⟪{mediaType} · {size}⟫"
 }

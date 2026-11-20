@@ -5,6 +5,7 @@ import * as UI from "@bakery/ui";
 import { ArtifactPreviewView } from "./ArtifactRetrievalView.tsx";
 import type { ArtifactVersionResponse } from "../api/client.ts";
 import { isArtifactContentMismatch } from "./artifact-mismatch.ts";
+import { previewActions } from "./preview-actions.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
@@ -260,6 +261,12 @@ export function ArtifactPreviewBody(
         ),
       { sizeBytes: version.sizeBytes, locale },
     );
+    const offered = previewActions(state, {
+      retry,
+      download: onDownload === undefined
+        ? undefined
+        : { label: t("artifact.retrieval.download"), onClick: onDownload },
+    });
     return (
       <ArtifactPreviewView
         label={label}
@@ -268,23 +275,10 @@ export function ArtifactPreviewBody(
         unavailable={{
           title: copy.title,
           description: copy.description,
-          // A host that could not check the file earns "Try again" -- and, where
-          // this surface has one, Download beside it, because that does not depend
-          // on the answer. Every other state is text alone: a damaged file will be
-          // damaged again, and a button that promises otherwise is a lie.
-          action: state.kind === "host-unavailable"
-            ? retry
-            : onDownload === undefined
-            ? undefined
-            : { label: t("artifact.retrieval.download"), onClick: onDownload },
-          ...(state.kind === "host-unavailable" && onDownload !== undefined
-            ? {
-              secondaryAction: {
-                label: t("artifact.retrieval.download"),
-                onClick: onDownload,
-              },
-            }
-            : {}),
+          ...(offered.action === undefined ? {} : { action: offered.action }),
+          ...(offered.secondaryAction === undefined
+            ? {}
+            : { secondaryAction: offered.secondaryAction }),
         }}
       />
     );

@@ -56,7 +56,9 @@ Deno.test("a video states its length, not a size it does not have", () => {
       t,
     ),
     "[files.preview.facts.video kind=Video] · " +
-      "[files.preview.facts.duration minutes=0 seconds=12] · " +
+      // Under a minute there is no zero to state: "0 min 2 s" would be a
+      // measurement of nothing (#437, UX review).
+      "[files.preview.facts.durationSeconds seconds=12] · " +
       "[files.size.megabytes value=2]",
   );
 });

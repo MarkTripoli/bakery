@@ -64,7 +64,14 @@ export function previewFacts(
   }
   if (probe.durationMs !== undefined) {
     const { minutes, seconds } = durationParts(probe.durationMs);
-    facts.push(t("files.preview.facts.duration", { minutes, seconds }));
+    // Under a minute, "0 min 2 s" states a zero that is not a measurement. The
+    // catalog has a seconds-only sentence for exactly this, and "2 min 14 s"
+    // keeps its minutes (#437, UX review).
+    facts.push(
+      minutes === 0
+        ? t("files.preview.facts.durationSeconds", { seconds })
+        : t("files.preview.facts.duration", { minutes, seconds }),
+    );
   }
   if (probe.lineCount !== undefined) {
     facts.push(t("files.preview.facts.lines", { lines: probe.lineCount }));
