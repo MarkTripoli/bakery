@@ -1,3 +1,4 @@
+import { ticketRef } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 /**
  * Issue 82 integration lane: the per-source sync step on real Postgres.
  * Transactions run as the application role; the reader and the fact index are
@@ -150,7 +151,7 @@ async function prefetchMap(
       await prefetchTicketReads(
         fx.reader,
         handle,
-        { number, policy: source.policy, origin: "poll" },
+        { ref: ticketRef(number), policy: source.policy, origin: "poll" },
         signal,
       ),
     );

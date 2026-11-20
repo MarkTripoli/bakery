@@ -101,6 +101,13 @@ export type ActionContext = {
   signal: AbortSignal;
   principal?: unknown;
   /**
+   * Set only when an agent's session dispatched this call on behalf of a
+   * person: the attempt the session runs under. It labels the call as an
+   * agent's action (O50) and lets the guard for an off-by-default power find the
+   * workflow the agent runs under. Absent for a person's own request.
+   */
+  agentSession?: Readonly<{ attemptId: string }>;
+  /**
    * Operation scopes the session credential holds, set only when an agent's
    * session dispatched this call on behalf of a person. It can only narrow what
    * an action returns, never widen it: an action that reads across several
@@ -122,6 +129,12 @@ export type ActionContext = {
    * listed session as the caller's own.
    */
   sessionId?: string;
+  /**
+   * Address of the client that sent the request (the socket peer, or the
+   * client resolved through a trusted proxy), when the transport knows one.
+   * Only per-client rate limits key on it; it grants nothing.
+   */
+  clientAddress?: string;
   /**
    * How the request reached the action. `mcp` marks a tool call dispatched by
    * the MCP catalog runner, which authenticates with an MCP principal and

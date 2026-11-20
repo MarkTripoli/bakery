@@ -533,6 +533,11 @@
   .ui-description-item[data-action-placement="below"] .ui-description-item__action {
     flex: 1 0 100%;
   }
+  /* The text takes the room beside the icon (a zero basis), so only the
+     action wraps to its own line, never the icon from its name. */
+  .ui-description-item[data-action-placement="below"] .ui-description-item__body {
+    flex: 1 1 0;
+  }
   .ui-description-item[data-action-placement="below"] .ui-description-item__action .ui-inline {
     flex-wrap: wrap;
     justify-content: flex-start;
@@ -584,6 +589,13 @@
 }
 .ui-description-item--selectable .ui-description-item__title {
   font: var(--type-item-title); /* auth.css:8 .item.selectable strong */
+}
+/* A row with its own action beside selectable rows: the same title weight and tight body. */
+.ui-description-item[data-title-style="item"] .ui-description-item__body {
+  gap: var(--space-0);
+}
+.ui-description-item[data-title-style="item"] .ui-description-item__title {
+  font: var(--type-item-title);
 }
 .ui-description-item--selectable .ui-description-item__action {
   display: flex;
@@ -1681,6 +1693,12 @@
 }
 /* A clamped text keeps its first lines and ends in an ellipsis; the whole text
    is the element's title. */
+.ui-text[data-lines="3"] {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  display: -webkit-box;
+  overflow: hidden;
+}
 .ui-text[data-lines="2"],
 .ui-list-row__detail[data-lines="2"] {
   -webkit-box-orient: vertical;
@@ -1797,6 +1815,10 @@
   inline-size: 100%;
   min-block-size: max(var(--size-control), var(--target-coarse));
   padding: var(--space-2) var(--space-3);
+}
+/* A combobox that failed validation has the same destructive border as a text field. */
+.ui-combobox select[aria-invalid="true"] {
+  border-color: var(--color-destructive);
 }
 /* Column headings kept for assistive technology and hidden visually, for a
    table whose rows explain themselves. */

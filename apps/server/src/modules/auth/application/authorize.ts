@@ -106,6 +106,21 @@ export function isOrganizationMember(actor: PermissionPrincipal): boolean {
     (actor.role !== OrganizationRole.Guest || actor.customRole !== undefined);
 }
 
+/**
+ * The SQL form of isOrganizationMember's role half, for a membership row
+ * aliased `membership`: a system role, and not a bare guest. Callers add the
+ * human-principal and active-status conditions themselves. Kept here so a
+ * role rule outside auth is never spelled twice.
+ */
+export function organizationMemberRoleSql(membership: string): string {
+  if (!/^[a-z_][a-z0-9_]*$/.test(membership)) {
+    throw new Error("membership alias must be a plain SQL identifier");
+  }
+  return `(${membership}.role is not null
+    and (${membership}.role <> '${OrganizationRole.Guest}'
+      or ${membership}.custom_role_id is not null))`;
+}
+
 export function authorizeOrganizationAction(
   action: ActionDefinition,
   actor: OrganizationActor,

@@ -23,10 +23,13 @@ Deno.test("the three Bakery scopes have consent copy and anything else has none"
   assertEquals(scopeCopy("__proto__"), null);
 });
 
-Deno.test("a grant lists its wordable scopes in grant order and drops the rest", () => {
+Deno.test("a grant lists the plain description of its wordable scopes in grant order and drops the rest", () => {
   assertEquals(
     wordableScopes(["bakery:operate", "openid", "bakery:read"]),
-    ["auth.consent.scope.operate.title", "auth.consent.scope.read.title"],
+    [
+      "auth.consent.scope.operate.description",
+      "auth.consent.scope.read.description",
+    ],
   );
   assertEquals(wordableScopes([]), []);
 });

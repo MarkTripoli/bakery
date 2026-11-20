@@ -13,6 +13,10 @@ import type { PgTransactionClient } from "@bakery/persistence";
 import { appendDomainEvent } from "@bakery/persistence/event-audit";
 import { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
+import {
+  gateArtifactPublication,
+  resolveArtifactKindBinding,
+} from "../artifact-kinds/publication-gate.ts";
 import { assertActiveLease, lockAttempt } from "../execution/events.ts";
 import {
   assertAttemptMutationSession,
@@ -26,6 +30,7 @@ import {
   validateArtifactUpload,
 } from "./bytes.ts";
 import { assertParentVersion } from "./authority.ts";
+import { projectArtifactEntry, storageQueryOf } from "./storage-tree.ts";
 import { DRAFT_SOURCE_METADATA_KEYS } from "./draft-source-metadata.ts";
 import { reconcileCoordinationForCommittedOutput } from "../work/coordination-projection.ts";
 
@@ -113,9 +118,9 @@ export async function commitArtifactVersion(
   assertParentVersion(parent.currentVersionId, version.parentVersionId);
   assertArtifactWriteCapacity(await readStorageCapacity());
   const typeRow = await transaction.query<
-    { artifact_type: string; name: string }
+    { artifact_type: string; name: string; kind_version_id: string | null }
   >(
-    "select artifact_type, name from bakery.artifacts where organization_id=$1 and id=$2 for update",
+    "select artifact_type, name, kind_version_id from bakery.artifacts where organization_id=$1 and id=$2 for update",
     [scope.organizationId, parent.id],
   );
   const retentionClass = publicationRetention(
@@ -134,6 +139,32 @@ export async function commitArtifactVersion(
     { size_bytes: version.content.byteLength, sha256: version.sha256 },
     version.content,
   );
+  // A kind's rules run here, on the bytes about to be stored, before anything
+  // is written. This is the door `validateArtifactKindDocument` was missing:
+  // until it existed the rules were a tested function no publication reached.
+  // A version whose key names no kind is not validated, because there is no
+  // standard to hold it to; a bound one keeps the revision it was bound to.
+  const binding = await resolveArtifactKindBinding(transaction, {
+    organizationId: scope.organizationId,
+    artifactType: typeRow.rows[0]?.artifact_type ?? "",
+    boundKindVersionId: typeRow.rows[0]?.kind_version_id ?? null,
+  });
+  if (binding !== null) {
+    gateArtifactPublication(binding, {
+      content: version.content,
+      mediaType: version.mediaType,
+      facts: version.metadata,
+    });
+    if (typeRow.rows[0]?.kind_version_id === null) {
+      // First publication pins the revision this artifact's documents will be
+      // judged by. A later republish resolves the same binding, so a kind's new
+      // revision cannot retroactively change what an existing document must be.
+      await transaction.query(
+        "update bakery.artifacts set kind_version_id=$3 where organization_id=$1 and id=$2",
+        [scope.organizationId, parent.id, binding.kindVersionId],
+      );
+    }
+  }
   // Put, then insert. The order is the invariant, not atomicity: the object
   // store is not part of this transaction, so a rollback after the put leaves
   // an object with no row. That is the safe direction - an object with no row
@@ -372,6 +403,12 @@ export async function publishArtifact(
     throw new StandardError({ code: "INTERNAL" });
   }
   assertParentVersion(parent.current_version_id, input.parentVersionId);
+  // The artifact appears in the storage tree under its work item in the same
+  // transaction that made it (#444); no artifact or version row changes.
+  await projectArtifactEntry(storageQueryOf(transaction), {
+    organizationId: scope.organization_id,
+    artifactId: parent.id,
+  });
   const response = await commitArtifactVersion(transaction, {
     scope: {
       organizationId: scope.organization_id,

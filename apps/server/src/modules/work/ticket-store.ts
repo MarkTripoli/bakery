@@ -326,9 +326,10 @@ export async function readSourceScope(
     installation_id: string;
     external_id: string;
     display_name: string;
+    provider: string;
   }>(
     `select connection.installation_id, resource.external_id,
-            resource.display_name
+            resource.display_name, connection.provider
        from bakery.integration_connections as connection
        join bakery.integration_resources as resource
          on resource.connection_id = connection.id
@@ -344,6 +345,7 @@ export async function readSourceScope(
       organizationId: source.organizationId,
       connectionId: source.connectionId,
       resourceId: source.resourceId,
+      provider: row.provider,
       repositoryFullName: row.display_name,
       externalRepositoryId: row.external_id,
     },
@@ -1499,4 +1501,62 @@ export async function findAvailableApproval(
     [organizationId, taskId, PLAN_STAGE, policyDigest],
   );
   return result.rows[0]?.id ?? null;
+}
+
+/** Marks a link's status note as being written (#69); returns the link's new version. */
+export async function claimLinkNote(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  linkId: string,
+): Promise<number> {
+  const claimed = await transaction.query<{ version: number }>(
+    `update bakery.ticket_task_links
+        set sync_health = 'pending', updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2
+      returning version`,
+    [organizationId, linkId],
+  );
+  return claimed.rows[0].version;
+}
+
+/** What one note write left on its link. */
+export type LinkNoteOutcome = {
+  syncHealth: "healthy" | "failed";
+  /** The provider's comment id when healthy; kept unchanged when failed. */
+  externalId: string | null;
+  problemCode: string | null;
+};
+
+/**
+ * Records a note write on the link claimed at `claimedVersion` (#69); the
+ * row in the shape `columns` names, or null when the claim no longer holds.
+ */
+export async function recordLinkNote<Row>(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  linkId: string,
+  claimedVersion: number,
+  outcome: LinkNoteOutcome,
+  columns: string,
+): Promise<Row | null> {
+  const updated = await transaction.query<Row & Record<string, unknown>>(
+    `update bakery.ticket_task_links
+        set sync_health = $4,
+            status_comment_external_id = case when $4 = 'healthy' then $5
+              else status_comment_external_id end,
+            last_problem_code = $6,
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2 and version = $3
+        and sync_health = 'pending'
+      returning ${columns}`,
+    [
+      organizationId,
+      linkId,
+      claimedVersion,
+      outcome.syncHealth,
+      outcome.externalId,
+      outcome.problemCode,
+    ],
+  );
+  return updated.rows[0] ?? null;
 }

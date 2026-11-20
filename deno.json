@@ -2,6 +2,7 @@
   "lock": "deno.lock",
   "imports": {
     "@bakery/config": "./packages/config/src/env.ts",
+    "@bakery/i18n": "./packages/i18n/src/index.ts",
     "@bakery/config/sentry": "./packages/config/src/sentry.ts",
     "@bakery/config/sentry-build": "./packages/config/src/sentry-build.ts",
     "@bakery/config/sentry-privacy": "./packages/config/src/sentry-privacy.ts",
@@ -52,7 +53,9 @@
     "yaml": "npm:yaml@2.8.1",
     "zod": "npm:zod@4.5.4",
     "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@3.888.0",
+    "@bakery/integration-linear/manifest": "./packages/integration-linear/src/manifest.ts",
     "@bakery/integration-linear/server": "./packages/integration-linear/src/server/mod.ts",
+    "@bakery/integration-linear/web": "./packages/integration-linear/src/web/mod.ts",
     "@bakery/integration-sdk/provider": "./packages/integration-sdk/provider.ts",
     "@bakery/integration-sdk/web": "./packages/integration-sdk/web.ts"
   },

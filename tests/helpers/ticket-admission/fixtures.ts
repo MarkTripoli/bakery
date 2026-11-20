@@ -1,3 +1,4 @@
+import { issueNumberFromRef } from "../../../apps/server/src/modules/integrations/ticket-reads.ts";
 /**
  * Shared fixtures for the issue 82 lanes. This is not a test module: it only
  * exports, and it registers no `Deno.test`.
@@ -42,17 +43,25 @@ import {
   type RecheckOrigin,
   type RecheckResult,
   recheckTicket,
+  recordReadiness,
 } from "../../../apps/server/src/modules/work/ticket-admission.ts";
 import type { TicketPrefetch } from "../../../apps/server/src/modules/work/ticket-prefetch.ts";
+import type {
+  TicketNoteRequest,
+  TicketNoteResult,
+  TicketNoteWriter,
+} from "../../../apps/server/src/modules/work/ticket-notes.ts";
 import type {
   IssueRef,
   PredecessorProof,
   TicketActorRole,
   TicketFactIndex,
   TicketIssueRead,
+  TicketLabel,
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
+  TicketRef,
   TicketSourceHandle,
   TicketSourceReader,
 } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
@@ -221,11 +230,37 @@ export type MemoryTicketReader = TicketSourceReader & {
   ): void;
   /** Makes the next call of a method answer with a failure. */
   failNext(method: keyof TicketSourceReader, failure?: TicketReadFailure): void;
+  /** The provider's labels, served in pages of `pageSize`; `unsupported` for a tracker without labels. */
+  setLabels(
+    labels: TicketLabel[] | { kind: "unsupported" },
+    pageSize?: number,
+  ): void;
   callsOf(method: keyof TicketSourceReader): ReaderCall[];
   clearCalls(): void;
 };
 
+/**
+ * Whether a reference names the seeded ticket, when it names an id at all.
+ *
+ * The live reader refuses a key that resolves to a different id, so the double
+ * does too: without this a test could pass a mismatched id and be told a ticket
+ * that a real provider would have refused.
+ */
+const seededIds = new Map<number, string>();
+
+const knownId = (ref: TicketRef, number: number): boolean => {
+  if (ref.externalId === null) return true;
+  return seededIds.get(number) === ref.externalId;
+};
+
 const BASE_MARKER = Date.parse("2026-06-01T00:00:00.000Z");
+
+/** The failure shape the live reader answers with, built once so it reads the same. */
+const providerError = (): TicketReadFailure => ({
+  kind: "unavailable",
+  reason: "provider_error",
+  retryAfterSeconds: null,
+});
 
 export const UNAVAILABLE: TicketReadFailure = Object.freeze({
   kind: "unavailable",
@@ -239,6 +274,8 @@ export function createMemoryTicketReader(): MemoryTicketReader {
   const proofs = new Map<string, PredecessorProof | TicketReadFailure>();
   const provenance = new Map<string, TicketLabelProvenance>();
   const roles = new Map<string, TicketActorRole>();
+  let labels: TicketLabel[] | { kind: "unsupported" } = [];
+  let labelPageSize = 50;
   const failures = new Map<string, TicketReadFailure[]>();
   let tick = 0;
 
@@ -263,6 +300,7 @@ export function createMemoryTicketReader(): MemoryTicketReader {
     onCall: null,
     pause: null,
     setIssue(init) {
+      seededIds.set(init.number, init.id ?? String(1000 + init.number));
       issues.set(init.number, {
         number: init.number,
         id: init.id ?? String(1000 + init.number),
@@ -324,6 +362,21 @@ export function createMemoryTicketReader(): MemoryTicketReader {
           : answer as TicketActorRole,
       );
     },
+    setLabels(next, pageSize = 50) {
+      labels = next;
+      labelPageSize = pageSize;
+    },
+    async readLabels(_handle, request) {
+      const failure = await enter("readLabels", request.page);
+      if (failure) return failure;
+      if (!Array.isArray(labels)) return labels;
+      const start = (request.page - 1) * labelPageSize;
+      return {
+        kind: "present" as const,
+        labels: labels.slice(start, start + labelPageSize),
+        hasNext: start + labelPageSize < labels.length,
+      };
+    },
     failNext(method, failure = UNAVAILABLE) {
       failures.set(method, [...(failures.get(method) ?? []), failure]);
     },
@@ -333,7 +386,15 @@ export function createMemoryTicketReader(): MemoryTicketReader {
     clearCalls() {
       reader.calls.length = 0;
     },
-    async readIssue(handle: TicketSourceHandle, number: number) {
+    async readIssue(handle: TicketSourceHandle, ref: TicketRef) {
+      // Seeded by GitHub's ordinal, and parsed by the same function the live
+      // reader uses, so the double cannot answer a question the real reader
+      // would refuse: a key that is not a number, or that now resolves to a
+      // different id, is unavailable rather than some other ticket.
+      const number = issueNumberFromRef(ref);
+      if (number === null || !knownId(ref, number)) {
+        return Promise.resolve(providerError());
+      }
       const failure = await enter("readIssue", number);
       if (failure) return Promise.resolve(failure);
       const seeded = issues.get(number);
@@ -364,8 +425,12 @@ export function createMemoryTicketReader(): MemoryTicketReader {
         visibility: seeded.visibility,
       });
     },
-    async readLinks(_handle, number) {
+    async readLinks(_handle, ref: TicketRef) {
+      const number = issueNumberFromRef(ref);
       const failure = await enter("readLinks", number);
+      if (number === null || !knownId(ref, number)) {
+        return Promise.resolve(providerError());
+      }
       if (failure) return Promise.resolve(failure);
       return Promise.resolve(
         links.get(number) ?? {
@@ -386,19 +451,27 @@ export function createMemoryTicketReader(): MemoryTicketReader {
           { kind: "proof_unavailable" as const, detail: "unseeded" },
       );
     },
-    async readLabelProvenance(_handle, number, label) {
+    async readLabelProvenance(_handle, ref: TicketRef, label) {
+      const number = issueNumberFromRef(ref);
       const failure = await enter("readLabelProvenance", number);
+      if (number === null || !knownId(ref, number)) {
+        return Promise.resolve(providerError());
+      }
       if (failure) return Promise.resolve(failure);
       return Promise.resolve(
         provenance.get(`${number}\u0000${label}`) ??
           { kind: "absent" as const },
       );
     },
-    async readStatuses(_handle, number, _signal, issue) {
+    async readStatuses(_handle, ref: TicketRef, _signal, issue) {
       const failure = await enter("readStatuses", null, {
         hadSnapshot: issue !== undefined,
       });
       if (failure) return Promise.resolve(failure);
+      const number = issueNumberFromRef(ref);
+      if (number === null || !knownId(ref, number)) {
+        return Promise.resolve(providerError());
+      }
       // A double stands in for the provider, so it answers the way GitHub does:
       // the issue's own state, with the close reason when there is one.
       const seed = issues.get(number);
@@ -588,13 +661,60 @@ export type PolicyOverrides = {
  * `budget` gives the app the server budget policy (so a ready issue can be
  * admitted over HTTP); `liveFactIndex` leaves the app its stored-fact index.
  */
+/**
+ * An in-memory status-note writer standing in for the provider: it keeps the
+ * comments it holds by id, rewrites one in place when the request names it,
+ * and posts a new one (recreated) when the named comment was deleted.
+ */
+export type MemoryNoteWriter = TicketNoteWriter & {
+  posts: TicketNoteRequest[];
+  /** The comments the fake provider holds: id to body. */
+  comments: Map<string, string>;
+  /** Answers of the next posts, oldest first; an empty queue posts comment ids 1001, 1002, ... */
+  next: TicketNoteResult[];
+  /** Awaited inside a post, before it answers; lets a test hold a write in flight. */
+  hold: Promise<void> | null;
+};
+
+export function createMemoryNoteWriter(): MemoryNoteWriter {
+  let counter = 1000;
+  const writer: MemoryNoteWriter = {
+    posts: [],
+    comments: new Map(),
+    next: [],
+    hold: null,
+    async post(request) {
+      writer.posts.push(request);
+      if (writer.hold !== null) await writer.hold;
+      const scripted = writer.next.shift();
+      if (scripted !== undefined) {
+        if (scripted.kind === "posted") {
+          writer.comments.set(scripted.externalId, request.body);
+        }
+        return scripted;
+      }
+      const existing = request.existingExternalId;
+      if (existing !== null && writer.comments.has(existing)) {
+        writer.comments.set(existing, request.body);
+        return { kind: "posted", externalId: existing, recreated: false };
+      }
+      const id = String(++counter);
+      writer.comments.set(id, request.body);
+      return { kind: "posted", externalId: id, recreated: existing !== null };
+    },
+  };
+  return writer;
+}
+
 export async function openTicketFixture(
   options: { label?: string; budget?: boolean; liveFactIndex?: boolean } = {},
 ) {
   const reader = createMemoryTicketReader();
   const facts = createMemoryFactIndex();
+  const notes = createMemoryNoteWriter();
   const f: GitHubAppFixture = await openGitHubAppFixture({
     ticketReader: reader,
+    ticketNoteWriter: notes,
     ticketFactIndex: options.liveFactIndex ? undefined : facts,
     env: options.budget ? presetBudgetEnv : undefined,
   });
@@ -660,6 +780,7 @@ export async function openTicketFixture(
       f,
       reader,
       facts,
+      notes,
       organizationId: f.organizationId,
       adminId: f.adminId,
       developerId: f.developerId,
@@ -1025,4 +1146,35 @@ export async function insertBareTask(
     ],
   );
   return taskId;
+}
+
+/**
+ * Records every open seeded issue of a source as a poll would: a ticket row
+ * and a report each. `ticketSources.preview` stores nothing (#69), so tests
+ * that need recorded tickets go through `recordReadiness`, the path a poll
+ * takes, in automation mode.
+ */
+export async function recordOpenIssues(
+  fixture: Pick<TicketFixture, "reader" | "organizationId" | "automationDeps">,
+  sourceId: string,
+): Promise<void> {
+  const signal = new AbortController().signal;
+  const page = await fixture.reader.listIssues(
+    undefined as never,
+    { page: 1, since: null },
+    signal,
+  );
+  if (page.kind !== "present") throw new Error("the seeded page lists");
+  for (const { number } of page.numbers) {
+    await recordReadiness(fixture.automationDeps(), {
+      organizationId: fixture.organizationId,
+      sourceId,
+      number,
+      intent: null,
+      origin: "poll",
+      caller: null,
+      prefetch: null,
+      signal,
+    });
+  }
 }

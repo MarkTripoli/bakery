@@ -41,6 +41,12 @@ export type DescriptionItemProps =
      * shows where it leads, e.g. `<UI.IconGlyph name="arrow" size="large" />`.
      */
     onSelect?: () => void;
+    /**
+     * `item` sets the title in the same weight as a selectable row's, for a
+     * row with its own action that sits in a list of selectable rows (the
+     * account page's two-factor row beside Password and Passkeys).
+     */
+    titleStyle?: "default" | "item";
   };
 
 /**
@@ -57,6 +63,7 @@ export function DescriptionItem(
     action,
     actionPlacement = "end",
     actionFill = false,
+    titleStyle = "default",
     description,
     icon,
     initial,
@@ -99,6 +106,7 @@ export function DescriptionItem(
         onClick={onSelect}
         data-action-fill={actionFill ? "true" : undefined}
         data-action-placement={actionPlacement}
+        data-title-style={titleStyle === "item" ? "item" : undefined}
         data-state="default"
         data-ui-component="descriptionItem"
         data-variant="selectable"
@@ -114,6 +122,7 @@ export function DescriptionItem(
       {...props}
       data-action-fill={actionFill ? "true" : undefined}
       data-action-placement={actionPlacement}
+      data-title-style={titleStyle === "item" ? "item" : undefined}
       data-state="default"
       data-ui-component="descriptionItem"
       data-variant="default"

@@ -137,6 +137,7 @@ export async function openAuthFixture(options: {
   /** Ticket reads and fact index of the ticket routes; tests pass in-memory ones. */
   ticketReader?: Parameters<typeof createApp>[0]["ticketReader"];
   ticketFactIndex?: Parameters<typeof createApp>[0]["ticketFactIndex"];
+  ticketNoteWriter?: Parameters<typeof createApp>[0]["ticketNoteWriter"];
   publicOrigin?: string;
   secret?: string;
   installationPolicy?: InstallationSettingsUpdate;
@@ -148,6 +149,7 @@ export async function openAuthFixture(options: {
   skillFileStore?: SkillFileStoreOperations;
   /** Skill storage verification probe; tests inject one so none reaches R2. */
   skillStorageProbe?: Parameters<typeof createApp>[0]["skillStorageProbe"];
+  emailSend?: Parameters<typeof createApp>[0]["emailSend"];
   /** Extra runtime environment, such as the server budget policy. */
   env?: Record<string, string>;
 } = {}) {
@@ -256,9 +258,11 @@ export async function openAuthFixture(options: {
       installationTokenBroker: options.installationTokenBroker,
       ticketReader: options.ticketReader,
       ticketFactIndex: options.ticketFactIndex,
+      ticketNoteWriter: options.ticketNoteWriter,
       draftIsolation: options.draftIsolation,
       skillFileStore: options.skillFileStore,
       skillStorageProbe: options.skillStorageProbe,
+      emailSend: options.emailSend,
     });
     const originalFetch = app.fetch.bind(app);
     app.fetch = (
@@ -405,6 +409,18 @@ export async function cleanupAuthFixture(
        where provider_user_id = any($1::uuid[])
      )
         or granted_by_principal_id = any(
+          select id from bakery.principals
+          where provider_user_id = any($1::uuid[])
+        )`,
+    [userIds],
+  );
+  await pgDatabase.query(
+    `delete from bakery.password_reset_links
+     where principal_id = any(
+       select id from bakery.principals
+       where provider_user_id = any($1::uuid[])
+     )
+        or issued_by_principal_id = any(
           select id from bakery.principals
           where provider_user_id = any($1::uuid[])
         )`,

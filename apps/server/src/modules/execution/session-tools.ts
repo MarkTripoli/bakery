@@ -28,6 +28,7 @@ import {
   implementedActions,
 } from "@bakery/contracts/implemented-actions";
 import { type OperationScope } from "./session-credential.ts";
+import type { AgentPower } from "../auth/application/agent-power-grants.ts";
 
 /**
  * The scope an operation needs to be offered as a tool.
@@ -43,7 +44,14 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     // Work items.
     "tasks.list": "work.read",
     "tasks.get": "work.read",
-    "tasks.create": "work.write",
+    // Starting work is a spawn (#413): off by default, granted as run_start,
+    // and admitted under depth, count and budget checks at the action.
+    "tasks.create": "runs.start",
+    "runs.create": "runs.start",
+    // Steering another agent is off by default (O52) and reaches only runs the
+    // agent spawned; both operations are the ones a person uses.
+    "sessions.steer": "runs.steer",
+    "runSteps.note": "runs.steer",
     // Runs and their steps.
     "runs.list": "runs.read",
     "runs.get": "runs.read",
@@ -58,11 +66,33 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     "skills.get": "library.read",
     "agents.list": "library.read",
     "agents.get": "library.read",
+    // A decision is off by default (O52): the scope is minted at claim only
+    // where a grant covers the run's workflow, and the action rechecks the grant
+    // live on every call, so a revoked grant stops the next call.
+    "approvals.decide": "approvals.decide",
+    // Controlling a run is off by default too (O52); same grant-then-scope rule.
+    "runs.control": "runs.control",
     // One text search across skills, agents and artifacts. It has the list
     // operations' guard, and leaves artifacts out for a session without
     // `artifacts.read` (the dispatched context carries the session's scopes).
     "library.search": "library.read",
   });
+
+/**
+ * The session scope each granted agent power adds, and nothing else: the scope
+ * only offers the tool, the grant is checked again when it is called. Powers
+ * whose operations are not yet offered to a session add no scope.
+ */
+export const POWER_SESSION_SCOPES: Readonly<
+  Record<AgentPower, readonly OperationScope[]>
+> = Object.freeze({
+  decide: Object.freeze(["approvals.decide"]),
+  run_control: Object.freeze(["runs.control"]),
+  run_start: Object.freeze(["runs.start"]),
+  steer: Object.freeze(["runs.steer"]),
+  // Reviewer steering rides on the steer scope; it only widens the target.
+  steer_reviewer: Object.freeze([]),
+});
 
 export type SessionTool = Readonly<{
   /** The operation's own name; a tool is never an alias for something else. */

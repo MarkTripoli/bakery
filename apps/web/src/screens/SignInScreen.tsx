@@ -10,21 +10,14 @@ export const SIGN_IN_EMAIL_FIELD_ID = "sign-in-email";
 export const SIGN_IN_PASSWORD_FIELD_ID = "sign-in-password";
 
 /**
- * Which Paper artboard the screen is showing.
- *
- * `form` covers `login/github-disabled`, `login/invalid` (a `failure` notice
- * plus `aria-invalid` fields) and `login/loading` (`pending`) — one form, not
- * three screens. The rest replace the form outright: `offline`/`unavailable`
- * are the generic recovery artboards (`auth.js` L147), `throttled` is L148
- * and `expired` is the dead-end session interstitial (L179).
+ * Which screen is showing. `form` is the password form in every state it has:
+ * ready, pending, or with a `failure` message under the fields (wrong
+ * credentials, too many tries, a locked account, offline, unreachable). The
+ * other two replace the form: `continuation-failed` (the password was
+ * accepted but the next step failed) and `expired` (the dead-end session
+ * interstitial).
  */
-export type SignInScreenState =
-  | "form"
-  | "offline"
-  | "unavailable"
-  | "continuation-failed"
-  | "throttled"
-  | "expired";
+export type SignInScreenState = "form" | "continuation-failed" | "expired";
 
 export type SignInScreenProps = {
   /**
@@ -47,8 +40,12 @@ export type SignInScreenProps = {
   readonly emailReadOnly?: boolean;
   readonly emailInvalid?: boolean;
   readonly passwordInvalid?: boolean;
-  /** Error notice above the form (`login/invalid`). */
+  /** The message under the fields when a sign-in attempt failed. */
   readonly failure?: MessageKey | null;
+  /** Values for the failure message, such as the wait before another try. */
+  readonly failureParams?: Readonly<Record<string, string>>;
+  /** Tone of the failure message: a mistake is an error, being offline is a warning. */
+  readonly failureTone?: "error" | "warning";
   /** Informational notice above the form (a second factor was demanded). */
   readonly notice?: MessageKey | null;
   /** Submit is disabled, `aria-busy`, and reads "Working…". */
@@ -56,7 +53,7 @@ export type SignInScreenProps = {
   readonly title?: MessageKey;
   readonly description?: MessageKey;
   readonly submitLabel?: MessageKey;
-  /** Replaces the "New to Bakery?" line (the invitation variant's own link). */
+  /** Replaces the "No account?" line (the invitation variant's own link). */
   readonly footer?: ReactNode;
   readonly registerHref: string;
   /** Page-owned navigation; absent in native-link presentation fixtures. */
@@ -66,40 +63,21 @@ export type SignInScreenProps = {
   readonly onSubmit: () => void;
   /** Page-owned retry: reconcile identity after a possibly accepted submission. */
   readonly onRetry: () => void;
-  /** `Back to sign in` on the offline/unavailable artboards: drop the recovery screen. */
+  /** `Back to sign in` on the continuation-failed screen: drop it. */
   readonly onBackToSignIn: () => void;
-  /** `Return to sign in` on the throttled artboard: drop the pause, keep the typed credentials. */
-  readonly onReturnToSignIn: () => void;
+  /** Where "Forgot password?" goes; absent in presentation fixtures that use a plain link. */
+  readonly forgotPasswordHref?: string;
+  readonly onForgotPassword?: MouseEventHandler<HTMLAnchorElement>;
   /** `Sign in again` on the expired artboard. */
   readonly onSignInAgain: () => void;
   readonly onUseDifferentAccount: () => void;
 };
 
-const RECOVERY_COPY = {
-  offline: {
-    title: "auth.signIn.offlineTitle",
-    description: "auth.signIn.offlineDescription",
-    notice: "auth.signIn.unavailable",
-  },
-  unavailable: {
-    title: "auth.signIn.unavailableTitle",
-    description: "auth.signIn.unavailableDescription",
-    notice: "auth.signIn.unavailable",
-  },
-  "continuation-failed": {
-    title: "auth.signIn.continuationTitle",
-    description: "auth.signIn.continuationDescription",
-    notice: "auth.signIn.continuationNotice",
-  },
-  throttled: {
-    title: "auth.signIn.throttledTitle",
-    description: "auth.signIn.throttledDescription",
-    notice: "auth.signIn.throttledNotice",
-  },
-} as const satisfies Record<
-  "offline" | "unavailable" | "continuation-failed" | "throttled",
-  { title: MessageKey; description: MessageKey; notice: MessageKey }
->;
+const CONTINUATION_COPY = {
+  title: "auth.signIn.continuationTitle",
+  description: "auth.signIn.continuationDescription",
+  notice: "auth.signIn.continuationNotice",
+} as const satisfies Record<"title" | "description" | "notice", MessageKey>;
 
 /**
  * `/sign-in` in every shape Paper draws it: the password form, the three
@@ -115,15 +93,18 @@ export function SignInScreen(
     emailInvalid = false,
     emailReadOnly = false,
     failure = null,
+    failureParams,
+    failureTone = "error",
     focusRecoveryHeading = false,
+    forgotPasswordHref = "/sign-in/forgot-password",
     footer,
     notice = null,
     onBackToSignIn,
     onEmailChange,
+    onForgotPassword,
     onPasswordChange,
     onRegister,
     onRetry,
-    onReturnToSignIn,
     onSignInAgain,
     onSubmit,
     onUseDifferentAccount,
@@ -175,45 +156,28 @@ export function SignInScreen(
   }
 
   if (state !== "form") {
-    const copy = RECOVERY_COPY[state];
     return (
       <UI.AuthEntry {...brand} variant="brand">
         <UI.AuthHeading
           data-testid={`sign-in-${state}`}
-          description={translate(copy.description)}
-          title={translate(copy.title)}
+          description={translate(CONTINUATION_COPY.description)}
+          title={translate(CONTINUATION_COPY.title)}
         />
         <UI.InlineNotice tone="warning">
-          {translate(copy.notice)}
+          {translate(CONTINUATION_COPY.notice)}
         </UI.InlineNotice>
-        {state === "throttled"
-          ? (
-            <UI.Button
-              onClick={onReturnToSignIn}
-              variant="secondary"
-            >
-              {translate("auth.signIn.returnToSignIn")}
-            </UI.Button>
-          )
-          : (
-            <>
-              <UI.Button
-                loading={pending}
-                onClick={onRetry}
-              >
-                {translate("auth.signIn.tryAgain")}
-              </UI.Button>
-              <UI.Link
-                href="#"
-                onClick={(event) => {
-                  event.preventDefault();
-                  onBackToSignIn();
-                }}
-              >
-                {translate("auth.signIn.backToSignIn")}
-              </UI.Link>
-            </>
-          )}
+        <UI.Button loading={pending} onClick={onRetry}>
+          {translate("auth.signIn.tryAgain")}
+        </UI.Button>
+        <UI.Link
+          href="#"
+          onClick={(event) => {
+            event.preventDefault();
+            onBackToSignIn();
+          }}
+        >
+          {translate("auth.signIn.backToSignIn")}
+        </UI.Link>
       </UI.AuthEntry>
     );
   }
@@ -229,13 +193,7 @@ export function SignInScreen(
         description={translate(description)}
         title={translate(title)}
       />
-      {failure
-        ? (
-          <UI.InlineNotice tone="error">
-            {translate(failure)}
-          </UI.InlineNotice>
-        )
-        : notice
+      {notice
         ? (
           <UI.InlineNotice tone="information">
             {translate(notice)}
@@ -279,6 +237,16 @@ export function SignInScreen(
               : undefined}
             htmlFor={SIGN_IN_PASSWORD_FIELD_ID}
             label={translate("auth.signIn.password")}
+            labelEnd={
+              <UI.Link
+                data-testid="sign-in-forgot-password"
+                href={forgotPasswordHref}
+                onClick={onForgotPassword}
+                variant="sentence"
+              >
+                {translate("auth.signIn.forgotPassword")}
+              </UI.Link>
+            }
           >
             <UI.PasswordInput
               autoComplete="current-password"
@@ -295,6 +263,13 @@ export function SignInScreen(
               value={password}
             />
           </UI.Field>
+          {failure
+            ? (
+              <UI.InlineNotice data-testid="sign-in-failure" tone={failureTone}>
+                {translate(failure, failureParams)}
+              </UI.InlineNotice>
+            )
+            : null}
           <UI.Button
             data-testid="sign-in-submit"
             loading={pending}
@@ -306,9 +281,9 @@ export function SignInScreen(
       </form>
       {footer ?? (
         <UI.Text variant="hint">
-          {translate("auth.signIn.newToBakery")}{" "}
+          {translate("auth.signIn.noAccount")}{" "}
           <UI.Link href={registerHref} onClick={onRegister}>
-            {translate("auth.signIn.joinThroughInvitation")}
+            {translate("auth.signIn.howToGetOne")}
           </UI.Link>
         </UI.Text>
       )}

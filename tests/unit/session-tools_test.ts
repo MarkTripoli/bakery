@@ -110,7 +110,9 @@ Deno.test("calling a tool that was never offered is refused, naming the scope", 
   );
   assertEquals(code(error), "SESSION_TOOL_DENIED");
   // Naming the scope is what makes the refusal fixable rather than mysterious.
-  assertEquals((error as SessionToolError).scope, "work.write");
+  // Creating a task is the first half of a spawn (#413), so it needs the
+  // run_start power's scope, not a general write scope nobody is granted.
+  assertEquals((error as SessionToolError).scope, "runs.start");
 });
 
 Deno.test("a tool that does not exist is distinguished from one not held", () => {
@@ -137,4 +139,34 @@ Deno.test("a held scope admits the tool it covers", () => {
     assertSessionToolAllowed(["work.read"], "tasks.list"),
     "work.read",
   );
+});
+
+Deno.test("runs.retry is never a session tool, whatever the session holds", () => {
+  // Retry is engine work that is not built for anyone (#414 ruling), so an agent
+  // must not be offered it even when its workflow holds every power. A tool is
+  // offered only if the scope map names it; this pins that it does not.
+  assertEquals(
+    (sessionOperationScopes() as readonly string[]).includes("runs.retry"),
+    false,
+  );
+  const everyScope = [
+    "runs.read",
+    "library.read",
+    "work.read",
+    "artifacts.read",
+    "approvals.decide",
+    "runs.control",
+    "runs.write",
+    "runs.retry",
+  ];
+  let offered: readonly SessionTool[] = [];
+  try {
+    offered = listSessionTools(everyScope, [
+      action("runs.retry", ActionKind.Command),
+    ]);
+  } catch (error) {
+    // Until retry is implemented the registry cannot even name it.
+    assertEquals(code(error), "SESSION_TOOL_UNKNOWN");
+  }
+  assertEquals((names(offered) as string[]).includes("runs.retry"), false);
 });

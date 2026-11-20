@@ -25,6 +25,11 @@ import {
   decodeCursor,
   encodeCursor,
 } from "../../platform/cursor.ts";
+import { effectivePermissions } from "../auth/application/authorize.ts";
+import type {
+  AuthorizedActionContext,
+  OrganizationActor,
+} from "../auth/application/authority.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   DECISION_REVIEW_STATUSES,
@@ -261,18 +266,39 @@ type DeliveryDecisionPage = z.output<
 const ORDINAL_ORDERING = "position:asc,iteration:asc,id:asc";
 const REVIEW_FINDING_ORDERING = "createdAt:asc,id:asc";
 
-const REVIEW_CYCLE_COLUMNS =
+export const REVIEW_CYCLE_COLUMNS =
   "id, run_id, run_step_id, ordinal, reviewer_session_id, " +
   "reviewer_principal_id, implementer_session_id, implementer_principal_id, " +
   "head_sha, base_sha, policy_digest, status, finding_count, blocking_count, " +
   "created_at";
+
+/**
+ * The owner's accept-with-reason decision on a review, read from the decisions
+ * ledger: the latest such entry whose subject is this review, joined once per
+ * row. The review row is immutable, so the acceptance is a separate record
+ * shown beside it. Use with `ACCEPTANCE_JOIN` after `from bakery.review_cycles`.
+ */
+export const ACCEPTANCE_COLUMNS =
+  "acceptance.decided_by as accepted_by, acceptance.decided_at as accepted_at, " +
+  "acceptance.reason as accept_reason";
+
+export const ACCEPTANCE_JOIN = `
+  left join lateral (
+    select entry.decided_by, entry.decided_at, entry.reason
+      from bakery.decisions_ledger as entry
+     where entry.organization_id = review_cycles.organization_id
+       and entry.kind = 'accept_with_reason' and entry.subject_kind = 'review'
+       and entry.subject_id = review_cycles.id
+     order by entry.decided_at desc, entry.id desc
+     limit 1
+  ) as acceptance on true`;
 
 const DELIVERY_DECISION_COLUMNS =
   "id, run_id, ordinal, review_cycle_id, decision, reason, head_sha, " +
   "base_sha, policy_digest, failed_checks, blocking_fingerprints, limits, " +
   "created_at";
 
-type ReviewCycleRow = {
+export type ReviewCycleRow = {
   id: string;
   run_id: string;
   run_step_id: string;
@@ -289,6 +315,9 @@ type ReviewCycleRow = {
   blocking_count: number;
   created_at: Date | string;
   pull_request_id: string | null;
+  accepted_by: string | null;
+  accepted_at: Date | string | null;
+  accept_reason: string | null;
 };
 
 type DeliveryDecisionRow = {
@@ -321,7 +350,7 @@ type ReviewFindingRow = {
 };
 
 /** The `ReviewCycle` projection; rows are immutable, so `updatedAt` is `createdAt`. */
-function toReviewCycle(row: ReviewCycleRow) {
+export function toReviewCycle(row: ReviewCycleRow) {
   if (!isDecisionReviewStatus(row.status)) {
     throw new Error("DELIVERY_READ_REVIEW_CYCLE_INVALID");
   }
@@ -343,6 +372,9 @@ function toReviewCycle(row: ReviewCycleRow) {
     findingCount: row.finding_count,
     blockingCount: row.blocking_count,
     artifactVersionId: null,
+    acceptedBy: row.accepted_by,
+    acceptedAt: row.accepted_at === null ? null : toIso(row.accepted_at),
+    acceptReason: row.accept_reason,
     createdAt,
     updatedAt: createdAt,
     version: 1,
@@ -470,9 +502,10 @@ export function createRunReviewsListHandler(secret: string) {
                    and pull_request.head_sha = review_cycles.head_sha
                  order by pull_request.provider_number asc
                  limit 1
-              ) as pull_request_id
-         from bakery.review_cycles
-        where organization_id = $1 and run_id = $2
+              ) as pull_request_id,
+              ${ACCEPTANCE_COLUMNS}
+         from bakery.review_cycles${ACCEPTANCE_JOIN}
+        where review_cycles.organization_id = $1 and review_cycles.run_id = $2
           and (
             $3::integer is null or (ordinal, id) > ($3::integer, $4::uuid)
           )
@@ -674,7 +707,7 @@ type PullRequestRow = {
 const PULL_REQUEST_STATUSES: readonly string[] = ["open", "merged", "closed"];
 
 /** The `PullRequest` projection. */
-function toPullRequest(row: PullRequestRow) {
+function toPullRequest(row: PullRequestRow, mayMerge: boolean) {
   if (!PULL_REQUEST_STATUSES.includes(row.status)) {
     throw new Error("DELIVERY_READ_PULL_REQUEST_INVALID");
   }
@@ -692,13 +725,29 @@ function toPullRequest(row: PullRequestRow) {
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     version: row.version,
+    mayMerge,
+    // The repository practice, served so the page sends it and never picks one.
+    mergeMethod: PULL_REQUEST_MERGE_METHOD,
   };
+}
+
+/** The merge method Bakery uses: squash, the repository practice. */
+export const PULL_REQUEST_MERGE_METHOD = "squash" as const;
+
+/** Whether the caller holds the permission to merge a pull request. */
+export function callerMayMerge(context: ActionContext): boolean {
+  const actor = (context as Partial<AuthorizedActionContext>).authority;
+  if (!actor || !("organizationId" in actor)) return false;
+  return effectivePermissions(actor as OrganizationActor).includes(
+    "pullRequest:merge",
+  );
 }
 
 /**
  * `pullRequests.list`: the organization's tracked pull requests, oldest
- * registration first, keyed by creation time and id. Repository, task and run
- * filters narrow the page and are bound into the cursor. Another
+ * registration first, keyed by creation time and id. Repository, task, run
+ * and ticket filters narrow the page and are bound into the cursor; the
+ * ticket filter (#69) keeps pull requests of tasks linked to that ticket. Another
  * organization's pull requests never match the `organization_id` predicate,
  * so a foreign filter id reads as an empty page.
  */
@@ -714,6 +763,7 @@ export function createPullRequestsListHandler(secret: string) {
       repositoryId: input.repositoryId ?? null,
       taskId: input.taskId ?? null,
       runId: input.runId ?? null,
+      externalTicketId: input.externalTicketId ?? null,
     };
     const binding: CursorBinding = {
       action: "pullRequests.list",
@@ -738,12 +788,16 @@ export function createPullRequestsListHandler(secret: string) {
           and ($2::uuid is null or repository_id = $2::uuid)
           and ($3::uuid is null or task_id = $3::uuid)
           and ($4::uuid is null or run_id = $4::uuid)
+          and ($7::uuid is null or task_id in (
+                select link.task_id from bakery.ticket_task_links as link
+                 where link.organization_id = $1
+                   and link.external_ticket_id = $7::uuid))
           and (
             $5::timestamptz is null or
             (created_at, id) > ($5::timestamptz, $6::uuid)
           )
         order by created_at asc, id asc
-        limit $7`,
+        limit $8`,
       [
         organizationId,
         filters.repositoryId,
@@ -751,13 +805,14 @@ export function createPullRequestsListHandler(secret: string) {
         filters.runId,
         position?.createdAt ?? null,
         position?.id ?? null,
+        filters.externalTicketId,
         limit + 1,
       ],
     );
     const visible = result.rows.slice(0, limit);
     const last = visible.at(-1);
     return {
-      items: visible.map(toPullRequest),
+      items: visible.map((row) => toPullRequest(row, callerMayMerge(context))),
       nextCursor: result.rows.length > limit && last
         ? await encodeCursor(secret, binding, {
           createdAt: last.cursor_created_at,

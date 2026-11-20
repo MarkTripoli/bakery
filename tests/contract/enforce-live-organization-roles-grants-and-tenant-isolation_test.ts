@@ -78,19 +78,27 @@ Deno.test("live authority projections keep identity and organization access sepa
     "organizationId",
     "role",
   ]);
+  const membership = {
+    id: "00000000-0000-4000-8000-000000000001",
+    organizationId: "00000000-0000-4000-8000-000000000002",
+    principalId: "00000000-0000-4000-8000-000000000003",
+    displayName: "Build agent",
+    role: null,
+    status: "active",
+    joinedAt: "2026-09-11T00:00:00.000Z",
+    createdAt: "2026-09-11T00:00:00.000Z",
+    updatedAt: "2026-09-11T00:00:00.000Z",
+    version: 1,
+  };
   assertEquals(
-    schemas.OrganizationMembership.safeParse({
-      id: "00000000-0000-4000-8000-000000000001",
-      organizationId: "00000000-0000-4000-8000-000000000002",
-      principalId: "00000000-0000-4000-8000-000000000003",
-      role: null,
-      status: "active",
-      joinedAt: "2026-09-11T00:00:00.000Z",
-      createdAt: "2026-09-11T00:00:00.000Z",
-      updatedAt: "2026-09-11T00:00:00.000Z",
-      version: 1,
-    }).success,
+    schemas.OrganizationMembership.safeParse(membership).success,
     true,
+  );
+  // A member list names people (#69): the name is part of every membership.
+  const { displayName: _omitted, ...nameless } = membership;
+  assertEquals(
+    schemas.OrganizationMembership.safeParse(nameless).success,
+    false,
   );
   const access = schemas.EffectiveAccess;
   const effective = {

@@ -1,13 +1,91 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2"
+    "167d6f712103081750c763063a1e49225738407d",
+    "9d60ae16861322c7425338069d24f9ccb0885089",
+    "1ce09ba92c2007f4837308efdbabfc93baaaff67"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d",
-  "reason": "#26 probe slice re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2: RouteHealth gains a required reasonSince (timestamp|null, when the current reason began) and its reason enum gains 'redirected' (the probe saw a redirect it does not follow, which proves nothing and keeps the route unverified). The drift is that one field becoming required on an output no client writes; the approval it displaced at sha256:b0f68836f1e6252ec3d0c1914d16e96d35da033d0a564548be95ffc8f52d10e1 is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1",
+  "reason": "#57 slice 1 merge from Bakery re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 167d6f712103081750c763063a1e49225738407d: PullRequest gains a required mayMerge (boolean, whether the caller holds pullRequest:merge) and a required mergeMethod (the squash default Bakery merges with), on an output no client writes. mergeAttempts.list (GET /v1/merge-attempts, keyset) and the pull request and run filters of mergeEntries.list are additive. The breaking drift is those two fields becoming required; the approval it displaced at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926 is preserved unchanged first below; main moved again (#724) and the digest followed, the earlier digest of this same change is kept next.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "9d60ae16861322c7425338069d24f9ccb0885089",
+        "1ce09ba92c2007f4837308efdbabfc93baaaff67"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:468a1fc65fc3b08483d56cf8108a2d8cb76241bab428558a44b78b723a0d8a53",
+      "reason": "#57 slice 1 merge from Bakery re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 9d60ae16861322c7425338069d24f9ccb0885089: PullRequest gains a required mayMerge (boolean, whether the caller holds pullRequest:merge) and a required mergeMethod (the squash default Bakery merges with), on an output no client writes. mergeAttempts.list (GET /v1/merge-attempts, keyset) and the pull request and run filters of mergeEntries.list are additive. The breaking drift is those two fields becoming required; the approval it displaced at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "94e8c0e8c04f896c3f56374303ac9853d21405aa",
+        "3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "de64639a4d4cfbf49bc3402f7d21deffd06ef74a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main de64639a4d4cfbf49bc3402f7d21deffd06ef74a: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "bafc1fb3056996606b9392156f474cbbed264c06"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main bafc1fb3056996606b9392156f474cbbed264c06: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "968c2ab9257fad06adb6132eb743a4f62c578e17",
+        "9da88825036edcc588db4c2ac892297a8638b8cb"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 9da88825036edcc588db4c2ac892297a8638b8cb: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "0eb879783c9ec575e77852b3b560dde8f45349a3",
+        "a83b7ec57da9bf29078c23b24d3cdda776f255fe"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main a83b7ec57da9bf29078c23b24d3cdda776f255fe: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "3b8d4ef5651aeb7feb2a38518001271c1436646f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
+      "reason": "#69 ticket preview, ticket link reads and status note re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3b8d4ef5651aeb7feb2a38518001271c1436646f: ticketSources.preview now answers a TicketPreviewResult (counts would start / plan only / held / blocked and one entry per issue with its verdict and reasons) instead of a TicketOperationReceipt, and TicketPreviewCreate gains an optional draft policy and a defined filters object; the preview stores nothing. ticketTaskLinks.list (GET /v1/ticket-task-links, by ticket or by task), ticketTaskLinks.resyncNote (POST /v1/ticket-task-links/{id}/note-syncs, which posts Bakery's status note through the provider's comment action, rewrites it in place by its stored id afterwards and re-creates it when deleted on the provider) and the externalTicketId filter of pullRequests.list are additive; TicketTaskLink descriptions now say what the note fields hold. The breaking drift is the one preview response reference; the approval it displaced at sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d",
+      "reason": "#26 probe slice re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2: RouteHealth gains a required reasonSince (timestamp|null, when the current reason began) and its reason enum gains 'redirected' (the probe saw a redirect it does not follow, which proves nothing and keeps the route unverified). The drift is that one field becoming required on an output no client writes; the approval it displaced at sha256:b0f68836f1e6252ec3d0c1914d16e96d35da033d0a564548be95ffc8f52d10e1 is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "3fccfd921d1b63fdc6f32f6b3bf47302e55d07d9"

@@ -337,7 +337,7 @@ test("ui_composition returns the settings composition by id and by file", async 
     ...handshake,
     call(2, "ui_composition", { id: "settings" }),
     call(3, "ui_composition", {
-      file: "apps/web/src/screens/AccountSettingsScreen.tsx",
+      file: "apps/web/src/screens/SecurityHubScreen.tsx",
     }),
   ]);
   const [settings] = replies.get(2).result.structuredContent.compositions;
@@ -353,7 +353,7 @@ test("ui_composition returns the settings composition by id and by file", async 
     ),
   );
   assert(settings.appliesTo.includes(
-    "apps/web/src/screens/AccountSettingsScreen.tsx",
+    "apps/web/src/screens/SecurityHubScreen.tsx",
   ));
   assert(
     replies.get(3).result.structuredContent.compositions.some((c) =>

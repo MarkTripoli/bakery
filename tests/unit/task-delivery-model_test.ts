@@ -6,6 +6,7 @@ import {
   type DeliveryDecision,
   type DeliveryFinding,
   type DeliveryInput,
+  type DeliveryMergeAttempt,
   deliveryModel,
   type DeliveryPullRequest,
   type DeliveryReview,
@@ -73,6 +74,8 @@ const input = (over: Partial<DeliveryInput> = {}): DeliveryInput => ({
   decisions: [],
   approvals: [],
   pullRequests: [],
+  mergeAttempts: [],
+  mergeUnavailable: false,
   approvalsUnavailable: false,
   revisionHeadSha: null,
   baseSha: "a7254e7cccccccccccccccccccccccccccccccc",
@@ -633,6 +636,9 @@ const pullRequest = (
   status: "open",
   mergedSha: null,
   createdAt: `2026-11-13T10:0${over.providerNumber}:00.000Z`,
+  headSha: NEW,
+  mayMerge: true,
+  mergeMethod: "squash",
   ...over,
 });
 
@@ -691,4 +697,168 @@ Deno.test("a pull request closed without merging is not merged", () => {
   }));
   assertEquals(afterApproval.pullRequest?.status, "closed");
   assertEquals(afterApproval.badge, "notMerged");
+});
+
+// ---- merging from Bakery: what the person may do, from what the server said.
+
+const attempt = (
+  over: Partial<DeliveryMergeAttempt> = {},
+): DeliveryMergeAttempt => ({
+  id: "m1",
+  state: "unknown",
+  expectedHeadSha: NEW,
+  settledAt: null,
+  ...over,
+});
+
+/** An approved candidate with this run's pull request open at the head. */
+const approvedWithPullRequest = (
+  over: Partial<DeliveryInput> = {},
+  pr: Partial<DeliveryPullRequest> = {},
+): DeliveryInput =>
+  clean({
+    approvals: [approval({ status: "answered", decision: "approve" })],
+    pullRequests: [pullRequest({ providerNumber: 7, runId: RUN, ...pr })],
+    ...over,
+  });
+
+Deno.test("an approved candidate at the reviewed head is ready to merge for someone who may", () => {
+  const model = deliveryModel(approvedWithPullRequest());
+  assertEquals(model.merge?.state, "ready");
+  assertEquals(model.merge?.method, "squash");
+  assertEquals(model.now, {
+    kind: "mergeReady",
+    head: NEW.slice(0, 7),
+    number: 7,
+  });
+  assertEquals(model.afterApproval.badge, "readyToMerge");
+});
+
+Deno.test("someone who may not merge is told so, and no merge is offered", () => {
+  const model = deliveryModel(approvedWithPullRequest({}, { mayMerge: false }));
+  assertEquals(model.merge?.state, "noPermission");
+  assertEquals(model.now, { kind: "mergeNoPermission" });
+});
+
+Deno.test("an attempt whose outcome is unknown outranks everything: nothing to merge, a check to make", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeAttempts: [attempt({ state: "unknown" })],
+  }));
+  assertEquals(model.merge?.state, "unknown");
+  assertEquals(model.now, { kind: "mergeUnknown", head: NEW.slice(0, 7) });
+  assertEquals(model.afterApproval.badge, "mergeUnknown");
+  // Even a candidate that is not approved never offers a merge, and an unknown
+  // outcome still shows: the page must not say "merged" or "ready".
+  const unapproved = deliveryModel(clean({
+    pullRequests: [pullRequest({ providerNumber: 7, runId: RUN })],
+    mergeAttempts: [attempt({ state: "unknown" })],
+  }));
+  assertEquals(unapproved.merge?.state, "unknown");
+});
+
+Deno.test("only the newest attempt counts: an old unknown settled by a later refusal is a refusal", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeAttempts: [
+      attempt({ id: "m2", state: "refused" }),
+      attempt({ id: "m1", state: "unknown" }),
+    ],
+  }));
+  assertEquals(model.merge?.state, "refused");
+  assertEquals(model.now, {
+    kind: "mergeRefused",
+    head: NEW.slice(0, 7),
+    mayMerge: true,
+  });
+});
+
+Deno.test("a pull request that moved after the approval is not offered to merge", () => {
+  const model = deliveryModel(approvedWithPullRequest({}, { headSha: OLD }));
+  assertEquals(model.merge?.state, "moved");
+  assertEquals(model.now, {
+    kind: "mergeMoved",
+    approved: NEW.slice(0, 7),
+    current: OLD.slice(0, 7),
+    tried: false,
+  });
+  // The results, review and approval were for the older commit, and the page
+  // says so: the pull request is now at the commit they do not cover.
+  assertEquals(model.headSha, OLD);
+  assertEquals(model.outOfDate, true);
+  assertEquals(model.pullRequestMoved, true);
+  assertEquals(model.afterApproval.badge, "changedAfterApproval");
+  assertEquals(model.checks.rows.every((row) => row.olderSha !== null), true);
+  assertEquals(model.review?.olderSha, NEW.slice(0, 7));
+});
+
+Deno.test("a pull request that moved after a merge was tried says so", () => {
+  const model = deliveryModel(approvedWithPullRequest(
+    { mergeAttempts: [attempt({ id: "m1", state: "refused" })] },
+    { headSha: OLD },
+  ));
+  assertEquals(model.now, {
+    kind: "mergeMoved",
+    approved: NEW.slice(0, 7),
+    current: OLD.slice(0, 7),
+    tried: true,
+  });
+});
+
+Deno.test("a pull request still at the approved commit leaves the results current", () => {
+  const model = deliveryModel(approvedWithPullRequest({}));
+  assertEquals(model.headSha, NEW);
+  assertEquals(model.outOfDate, false);
+  assertEquals(model.pullRequestMoved, false);
+  assertEquals(model.checks.rows.every((row) => row.olderSha === null), true);
+});
+
+Deno.test("results for an older commit offer no merge and the card keeps saying checking", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    checks: [
+      check({ id: "c1", checkId: "tests" }),
+      check({ id: "c2", checkId: "lint", headSha: OLD }),
+    ],
+  }));
+  assertEquals(model.merge, null);
+});
+
+Deno.test("with no explicit approval, nothing is offered to merge", () => {
+  const model = deliveryModel(clean({
+    pullRequests: [pullRequest({ providerNumber: 7, runId: RUN })],
+  }));
+  assertEquals(model.merge, null);
+  assertEquals(model.now, { kind: "clean" });
+});
+
+Deno.test("a merged or closed pull request has nothing to merge", () => {
+  for (const status of ["merged", "closed"] as const) {
+    const model = deliveryModel(
+      approvedWithPullRequest({}, { status, mergedSha: NEW }),
+    );
+    assertEquals(model.merge, null, status);
+  }
+});
+
+Deno.test("merging never hides a stop or a paused run, except an unknown outcome which says so", () => {
+  const paused = deliveryModel(approvedWithPullRequest({ paused: true }));
+  assertEquals(paused.now, { kind: "paused" });
+  const pausedUnknown = deliveryModel(approvedWithPullRequest({
+    paused: true,
+    mergeAttempts: [attempt()],
+  }));
+  assertEquals(pausedUnknown.now, { kind: "paused" });
+  const stopped = deliveryModel(approvedWithPullRequest({
+    decisions: [
+      decision({ ordinal: 0 }),
+      decision({ ordinal: 1, decision: "stop", reason: "review_failed" }),
+    ],
+  }));
+  assertEquals(stopped.now.kind, "stopped");
+});
+
+Deno.test("attempts that could not be read offer no merge: an unknown outcome might be hiding", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeUnavailable: true,
+  }));
+  assertEquals(model.merge, null);
+  assertEquals(model.now, { kind: "approved" });
 });
