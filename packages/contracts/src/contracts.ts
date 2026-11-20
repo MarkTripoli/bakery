@@ -209,6 +209,7 @@ export type CatalogAction = {
   organizationContext?: OrganizationContextPolicy;
   organizationHeaderOptional?: boolean;
   organizationIdParam?: string;
+  organizationIdQuery?: string;
 };
 
 function validCatalogAccess(value: unknown): value is string {
@@ -278,6 +279,20 @@ for (const [index, action] of loadedCatalogActions.entries()) {
   ) {
     throw new ContractQualityError(
       `inventory action ${index} ${action.action}: organizationIdParam must name a route parameter of a required authenticated context action`,
+    );
+  }
+  const organizationIdQuery = "organizationIdQuery" in action
+    ? action.organizationIdQuery
+    : undefined;
+  if (
+    organizationIdQuery !== undefined &&
+    (typeof organizationIdQuery !== "string" ||
+      action.method !== "GET" ||
+      organizationContext !==
+        OrganizationContextPolicy.RequiredAuthenticatedContext)
+  ) {
+    throw new ContractQualityError(
+      `inventory action ${index} ${action.action}: organizationIdQuery requires a GET required authenticated context action`,
     );
   }
 }
@@ -1715,6 +1730,39 @@ const actionSpecs: Record<
         "Whether the run was actually measured; false when the sample rate selected nothing to evaluate.",
     },
   },
+  EvaluationCheckOutput: {
+    fields: {
+      state: "enum(passed|failed|error)",
+      score: "number|null",
+      reason: "string|null",
+    },
+    meanings: {
+      state:
+        "Verdict of the deterministic check: passed or failed when the output was measured, error when the check itself could not run.",
+      score:
+        "Measured score from 0 to 1, present exactly when state is passed or failed; null for error.",
+      reason:
+        "Why the output failed or the check errored, in plain language; null for a pass.",
+    },
+  },
+  EvaluationScoreOutput: {
+    fields: {
+      state: "enum(passed|failed|unscored|error)",
+      score: "number|null",
+      reason: "string|null",
+      judgeOutput: "json|null",
+    },
+    meanings: {
+      state:
+        "Verdict of the model judge: passed or failed when it measured the output, unscored when no valid measurement exists, error when scoring crashed.",
+      score:
+        "Measured score from 0 to 1, present exactly when state is passed or failed; null otherwise.",
+      reason:
+        "Why the output was not measured or failed, in plain language; null for a pass.",
+      judgeOutput:
+        "The judge's structured answer, validated by the server against the input's output schema; null when the judge gave none.",
+    },
+  },
   HarnessOutput: {
     fields: {
       headSha: "string",
@@ -3082,6 +3130,7 @@ export type InventoryAction = {
   idempotencyKeyOptional?: boolean;
   errors: string[];
   organizationIdParam?: string;
+  organizationIdQuery?: string;
   implemented: boolean;
 };
 export type GeneratedContracts = {
@@ -4347,6 +4396,9 @@ export function generateContracts(
     ...(action.organizationIdParam === undefined
       ? {}
       : { organizationIdParam: action.organizationIdParam }),
+    ...(action.organizationIdQuery === undefined
+      ? {}
+      : { organizationIdQuery: action.organizationIdQuery }),
     implemented: implemented[action.action] === true,
   }));
   const jsonSchemas = Object.fromEntries(

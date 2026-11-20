@@ -27,6 +27,7 @@
     "@bakery/contracts/installation-settings": "./packages/contracts/src/installation-settings.ts",
     "@bakery/contracts/integrations": "./packages/contracts/src/integrations.ts",
     "@bakery/contracts/description-quality": "./packages/contracts/src/description-quality.ts",
+    "@bakery/contracts/evaluation-scoring": "./packages/contracts/src/evaluation-scoring.ts",
     "@bakery/contracts/workflow-compiler": "./packages/contracts/src/workflow-compiler/mod.ts",
     "@bakery/contracts/workflow-starts": "./packages/contracts/src/workflow-starts.ts",
     "@bakery/contracts/workflow-compiler/default-catalog": "./packages/contracts/src/workflow-compiler/default-catalog.ts",

@@ -2901,6 +2901,29 @@ export const clientManifest = {
     {
       "group": "Skills",
       "method": "GET",
+      "path": "/v1/skills/{id}/used-by",
+      "action": "skills.usedBy",
+      "access": "Developer",
+      "permission": "skill:read",
+      "input": "CursorQuery",
+      "output": "Page<SkillUsage>",
+      "event": "",
+      "mcp": "bakery_skills_usedBy",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
       "path": "/v1/skills/{id}/use-grants",
       "action": "skills.useGrants.list",
       "access": "Owner for personal; Admin for organization",
@@ -5664,6 +5687,125 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Workers",
+      "method": "GET",
+      "path": "/v1/previews",
+      "action": "previews.list",
+      "access": "Developer",
+      "permission": "preview:read",
+      "input": "PreviewQuery",
+      "output": "Page<Preview>",
+      "event": "",
+      "mcp": "bakery_previews_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/previews/{id}/access",
+      "action": "previews.access",
+      "access": "Developer",
+      "permission": "preview:access",
+      "input": "PreviewAccess",
+      "output": "PreviewAccessResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Not replayed: every call issues a fresh one-use grant, and the grant is never stored in a replayable response",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/previews/{id}/stop",
+      "action": "previews.stop",
+      "access": "Developer",
+      "permission": "preview:access",
+      "input": "IdPath",
+      "output": "Preview",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "DELETE",
+      "path": "/v1/preview-grants/{id}",
+      "action": "previews.revokeAccess",
+      "access": "Developer",
+      "permission": "preview:access",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "GET",
+      "path": "/v1/preview-availability",
+      "action": "previews.availability",
+      "access": "Developer",
+      "permission": "preview:read",
+      "input": "Empty",
+      "output": "PreviewAvailability",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifacts",
@@ -5703,6 +5845,27 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/files/facts",
+      "action": "files.facts",
+      "access": "Developer",
+      "permission": "artifact:read",
+      "input": "FileFactQuery",
+      "output": "Page<FileFact>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST"
       ],
@@ -5849,6 +6012,29 @@ export const clientManifest = {
         "UNPROCESSABLE",
         "MALFORMED_REQUEST",
         "ARTIFACT_CONTENT_EXPIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Artifacts",
+      "method": "POST",
+      "path": "/v1/context-packs",
+      "action": "contextPacks.build",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "ContextPackBuild",
+      "output": "ContextPack",
+      "event": "",
+      "mcp": "bakery_contextPacks_build",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "UNPROCESSABLE",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -6377,6 +6563,358 @@ export const clientManifest = {
         "STATE_CONFLICT"
       ],
       "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/metrics",
+      "action": "metrics.get",
+      "access": "Developer",
+      "permission": "metric:read",
+      "input": "MetricsQuery",
+      "output": "MetricSeries",
+      "event": "",
+      "mcp": "bakery_metrics_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/metrics/sources",
+      "action": "metrics.sources",
+      "access": "Developer",
+      "permission": "metric:read",
+      "input": "MetricSourcesQuery",
+      "output": "Page<MetricSource>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/evaluation-definitions",
+      "action": "evaluationDefinitions.list",
+      "access": "Developer",
+      "permission": "evaluationDefinition:read",
+      "input": "CursorQuery",
+      "output": "Page<EvaluationDefinition>",
+      "event": "",
+      "mcp": "bakery_evaluationDefinitions_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "POST",
+      "path": "/v1/evaluation-definitions",
+      "action": "evaluationDefinitions.create",
+      "access": "Admin",
+      "permission": "evaluationDefinition:manage",
+      "input": "EvaluationDefinitionCreate",
+      "output": "EvaluationDefinition",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/evaluation-cases",
+      "action": "evaluationCases.list",
+      "access": "Developer",
+      "permission": "evaluationCase:read",
+      "input": "RepositoryQuery",
+      "output": "Page<EvaluationCase>",
+      "event": "",
+      "mcp": "bakery_evaluationCases_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "POST",
+      "path": "/v1/evaluation-cases",
+      "action": "evaluationCases.create",
+      "access": "Developer",
+      "permission": "evaluationCase:write",
+      "input": "EvaluationCaseCreate",
+      "output": "EvaluationCase",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "POST",
+      "path": "/v1/evaluation-datasets",
+      "action": "evaluationDatasets.create",
+      "access": "Developer",
+      "permission": "evaluationCase:write",
+      "input": "EvaluationDatasetCreate",
+      "output": "EvaluationDataset",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/evaluation-datasets",
+      "action": "evaluationDatasets.list",
+      "access": "Developer",
+      "permission": "evaluationCase:read",
+      "input": "CursorQuery",
+      "output": "Page<EvaluationDataset>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "POST",
+      "path": "/v1/evaluation-batches",
+      "action": "evaluationBatches.create",
+      "access": "Developer",
+      "permission": "evaluationRun:write",
+      "input": "EvaluationBatchCreate",
+      "output": "EvaluationBatch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/evaluation-batches",
+      "action": "evaluationBatches.list",
+      "access": "Developer",
+      "permission": "evaluationRun:read",
+      "input": "CursorQuery",
+      "output": "Page<EvaluationBatch>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/evaluation-batches/{id}",
+      "action": "evaluationBatches.get",
+      "access": "Developer",
+      "permission": "evaluationRun:read",
+      "input": "Empty",
+      "output": "EvaluationBatch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "POST",
+      "path": "/v1/evaluation-batches/{id}/cancel",
+      "action": "evaluationBatches.cancel",
+      "access": "Developer",
+      "permission": "evaluationRun:write",
+      "input": "EvaluationBatchCancel",
+      "output": "EvaluationBatch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/evaluation-batches/{id}/compare",
+      "action": "evaluationBatches.compare",
+      "access": "Developer",
+      "permission": "evaluationResult:read",
+      "input": "EvaluationCompareQuery",
+      "output": "EvaluationComparison",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/evaluation-batches/{id}/results",
+      "action": "evaluationBatchResults.list",
+      "access": "Developer",
+      "permission": "evaluationResult:read",
+      "input": "EvaluationResultQuery",
+      "output": "Page<EvaluationBatchResult>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
+      "method": "GET",
+      "path": "/v1/evaluation-results/{id}/attempts",
+      "action": "evaluationAttempts.list",
+      "access": "Developer",
+      "permission": "evaluationResult:read",
+      "input": "CursorQuery",
+      "output": "Page<EvaluationAttempt>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -7792,6 +8330,150 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/telemetry-destinations",
+      "action": "telemetryDestinations.list",
+      "access": "Installation administrator",
+      "permission": "installationSetting:read",
+      "input": "Empty",
+      "output": "TelemetryDestinationList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/telemetry-destinations",
+      "action": "telemetryDestinations.create",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "TelemetryDestinationCreate",
+      "output": "TelemetryDestination",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PATCH",
+      "path": "/v1/installation/telemetry-destinations/{id}",
+      "action": "telemetryDestinations.update",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "TelemetryDestinationUpdate",
+      "output": "TelemetryDestination",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "DELETE",
+      "path": "/v1/installation/telemetry-destinations/{id}",
+      "action": "telemetryDestinations.delete",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/telemetry-destination-tests",
+      "action": "telemetryDestinations.test",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "TelemetryDestinationTest",
+      "output": "TelemetryDestinationTestResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
       "group": "Blobs",
       "method": "POST",
       "path": "/v1/blobs/uploads",
@@ -8172,6 +8854,7 @@ export const clientManifest = {
         "RANGE_NOT_SATISFIABLE"
       ],
       "organizationContext": "required_authenticated_context",
+      "organizationIdQuery": "organizationId",
       "implemented": true
     },
     {
@@ -13787,6 +14470,387 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Empty request body reused by operations that need no input beyond their route parameters and authorization, such as a connection health check or MCP capability discovery."
     },
+    "EvaluationCaseCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Repository this case's fixtures and expected behavior are scoped to."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Human-readable label identifying this case within its dataset, shown in case comparison views. EvaluationCaseCreate.name must contain at most 200 characters."
+        },
+        "inputArtifactVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Artifact version supplying this case's typed input to the evaluated target."
+        },
+        "expected": {
+          "description": "Expected output for this case, compared against the target's actual output; deterministic checks match it exactly and rubric judges use it as reference context. EvaluationCaseCreate.expected must contain at most 32000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 32000
+        },
+        "tags": {
+          "description": "Free-form labels for filtering and grouping this case within its dataset's case list; they do not affect scoring. EvaluationCaseCreate.tags must contain at most 50 items.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Free-form labels for filtering and grouping this case within its dataset's case list; they do not affect scoring. Each array item follows this format."
+          }
+        }
+      },
+      "required": [
+        "repositoryId",
+        "name",
+        "inputArtifactVersionId",
+        "expected"
+      ],
+      "additionalProperties": false,
+      "description": "Adds one test case to an evaluation dataset; saving it creates a new immutable dataset revision rather than mutating results already scored against the prior one.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
+    "EvaluationDefinitionCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+          "description": "Stable identity slug for this evaluator definition, used to reference it consistently across its revisions. EvaluationDefinitionCreate.slug must contain at most 100 characters."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Revision number of this evaluator definition; scoring rules and thresholds are versioned independently of the dataset and target. EvaluationDefinitionCreate.revision must be at least 1."
+        },
+        "evaluatorType": {
+          "type": "string",
+          "enum": [
+            "deterministic",
+            "model"
+          ],
+          "description": "Selects the scoring mechanism: deterministic runs a registered code check with an exact pass/fail reason, model runs a configured rubric-judgment scorer that produces a score and rationale."
+        },
+        "config": {
+          "description": "Scorer configuration: check parameters for a deterministic evaluator, or the pinned rubric, provider, model and parameters for a model evaluator. EvaluationDefinitionCreate.config must contain at most 32000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 32000
+        }
+      },
+      "required": [
+        "slug",
+        "revision",
+        "evaluatorType",
+        "config"
+      ],
+      "additionalProperties": false,
+      "description": "Registers a scorer definition, deterministic check or model rubric, that evaluation runs pin by identity and revision so past results stay reproducible after it changes.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
     "IntegrationWebhook": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -15956,6 +17020,58 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Appends an attributed message to the conversation; intent=agent_request additionally enqueues exactly one queued turn in the same transaction, while intent=discussion only appends to the transcript. Server-owned fields such as author, turn admission, and comment snapshots cannot be set by the caller."
     },
+    "MetricsQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "metric": {
+          "type": "string",
+          "enum": [
+            "prs.opened",
+            "prs.merged",
+            "prs.closedUnmerged",
+            "prs.openAtCutoff",
+            "prs.mergeRate",
+            "prs.turnaroundHours",
+            "prs.changedLines",
+            "tasks.leadTimeHours"
+          ],
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+        },
+        "from": {
+          "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "to": {
+          "description": "End of the UTC reporting window, exclusive of later data; combined with `from`, the span is capped at 366 days and 1,000 returned chart points.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "resolution": {
+          "description": "Time-bucket size for the returned series: minute, hour, or day; finer buckets over a long window are limited by the 1,000-point series cap.",
+          "type": "string",
+          "enum": [
+            "minute",
+            "hour",
+            "day"
+          ]
+        },
+        "repositoryId": {
+          "description": "Only count pull requests of this repository of the organization; another organization's repository counts nothing.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "metric"
+      ],
+      "additionalProperties": false,
+      "description": "Query for GET /v1/metrics: one allowlisted metric key over a bounded half-open UTC window [from, to) (default 30 days, capped at 366) and a bucket resolution, optionally one repository, returning at most 1,000 chart points."
+    },
     "NamedDefinitionCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -16157,6 +17273,7 @@ export const clientManifest = {
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.usedBy",
             "skills.useGrants.list",
             "skills.useGrants.delete",
             "skillVersions.list",
@@ -16276,6 +17393,9 @@ export const clientManifest = {
             "jobAttempts.list",
             "previews.list",
             "previews.access",
+            "previews.stop",
+            "previews.revokeAccess",
+            "previews.availability",
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
@@ -16290,6 +17410,7 @@ export const clientManifest = {
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
+            "files.facts",
             "files.library",
             "artifacts.get",
             "artifacts.create",
@@ -16298,6 +17419,7 @@ export const clientManifest = {
             "artifactVersions.content",
             "artifactVersions.import",
             "artifactVersions.extract",
+            "contextPacks.build",
             "artifactPreviews.create",
             "artifactPreviews.revoke",
             "artifactPreviews.availability",
@@ -16325,6 +17447,7 @@ export const clientManifest = {
             "deployments.rollback",
             "usage.list",
             "metrics.get",
+            "metrics.sources",
             "evaluationDefinitions.list",
             "evaluationDefinitions.create",
             "evaluationCases.list",
@@ -16332,6 +17455,15 @@ export const clientManifest = {
             "evaluationRuns.list",
             "evaluationRuns.create",
             "evaluationResults.list",
+            "evaluationDatasets.create",
+            "evaluationDatasets.list",
+            "evaluationBatches.create",
+            "evaluationBatches.list",
+            "evaluationBatches.get",
+            "evaluationBatches.cancel",
+            "evaluationBatches.compare",
+            "evaluationBatchResults.list",
+            "evaluationAttempts.list",
             "sync.snapshot",
             "events.connect",
             "collaboration.connect",
@@ -16397,6 +17529,11 @@ export const clientManifest = {
             "backupRunner.claim",
             "backupRunner.report",
             "backupRunner.settings",
+            "telemetryDestinations.list",
+            "telemetryDestinations.create",
+            "telemetryDestinations.update",
+            "telemetryDestinations.delete",
+            "telemetryDestinations.test",
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
@@ -16548,6 +17685,20 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Input for creating an organization-owned exact capability grant; organization and grantor come from the authorized transaction context and are never accepted from this body."
+    },
+    "PreviewAccess": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "sessionSeconds": {
+          "description": "How long the signed-in preview session lasts once the grant is exchanged, from 60 seconds to 24 hours; it does not change how long the one-use grant can be exchanged, which is always 30 seconds. PreviewAccess.sessionSeconds must be at least 60. PreviewAccess.sessionSeconds must be at most 86400.",
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        }
+      },
+      "additionalProperties": false,
+      "description": "Requests a one-use access grant for a running preview. The grant is exchangeable for 30 seconds only; the session it opens lasts sessionSeconds. The caller's client posts the grant to the separate preview origin, which exchanges it for its own HttpOnly cookie."
     },
     "PrincipalCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -17218,6 +18369,41 @@ export const clientManifest = {
           ]
         }
       }
+    },
+    "RepositoryQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "environment": {
+          "description": "Restrict deployment results to one environment: `preview`, `staging`, or `production`.",
+          "type": "string",
+          "enum": [
+            "preview",
+            "staging",
+            "production"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. RepositoryQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. RepositoryQuery.limit must be at least 1. RepositoryQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
     },
     "PullRequestQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -23714,6 +24900,8 @@ export const clientManifest = {
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
+            "evaluation.check",
+            "evaluation.score",
             "task.brief",
             "secret.identity.read"
           ],
@@ -24695,6 +25883,557 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "One progress or result report from the host backup runner for a run it has claimed: the lease token, the report sequence, the status and the figures that status needs. The server records what happened; it never receives backup bytes or the age private key."
     },
+    "TelemetryDestinationCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Which kind of destination this is, as listed by telemetryDestinations.list (for example otlp for OpenTelemetry); it decides which values the destination needs and which measurements it can receive. TelemetryDestinationCreate.kind must contain at most 64 characters."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Name people see in the list and in alerts, unique across destinations ignoring case. TelemetryDestinationCreate.name must contain at most 100 characters."
+        },
+        "enabled": {
+          "description": "Whether the destination receives measurements now; defaults to true. Turning it off keeps its settings and queues nothing for it.",
+          "type": "boolean"
+        },
+        "measurements": {
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The kinds of measurement to send: any of cost, durations, results, skills, health and errors that the destination's kind can take; at least one. Each array item follows this format."
+          },
+          "description": "The kinds of measurement to send: any of cost, durations, results, skills, health and errors that the destination's kind can take; at least one. TelemetryDestinationCreate.measurements must contain at most 6 items."
+        },
+        "values": {
+          "description": "The destination's settings by field name, as the kind lists them: a string for each. Fields the kind marks secret are write-only and stored encrypted; they are never returned. TelemetryDestinationCreate.values must contain at most 8000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 8000
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "measurements"
+      ],
+      "additionalProperties": false,
+      "description": "Adds a telemetry destination: a place Bakery sends the measurements it takes, with its own queue, its own settings and encrypted credentials.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
+    "TelemetryDestinationUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the destination to change; supplied via the request's {id} path segment."
+        },
+        "name": {
+          "description": "New name, unique across destinations ignoring case; omit to keep the current one. TelemetryDestinationUpdate.name must contain at most 100 characters.",
+          "type": "string",
+          "maxLength": 100
+        },
+        "enabled": {
+          "description": "Turns the destination on or off without losing its settings; omit to keep the current state.",
+          "type": "boolean"
+        },
+        "measurements": {
+          "description": "Replaces the kinds of measurement the destination receives; omit to keep them. TelemetryDestinationUpdate.measurements must contain at most 6 items.",
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Replaces the kinds of measurement the destination receives; omit to keep them. Each array item follows this format."
+          }
+        },
+        "values": {
+          "description": "Only the settings to change, by field name. A secret field supplied here replaces the stored value; one left out keeps it. An empty string clears an optional field. TelemetryDestinationUpdate.values must contain at most 8000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 8000
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Changes a telemetry destination's name, on or off state, measurements or settings; the stored secret is replaced only when a new one is supplied.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
+    "TelemetryDestinationTest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "A saved destination whose stored settings and secrets are used for any value not supplied; omit to test values that are not saved.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "kind": {
+          "description": "The kind of destination to test when no saved destination is named. TelemetryDestinationTest.kind must contain at most 64 characters.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "values": {
+          "description": "Unsaved settings to test, by field name; they win over the saved ones. Nothing here is stored or returned. TelemetryDestinationTest.values must contain at most 8000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 8000
+        }
+      },
+      "additionalProperties": false,
+      "description": "Sends one harmless test message to a destination, using unsaved values or a saved destination's own, and reports the destination's real answer.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
     "TicketSourcePersonPath": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -25556,6 +27295,479 @@ export const clientManifest = {
             }
           ],
           "description": "JSON value node."
+        }
+      }
+    },
+    "ContextPackBuild": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "envelope": {
+          "description": "Budget envelope for the step: the model context window, the reservations held back for output, tool results, compaction and safety margin, and an optional operator cap on input tokens. ContextPackBuild.envelope must contain at most 4096 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 4096
+        },
+        "candidates": {
+          "description": "Ordered candidate context items. An artifact candidate names an authorized artifact version and the bounded window to project; a text candidate carries its own bounded text. The order is the caller's relevance order and is never re-sorted by size. ContextPackBuild.candidates must contain at most 65536 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 65536
+        },
+        "conversationCutoff": {
+          "description": "Minimum conversation sequence the step must see, recorded in the pack so a reader can tell which messages were in scope. ContextPackBuild.conversationCutoff must be at least 0. ContextPackBuild.conversationCutoff must be at most 9007199254740991.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "repository": {
+          "description": "Repository the step runs against: the commit SHA and the safe paths the pack may name. Omitted when the step is not repository-scoped. ContextPackBuild.repository must contain at most 4096 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema2"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema2"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 4096
+        }
+      },
+      "required": [
+        "envelope",
+        "candidates"
+      ],
+      "additionalProperties": false,
+      "description": "Builds one bounded context pack for a step: candidates are admitted against the envelope, artifact candidates are projected into cited windows or references, and everything that did not fit is reported with a reason.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        },
+        "__schema1": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        },
+        "__schema2": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
         }
       }
     },
@@ -26493,6 +28705,20 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Searches the organization's file tree and its read-only library mirror by name, path, kind, media type, producer and a metadata fact, newest first. Only files and library items the caller may read are returned, and nothing of another organization is ever counted or listed."
     },
+    "FileFactQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "Restricts the list to one kind: the artifact type of the files whose facts are listed. Omit it to list the facts of every kind the caller can read. FileFactQuery.kind must contain at least 1 characters. FileFactQuery.kind must contain at most 64 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists the facts files carry, by kind: each fact key with each string value it holds on the current version of a file the caller may read, and how many files hold it. It is the source for the file search's fact filter (files.search factKey and factValue). Until kind validators publish typed facts, a version's metadata is where its facts live."
+    },
     "LibraryFolderQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -26732,6 +28958,12 @@ export const clientManifest = {
           "maxLength": 200,
           "pattern": "^bytes=(?:\\d+-\\d*|-\\d+)$",
           "x-utf8-max-bytes": 100
+        },
+        "organizationId": {
+          "description": "Organization that owns the file, as a query parameter for a video or audio src, which cannot send the Bakery-Organization-Id header. Parsed and membership-checked exactly like the header; the header wins when present, and a header and query that differ are refused. Omitting both is SCOPE_REQUIRED.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         }
       },
       "additionalProperties": false,
@@ -27020,6 +29252,534 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The off-site destination an administrator sets for copies of every backup: an S3-compatible bucket with its address, region, folder and a write-only credential pair."
+    },
+    "PreviewQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "description": "Restrict results to the previews registered by attempts of this workflow run, newest first.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "status": {
+          "description": "Restrict results to the current state of the preview: starting, ready, stopped or expired. PreviewQuery.status must contain at most 50 characters.",
+          "type": "string",
+          "maxLength": 50
+        },
+        "cursor": {
+          "description": "Opaque cursor carried from a prior page of this exact query; leave unset to start from the newest page. PreviewQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of items returned per page; defaults to 25, capped at 100. PreviewQuery.limit must be at least 1. PreviewQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters for listing the running-app previews of an organization, newest first."
+    },
+    "MetricSourcesQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "metric": {
+          "type": "string",
+          "enum": [
+            "prs.opened",
+            "prs.merged",
+            "prs.closedUnmerged",
+            "prs.openAtCutoff",
+            "prs.mergeRate",
+            "prs.turnaroundHours",
+            "prs.changedLines",
+            "tasks.leadTimeHours"
+          ],
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+        },
+        "from": {
+          "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "to": {
+          "description": "End of the UTC reporting window, exclusive of later data; combined with `from`, the span is capped at 366 days and 1,000 returned chart points.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "repositoryId": {
+          "description": "Only count pull requests of this repository of the organization; another organization's repository counts nothing.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. MetricSourcesQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. MetricSourcesQuery.limit must be at least 1. MetricSourcesQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "metric"
+      ],
+      "additionalProperties": false,
+      "description": "Query for GET /v1/metrics/sources: the same metric key, window and repository filter as metrics.get, plus a cursor, listing the exact pull requests behind the numbers."
+    },
+    "EvaluationDatasetCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Display name of the dataset revision. EvaluationDatasetCreate.name must contain at most 200 characters."
+        },
+        "caseIds": {
+          "minItems": 1,
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Case revisions in the order they are measured; each case's current revision is pinned at creation and never changes. Each array item follows this format."
+          },
+          "description": "Case revisions in the order they are measured; each case's current revision is pinned at creation and never changes. EvaluationDatasetCreate.caseIds must contain at least 1 items. EvaluationDatasetCreate.caseIds must contain at most 1000 items."
+        }
+      },
+      "required": [
+        "name",
+        "caseIds"
+      ],
+      "additionalProperties": false,
+      "description": "Creates an immutable dataset: an ordered list of case revisions and its digest. A changed list is a new dataset."
+    },
+    "EvaluationBatchCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "datasetId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The immutable dataset the batch measures."
+        },
+        "candidate": {
+          "description": "What is measured: a pin naming the workflow or agent and its exact version, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. EvaluationBatchCreate.candidate must contain at most 4000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 4000
+        },
+        "baseline": {
+          "description": "Optional pin of what the candidate is compared with, in the same shape. EvaluationBatchCreate.baseline must contain at most 4000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 4000
+        },
+        "scorerIds": {
+          "minItems": 1,
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Scorer revisions applied to every case; deterministic checks run before model scorers. Each array item follows this format."
+          },
+          "description": "Scorer revisions applied to every case; deterministic checks run before model scorers. EvaluationBatchCreate.scorerIds must contain at least 1 items. EvaluationBatchCreate.scorerIds must contain at most 50 items."
+        },
+        "requireAllPassed": {
+          "description": "Gate rule: every required result must pass. Defaults to true.",
+          "type": "boolean"
+        },
+        "minPassRate": {
+          "description": "Gate rule: the smallest share of required measured results that must pass, 0 to 1. EvaluationBatchCreate.minPassRate must be at least 0. EvaluationBatchCreate.minPassRate must be at most 1.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "repetitions": {
+          "description": "Times each case is measured per scorer; every observation is kept. Defaults to 1. EvaluationBatchCreate.repetitions must be at least 1. EvaluationBatchCreate.repetitions must be at most 5.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "budgetLimitUsd": {
+          "description": "Most this batch may spend, in USD.",
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
+        }
+      },
+      "required": [
+        "datasetId",
+        "candidate",
+        "scorerIds"
+      ],
+      "additionalProperties": false,
+      "description": "Admits an evaluation batch. Every required case x scorer x side x repetition becomes a result in state missing at once, so a case that never runs is listed, not absent.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        },
+        "__schema1": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
+    "EvaluationBatchCancel": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Cancels a batch: no new attempts start, completed results are kept and still-missing results become canceled. Requires If-Match with the batch version."
+    },
+    "EvaluationCompareQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "other": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The batch to compare this one with; the path batch is the left side."
+        }
+      },
+      "required": [
+        "other"
+      ],
+      "additionalProperties": false,
+      "description": "Compares the candidate sides of two batches of the organization."
+    },
+    "EvaluationResultQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "state": {
+          "description": "Only results in this state, so 'needs attention' is one request.",
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "error",
+            "unscored",
+            "canceled",
+            "skipped",
+            "missing"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationResultQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. EvaluationResultQuery.limit must be at least 1. EvaluationResultQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Cursor page of a batch's results in case order, optionally one state."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40553,6 +43313,7 @@ export const clientManifest = {
                   "library.search",
                   "skills.get",
                   "skills.update",
+                  "skills.usedBy",
                   "skills.useGrants.list",
                   "skills.useGrants.delete",
                   "skillVersions.list",
@@ -40672,6 +43433,9 @@ export const clientManifest = {
                   "jobAttempts.list",
                   "previews.list",
                   "previews.access",
+                  "previews.stop",
+                  "previews.revokeAccess",
+                  "previews.availability",
                   "worker.register",
                   "worker.heartbeat",
                   "worker.claim",
@@ -40686,6 +43450,7 @@ export const clientManifest = {
                   "worker.invokeTool",
                   "artifacts.list",
                   "files.search",
+                  "files.facts",
                   "files.library",
                   "artifacts.get",
                   "artifacts.create",
@@ -40694,6 +43459,7 @@ export const clientManifest = {
                   "artifactVersions.content",
                   "artifactVersions.import",
                   "artifactVersions.extract",
+                  "contextPacks.build",
                   "artifactPreviews.create",
                   "artifactPreviews.revoke",
                   "artifactPreviews.availability",
@@ -40721,6 +43487,7 @@ export const clientManifest = {
                   "deployments.rollback",
                   "usage.list",
                   "metrics.get",
+                  "metrics.sources",
                   "evaluationDefinitions.list",
                   "evaluationDefinitions.create",
                   "evaluationCases.list",
@@ -40728,6 +43495,15 @@ export const clientManifest = {
                   "evaluationRuns.list",
                   "evaluationRuns.create",
                   "evaluationResults.list",
+                  "evaluationDatasets.create",
+                  "evaluationDatasets.list",
+                  "evaluationBatches.create",
+                  "evaluationBatches.list",
+                  "evaluationBatches.get",
+                  "evaluationBatches.cancel",
+                  "evaluationBatches.compare",
+                  "evaluationBatchResults.list",
+                  "evaluationAttempts.list",
                   "sync.snapshot",
                   "events.connect",
                   "collaboration.connect",
@@ -40793,6 +43569,11 @@ export const clientManifest = {
                   "backupRunner.claim",
                   "backupRunner.report",
                   "backupRunner.settings",
+                  "telemetryDestinations.list",
+                  "telemetryDestinations.create",
+                  "telemetryDestinations.update",
+                  "telemetryDestinations.delete",
+                  "telemetryDestinations.test",
                   "blobUploads.start",
                   "blobUploads.part",
                   "blobUploads.complete",
@@ -43907,6 +46688,196 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of WorkerProviderBinding."
     },
+    "Page<Preview>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the preview record."
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The workflow run whose attempt registered this preview."
+              },
+              "attemptId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
+              },
+              "headSha": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Commit SHA the running preview was built from."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "starting",
+                  "ready",
+                  "stopped",
+                  "expired"
+                ],
+                "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
+              },
+              "stopReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "person",
+                      "run_cancelled",
+                      "run_ended",
+                      "machine_lost",
+                      "time_limit",
+                      "replaced"
+                    ],
+                    "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stopReason may be null in the safe projection."
+              },
+              "stoppedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The principal who stopped it; set only when stopReason is person."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stoppedBy may be null in the safe projection."
+              },
+              "stoppedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stoppedAt may be null in the safe projection."
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the preview stops by itself."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              }
+            },
+            "required": [
+              "id",
+              "runId",
+              "attemptId",
+              "headSha",
+              "status",
+              "stopReason",
+              "stoppedBy",
+              "stoppedAt",
+              "expiresAt",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned."
+          },
+          "description": "Preview items in this cursor page. Page<Preview>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<Preview>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Preview>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<Preview>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<Preview>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of Preview."
+    },
     "Page<PullRequest>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -45471,6 +48442,728 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of MergeEntry."
+    },
+    "Page<EvaluationDefinition>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the evaluation definition record."
+              },
+              "slug": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "URL-safe stable name used to address the record."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision number used to order updates to the record."
+              },
+              "evaluatorType": {
+                "type": "string",
+                "enum": [
+                  "deterministic",
+                  "model"
+                ],
+                "description": "deterministic: a code check (schema, citations, identity, prohibited effects, limits); model: a pinned rubric scored by a model."
+              },
+              "config": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Validated configuration associated with the record."
+              },
+              "digest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Content digest used to verify the record."
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Whether new evaluation runs may be created from this definition. Disabling rejects only new starts; runs already in progress keep their pinned definition."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              }
+            },
+            "required": [
+              "id",
+              "slug",
+              "revision",
+              "evaluatorType",
+              "config",
+              "digest",
+              "enabled",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "A versioned evaluator: either a registered deterministic code check or a configured Mastra scorer, never arbitrary code supplied in YAML; disabling it stops new evaluation runs from selecting it. Created by POST /v1/evaluation-definitions."
+          },
+          "description": "EvaluationDefinition items in this cursor page. Page<EvaluationDefinition>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<EvaluationDefinition>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<EvaluationDefinition>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<EvaluationDefinition>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<EvaluationDefinition>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of EvaluationDefinition.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "Page<EvaluationCase>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the evaluation case record."
+              },
+              "repositoryId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related repository entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationCase.repositoryId may be null in this transport value."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Human-readable name displayed for the record."
+              },
+              "inputArtifactVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related input artifact version entity."
+              },
+              "expected": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Expected evaluation output for the case."
+              },
+              "tags": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Labels used to classify the record."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision number used to order updates to the record."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              }
+            },
+            "required": [
+              "id",
+              "repositoryId",
+              "name",
+              "inputArtifactVersionId",
+              "expected",
+              "tags",
+              "revision",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One immutable input/expected-output pair in a sanitized evaluation corpus, built from a pinned input artifact version; the same case schema is reused for offline batch runs and online sampling. Created by POST /v1/evaluation-cases."
+          },
+          "description": "EvaluationCase items in this cursor page. Page<EvaluationCase>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<EvaluationCase>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<EvaluationCase>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<EvaluationCase>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<EvaluationCase>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of EvaluationCase.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "Page<ExternalEffect>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -60015,6 +63708,7 @@ export const clientManifest = {
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.usedBy",
             "skills.useGrants.list",
             "skills.useGrants.delete",
             "skillVersions.list",
@@ -60134,6 +63828,9 @@ export const clientManifest = {
             "jobAttempts.list",
             "previews.list",
             "previews.access",
+            "previews.stop",
+            "previews.revokeAccess",
+            "previews.availability",
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
@@ -60148,6 +63845,7 @@ export const clientManifest = {
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
+            "files.facts",
             "files.library",
             "artifacts.get",
             "artifacts.create",
@@ -60156,6 +63854,7 @@ export const clientManifest = {
             "artifactVersions.content",
             "artifactVersions.import",
             "artifactVersions.extract",
+            "contextPacks.build",
             "artifactPreviews.create",
             "artifactPreviews.revoke",
             "artifactPreviews.availability",
@@ -60183,6 +63882,7 @@ export const clientManifest = {
             "deployments.rollback",
             "usage.list",
             "metrics.get",
+            "metrics.sources",
             "evaluationDefinitions.list",
             "evaluationDefinitions.create",
             "evaluationCases.list",
@@ -60190,6 +63890,15 @@ export const clientManifest = {
             "evaluationRuns.list",
             "evaluationRuns.create",
             "evaluationResults.list",
+            "evaluationDatasets.create",
+            "evaluationDatasets.list",
+            "evaluationBatches.create",
+            "evaluationBatches.list",
+            "evaluationBatches.get",
+            "evaluationBatches.cancel",
+            "evaluationBatches.compare",
+            "evaluationBatchResults.list",
+            "evaluationAttempts.list",
             "sync.snapshot",
             "events.connect",
             "collaboration.connect",
@@ -60255,6 +63964,11 @@ export const clientManifest = {
             "backupRunner.claim",
             "backupRunner.report",
             "backupRunner.settings",
+            "telemetryDestinations.list",
+            "telemetryDestinations.create",
+            "telemetryDestinations.update",
+            "telemetryDestinations.delete",
+            "telemetryDestinations.test",
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
@@ -61943,6 +65657,136 @@ export const clientManifest = {
         }
       }
     },
+    "Preview": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the preview record."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow run whose attempt registered this preview."
+        },
+        "attemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
+        },
+        "headSha": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Commit SHA the running preview was built from."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "ready",
+            "stopped",
+            "expired"
+          ],
+          "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
+        },
+        "stopReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "person",
+                "run_cancelled",
+                "run_ended",
+                "machine_lost",
+                "time_limit",
+                "replaced"
+              ],
+              "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stopReason may be null in the safe projection."
+        },
+        "stoppedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The principal who stopped it; set only when stopReason is person."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stoppedBy may be null in the safe projection."
+        },
+        "stoppedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stoppedAt may be null in the safe projection."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the preview stops by itself."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when updating the record."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "attemptId",
+        "headSha",
+        "status",
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt",
+        "expiresAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned."
+    },
     "MergeEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -62061,6 +65905,415 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds."
+    },
+    "MetricSeries": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The metric key the series answers."
+        },
+        "points": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC start of the bucket."
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Value for the bucket in the series unit; null means unknown and must be shown as missing, not as zero."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricPoint.value may be null in this transport value."
+              },
+              "unknownReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "no_records",
+                      "no_known_values"
+                    ],
+                    "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; null when value is known."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricPoint.unknownReason may be null in this transport value."
+              }
+            },
+            "required": [
+              "at",
+              "value",
+              "unknownReason"
+            ],
+            "additionalProperties": false,
+            "description": "Ordered metric points included in the series. Each array item follows this format."
+          },
+          "description": "Ordered metric points included in the series. MetricSeries.points must contain at most 1000 items."
+        },
+        "from": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Start of the requested time range."
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "End of the requested time range."
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            "minute",
+            "hour",
+            "day"
+          ],
+          "description": "Aggregation resolution used for the metric series."
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "count",
+            "ratio",
+            "hours",
+            "lines"
+          ],
+          "description": "Unit of every point value: count of pull requests, ratio from 0 to 1, hours, or lines."
+        },
+        "cohort": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Plain-language description of which pull requests each point counts, for the card's subtitle."
+        },
+        "sampleCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Distinct pull requests that contributed a known value across the window."
+        },
+        "missingCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Distinct pull requests in the cohort whose value is unknown (no provider time or no diff totals); they are left out, never counted as zero."
+        },
+        "measurementRevision": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Identifier of the metric's definition; it changes whenever the definition changes, so two answers compare only when it matches."
+        },
+        "lastSyncAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "Latest time Bakery stored a provider read for a pull request in scope; null when none has been read."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MetricSeries.lastSyncAt may be null in this transport value."
+        },
+        "completeness": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ],
+          "description": "complete when every cohort member has a known value and none is still open where that matters; partial when some are unknown or still open; unknown when no pull request has been read."
+        },
+        "missingReasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "no_opened_time",
+                  "no_merged_time",
+                  "no_closed_time",
+                  "no_diff_totals",
+                  "still_open"
+                ],
+                "description": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet."
+              },
+              "count": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many records were left out for this reason."
+              }
+            },
+            "required": [
+              "reason",
+              "count"
+            ],
+            "additionalProperties": false,
+            "description": "Why records were left out, one entry per reason with its count; empty when nothing was left out. Each array item follows this format."
+          },
+          "description": "Why records were left out, one entry per reason with its count; empty when nothing was left out."
+        },
+        "hiddenCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Records in scope the reader may not open; always 0 today, since every member who may read metrics may open every pull request of the organization."
+        },
+        "repositories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The repository."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "connected",
+                  "disconnected",
+                  "stale"
+                ],
+                "description": "connected: its integration is enabled and read within the last day; stale: the integration is degraded or no pull request was read for a day; disconnected: no enabled integration."
+              },
+              "since": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the integration was disconnected; null unless state is disconnected and the time is known."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricRepositorySource.since may be null in this transport value."
+              },
+              "lastSyncAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "Latest stored provider read of a pull request in this repository; null when none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricRepositorySource.lastSyncAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "repositoryId",
+              "state",
+              "since",
+              "lastSyncAt"
+            ],
+            "additionalProperties": false,
+            "description": "Each repository in scope with the state of its source, so a disconnected or stale source is never read as zero. Each array item follows this format."
+          },
+          "description": "Each repository in scope with the state of its source, so a disconnected or stale source is never read as zero."
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "median": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "Typical lead time in hours (nearest-rank median); null with no tasks."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MetricTaskSummary.median may be null in this transport value."
+                },
+                "p90": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "Lead time 9 in 10 tasks finished within, in hours; null with no tasks."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MetricTaskSummary.p90 may be null in this transport value."
+                },
+                "mean": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "Mean lead time in hours; null with no tasks."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MetricTaskSummary.mean may be null in this transport value."
+                },
+                "breakdown": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "agentWorking",
+                          "queue",
+                          "review",
+                          "person",
+                          "blocked",
+                          "unaccounted"
+                        ],
+                        "description": "agentWorking: an agent attempt ran; queue: a job was ready and not yet claimed; review: the independent review step ran; person: an approval, question or request waited for a person; blocked: blocked time, not recorded yet; unaccounted: lead time no recorded interval covers. Where intervals overlap, person wins, then review, agent and queue."
+                      },
+                      "hours": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "description": "Hours in this category; null when unknown."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MetricWaitShare.hours may be null in this transport value."
+                      },
+                      "unknownReason": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "not_recorded"
+                            ],
+                            "description": "not_recorded when Bakery keeps no history for this category (blocked); null otherwise."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MetricWaitShare.unknownReason may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "category",
+                      "hours",
+                      "unknownReason"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Where the cohort's summed lead time went, by category; the known parts add up to the summed lead time. Each array item follows this format."
+                  },
+                  "description": "Where the cohort's summed lead time went, by category; the known parts add up to the summed lead time."
+                },
+                "deliveryPoints": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "deliveryPoint": {
+                        "type": "string",
+                        "enum": [
+                          "merged_pull_request",
+                          "completed_run"
+                        ],
+                        "description": "merged_pull_request: the task's first pull request merged; completed_run: the task has no merged pull request and its last run completed."
+                      },
+                      "count": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Tasks that reached it."
+                      }
+                    },
+                    "required": [
+                      "deliveryPoint",
+                      "count"
+                    ],
+                    "additionalProperties": false,
+                    "description": "How many tasks reached each delivery point. Each array item follows this format."
+                  },
+                  "description": "How many tasks reached each delivery point."
+                }
+              },
+              "required": [
+                "median",
+                "p90",
+                "mean",
+                "breakdown",
+                "deliveryPoints"
+              ],
+              "additionalProperties": false,
+              "description": "For tasks.leadTimeHours: the cohort's median, 9-in-10 and mean lead time, where the time went and how many tasks reached each delivery point; null for pull request metrics."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MetricSeries.summary may be null in this transport value."
+        }
+      },
+      "required": [
+        "name",
+        "points",
+        "from",
+        "to",
+        "resolution",
+        "unit",
+        "cohort",
+        "sampleCount",
+        "missingCount",
+        "measurementRevision",
+        "lastSyncAt",
+        "completeness",
+        "missingReasons",
+        "hiddenCount",
+        "repositories",
+        "summary"
+      ],
+      "additionalProperties": false,
+      "description": "The bounded time series GET /v1/metrics returns for one allowlisted metric key: half-open [from, to) UTC window, resolution, ordered points, and the provenance every card shows: unit, cohort, sample and missing counts, measurement revision, last sync and completeness. A null point is unknown, never zero."
     },
     "UsageSummary": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -62326,6 +66579,608 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "usage.list GET /v1/usage includes matching installation periods and optional runId account; knownCostUsd includes only costs backed by an immutable matching provider receipt, while unverifiedCostUsd preserves worker-asserted costs separately. Fixed and incremental charges stay separately attributed by billing type. completeness is complete only when unknownCount=0 and unverifiedCount=0, partial when authoritative and unresolved records coexist, otherwise unknown."
     },
+    "EvaluationDefinition": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the evaluation definition record."
+        },
+        "slug": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "URL-safe stable name used to address the record."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision number used to order updates to the record."
+        },
+        "evaluatorType": {
+          "type": "string",
+          "enum": [
+            "deterministic",
+            "model"
+          ],
+          "description": "deterministic: a code check (schema, citations, identity, prohibited effects, limits); model: a pinned rubric scored by a model."
+        },
+        "config": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "Validated configuration associated with the record."
+        },
+        "digest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Content digest used to verify the record."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether new evaluation runs may be created from this definition. Disabling rejects only new starts; runs already in progress keep their pinned definition."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when updating the record."
+        }
+      },
+      "required": [
+        "id",
+        "slug",
+        "revision",
+        "evaluatorType",
+        "config",
+        "digest",
+        "enabled",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "A versioned evaluator: either a registered deterministic code check or a configured Mastra scorer, never arbitrary code supplied in YAML; disabling it stops new evaluation runs from selecting it. Created by POST /v1/evaluation-definitions.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "EvaluationCase": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the evaluation case record."
+        },
+        "repositoryId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related repository entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationCase.repositoryId may be null in this transport value."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Human-readable name displayed for the record."
+        },
+        "inputArtifactVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this record to the related input artifact version entity."
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "Expected evaluation output for the case."
+        },
+        "tags": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "Labels used to classify the record."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision number used to order updates to the record."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when updating the record."
+        }
+      },
+      "required": [
+        "id",
+        "repositoryId",
+        "name",
+        "inputArtifactVersionId",
+        "expected",
+        "tags",
+        "revision",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One immutable input/expected-output pair in a sanitized evaluation corpus, built from a pinned input artifact version; the same case schema is reused for offline batch runs and online sampling. Created by POST /v1/evaluation-cases.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
     "ExternalEffect": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -62560,6 +67415,8 @@ export const clientManifest = {
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
+            "evaluation.check",
+            "evaluation.score",
             "task.brief",
             "secret.identity.read"
           ],
@@ -62721,6 +67578,8 @@ export const clientManifest = {
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
+                  "evaluation.check",
+                  "evaluation.score",
                   "task.brief",
                   "secret.identity.read"
                 ],
@@ -63078,6 +67937,8 @@ export const clientManifest = {
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
+                  "evaluation.check",
+                  "evaluation.score",
                   "task.brief",
                   "secret.identity.read"
                 ],
@@ -63885,6 +68746,56 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "PreviewAccessResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "grantId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifier of this access grant, used to end one person's access before it expires. Not a secret."
+        },
+        "grant": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "One-use secret handoff value: 32 random bytes, base64url. Post it once, in a form body; never put it in a URL, log, event or cache. Only its sha256 is stored."
+        },
+        "exchangeUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Absolute URL on the separate preview origin that exchanges the posted grant for a preview session."
+        },
+        "previewUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Absolute URL on the preview origin where the preview is shown after the exchange."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant stops being exchangeable, 30 seconds after it was issued. This is not the session length."
+        },
+        "sessionSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How long the session lasts after the grant is exchanged."
+        }
+      },
+      "required": [
+        "grantId",
+        "grant",
+        "exchangeUrl",
+        "previewUrl",
+        "expiresAt",
+        "sessionSeconds"
+      ],
+      "additionalProperties": false,
+      "description": "One-use grant, exchangeable for 30 seconds, POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs. The session it opens lasts sessionSeconds."
     },
     "BinaryArtifact": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -82880,6 +87791,891 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "The runner's answer to asking for work: either one backup run it now holds, with the lease token shown once, or claimed false when nothing is waiting or another run still holds a live lease."
     },
+    "TelemetryDestination": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the destination."
+        },
+        "kind": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Which kind of destination this is, for example otlp."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Name shown in the list and in alerts."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the destination receives measurements now."
+        },
+        "measurements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The kinds of measurement it receives: cost, durations, results, skills, health, errors. Each array item follows this format."
+          },
+          "description": "The kinds of measurement it receives: cost, durations, results, skills, health, errors."
+        },
+        "settings": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "The non-secret values saved for it, by field name."
+        },
+        "secretFieldsSet": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Names of the secret fields that hold a stored value; the values are never returned. Each array item follows this format."
+          },
+          "description": "Names of the secret fields that hold a stored value; the values are never returned."
+        },
+        "credentialUpdatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When its secret values were last replaced, or null when it has none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.credentialUpdatedAt may be null in this transport value."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "working",
+            "not_tested_yet",
+            "failing",
+            "dropping_data",
+            "off"
+          ],
+          "description": "working, not_tested_yet (on, nothing sent yet), failing (the last sends were refused or timed out), dropping_data (its queue overflowed recently) or off."
+        },
+        "lastAcceptedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it last accepted a batch, or null when it never has since the server started."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.lastAcceptedAt may be null in this transport value."
+        },
+        "lastAnswerAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it last answered a send, accepted or not, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.lastAnswerAt may be null in this transport value."
+        },
+        "lastAnswerOk": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Whether that last answer was an acceptance, or null before any."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.lastAnswerOk may be null in this transport value."
+        },
+        "lastAnswerReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "A short plain reason when the last answer was a refusal, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.lastAnswerReason may be null in this transport value."
+        },
+        "dropped": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Records dropped for this destination since the server started."
+        },
+        "droppedSince": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the first of those was dropped, or null when none were."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.droppedSince may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the destination was added."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time it last changed."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision; submit it as If-Match when changing or removing the destination."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "enabled",
+        "measurements",
+        "settings",
+        "secretFieldsSet",
+        "credentialUpdatedAt",
+        "state",
+        "lastAcceptedAt",
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason",
+        "dropped",
+        "droppedSince",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One telemetry destination as an installation administrator may see it, with how it is doing. Secret values are reported only as the names of the fields that are set and when they were last replaced; no value, ciphertext or key identifier is ever returned.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "TelemetryDestinationList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "Each kind of destination: its identifier, label, fields (name, label, help, secret, required), the measurements it can take and why any it cannot take is unavailable. Each array item follows this format."
+          },
+          "description": "Each kind of destination: its identifier, label, fields (name, label, help, secret, required), the measurements it can take and why any it cannot take is unavailable."
+        },
+        "measurements": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema1"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema1"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "The six kinds of measurement, each with its identifier, label and one line of help. Each array item follows this format."
+          },
+          "description": "The six kinds of measurement, each with its identifier, label and one line of help."
+        },
+        "destinations": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "The destinations, oldest first, each shaped as a TelemetryDestination. Each array item follows this format."
+          },
+          "description": "The destinations, oldest first, each shaped as a TelemetryDestination."
+        }
+      },
+      "required": [
+        "kinds",
+        "measurements",
+        "destinations"
+      ],
+      "additionalProperties": false,
+      "description": "Everything the Monitoring page needs about destinations in one read: the kinds the server can deliver to with their fields, the six kinds of measurement, and the destinations that exist (at most 20) with their state.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema2": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "TelemetryDestinationTestResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True only when the destination accepted the test message."
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The destination's HTTP status, or null when it never answered."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestinationTestResult.status may be null in this transport value."
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "A short plain reason when it did not accept, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestinationTestResult.reason may be null in this transport value."
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "At most 300 characters of what it answered, or null; never a credential."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestinationTestResult.answer may be null in this transport value."
+        },
+        "tookMs": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Milliseconds the test took."
+        }
+      },
+      "required": [
+        "ok",
+        "status",
+        "reason",
+        "answer",
+        "tookMs"
+      ],
+      "additionalProperties": false,
+      "description": "The destination's real answer to one test message: whether it accepted it, its HTTP status, a short plain reason when it did not, a bounded piece of what it said and how long it took."
+    },
     "IntegrationAppManifestStart": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -86708,6 +92504,550 @@ export const clientManifest = {
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "ContextPack": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "needs_bounding",
+            "bound-more-before-dispatch",
+            "handoff_required"
+          ],
+          "description": "What admission concluded for this pack."
+        },
+        "envelope": {
+          "type": "object",
+          "properties": {
+            "modelContextTokens": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Context window the resolved model and harness report."
+            },
+            "reservedTokens": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Tokens held back before any item was added: output, tool results, compaction and the safety margin."
+            },
+            "countedInputTokens": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "What the admitted inputs counted as, with a bounded unknown counted at its bound."
+            },
+            "availableTokens": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Tokens left for input after the reservations: negative means the reservations alone exceed the window."
+            },
+            "maxInputTokens": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Operator cap on input tokens when one applies, or null when the window alone bounds it."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "ContextPackEnvelope.maxInputTokens may be null in this transport value."
+            },
+            "decision": {
+              "type": "string",
+              "enum": [
+                "ready",
+                "needs_bounding",
+                "bound-more-before-dispatch",
+                "handoff_required"
+              ],
+              "description": "What admission concluded: ready, needs_bounding, bound_more_before_dispatch, or handoff_required."
+            }
+          },
+          "required": [
+            "modelContextTokens",
+            "reservedTokens",
+            "countedInputTokens",
+            "availableTokens",
+            "maxInputTokens",
+            "decision"
+          ],
+          "additionalProperties": false,
+          "description": "The arithmetic the pack was admitted under, including the reservations taken before any item."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "itemId": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Caller's identifier for the candidate this item came from."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "text",
+                  "text_window",
+                  "log_window",
+                  "image_reference",
+                  "pdf_reference",
+                  "binary_reference"
+                ],
+                "description": "What the item is: bounded text, a text or log window with a byte range, or a reference to a version that carries no content."
+              },
+              "citation": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "Reproducible citation of the version and, for a window, its exact byte range and extractor; null for a caller-supplied text item."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ContextPackItem.citation may be null in this transport value."
+              },
+              "text": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The bounded text admitted to the prompt, or null for every reference kind."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ContextPackItem.text may be null in this transport value."
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "Whether the window ends before the version does."
+              },
+              "tokens": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "What the item counted as under countState."
+              },
+              "countState": {
+                "type": "string",
+                "enum": [
+                  "measured",
+                  "estimated",
+                  "unknown"
+                ],
+                "description": "Whether tokens was measured, estimated from bounded metadata, or unknown."
+              }
+            },
+            "required": [
+              "itemId",
+              "kind",
+              "citation",
+              "text",
+              "truncated",
+              "tokens",
+              "countState"
+            ],
+            "additionalProperties": false,
+            "description": "The admitted items in the caller's relevance order, never re-sorted by size. Each array item follows this format."
+          },
+          "description": "The admitted items in the caller's relevance order, never re-sorted by size."
+        },
+        "omitted": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "itemId": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Caller's identifier for the candidate that was not admitted."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "unbounded_unknown",
+                  "over_budget",
+                  "not_found"
+                ],
+                "description": "Why it was not admitted: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed."
+              }
+            },
+            "required": [
+              "itemId",
+              "reason"
+            ],
+            "additionalProperties": false,
+            "description": "Every candidate the pack does not carry, with the reason it was left out. Each array item follows this format."
+          },
+          "description": "Every candidate the pack does not carry, with the reason it was left out."
+        },
+        "usedTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Sum of the admitted items' tokens."
+        },
+        "conversationCutoff": {
+          "description": "ContextPack.conversationCutoff may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Minimum conversation sequence the step must see, or null when the caller did not name one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "repository": {
+          "description": "ContextPack.repository may be null in this transport value.",
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema1"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema1"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "Repository the step runs against, or null when the step is not repository-scoped."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "packDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "SHA-256 of the canonical selection, or null when the decision admitted nothing."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ContextPack.packDigest may be null in this transport value."
+        }
+      },
+      "required": [
+        "decision",
+        "envelope",
+        "items",
+        "omitted",
+        "usedTokens",
+        "packDigest"
+      ],
+      "additionalProperties": false,
+      "description": "The bounded context a step is handed: the decision, the envelope arithmetic, the admitted items with their citations, the omissions with reasons, and a digest pinning the selection.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -90692,6 +97032,21 @@ export const clientManifest = {
                 ],
                 "description": "FileSearchHit.entryId may be null in this transport value."
               },
+              "itemId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Id of the catalog item a library hit mirrors, the same id its Library page and its catalog reads use; null for a file."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.itemId may be null in this transport value."
+              },
               "path": {
                 "type": "string",
                 "maxLength": 65536,
@@ -90888,6 +97243,7 @@ export const clientManifest = {
             "required": [
               "source",
               "entryId",
+              "itemId",
               "path",
               "name",
               "kind",
@@ -90961,6 +97317,101 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of FileSearchHit."
     },
+    "Page<FileFact>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The artifact type of the files that hold the fact."
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The metadata key, at most 100 characters."
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "One value the key holds on the current version of at least one such file, at most 500 characters; an empty value is not listed."
+              },
+              "files": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many files of this kind the caller may read hold this key with this value on their current version."
+              }
+            },
+            "required": [
+              "kind",
+              "key",
+              "value",
+              "files"
+            ],
+            "additionalProperties": false,
+            "description": "One fact a kind of file carries: a metadata key and one string value it holds on the current version of some files the caller may read, with the number of those files. Pass key and value to files.search as factKey and factValue, and kind as kind, to list the files."
+          },
+          "description": "FileFact items in this cursor page. Page<FileFact>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<FileFact>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<FileFact>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<FileFact>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<FileFact>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of FileFact."
+    },
     "Page<LibraryEntry>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -90978,6 +97429,21 @@ export const clientManifest = {
                   "item"
                 ],
                 "description": "folder for a section, item for a published catalog item."
+              },
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Id of the catalog item the entry mirrors, the same id its Library page and its catalog reads use; null for a folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "LibraryEntry.id may be null in this transport value."
               },
               "path": {
                 "type": "string",
@@ -91021,6 +97487,7 @@ export const clientManifest = {
             },
             "required": [
               "type",
+              "id",
               "path",
               "name",
               "kind",
@@ -91843,6 +98310,130 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
+    },
+    "Page<SkillUsage>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "workflow",
+                  "agent"
+                ],
+                "description": "workflow for a published workflow version, agent for an agent version."
+              },
+              "definitionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the workflow or agent the version belongs to."
+              },
+              "definitionName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Name of that workflow or agent, as shown in the Library."
+              },
+              "versionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Immutable UUID of the workflow version or agent version that names the skill."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Revision number of that workflow or agent version."
+              },
+              "skillVersionIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one. Each array item follows this format."
+                },
+                "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time that workflow or agent version was created, which orders the list newest first."
+              }
+            },
+            "required": [
+              "kind",
+              "definitionId",
+              "definitionName",
+              "versionId",
+              "revision",
+              "skillVersionIds",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One workflow version or agent version that pins a version of a skill: what it is, which version of it, and which versions of the skill it names. A workflow version uses a skill when one of its steps lists the version; an agent version uses it when its skill bindings name the version."
+          },
+          "description": "SkillUsage items in this cursor page. Page<SkillUsage>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<SkillUsage>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillUsage>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<SkillUsage>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<SkillUsage>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of SkillUsage."
     },
     "Page<SkillUseGrant>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -94263,6 +100854,2488 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of PluginStateItem."
+    },
+    "PreviewAvailability": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean",
+          "description": "True when the deployment configures a separate preview origin. When false every preview operation fails closed and clients show that previews are not set up."
+        }
+      },
+      "required": [
+        "available"
+      ],
+      "additionalProperties": false,
+      "description": "Whether this deployment can serve running-app previews."
+    },
+    "Page<MetricSource>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "pullRequest",
+                  "task"
+                ],
+                "description": "pullRequest for pull request metrics, task for task metrics."
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Bakery id of the pull request or task, for linking to it."
+              },
+              "repositoryId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Repository of a pull request; null for a task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.repositoryId may be null in this transport value."
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Task the pull request delivers."
+              },
+              "providerNumber": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Pull request number on the provider; null for a task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.providerNumber may be null in this transport value."
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Provider page of a pull request; null for a task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.url may be null in this transport value."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "closed",
+                  "merged",
+                  "delivered"
+                ],
+                "description": "A pull request's state (open, closed, merged); delivered for a task."
+              },
+              "openedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "Provider time it was opened; null when unread."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.openedAt may be null in this transport value."
+              },
+              "mergedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "Provider time it was merged; null unless merged."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.mergedAt may be null in this transport value."
+              },
+              "closedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "Provider time it was last closed; null while open."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.closedAt may be null in this transport value."
+              },
+              "countedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "The provider time this metric places it at (opened, merged or closed time); null when unknown."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.countedAt may be null in this transport value."
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Its own contribution in the series unit (1 for counts, hours, lines, or 1/0 merged for merge rate); null is unknown."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.value may be null in this transport value."
+              },
+              "missingReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "no_opened_time",
+                      "no_merged_time",
+                      "no_closed_time",
+                      "no_diff_totals",
+                      "still_open"
+                    ],
+                    "description": "Why this record's value is unknown and it was left out of the number; null when it counted."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.missingReason may be null in this transport value."
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The task's title; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.title may be null in this transport value."
+              },
+              "requestedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the task's first run was admitted; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.requestedAt may be null in this transport value."
+              },
+              "deliveredAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the task reached its delivery point; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.deliveredAt may be null in this transport value."
+              },
+              "deliveryPoint": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "merged_pull_request",
+                      "completed_run"
+                    ],
+                    "description": "Which delivery point the task reached; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.deliveryPoint may be null in this transport value."
+              },
+              "waits": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "agentWorking",
+                            "queue",
+                            "review",
+                            "person",
+                            "blocked",
+                            "unaccounted"
+                          ],
+                          "description": "agentWorking: an agent attempt ran; queue: a job was ready and not yet claimed; review: the independent review step ran; person: an approval, question or request waited for a person; blocked: blocked time, not recorded yet; unaccounted: lead time no recorded interval covers. Where intervals overlap, person wins, then review, agent and queue."
+                        },
+                        "hours": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "description": "Hours in this category; null when unknown."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "MetricWaitShare.hours may be null in this transport value."
+                        },
+                        "unknownReason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "not_recorded"
+                              ],
+                              "description": "not_recorded when Bakery keeps no history for this category (blocked); null otherwise."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "MetricWaitShare.unknownReason may be null in this transport value."
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "hours",
+                        "unknownReason"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Where the task's lead time went; null for a pull request. Each array item follows this format."
+                    },
+                    "description": "Where the task's lead time went; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.waits may be null in this transport value."
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "repositoryId",
+              "taskId",
+              "providerNumber",
+              "url",
+              "status",
+              "openedAt",
+              "mergedAt",
+              "closedAt",
+              "countedAt",
+              "value",
+              "missingReason",
+              "title",
+              "requestedAt",
+              "deliveredAt",
+              "deliveryPoint",
+              "waits"
+            ],
+            "additionalProperties": false,
+            "description": "One record behind a metric: a pull request with its lifecycle times, or a delivered task with its lead time and where it went. Its value is its own contribution; a null value is unknown and was left out of the number."
+          },
+          "description": "MetricSource items in this cursor page. Page<MetricSource>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<MetricSource>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MetricSource>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<MetricSource>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<MetricSource>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of MetricSource."
+    },
+    "EvaluationDataset": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Dataset id."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name."
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "caseId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The case."
+              },
+              "caseRevision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Its revision at pinning."
+              }
+            },
+            "required": [
+              "caseId",
+              "caseRevision"
+            ],
+            "additionalProperties": false,
+            "description": "The case revisions in measuring order. Each array item follows this format."
+          },
+          "description": "The case revisions in measuring order."
+        },
+        "digest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 over the ordered case revisions; two datasets compare only when it matches."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When it was created."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "cases",
+        "digest",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "An immutable dataset revision: its ordered case revisions and digest."
+    },
+    "Page<EvaluationDataset>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Dataset id."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name."
+              },
+              "cases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "caseId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "The case."
+                    },
+                    "caseRevision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Its revision at pinning."
+                    }
+                  },
+                  "required": [
+                    "caseId",
+                    "caseRevision"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The case revisions in measuring order. Each array item follows this format."
+                },
+                "description": "The case revisions in measuring order."
+              },
+              "digest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 over the ordered case revisions; two datasets compare only when it matches."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When it was created."
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "cases",
+              "digest",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "An immutable dataset revision: its ordered case revisions and digest."
+          },
+          "description": "EvaluationDataset items in this cursor page. Page<EvaluationDataset>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<EvaluationDataset>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<EvaluationDataset>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<EvaluationDataset>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<EvaluationDataset>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of EvaluationDataset."
+    },
+    "EvaluationBatch": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Batch id."
+        },
+        "datasetId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The dataset measured, for linking to it."
+        },
+        "datasetDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The dataset revision's digest."
+        },
+        "candidate": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "What is measured, as pinned at admission."
+        },
+        "baseline": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema1"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema1"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "What it is compared with, as pinned; null without a baseline."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.baseline may be null in this transport value."
+        },
+        "scorers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "scorerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The scorer definition, for linking to it."
+              },
+              "slug": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Its name."
+              },
+              "scorerRevision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Its revision."
+              },
+              "evaluatorType": {
+                "type": "string",
+                "enum": [
+                  "deterministic",
+                  "model"
+                ],
+                "description": "Deterministic check or model rubric."
+              }
+            },
+            "required": [
+              "scorerId",
+              "slug",
+              "scorerRevision",
+              "evaluatorType"
+            ],
+            "additionalProperties": false,
+            "description": "The scorer revisions pinned. Each array item follows this format."
+          },
+          "description": "The scorer revisions pinned."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "running",
+            "completed",
+            "completed_with_errors",
+            "canceled",
+            "failed"
+          ],
+          "description": "queued, running, completed, completed_with_errors (some required results unmeasured), canceled or failed."
+        },
+        "requiredCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Required candidate results."
+        },
+        "measuredCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Of those, how many were measured (passed or failed)."
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Measured and passed."
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Measured and failed."
+            },
+            "error": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "A stage failed; no measurement."
+            },
+            "unscored": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The target ran but no scorer produced a valid score."
+            },
+            "canceled": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Stopped before a measurement."
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Not run by policy."
+            },
+            "missing": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Not run yet."
+            }
+          },
+          "required": [
+            "passed",
+            "failed",
+            "error",
+            "unscored",
+            "canceled",
+            "skipped",
+            "missing"
+          ],
+          "additionalProperties": false,
+          "description": "Required candidate results per state."
+        },
+        "gate": {
+          "type": "object",
+          "properties": {
+            "decision": {
+              "type": "string",
+              "enum": [
+                "met",
+                "not_met",
+                "cannot_be_judged"
+              ],
+              "description": "met; not_met when a measured result breaks the rule; cannot_be_judged while any required result is unmeasured or the batch is empty, running or canceled."
+            },
+            "rule": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The rule as a sentence."
+            },
+            "blockers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "caseId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The case."
+                  },
+                  "scorerId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The scorer."
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "passed",
+                      "failed",
+                      "error",
+                      "unscored",
+                      "canceled",
+                      "skipped",
+                      "missing"
+                    ],
+                    "description": "Its result state."
+                  }
+                },
+                "required": [
+                  "caseId",
+                  "scorerId",
+                  "state"
+                ],
+                "additionalProperties": false,
+                "description": "The cases and scorers that made it not met or not judgeable. Each array item follows this format."
+              },
+              "description": "The cases and scorers that made it not met or not judgeable."
+            }
+          },
+          "required": [
+            "decision",
+            "rule",
+            "blockers"
+          ],
+          "additionalProperties": false,
+          "description": "The gate's answer."
+        },
+        "hiddenCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Results the reader may not open; 0, since readers see the organization's evaluations."
+        },
+        "canceledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it was canceled."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.canceledAt may be null in this transport value."
+        },
+        "completedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it settled."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.completedAt may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When it was admitted."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Last change."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version for If-Match."
+        }
+      },
+      "required": [
+        "id",
+        "datasetId",
+        "datasetDigest",
+        "candidate",
+        "baseline",
+        "scorers",
+        "state",
+        "requiredCount",
+        "measuredCount",
+        "counts",
+        "gate",
+        "hiddenCount",
+        "canceledAt",
+        "completedAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "An evaluation batch with what it used, its state, counts and coverage of the candidate's required results, and the gate's answer.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "Page<EvaluationBatch>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Batch id."
+              },
+              "datasetId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The dataset measured, for linking to it."
+              },
+              "datasetDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The dataset revision's digest."
+              },
+              "candidate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "What is measured, as pinned at admission."
+              },
+              "baseline": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "What it is compared with, as pinned; null without a baseline."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.baseline may be null in this transport value."
+              },
+              "scorers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "scorerId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "The scorer definition, for linking to it."
+                    },
+                    "slug": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Its name."
+                    },
+                    "scorerRevision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Its revision."
+                    },
+                    "evaluatorType": {
+                      "type": "string",
+                      "enum": [
+                        "deterministic",
+                        "model"
+                      ],
+                      "description": "Deterministic check or model rubric."
+                    }
+                  },
+                  "required": [
+                    "scorerId",
+                    "slug",
+                    "scorerRevision",
+                    "evaluatorType"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The scorer revisions pinned. Each array item follows this format."
+                },
+                "description": "The scorer revisions pinned."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "completed",
+                  "completed_with_errors",
+                  "canceled",
+                  "failed"
+                ],
+                "description": "queued, running, completed, completed_with_errors (some required results unmeasured), canceled or failed."
+              },
+              "requiredCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Required candidate results."
+              },
+              "measuredCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Of those, how many were measured (passed or failed)."
+              },
+              "counts": {
+                "type": "object",
+                "properties": {
+                  "passed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Measured and passed."
+                  },
+                  "failed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Measured and failed."
+                  },
+                  "error": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "A stage failed; no measurement."
+                  },
+                  "unscored": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "The target ran but no scorer produced a valid score."
+                  },
+                  "canceled": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Stopped before a measurement."
+                  },
+                  "skipped": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Not run by policy."
+                  },
+                  "missing": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Not run yet."
+                  }
+                },
+                "required": [
+                  "passed",
+                  "failed",
+                  "error",
+                  "unscored",
+                  "canceled",
+                  "skipped",
+                  "missing"
+                ],
+                "additionalProperties": false,
+                "description": "Required candidate results per state."
+              },
+              "gate": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "met",
+                      "not_met",
+                      "cannot_be_judged"
+                    ],
+                    "description": "met; not_met when a measured result breaks the rule; cannot_be_judged while any required result is unmeasured or the batch is empty, running or canceled."
+                  },
+                  "rule": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The rule as a sentence."
+                  },
+                  "blockers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "caseId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "The case."
+                        },
+                        "scorerId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "The scorer."
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "passed",
+                            "failed",
+                            "error",
+                            "unscored",
+                            "canceled",
+                            "skipped",
+                            "missing"
+                          ],
+                          "description": "Its result state."
+                        }
+                      },
+                      "required": [
+                        "caseId",
+                        "scorerId",
+                        "state"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The cases and scorers that made it not met or not judgeable. Each array item follows this format."
+                    },
+                    "description": "The cases and scorers that made it not met or not judgeable."
+                  }
+                },
+                "required": [
+                  "decision",
+                  "rule",
+                  "blockers"
+                ],
+                "additionalProperties": false,
+                "description": "The gate's answer."
+              },
+              "hiddenCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Results the reader may not open; 0, since readers see the organization's evaluations."
+              },
+              "canceledAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When it was canceled."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.canceledAt may be null in this transport value."
+              },
+              "completedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When it settled."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.completedAt may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When it was admitted."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "Last change."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version for If-Match."
+              }
+            },
+            "required": [
+              "id",
+              "datasetId",
+              "datasetDigest",
+              "candidate",
+              "baseline",
+              "scorers",
+              "state",
+              "requiredCount",
+              "measuredCount",
+              "counts",
+              "gate",
+              "hiddenCount",
+              "canceledAt",
+              "completedAt",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "An evaluation batch with what it used, its state, counts and coverage of the candidate's required results, and the gate's answer."
+          },
+          "description": "EvaluationBatch items in this cursor page. Page<EvaluationBatch>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<EvaluationBatch>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<EvaluationBatch>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<EvaluationBatch>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<EvaluationBatch>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of EvaluationBatch.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "Page<EvaluationBatchResult>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Result id."
+              },
+              "batchId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Its batch."
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "candidate",
+                  "baseline"
+                ],
+                "description": "candidate or baseline side."
+              },
+              "caseId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The case, for linking to it."
+              },
+              "caseRevision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The case revision measured."
+              },
+              "scorerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The scorer, for linking to it."
+              },
+              "scorerRevision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The scorer revision used."
+              },
+              "repetition": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Which repetition, from 1."
+              },
+              "required": {
+                "type": "boolean",
+                "description": "Whether the gate needs it."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed",
+                  "error",
+                  "unscored",
+                  "canceled",
+                  "skipped",
+                  "missing"
+                ],
+                "description": "passed, failed, error, unscored, canceled, skipped or missing."
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "A short sentence: which stage failed, the policy that skipped it, who stopped it; null when passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatchResult.reason may be null in this transport value."
+              },
+              "score": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "The measurement, 0 to 1; null unless passed or failed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatchResult.score may be null in this transport value."
+              },
+              "outputArtifactVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The retained target output that was scored; null until the target ran."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatchResult.outputArtifactVersionId may be null in this transport value."
+              },
+              "attemptCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Attempts so far."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "Last change."
+              }
+            },
+            "required": [
+              "id",
+              "batchId",
+              "role",
+              "caseId",
+              "caseRevision",
+              "scorerId",
+              "scorerRevision",
+              "repetition",
+              "required",
+              "state",
+              "reason",
+              "score",
+              "outputArtifactVersionId",
+              "attemptCount",
+              "updatedAt"
+            ],
+            "additionalProperties": false,
+            "description": "One case x scorer x side x repetition of a batch. Only passed and failed carry a score; every other state keeps its reason and has none."
+          },
+          "description": "EvaluationBatchResult items in this cursor page. Page<EvaluationBatchResult>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<EvaluationBatchResult>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<EvaluationBatchResult>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<EvaluationBatchResult>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<EvaluationBatchResult>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of EvaluationBatchResult."
+    },
+    "Page<EvaluationAttempt>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Attempt id."
+              },
+              "resultId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Its result."
+              },
+              "attemptNo": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Order, from 1."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed",
+                  "error",
+                  "unscored",
+                  "canceled",
+                  "skipped",
+                  "missing"
+                ],
+                "description": "The attempt's outcome state."
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Why, as a sentence; null when passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationAttempt.reason may be null in this transport value."
+              },
+              "score": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Its measurement; null unless passed or failed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationAttempt.score may be null in this transport value."
+              },
+              "startedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When it started."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationAttempt.startedAt may be null in this transport value."
+              },
+              "endedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When it ended."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationAttempt.endedAt may be null in this transport value."
+              },
+              "traceRef": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Link to the trace; null when none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationAttempt.traceRef may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When it was recorded."
+              }
+            },
+            "required": [
+              "id",
+              "resultId",
+              "attemptNo",
+              "state",
+              "reason",
+              "score",
+              "startedAt",
+              "endedAt",
+              "traceRef",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One append-only attempt at a result."
+          },
+          "description": "EvaluationAttempt items in this cursor page. Page<EvaluationAttempt>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<EvaluationAttempt>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<EvaluationAttempt>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<EvaluationAttempt>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<EvaluationAttempt>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of EvaluationAttempt."
+    },
+    "EvaluationComparison": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "compatible": {
+          "type": "boolean",
+          "description": "Whether the two batches can be compared."
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "different_dataset",
+                "different_case_revision",
+                "different_scorer_version"
+              ],
+              "description": "Why not, when incompatible; null when compatible."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationComparison.reason may be null in this transport value."
+        },
+        "measures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "scorerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The scorer."
+              },
+              "left": {
+                "type": "object",
+                "properties": {
+                  "passRate": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "Passed over measured, 0 to 1; null with nothing measured."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationMeasureSide.passRate may be null in this transport value."
+                  },
+                  "cases": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Measured results it is based on."
+                  }
+                },
+                "required": [
+                  "passRate",
+                  "cases"
+                ],
+                "additionalProperties": false,
+                "description": "The path batch's side."
+              },
+              "right": {
+                "type": "object",
+                "properties": {
+                  "passRate": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "description": "Passed over measured, 0 to 1; null with nothing measured."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationMeasureSide.passRate may be null in this transport value."
+                  },
+                  "cases": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Measured results it is based on."
+                  }
+                },
+                "required": [
+                  "passRate",
+                  "cases"
+                ],
+                "additionalProperties": false,
+                "description": "The other batch's side."
+              },
+              "change": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "right minus left pass rate; null when either side measured nothing."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationMeasure.change may be null in this transport value."
+              }
+            },
+            "required": [
+              "scorerId",
+              "left",
+              "right",
+              "change"
+            ],
+            "additionalProperties": false,
+            "description": "Per scorer, both sides and the change; empty when incompatible. Each array item follows this format."
+          },
+          "description": "Per scorer, both sides and the change; empty when incompatible."
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "caseId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The case."
+              },
+              "scorerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The scorer."
+              },
+              "left": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed",
+                  "error",
+                  "unscored",
+                  "canceled",
+                  "skipped",
+                  "missing"
+                ],
+                "description": "State in the path batch."
+              },
+              "right": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed",
+                  "error",
+                  "unscored",
+                  "canceled",
+                  "skipped",
+                  "missing"
+                ],
+                "description": "State in the other batch."
+              }
+            },
+            "required": [
+              "caseId",
+              "scorerId",
+              "left",
+              "right"
+            ],
+            "additionalProperties": false,
+            "description": "Per case and scorer, both states; empty when incompatible. Each array item follows this format."
+          },
+          "description": "Per case and scorer, both states; empty when incompatible."
+        },
+        "onlyLeft": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "caseId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The case."
+              },
+              "scorerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The scorer."
+              }
+            },
+            "required": [
+              "caseId",
+              "scorerId"
+            ],
+            "additionalProperties": false,
+            "description": "Cases only the path batch has. Each array item follows this format."
+          },
+          "description": "Cases only the path batch has."
+        },
+        "onlyRight": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "caseId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The case."
+              },
+              "scorerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The scorer."
+              }
+            },
+            "required": [
+              "caseId",
+              "scorerId"
+            ],
+            "additionalProperties": false,
+            "description": "Cases only the other batch has. Each array item follows this format."
+          },
+          "description": "Cases only the other batch has."
+        }
+      },
+      "required": [
+        "compatible",
+        "reason",
+        "measures",
+        "cases",
+        "onlyLeft",
+        "onlyRight"
+      ],
+      "additionalProperties": false,
+      "description": "The comparison of two batches. An incompatible pair is refused with one reason and carries no measures; a compatible pair never returns a change where a side has no measurement."
     }
   }
 } as const;

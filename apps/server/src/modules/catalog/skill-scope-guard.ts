@@ -60,3 +60,11 @@ export async function assertMayAuthorSkill(
     throw new StandardError({ code: "AUTH_FORBIDDEN" });
   }
 }
+
+/**
+ * A person sees every shared skill and their own personal (Private) skills, and
+ * nobody else's. The one place a personal skill reaches another person is a
+ * workflow it is attached to; that path never goes through these reads.
+ */
+export const SKILL_VISIBLE_TO = (principalParam: string) =>
+  `(scope <> 'personal' or owner_principal_id = ${principalParam}::uuid)`;

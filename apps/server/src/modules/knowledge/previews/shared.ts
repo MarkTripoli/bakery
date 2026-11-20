@@ -62,8 +62,9 @@ export function isPreviewRequestHost(
   requestUrl: string | URL,
   previewHost: string | undefined,
 ): boolean {
-  return previewHost !== undefined &&
-    previewHostname(requestUrl) === previewHost;
+  if (previewHost === undefined) return false;
+  const hostname = previewHostname(requestUrl);
+  return hostname === previewHost || hostname.endsWith(`.${previewHost}`);
 }
 
 export function previewViewPath(sessionId: string): string {
@@ -145,4 +146,81 @@ export function appRevisionPath(
   versionId: string,
 ): string {
   return `/tasks/${taskId}/artifacts/${artifactId}?version=${versionId}`;
+}
+
+/**
+ * Running-app previews (#19). Each preview is served on its own origin,
+ * `<routeKey>.<preview host>`, so one preview's scripts can never read
+ * another's cookies or storage. The exchange lives under a reserved path no
+ * app can claim.
+ */
+export const RUNNING_PREVIEW_RESERVED_PREFIX = "/_bakery/preview/";
+export const RUNNING_PREVIEW_EXCHANGE_PATH =
+  `${RUNNING_PREVIEW_RESERVED_PREFIX}exchange`;
+const RUNNING_COOKIE_BASE_NAME = "bakery_running_preview";
+
+/** The origin of one preview: its route key as a subdomain of the preview host. */
+export function runningPreviewOrigin(origin: string, routeKey: string): string {
+  const url = new URL(origin);
+  return `${url.protocol}//${routeKey}.${url.hostname}${
+    url.port === "" ? "" : `:${url.port}`
+  }`;
+}
+
+/**
+ * The single DNS label in front of the preview host, or null when the request
+ * is for the preview host itself or for a deeper name. A `__Host-` cookie is
+ * host only and path `/`, so a sibling preview cannot plant one under the same
+ * name with a `Domain` attribute; loopback http cannot carry it.
+ */
+export function runningPreviewLabel(
+  requestUrl: string | URL,
+  previewHost: string | undefined,
+): string | null {
+  if (previewHost === undefined) return null;
+  const hostname = previewHostname(requestUrl);
+  const suffix = `.${previewHost}`;
+  if (!hostname.endsWith(suffix)) return null;
+  const label = hostname.slice(0, -suffix.length);
+  return label === "" || label.includes(".") ? null : label;
+}
+
+export function runningPreviewCookieName(origin: string): string {
+  return new URL(origin).protocol === "https:"
+    ? `__Host-${RUNNING_COOKIE_BASE_NAME}`
+    : RUNNING_COOKIE_BASE_NAME;
+}
+
+export function runningPreviewCookie(
+  origin: string,
+  secret: string,
+  maxAgeSeconds: number,
+): string {
+  const secure = new URL(origin).protocol === "https:";
+  return [
+    `${runningPreviewCookieName(origin)}=${secret}`,
+    "HttpOnly",
+    ...(secure ? ["Secure"] : []),
+    "SameSite=Lax",
+    "Path=/",
+    `Max-Age=${maxAgeSeconds}`,
+  ].join("; ");
+}
+
+/** Reads only the running-preview cookie; every other cookie is ignored. */
+export function readRunningPreviewCookie(
+  origin: string,
+  header: string | null,
+): string | null {
+  if (!header) return null;
+  const name = runningPreviewCookieName(origin);
+  let found: string | null = null;
+  for (const part of header.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator < 0) continue;
+    if (part.slice(0, separator).trim() !== name) continue;
+    if (found !== null) return null;
+    found = part.slice(separator + 1).trim();
+  }
+  return found !== null && PREVIEW_SECRET_PATTERN.test(found) ? found : null;
 }

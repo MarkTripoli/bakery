@@ -804,6 +804,12 @@ async function refreshPullRequest(reader: FactReader): Promise<Decision> {
     mergedSha: read.mergedSha,
     providerUpdatedAt: new Date(read.updatedAt),
     observedStartedAt,
+    openedAt: read.openedAt ? new Date(read.openedAt) : null,
+    closedAt: read.closedAt ? new Date(read.closedAt) : null,
+    mergedAt: read.mergedAt ? new Date(read.mergedAt) : null,
+    additions: read.additions,
+    deletions: read.deletions,
+    changedFiles: read.changedFiles,
   };
   return decide(RouteStatus.Completed, RouteOutcomeCode.FactWritten, {
     within: whileAuthorized(claim, async (transaction) => {

@@ -119,6 +119,16 @@ export async function matrixSecretsKey() {
  * request leaves no row for its operation, then a success request leaves
  * exactly one, attributed and scoped as declared. Returns every produced row.
  */
+/** A telemetry destination that needs no secret, so no secrets key is involved. */
+function telemetryDestinationBody() {
+  return {
+    kind: "otlp",
+    name: `Audit matrix ${crypto.randomUUID()}`,
+    measurements: ["cost"],
+    values: { address: "https://collector.example.test" },
+  };
+}
+
 export async function runAuditMatrix(
   f: InstallationFixture,
   matrixActions: readonly string[] = AUDIT_MATRIX_ACTIONS,
@@ -126,6 +136,7 @@ export async function runAuditMatrix(
   const produced: MatrixRow[] = [];
   const org = orgHeader(f.organizationId);
   const developer = f.developerCookie;
+  let telemetryDestination: { id: string; version: number } | undefined;
   const suffix = crypto.randomUUID().slice(0, 8);
   const state: Record<string, string> = {};
   const rowsFor = async (operation: string) =>
@@ -734,6 +745,127 @@ export async function runAuditMatrix(
           "/v1/installation/skill-storage/verification",
           f.adminCookie,
           { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "telemetryDestinations.create",
+      failure: () =>
+        call(f, "POST", "/v1/installation/telemetry-destinations", developer, {
+          body: telemetryDestinationBody(),
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => {
+        const response = await call(
+          f,
+          "POST",
+          "/v1/installation/telemetry-destinations",
+          f.adminCookie,
+          {
+            body: telemetryDestinationBody(),
+            headers: { "Idempotency-Key": key() },
+          },
+        );
+        if (response.status === 201) {
+          telemetryDestination = await response.clone().json() as {
+            id: string;
+            version: number;
+          };
+        }
+        return { response, organizationId: null };
+      },
+    },
+    {
+      operation: "telemetryDestinations.update",
+      failure: () =>
+        call(
+          f,
+          "PATCH",
+          `/v1/installation/telemetry-destinations/${
+            telemetryDestination?.id ?? crypto.randomUUID()
+          }`,
+          developer,
+          {
+            body: { enabled: false },
+            headers: { "Idempotency-Key": key(), "If-Match": '"1"' },
+          },
+        ),
+      success: async () => {
+        const response = await call(
+          f,
+          "PATCH",
+          `/v1/installation/telemetry-destinations/${telemetryDestination!.id}`,
+          f.adminCookie,
+          {
+            body: { enabled: false },
+            headers: {
+              "Idempotency-Key": key(),
+              "If-Match": `"${telemetryDestination!.version}"`,
+            },
+          },
+        );
+        if (response.status === 200) {
+          telemetryDestination = await response.clone().json() as {
+            id: string;
+            version: number;
+          };
+        }
+        return { response, organizationId: null };
+      },
+    },
+    {
+      // Points at a closed local port, so it answers not accepted and reaches nothing.
+      operation: "telemetryDestinations.test",
+      failure: () =>
+        call(
+          f,
+          "POST",
+          "/v1/installation/telemetry-destination-tests",
+          developer,
+          {
+            body: { kind: "otlp", values: { address: "http://127.0.0.1:1" } },
+            headers: { "Idempotency-Key": key() },
+          },
+        ),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/installation/telemetry-destination-tests",
+          f.adminCookie,
+          {
+            body: { kind: "otlp", values: { address: "http://127.0.0.1:1" } },
+            headers: { "Idempotency-Key": key() },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "telemetryDestinations.delete",
+      failure: () =>
+        call(
+          f,
+          "DELETE",
+          `/v1/installation/telemetry-destinations/${
+            telemetryDestination?.id ?? crypto.randomUUID()
+          }`,
+          developer,
+          { headers: { "Idempotency-Key": key(), "If-Match": '"1"' } },
+        ),
+      success: async () => ({
+        response: await call(
+          f,
+          "DELETE",
+          `/v1/installation/telemetry-destinations/${telemetryDestination!.id}`,
+          f.adminCookie,
+          {
+            headers: {
+              "Idempotency-Key": key(),
+              "If-Match": `"${telemetryDestination!.version}"`,
+            },
+          },
         ),
         organizationId: null,
       }),
