@@ -575,6 +575,7 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactCommentsMentionCandidates: "artifactComments.mentionCandidates",
     ArtifactsList: "artifacts.list",
     FilesSearch: "files.search",
+    FilesFacts: "files.facts",
     FilesLibrary: "files.library",
     ArtifactsGet: "artifacts.get",
     ArtifactsUpdate: "artifacts.update",

@@ -63,6 +63,7 @@ import {
 } from "./agent-file-grants.ts";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import {
+  createFileFactsHandler,
   createFileSearchHandler,
   createLibraryFolderHandler,
 } from "./file-search.ts";
@@ -318,6 +319,9 @@ export function createArtifactActions(
     (context) =>
       storageReader(context, ArtifactImplementedAction.FilesSearch).isAdmin,
   );
+  const listFileFacts = createFileFactsHandler((context) =>
+    storageReader(context, ArtifactImplementedAction.FilesFacts).isAdmin
+  );
   const listLibrary = createLibraryFolderHandler(options.secret);
   const blobUploads = createBlobUploadHandlers(options.blobStore);
   const trustedRepositoryResolver = createTrustedRepositoryResolver();
@@ -456,6 +460,18 @@ export function createArtifactActions(
       handler: async (context, input) =>
         contractSchemas["Page<FileSearchHit>"].parse(
           await searchFiles(context, input),
+        ),
+    })
+    .register({
+      name: ArtifactImplementedAction.FilesFacts,
+      method: HttpMethod.Get,
+      path: "/v1/files/facts",
+      input: contractSchemas.FileFactQuery,
+      output: contractSchemas["Page<FileFact>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<FileFact>"].parse(
+          await listFileFacts(context, input),
         ),
     })
     .register({
@@ -921,6 +937,7 @@ export function createArtifactResourceRoutes(
       ? options.tokenSession(context, next)
       : session(context, next);
   app.use("/v1/files/search", readsAcceptTokens);
+  app.use("/v1/files/facts", readsAcceptTokens);
   app.use("/v1/files/library", session);
   app.use("/v1/artifacts/*", session);
   app.use("/v1/artifact-versions", session);

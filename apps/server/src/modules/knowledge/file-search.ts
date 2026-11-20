@@ -615,3 +615,88 @@ export function createFileSearchHandler(
     };
   };
 }
+
+type FileFactInput = z.output<typeof contractSchemas.FileFactQuery>;
+
+type FactRow = { kind: string; key: string; value: string; files: number };
+
+/** The most a kind lists: keys, values per key, and rows in all. */
+const MAX_FACT_KEYS = 50;
+const MAX_FACT_VALUES = 50;
+const MAX_FACT_ROWS = 500;
+
+/**
+ * The facts files carry, by kind (the source for the search's fact filter):
+ * every metadata key and string value on the current version of a file the
+ * caller may read, with how many files hold it. The same rules as the search:
+ * organization isolation, the route's own read permission, an agent session's
+ * `artifacts.read` scope, and /system an Admin's alone. Working-area files
+ * carry no metadata, so only artifact-backed files appear.
+ */
+export function createFileFactsHandler(
+  isAdmin: (context: ActionContext) => boolean,
+) {
+  return async function listFileFacts(
+    context: ActionContext,
+    input: FileFactInput,
+  ) {
+    const { transaction, organizationId } = requireWorkTransaction(context);
+    const scopes = context.sessionScopes;
+    if (scopes !== undefined && !scopes.includes("artifacts.read")) {
+      return { items: [], nextCursor: null };
+    }
+    const result = await transaction.query<FactRow>(
+      `with recursive hidden(id) as (
+         select entry.id from bakery.storage_entries entry
+          where entry.organization_id = $1
+            and entry.system_key = any($2::text[])
+         union all
+         select child.id from bakery.storage_entries child
+           join hidden on child.parent_id = hidden.id
+          where child.organization_id = $1
+       ),
+       facts as (
+         select a.artifact_type as kind, m.key, m.value, count(*)::integer as files
+           from bakery.storage_entries entry
+           join bakery.artifacts a
+             on a.organization_id = entry.organization_id
+            and a.id = entry.artifact_id
+           join bakery.artifact_versions v
+             on v.organization_id = a.organization_id
+            and v.id = a.current_version_id
+          cross join lateral jsonb_each_text(
+            case when jsonb_typeof(v.metadata) = 'object'
+                 then v.metadata else '{}'::jsonb end
+          ) as m(key, value)
+          where entry.organization_id = $1 and entry.kind = 'file'
+            and entry.id not in (select id from hidden)
+            and ($3::text is null or a.artifact_type = $3)
+            and length(m.key) between 1 and 100
+            and length(m.value) between 1 and 500
+          group by a.artifact_type, m.key, m.value
+       ),
+       ranked as (
+         select facts.*,
+                row_number() over (
+                  partition by kind, key order by files desc, value
+                ) as value_rank,
+                dense_rank() over (partition by kind order by key) as key_rank
+           from facts
+       )
+       select kind, key, value, files
+         from ranked
+        where value_rank <= $4 and key_rank <= $5
+        order by kind, key, value
+        limit $6`,
+      [
+        organizationId,
+        isAdmin(context) ? [] : ["system"],
+        input.kind ?? null,
+        MAX_FACT_VALUES,
+        MAX_FACT_KEYS,
+        MAX_FACT_ROWS,
+      ],
+    );
+    return { items: result.rows, nextCursor: null };
+  };
+}
