@@ -121,7 +121,7 @@ Deno.test("the Monitoring list pages, searches, filters and orders destinations,
     assertEquals(first.stateCounts, {
       all: 60,
       working: 1,
-      not_tested_yet: 57,
+      not_tested_yet: 56,
       failing: 1,
       dropping_data: 1,
       off: 1,
