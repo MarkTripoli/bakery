@@ -1,5 +1,6 @@
 import { readRuntimeConfig, type RuntimeConfig } from "@bakery/config";
 import { createSkillObjectStore } from "../modules/catalog/storage-backend.ts";
+import { ScopedOrganizationBlobStore } from "../modules/catalog/blob-store.ts";
 import {
   type ProbeRunnerDeps,
   type ProbeRunnerResult,
@@ -74,9 +75,16 @@ export function probeRunnerDeps(
     secretsKey: config.secretsKey,
     allowLoopbackEndpoint: config.environment === "test",
   });
+  // The store is key-addressed; a blob subject is addressed by organization and
+  // digest, so it goes through the scoped adapter. Handing the raw store here made
+  // every blob subject throw inside the runner and be deferred for ever, which is
+  // how a probe that works for inline bytes never worked for an uploaded one.
+  const blobs = store === undefined
+    ? undefined
+    : new ScopedOrganizationBlobStore(store);
   return {
     readBlobBytes: (organizationId, blobId) =>
-      readBlobProbeSubjectBytes(database, store, organizationId, blobId),
+      readBlobProbeSubjectBytes(database, blobs, organizationId, blobId),
     readInlineBytes: (organizationId, entryId, revision) =>
       readInlineProbeSubjectBytes(database, organizationId, entryId, revision),
     readArtifactVersionBytes: (organizationId, artifactVersionId) =>
@@ -90,5 +98,6 @@ export function probeRunnerDeps(
     ...(config.probeSpoolDir === undefined
       ? {}
       : { probeOptions: { spoolDir: config.probeSpoolDir.root } }),
+    log: (line) => console.error(line),
   };
 }

@@ -579,25 +579,13 @@ export function createArtifactReadHandlers(
         organizationId,
         context.params.id,
       );
-      if (row.blob_id === null) {
-        return {
-          status: null,
-          kind: null,
-          mediaType: null,
-          byteLength: null,
-          width: null,
-          height: null,
-          durationMs: null,
-          lineCount: null,
-          utf8: null,
-          code: null,
-          limit: null,
-          probedAt: null,
-        };
-      }
+      // The runner keys a store-less version's answer on the version itself, so
+      // stopping here left every such version reading as never probed.
       const stored = await readBlobProbe(transaction, {
         organizationId,
-        blobId: row.blob_id,
+        ...(row.blob_id === null
+          ? { artifactVersionId: row.id }
+          : { blobId: row.blob_id }),
       });
       if (stored === null) {
         return {

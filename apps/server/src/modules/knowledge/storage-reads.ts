@@ -23,7 +23,7 @@ import {
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { storedMediaSafety } from "./media.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
-import { readBlobProbe } from "./blob-probes.ts";
+import { type ProbeSubject, readBlobProbe } from "./blob-probes.ts";
 import {
   ifNoneMatchMatches,
   ifRangeMatches,
@@ -715,9 +715,19 @@ export function createFileProbeReader() {
     );
     if (file.kind !== "file") notFound();
     if (file.purged_at !== null) notFound();
+    // The subject is whichever of the three the version resolves to: a blob when
+    // the bytes live in one, an artifact version, or an inline entry and revision.
+    // Reading only the blob left every inline file and every store-less artifact
+    // version with no answer at all, however the runner had recorded it.
     const found = file.artifact_id !== null
-      ? await tx.query<{ blob_id: string | null }>(
-        "select v.blob_id from bakery.artifact_versions v" +
+      ? await tx.query<{
+        id: string;
+        blob_id: string | null;
+        entry_id: null;
+        revision: null;
+      }>(
+        "select v.id, v.blob_id, null::text as entry_id," +
+          " null::int as revision from bakery.artifact_versions v" +
           " join bakery.artifacts a" +
           " on a.organization_id = v.organization_id and a.id = v.artifact_id" +
           " where v.organization_id = $1 and v.artifact_id = $2" +
@@ -725,19 +735,25 @@ export function createFileProbeReader() {
           " or v.revision = $3)",
         [organizationId, file.artifact_id, input.revision],
       )
-      : await tx.query<{ blob_id: string | null }>(
-        "select blob_id from bakery.storage_file_versions" +
+      : await tx.query<{
+        id: string;
+        blob_id: string | null;
+        entry_id: string;
+        revision: number;
+      }>(
+        "select id, blob_id, entry_id, revision from bakery.storage_file_versions" +
           " where organization_id = $1 and entry_id = $2" +
           " and (($3::int is null and id = $4) or revision = $3)",
         [organizationId, file.id, input.revision, file.current_version_id],
       );
     const row = found.rows[0];
     if (!row) notFound();
-    if (row.blob_id === null) return neverProbed();
-    const stored = await readBlobProbe(tx, {
-      organizationId,
-      blobId: row.blob_id,
-    });
+    const subject: ProbeSubject = row.blob_id !== null
+      ? { blobId: row.blob_id }
+      : row.entry_id === null
+      ? { artifactVersionId: row.id }
+      : { entryId: row.entry_id, revision: Number(row.revision) };
+    const stored = await readBlobProbe(tx, { organizationId, ...subject });
     if (stored === null) return neverProbed();
     const { result, probedAt } = stored;
     const described = result.status === "described" ? result : null;

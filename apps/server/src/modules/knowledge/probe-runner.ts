@@ -81,6 +81,8 @@ export type ProbeRunnerDeps = Readonly<{
     artifactVersionId: string,
   ) => Promise<{ bytes: Uint8Array; sizeBytes: number } | null>;
   probeOptions?: ArtifactProbeOptions;
+  /** Where a discarded failure's class is reported; stderr in the task. */
+  log?: (line: string) => void;
 }>;
 
 export type ProbeRunnerResult = Readonly<{
@@ -362,14 +364,23 @@ export async function runProbeTick(
     let stored: Awaited<ReturnType<typeof probeOne>>;
     try {
       stored = await probeOne(database, request, deps);
-    } catch {
+    } catch (error) {
       // A real failure of this attempt, not a verdict on the file: count it, and
       // the ceiling eventually stops a request that cannot be answered at all.
+      //
+      // The class goes to stderr because the row keeps only `probe-failed`, and a
+      // deferred subject whose reason is discarded cannot be diagnosed anywhere --
+      // not by an operator reading the table, and not by the person who reported it.
       const outcome = await failProbeRequest(database, {
         id: request.id,
         attempts: request.attempts,
         error: "probe-failed",
       });
+      deps.log?.(
+        `bakery: probe request ${request.id} failed (${
+          error instanceof Error ? error.constructor.name : typeof error
+        }) attempts=${outcome} trace=${request.id}`,
+      );
       if (outcome === "abandoned") abandoned++;
       else deferred++;
       continue;

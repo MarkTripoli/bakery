@@ -21,6 +21,7 @@ import {
   readInlineProbeSubjectBytes,
   runProbeTick,
 } from "../../apps/server/src/modules/knowledge/probe-runner.ts";
+import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 import { probeRunnerDeps } from "../../apps/server/src/platform/probe-runner-task.ts";
 import {
   PNG_FRAME,
@@ -164,3 +165,238 @@ Deno.test("one tick answers a real inline version and clears its request", () =>
       await Deno.remove(spoolDir, { recursive: true });
     }
   }));
+
+/**
+ * The class qa3 found on mini1: the runner wrote answers nothing could read.
+ *
+ * The three subject kinds are keyed differently -- a blob, a storage version, an
+ * artifact version -- and each `/probe` route resolved only the first. The tick
+ * stored three answers and every read came back null, so the facts line stayed empty
+ * for every inline file and every store-less artifact version while the database
+ * held the answer. A test that stops at the stored row cannot see that, so this one
+ * asks the same routes the app asks, once per subject kind.
+ */
+Deno.test("a tick's answer is readable through the probe route for all three subjects", async () => {
+  const skillFileRoot = await Deno.makeTempDir();
+  // The app and the task must share one store, or the upload writes bytes the
+  // runner cannot read and the blob arm fails for the wrong reason.
+  await withWorkerFixture(async (fixture) => {
+    const call = (method: string, path: string, body?: unknown) =>
+      fixture.app.fetch(
+        new Request(fixture.config.publicBaseUrl + path, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            Origin: fixture.config.publicBaseUrl,
+            "Bakery-Organization-Id": fixture.organizationId,
+            Cookie: fixture.adminCookie,
+            ...(method === "GET"
+              ? {}
+              : { "Idempotency-Key": crypto.randomUUID() }),
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        }),
+      );
+
+    // 1. Inline storage bytes: a small file the entry keeps itself.
+    const inline = await call("PUT", "/v1/storage/files", {
+      path: "/shared/inline.txt",
+      content: btoa("one\ntwo\nthree"),
+      mediaType: "text/plain",
+    });
+    assertEquals(inline.status, 200);
+    const inlineFile = await inline.json() as { id: string };
+
+    // 2. Blob-backed storage bytes: an upload, completed, then put at a path.
+    const bytes = new TextEncoder().encode("blob-backed\ntext\nhere");
+    const digest = await sha256Bytes(bytes);
+    const started = await call("POST", "/v1/blobs/uploads", {
+      sha256: digest,
+      sizeBytes: bytes.byteLength,
+      mediaType: "text/plain",
+    });
+    assertEquals(started.status, 201, await started.clone().text());
+    const session = await started.json() as { id: string };
+    const part = await call(
+      "PUT",
+      `/v1/blobs/uploads/${session.id}/parts/1`,
+      { sha256: digest, content: base64Bytes(bytes) },
+    );
+    assertEquals(part.status, 200, await part.clone().text());
+    const completed = await call(
+      "POST",
+      `/v1/blobs/uploads/${session.id}/complete`,
+      {},
+    );
+    assertEquals(completed.status, 201, await completed.clone().text());
+    const blob = await completed.json() as { id: string };
+    const uploaded = await call("PUT", "/v1/storage/files", {
+      path: "/shared/blob.txt",
+      mediaType: "text/plain",
+      blobId: blob.id,
+    });
+    assertEquals(uploaded.status, 200, await uploaded.clone().text());
+    const blobFile = await uploaded.json() as { id: string };
+
+    // 3. Store-less artifact version: content on the version, no blob.
+    const seeded = await seedInlineArtifact(fixture);
+
+    // Start from a known queue: the writes queued two versions, and the backfill is
+    // what must find the third, so every request is dropped and the page re-finds all.
+    await fixture.pgDatabase.query(
+      "delete from bakery.probe_requests where organization_id = $1",
+      [fixture.organizationId],
+    );
+    await enqueueUnprobedPage(fixture.pgDatabase, { afterId: null, limit: 50 });
+
+    const dir = await Deno.makeTempDir();
+    const spoolDir = await Deno.makeTempDir();
+    try {
+      const launcher = await writeStub(dir, "sealed", {
+        selfTest: SEALED,
+        filesystem: READ_ONLY,
+        probe: `printf '%s' '${PNG_FRAME}'`,
+      });
+      const config = readRuntimeConfig(
+        {
+          BAKERY_ENV: "test",
+          BAKERY_PROBE_SPOOL_DIR: spoolDir,
+          BAKERY_SKILL_FILE_ROOT: skillFileRoot,
+          BAKERY_PUBLIC_BASE_URL: fixture.config.publicBaseUrl,
+        },
+        "server",
+      );
+      const built = probeRunnerDeps(config, fixture.pgDatabase);
+      forgetSandboxPreflight();
+      const result = await runProbeTick(
+        fixture.pgDatabase,
+        {
+          ...built,
+          probeOptions: { ...built.probeOptions, launcherPath: launcher },
+        },
+        { limit: 25 },
+      );
+      assertEquals(result.sandboxUnavailable, false);
+      assertEquals(result.claimed, 3, JSON.stringify(result));
+      assertEquals(result.answered, 3, JSON.stringify(result));
+
+      const read = async (path: string) => {
+        const response = await call("GET", path);
+        assertEquals(response.status, 200, await response.clone().text());
+        return await response.json() as {
+          status: string | null;
+          kind: string | null;
+          width: number | null;
+          height: number | null;
+        };
+      };
+
+      // The inline storage version: keyed (entry_id, revision), which is the arm
+      // that used to stop at a null blob_id.
+      const inlineAnswer = await read(
+        `/v1/storage/files/${inlineFile.id}/probe`,
+      );
+      assertEquals(
+        inlineAnswer.status,
+        "described",
+        JSON.stringify(inlineAnswer),
+      );
+      assertEquals(inlineAnswer.kind, "image", JSON.stringify(inlineAnswer));
+      assertEquals(inlineAnswer.width, 2, JSON.stringify(inlineAnswer));
+      assertEquals(inlineAnswer.height, 2);
+
+      // The blob-backed version: keyed on the blob, the arm that always worked.
+      const blobAnswer = await read(`/v1/storage/files/${blobFile.id}/probe`);
+      assertEquals(blobAnswer.status, "described", JSON.stringify(blobAnswer));
+      assertEquals(blobAnswer.kind, "image", JSON.stringify(blobAnswer));
+      assertEquals(blobAnswer.width, 2, JSON.stringify(blobAnswer));
+      assertEquals(blobAnswer.height, 2);
+
+      // The store-less artifact version: keyed on the version itself.
+      const artifactAnswer = await read(
+        `/v1/artifact-versions/${seeded.versionId}/probe`,
+      );
+      assertEquals(
+        artifactAnswer.status,
+        "described",
+        JSON.stringify(artifactAnswer),
+      );
+      assertEquals(
+        artifactAnswer.kind,
+        "image",
+        JSON.stringify(artifactAnswer),
+      );
+      assertEquals(artifactAnswer.width, 2, JSON.stringify(artifactAnswer));
+      assertEquals(artifactAnswer.height, 2);
+    } finally {
+      forgetSandboxPreflight();
+      await Deno.remove(dir, { recursive: true });
+      await Deno.remove(spoolDir, { recursive: true });
+    }
+  }, { skillFileRoot });
+  await Deno.remove(skillFileRoot, { recursive: true });
+});
+
+const base64Bytes = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+
+/** One artifact whose only version keeps its content on the row, not in a blob. */
+async function seedInlineArtifact(fixture: Fixture) {
+  const application = await fixture.pgDatabase.query<{ id: string }>(
+    `insert into bakery.applications (organization_id, name, slug)
+     values ($1, $2, $3) returning id`,
+    [
+      fixture.organizationId,
+      `probe-${crypto.randomUUID()}`,
+      `probe-${crypto.randomUUID()}`,
+    ],
+  );
+  const conversation = await fixture.pgDatabase.query<{ id: string }>(
+    `insert into bakery.conversations
+       (organization_id, application_id, title, created_by)
+     values ($1, $2, 'probe subjects', $3) returning id`,
+    [fixture.organizationId, application.rows[0].id, fixture.principalId],
+  );
+  const task = await fixture.pgDatabase.query<{ id: string }>(
+    `insert into bakery.tasks
+       (organization_id, application_id, conversation_id, title, task_type,
+        status, created_by)
+     values ($1, $2, $3, 'probe subjects', 'feature', 'completed', $4)
+     returning id`,
+    [
+      fixture.organizationId,
+      application.rows[0].id,
+      conversation.rows[0].id,
+      fixture.principalId,
+    ],
+  );
+  const artifact = await fixture.pgDatabase.query<{ id: string }>(
+    `insert into bakery.artifacts
+       (organization_id, task_id, artifact_type, name)
+     values ($1, $2, 'plan', 'Inline version') returning id`,
+    [fixture.organizationId, task.rows[0].id],
+  );
+  const content = new TextEncoder().encode("kept on the row");
+  const version = await fixture.pgDatabase.query<{ id: string }>(
+    `insert into bakery.artifact_versions
+       (organization_id, artifact_id, task_id, revision, author_id, metadata,
+        content, sha256, size_bytes, media_type, retention_class)
+     values ($1, $2, $3, 1, $4, '{}'::jsonb, $5, $6, $7, 'text/plain',
+             'transient')
+     returning id`,
+    [
+      fixture.organizationId,
+      artifact.rows[0].id,
+      task.rows[0].id,
+      fixture.principalId,
+      content,
+      await sha256Bytes(content),
+      content.byteLength,
+    ],
+  );
+  await fixture.pgDatabase.query(
+    `update bakery.artifacts set current_version_id = $1, revision = 2
+      where organization_id = $2 and id = $3`,
+    [version.rows[0].id, fixture.organizationId, artifact.rows[0].id],
+  );
+  return { versionId: version.rows[0].id };
+}
