@@ -22,6 +22,7 @@
  */
 import type { PgDatabase } from "../../platform/database.ts";
 import {
+  ARTIFACT_PROBE_MAX_BYTES,
   ARTIFACT_PROBE_MEMORY_MAX_BYTES,
   ARTIFACT_PROBE_TIMEOUT_MS,
   type ArtifactProbeFailureCode,
@@ -30,6 +31,7 @@ import {
   ArtifactProbeSelfTestFrameSchema,
 } from "@bakery/contracts/artifact-probe";
 import { readBlobProbe, writeBlobProbe } from "./blob-probes.ts";
+import { spoolBlob, type SpooledBlob, SpoolUnavailableError } from "./spool.ts";
 
 /** The unit properties the launcher pins; the test holds both lists equal. */
 export const ARTIFACT_PROBE_UNIT_PROPERTIES: readonly string[] = Object.freeze([
@@ -71,7 +73,12 @@ const FRAME_LIMIT = 4_096;
 
 export type ArtifactProbeInput = Readonly<{
   /** Absolute path to the bytes, already resolved from an owned blob. */
-  path: string;
+  path?: string;
+  /**
+   * Bytes to spool when the store cannot hand over a path (S3, bytea). Read
+   * lazily so a refusal about the host or the size costs no read at all.
+   */
+  readBytes?: () => Promise<Uint8Array>;
   /** The size the blob row records, checked before the child starts. */
   sizeBytes: number;
 }>;
@@ -80,6 +87,13 @@ export type ArtifactProbeOptions = Readonly<{
   /** Overridden by tests; production uses the fixed launcher. */
   launcherPath?: string;
   timeoutMs?: number;
+  /**
+   * Where to put a copy when the input has bytes instead of a path
+   * (`BAKERY_PROBE_SPOOL_DIR`, read through `RuntimeConfig`). Absent means a
+   * store that cannot hand over a path cannot be probed: the answer is
+   * `sandbox-unavailable`, never a description produced some other way.
+   */
+  spoolDir?: string;
 }>;
 
 async function readBounded(
@@ -297,6 +311,52 @@ async function askSandboxHoldsNetwork(
 }
 
 /**
+ * Either a path the sandbox may read, or the refusal that stops this attempt.
+ *
+ * The spool is checked before the bytes are read, so an oversize blob is
+ * refused without its bytes ever being loaded into the server.
+ */
+async function resolveInput(
+  input: ArtifactProbeInput,
+  options: ArtifactProbeOptions,
+): Promise<
+  | { path: string; release: () => Promise<void> }
+  | { refused: ArtifactProbeResult }
+> {
+  if (input.path !== undefined) {
+    return { path: input.path, release: async () => {} };
+  }
+  if (input.sizeBytes > ARTIFACT_PROBE_MAX_BYTES) {
+    return { refused: refused("too-large", ARTIFACT_PROBE_MAX_BYTES) };
+  }
+  if (input.readBytes === undefined) {
+    // Nothing to spool and nothing to read: this is a caller defect, and saying
+    // "the sandbox is unavailable" is the safe answer because it offers no
+    // preview rather than an invented one.
+    return { refused: refused("sandbox-unavailable") };
+  }
+  if (options.spoolDir === undefined) {
+    return { refused: refused("sandbox-unavailable") };
+  }
+  let spooled: SpooledBlob;
+  try {
+    const bytes = await input.readBytes();
+    spooled = await spoolBlob({
+      dir: options.spoolDir,
+      bytes,
+      sizeBytes: input.sizeBytes,
+      maxBytes: ARTIFACT_PROBE_MAX_BYTES,
+    });
+  } catch (error) {
+    if (error instanceof SpoolUnavailableError) {
+      return { refused: refused("sandbox-unavailable") };
+    }
+    throw error;
+  }
+  return { path: spooled.path, release: spooled.release };
+}
+
+/**
  * Runs the probe and always answers with a result: a refusal here is a fact
  * about this attempt, and the caller stores it rather than retrying into the
  * same wall.
@@ -305,9 +365,12 @@ export async function probeArtifactBytes(
   input: ArtifactProbeInput,
   options: ArtifactProbeOptions = {},
 ): Promise<ArtifactProbeResult> {
-  const launcherPath = options.launcherPath ?? SERVER_ARTIFACT_PROBE_LAUNCHER;
-  const timeoutMs = options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS;
-
+  // A size the server already knows is decided before anything else: it needs
+  // no sandbox to answer, it reads nothing, and "too large" is a more useful
+  // answer than "no sandbox" for a file nobody was going to read anyway.
+  if (input.sizeBytes > ARTIFACT_PROBE_MAX_BYTES) {
+    return refused("too-large", ARTIFACT_PROBE_MAX_BYTES);
+  }
   // Fail closed before the file is touched: if the sandbox is not sealed on
   // this host, the answer is about the host, not the bytes, and the bytes are
   // never handed to a process that could reach the network with them.
@@ -315,10 +378,26 @@ export async function probeArtifactBytes(
     return refused("sandbox-unavailable");
   }
 
+  const resolved = await resolveInput(input, options);
+  if ("refused" in resolved) return resolved.refused;
+  try {
+    return await readFrame(resolved.path, input.sizeBytes, options);
+  } finally {
+    // Every path through this function -- a refusal, a crash, a timeout, a
+    // cancelled request -- releases the copy before the caller sees an answer.
+    await resolved.release();
+  }
+}
+
+async function readFrame(
+  path: string,
+  sizeBytes: number,
+  options: ArtifactProbeOptions,
+): Promise<ArtifactProbeResult> {
   const exchange = await runLauncher(
-    { path: input.path, sizeBytes: input.sizeBytes },
-    launcherPath,
-    timeoutMs,
+    { path, sizeBytes },
+    options.launcherPath ?? SERVER_ARTIFACT_PROBE_LAUNCHER,
+    options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS,
   );
   if (exchange.late || exchange.timedOut) return refused("timeout", timeoutMs);
   if (exchange.code === null) return refused("sandbox-unavailable");
