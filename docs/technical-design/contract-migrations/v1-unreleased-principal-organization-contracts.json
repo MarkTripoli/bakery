@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "283ceeaf7750a9d6bfac79dce642a0b0bdf28224"
+    "2de7c9744ef72c605c415b6fc2ba846b95f98eee"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:6e72f3bf8ddff06402ec9f0782a9ef6e4e1b2422949e8f17712339edf83b1831",
-  "reason": "#57 slice 2 merge-queue reads by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 283ceeaf7750a9d6bfac79dce642a0b0bdf28224: PullRequest gains targetBranch, required and not nullable, the repository's default branch that mergeEntries.create takes; MergeEntry gains blockedReason, nullable. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:5e6cbf87fc5f188cc0b7baf0b42f9b86c72229e09937616145eabbbb79c8f48c",
+  "reason": "#57 slice 2 merge-queue reads by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2de7c9744ef72c605c415b6fc2ba846b95f98eee: PullRequest gains targetBranch, required and not nullable, the repository's default branch that mergeEntries.create takes; MergeEntry gains blockedReason, nullable. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
