@@ -4575,5 +4575,6 @@
   "files.uses.empty.title": "Nothing has used this file yet",
   "files.uses.empty.description": "When a run reads this file, it is listed here.",
   "files.panel.error": "The details did not load.",
-  "files.gone": "This file is no longer here. It may have been moved or deleted."
+  "files.gone": "This file is no longer here. It may have been moved or deleted.",
+  "shell.navigation.files": "Files"
 }

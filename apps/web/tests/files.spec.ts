@@ -31,6 +31,12 @@ for (
       await expect(page.getByText(
         "Your own uploads and scratch files. Only you can see them.",
       )).toBeVisible();
+      if (viewport.name === "desktop") {
+        // The rail lists Files, and marks it as the page the person is on.
+        await expect(
+          page.locator('nav.bakery-application-rail a[aria-current="page"]'),
+        ).toHaveText("Files");
+      }
       await page.mouse.move(700, 700);
       await still(page, "files-top");
     });
