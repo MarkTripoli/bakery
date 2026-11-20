@@ -15,6 +15,9 @@ import {
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { sizeParts } from "./files-state.ts";
+import { FilePreview } from "./FilePreview.tsx";
+import { CopyValueButton } from "../CopyValueButton.tsx";
+import { useState } from "react";
 
 export type FileTab = "details" | "versions" | "uses";
 
@@ -39,6 +42,32 @@ export function FileDetails(
     ...storageFileUsesQueryOptions(api, scope, file.id),
     enabled: ready && tab === "uses",
   });
+  const [downloadFailed, setDownloadFailed] = useState(false);
+  const download = async () => {
+    setDownloadFailed(false);
+    if (scope.organizationId === null) return;
+    const result = await api.files.content(
+      scope.organizationId,
+      file.id,
+      undefined,
+    );
+    if (
+      !result.ok || result.data.status !== 200 || result.data.content === null
+    ) {
+      setDownloadFailed(true);
+      return;
+    }
+    const url = URL.createObjectURL(
+      new Blob([new Uint8Array(result.data.content)], {
+        type: file.mediaType ?? "application/octet-stream",
+      }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = file.name;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
   const versionRows = versions.data?.pages.flatMap((page) => page.items) ?? [];
   const useRows = uses.data?.pages.flatMap((page) => page.items) ?? [];
   const current = versionRows.find((version) => version.isCurrent) ?? null;
@@ -247,6 +276,27 @@ export function FileDetails(
           {translate("files.details.close")}
         </UI.Button>
       </UI.Inline>
+      <FilePreview file={file} />
+      <UI.Inline gap="compact">
+        {file.contentRemoved
+          ? null
+          : (
+            <UI.Button variant="primary" onClick={() => void download()}>
+              {translate("files.action.download")}
+            </UI.Button>
+          )}
+        <CopyValueButton
+          label={translate("files.action.copyPathLabel", { name: file.name })}
+          value={file.path}
+        />
+      </UI.Inline>
+      {downloadFailed
+        ? (
+          <UI.InlineNotice tone="error">
+            {translate("files.action.downloadFailed")}
+          </UI.InlineNotice>
+        )
+        : null}
       <UI.Tabs
         aria-label={translate("files.tab.label")}
         selectedId={tab}

@@ -4576,5 +4576,14 @@
   "files.uses.empty.description": "When a run reads this file, it is listed here.",
   "files.panel.error": "The details did not load.",
   "files.gone": "This file is no longer here. It may have been moved or deleted.",
-  "shell.navigation.files": "Files"
+  "shell.navigation.files": "Files",
+  "files.preview.title": "Preview",
+  "files.preview.error": "The preview did not load.",
+  "files.preview.unsupported": "No preview for this kind of file.",
+  "files.preview.tooLarge": "This file is too large to preview ({size}).",
+  "files.preview.image": "Image: {name}",
+  "files.action.download": "Download",
+  "files.action.downloadFailed": "The download did not start. Try again.",
+  "files.action.copyPath": "Copy path",
+  "files.action.copyPathLabel": "Copy the path of {name}"
 }

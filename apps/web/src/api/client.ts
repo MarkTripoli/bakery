@@ -557,6 +557,13 @@ export type BakeryApiClient = {
       cursor?: string,
       signal?: AbortSignal,
     ) => Promise<ApiResult<StorageFileUsePage>>;
+    /** A file's bytes: its current version, or the one at `revision`. */
+    readonly content: (
+      organizationId: string,
+      fileId: string,
+      revision: number | undefined,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<ClientOutputMap["BinaryArtifact"]>>;
   };
   readonly output: {
     readonly attempts: (
@@ -2752,6 +2759,24 @@ export function createBakeryApiClient({
               id: fileId,
               cursor,
               limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async content(org, fileId, revision, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFiles.content"]({
+              id: fileId,
+              revision,
             }, { signal }),
           };
         } catch (error) {

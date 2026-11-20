@@ -4576,5 +4576,14 @@
   "files.uses.empty.description": "⟦Ŵĥëñ à ŕûñ ŕëàðš ŧĥïš ƒïļë, ïŧ ïš ļïšŧëð ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "files.panel.error": "⟦Ŧĥë ðëŧàïļš ðïð ñôŧ ļôàð. ŧëšŧ ç⟧",
   "files.gone": "⟦Ŧĥïš ƒïļë ïš ñô ļôñĝëŕ ĥëŕë. Ïŧ ɱàÿ ĥàṽë ƀëëñ ɱôṽëð ôŕ ðëļëŧëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
-  "shell.navigation.files": "⟦Ƒïļëš⟧"
+  "shell.navigation.files": "⟦Ƒïļëš⟧",
+  "files.preview.title": "⟦Þŕëṽïëŵ…⟧",
+  "files.preview.error": "⟦Ŧĥë þŕëṽïëŵ ðïð ñôŧ ļôàð. ŧëšŧ ç⟧",
+  "files.preview.unsupported": "⟦Ñô þŕëṽïëŵ ƒôŕ ŧĥïš ķïñð ôƒ ƒïļë. ŧëšŧ çôþÿ⟧",
+  "files.preview.tooLarge": "⟦Ŧĥïš ƒïļë ïš ŧôô ļàŕĝë ŧô þŕëṽïëŵ ({size}). ŧëšŧ çôþÿ ŧëš⟧",
+  "files.preview.image": "⟦Ïɱàĝë: {name} ŧë⟧",
+  "files.action.download": "⟦Ðôŵñļôàð…⟧",
+  "files.action.downloadFailed": "⟦Ŧĥë ðôŵñļôàð ðïð ñôŧ šŧàŕŧ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
+  "files.action.copyPath": "⟦Çôþÿ þàŧĥ ŧ⟧",
+  "files.action.copyPathLabel": "⟦Çôþÿ ŧĥë þàŧĥ ôƒ {name} ŧëšŧ ç⟧"
 }
