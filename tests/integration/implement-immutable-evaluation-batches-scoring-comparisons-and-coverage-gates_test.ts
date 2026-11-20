@@ -12,10 +12,29 @@ import { withPgTransaction } from "@bakery/persistence/postgres";
 import {
   closeWorkerOrganization,
   createWorkerScope,
+  registeredWorker,
   seedEligibleJob,
+  workerFixtureCapabilities,
 } from "../helpers/worker-execution.ts";
-import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
+import {
+  claimAssignment,
+  postWorkerResult,
+  withWorkerFixture,
+  type WorkerAssignment,
+} from "../helpers/worker-execution/scenarios.ts";
 import { recordAttempt } from "../../apps/server/src/modules/evaluations/store.ts";
+import { workerActionCapabilities } from "../../packages/contracts/src/contracts.ts";
+import {
+  bindProviderCallIntent,
+  recordProviderUsageReceipt,
+  type UsageReceipt,
+} from "../../apps/server/src/modules/work/budget.ts";
+import {
+  admitFundedModelRun,
+  type AdmittedJob,
+  seedAdmissibleRun,
+  seedProviderPricingSnapshot,
+} from "../helpers/funded-model-job.ts";
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 type Json = Record<string, unknown>;
@@ -128,7 +147,7 @@ async function world(fixture: Fixture) {
     }),
     201,
   );
-  return { cases, schema, rubric, dataset, scorer };
+  return { cases, schema, rubric, dataset, scorer, versionId };
 }
 
 async function admit(
@@ -350,4 +369,216 @@ Deno.test("cancel takes If-Match and keeps completed results; compare refuses in
     } finally {
       await closeWorkerOrganization(fixture.pgDatabase, foreign.organizationId);
     }
+  }));
+
+// The judge's receipt as it travels: bounded-judge.ts omits the figures it
+// does not have, so a timeout carries no costUsd and no token counts.
+type WireReceipt =
+  & Omit<UsageReceipt, "inputTokens" | "outputTokens" | "costUsd">
+  & Partial<Pick<UsageReceipt, "inputTokens" | "outputTokens" | "costUsd">>;
+
+// The judge's receipt, shaped as apps/worker/src/bounded-judge.ts builds it.
+function judgeReceipt(
+  run: AdmittedJob,
+  assignment: WorkerAssignment,
+  options: Readonly<{
+    providerCallId: string;
+    costUsd: string | null;
+  }>,
+): WireReceipt {
+  return {
+    usageFactId: "evaluation.score:" + assignment.attemptId,
+    providerCallId: options.providerCallId,
+    provider: String(run.billing?.provider),
+    billingAccountId: String(run.billing?.billingAccountId),
+    model: String(run.billing?.model),
+    billingRoute: "api",
+    pricingMetadataSnapshot: String(run.billing?.pricingMetadataSnapshot),
+    ...(options.costUsd === null ? { measurement: "unknown" as const } : {
+      inputTokens: "10",
+      outputTokens: "4",
+      costUsd: options.costUsd,
+      measurement: "reported" as const,
+    }),
+    occurredAt: new Date().toISOString(),
+  };
+}
+
+Deno.test("an evaluation.score result settles its judge receipt against the reservation", () =>
+  withWorkerFixture(async (fixture) => {
+    const db = fixture.pgDatabase;
+    const w = await world(fixture);
+    const batch = await admit(fixture, w, [w.rubric]);
+    const rows = await results(fixture, batch.id);
+    assertEquals(rows.length, 2);
+    await seedProviderPricingSnapshot(db);
+    const capabilities = [
+      ...new Set([
+        ...workerFixtureCapabilities,
+        ...workerActionCapabilities("evaluation.score"),
+      ]),
+    ];
+    const worker = await registeredWorker(fixture, { capabilities, slots: 4 });
+    const outputSchema = {
+      type: "object",
+      required: ["verdict"],
+      properties: { verdict: { type: "string" } },
+    };
+
+    const runFor = async (resultId: unknown, stepKey: string) =>
+      await admitFundedModelRun(
+        db,
+        await seedAdmissibleRun(
+          db,
+          fixture.organizationId,
+          fixture.principalId,
+          {
+            action: "evaluation.score",
+            reservationUsd: "0.05",
+            stepKey,
+            input: {
+              evaluationResultId: String(resultId),
+              outputArtifactVersionId: w.versionId,
+              rubric: "Is the output polite?",
+              outputSchema,
+            },
+          },
+        ),
+      );
+    const claim = async (run: AdmittedJob) => {
+      const assignment = await claimAssignment(fixture, worker, {
+        capabilities,
+        supportedActions: ["evaluation.score"],
+      });
+      assertEquals(assignment.jobId, run.jobId);
+      return assignment;
+    };
+    const post = async (
+      assignment: WorkerAssignment,
+      result: Json,
+      usage: WireReceipt,
+    ) => {
+      const response = await postWorkerResult(fixture, worker, assignment, {
+        leaseToken: assignment.leaseToken,
+        fence: assignment.fence,
+        localSeq: "1",
+        status: "completed",
+        result,
+        usage,
+      }, crypto.randomUUID());
+      assertEquals(response.status, 200, await response.text());
+    };
+    const usageRow = async (usageFactId: string) =>
+      (await db.query<{
+        measurement: string;
+        costUsd: string | null;
+        providerCallId: string;
+      }>(
+        `select measurement, cost_usd::text as "costUsd",
+                provider_call_id as "providerCallId"
+           from bakery.usage_records
+          where organization_id = $1 and usage_fact_id = $2`,
+        [fixture.organizationId, usageFactId],
+      )).rows;
+    const runAccount = async (runId: string) =>
+      (await db.query<{ reservedUsd: string; settledUsd: string }>(
+        `select reserved_usd::text as "reservedUsd",
+                settled_usd::text as "settledUsd"
+           from bakery.budget_accounts
+          where organization_id = $1 and run_id = $2 and scope = 'run'`,
+        [fixture.organizationId, runId],
+      )).rows;
+    const stored = async (resultId: unknown) =>
+      (await results(fixture, batch.id)).find((r) => r.id === resultId);
+
+    // (a) An answered call: a reported cost settles the hold and the
+    // measurement counts.
+    const answered = await runFor(rows[0].id, "judge-answered");
+    assertEquals(await runAccount(answered.runId), [
+      { reservedUsd: "0.050000", settledUsd: "0.000000" },
+    ]);
+    const answeredAssignment = await claim(answered);
+    const reported = judgeReceipt(answered, answeredAssignment, {
+      providerCallId: "judge-session-" + answeredAssignment.attemptId,
+      costUsd: "0.030000",
+    });
+    await withPgTransaction(db, async (tx) => {
+      await bindProviderCallIntent(tx, {
+        organizationId: answered.organizationId,
+        installationReservationId: answered.installationReservationId,
+        providerCallId: reported.providerCallId,
+      });
+      const intent = (await tx.query<{ id: string }>(
+        `select provider_call_intent_id as id
+           from bakery.budget_action_intents
+          where organization_id = $1 and installation_reservation_id = $2`,
+        [answered.organizationId, answered.installationReservationId],
+      )).rows[0];
+      assert(intent?.id);
+      await recordProviderUsageReceipt(tx, {
+        organizationId: answered.organizationId,
+        providerCallIntentId: intent.id,
+        receipt: {
+          inputTokens: null,
+          outputTokens: null,
+          costUsd: null,
+          ...reported,
+        },
+      });
+    });
+    await post(answeredAssignment, {
+      state: "failed",
+      score: 0.25,
+      reason: "The reply was curt.",
+      judgeOutput: { verdict: "curt" },
+    }, reported);
+    assertEquals(await usageRow(reported.usageFactId), [
+      {
+        measurement: "reported",
+        costUsd: "0.030000",
+        providerCallId: reported.providerCallId,
+      },
+    ]);
+    assertEquals(await runAccount(answered.runId), [
+      { reservedUsd: "0.000000", settledUsd: "0.030000" },
+    ]);
+    const measured = await stored(rows[0].id);
+    assertEquals([measured?.state, measured?.score], ["failed", 0.25]);
+
+    // (b) A timed-out call: unknown usage under the attempt-named call id,
+    // no cost. The hold stays reserved (money may be owed, never free) and
+    // the result is unscored.
+    const timedOut = await runFor(rows[1].id, "judge-timeout");
+    const timeoutAssignment = await claim(timedOut);
+    const unknown = judgeReceipt(timedOut, timeoutAssignment, {
+      providerCallId: "evaluation.score.timeout:" +
+        timeoutAssignment.attemptId,
+      costUsd: null,
+    });
+    assertEquals("costUsd" in unknown, false);
+    await withPgTransaction(db, (tx) =>
+      bindProviderCallIntent(tx, {
+        organizationId: timedOut.organizationId,
+        installationReservationId: timedOut.installationReservationId,
+        providerCallId: unknown.providerCallId,
+      }));
+    await post(timeoutAssignment, {
+      state: "unscored",
+      score: null,
+      reason: "the judge did not answer within 1000 ms",
+      judgeOutput: null,
+    }, unknown);
+    assertEquals(await usageRow(unknown.usageFactId), [
+      {
+        measurement: "unknown",
+        costUsd: null,
+        providerCallId: unknown.providerCallId,
+      },
+    ]);
+    assertEquals(await runAccount(timedOut.runId), [
+      { reservedUsd: "0.050000", settledUsd: "0.000000" },
+    ]);
+    const unmeasured = await stored(rows[1].id);
+    assertEquals([unmeasured?.state, unmeasured?.score], ["unscored", null]);
+    assert(String(unmeasured?.reason).includes("did not answer"));
   }));
