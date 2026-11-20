@@ -1,4 +1,9 @@
-import { relatedIssue, validateDescription } from "./validate.ts";
+import {
+  relatedIssue,
+  splitMessages,
+  staleVerification,
+  validateDescription,
+} from "./validate.ts";
 
 type Request = (
   method: string,
@@ -102,23 +107,30 @@ async function fingerprint(value: unknown): Promise<string> {
 export async function inspect(api: Request, kind: "issue" | "pr", id: number) {
   if (kind === "issue") {
     const item = await issue(api, id);
-    return { item, errors: validateDescription(item.kind, item.body) };
+    const found = splitMessages(validateDescription(item.kind, item.body));
+    return { item, errors: found.errors, pending: found.pending };
   }
   const item = await pull(api, id);
-  const errors = validateDescription("pr", item.body);
+  const { errors, pending } = splitMessages(
+    validateDescription("pr", item.body),
+  );
+  // A tick names the commit it was made at; one at another commit is pending.
+  pending.push(...staleVerification(item.body, item.head));
   const owner = relatedIssue(item.body);
   const linked = owner ? await issue(api, owner) : undefined;
   if (linked) {
     if (linked.kind === "epic") {
       errors.push("Link an executable work item, not its epic.");
     }
+    const found = splitMessages(validateDescription(linked.kind, linked.body));
     errors.push(
-      ...validateDescription(linked.kind, linked.body).map((error) =>
-        "Ticket #" + owner + ": " + error
-      ),
+      ...found.errors.map((error) => "Ticket #" + owner + ": " + error),
+    );
+    pending.push(
+      ...found.pending.map((line) => "Ticket #" + owner + ": " + line),
     );
   }
-  return { item, linked, errors };
+  return { item, linked, errors, pending };
 }
 
 // Metadata checks do not grant execution or merge authority. Call from trusted
@@ -136,6 +148,9 @@ export async function checkLive(
       "Metadata changed during validation; recheck before action.",
     );
   }
+  // Only format errors fail the check. A verification line nobody has ticked
+  // yet is pending: the workflow keeps its `verification` job skipped while
+  // any are open.
   return { ...first, fingerprint: digest, ok: first.errors.length === 0 };
 }
 
@@ -153,6 +168,8 @@ if (import.meta.main) {
   }
   const result = await checkLive(api, kind, number(rawId));
   // Do not print API-supplied bodies/titles or credentials into Actions logs.
+  // `pending` is the verification lines still open at the PR head: the
+  // workflow reads it to decide whether the `verification` job runs.
   console.log(JSON.stringify(
     {
       ok: result.ok,
@@ -161,6 +178,7 @@ if (import.meta.main) {
       base: "base" in result.item ? result.item.base : undefined,
       fingerprint: result.fingerprint,
       errors: result.errors,
+      pending: result.pending,
     },
     null,
     2,
