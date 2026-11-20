@@ -16,6 +16,10 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { PgDatabase } from "../../packages/persistence/src/postgres.ts";
 import {
+  createBatchesListHandler,
+  loadBatch,
+} from "../../apps/server/src/modules/work/batch-commands.ts";
+import {
   type BatchPorts,
   superviseBatches,
 } from "../../apps/server/src/modules/work/batch-tick.ts";
@@ -520,4 +524,85 @@ Deno.test("batches: spend is derived from the issues' usage, and reaching the li
     assertEquals(ended.state, "finished");
     assertEquals(ended.finish_reason, "spend_exhausted");
     assertEquals(Number((await issueRows(fx, batchId))[0].cost_usd), 10);
+  }));
+
+Deno.test("batches: a batch is invisible to another organization, by id and in the list", () =>
+  withBatches(async (fx) => {
+    const id = await insertBatch(fx);
+    const other = crypto.randomUUID();
+
+    // The owner organization reads it; another organization is told it does not exist.
+    assertEquals(
+      (await loadBatch(fx.runtime as never, fx.organizationId, id)).id,
+      id,
+    );
+    const refused = await assertRejects(() =>
+      loadBatch(fx.runtime as never, other, id)
+    );
+    assertEquals((refused as { code?: string }).code, "RESOURCE_NOT_FOUND");
+
+    const list = (organizationId: string) =>
+      createBatchesListHandler("test-secret")({
+        transaction: fx.runtime,
+        authority: { organizationId, subject: { principalId: fx.adminId } },
+      } as never, {} as never);
+    assertEquals(
+      (await list(fx.organizationId)).items.map((batch) => batch.id),
+      [id],
+    );
+    assertEquals((await list(other)).items.length, 0);
+  }));
+
+Deno.test("batches: a tick skips a batch another tick holds, and acts once it is free", () =>
+  withBatches(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const batchId = await insertBatch(fx, { maxIssues: 2 });
+    const { ports, calls } = admittingPorts(fx, sourceId);
+
+    // Another tick is mid-way through this batch: it holds the batch's row lock. Held from a
+    // separate connection, so the case is deterministic: the tick must skip the batch, not wait.
+    const holder = await fx.owner.connect();
+    try {
+      await holder.query("begin");
+      await holder.query(
+        `select id from bakery.batches where id = $1 for update`,
+        [batchId],
+      );
+
+      // Without the skip, the tick would wait on this lock while this test waits for the tick,
+      // so the wait is bounded: a tick that has not returned in a few seconds is waiting.
+      const tick = superviseBatches(fx.runtime, ports);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const waited = new Promise<"waited">((resolve) => {
+        timer = setTimeout(() => resolve("waited"), 5_000);
+      });
+      const outcome = await Promise.race([
+        tick.then(() => "done" as const),
+        waited,
+      ]);
+      clearTimeout(timer);
+      if (outcome === "waited") {
+        await holder.query("commit");
+        await tick;
+        throw new Error(
+          "the tick waited for a batch another tick holds instead of skipping it",
+        );
+      }
+      assertEquals(calls.start.length, 0, "a held batch is not started");
+      assertEquals((await issueRows(fx, batchId)).length, 0);
+      assertEquals((await batchRow(fx, batchId)).state, "running");
+
+      await holder.query("commit");
+    } catch (cause) {
+      await holder.query("rollback").catch(() => undefined);
+      throw cause;
+    } finally {
+      holder.release();
+    }
+
+    // Once the lock is free the same tick acts, exactly once.
+    await superviseBatches(fx.runtime, ports);
+    assertEquals(calls.start.length, 1);
+    assertEquals((await issueRows(fx, batchId)).length, 1);
   }));
