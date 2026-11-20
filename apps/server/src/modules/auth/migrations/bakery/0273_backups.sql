@@ -24,6 +24,9 @@ create table bakery.backup_runs (
   -- Highest report sequence applied: a replayed report is answered from the
   -- row, a gap or a regression is refused.
   report_sequence integer not null default 0,
+  -- Digest of the last applied report body (without the lease token), so the
+  -- same sequence sent again is recognised as a replay or as a different body.
+  last_report_digest text,
   progress_percent integer,
   size_bytes bigint,
   -- Where the finished backup is kept, as stable words: 'server-host' and
@@ -68,7 +71,7 @@ grant select, insert (
 ) on bakery.backup_runs to bakery_app;
 grant update (
   status, claimed_at, lease_token_hash, lease_expires_at, started_at,
-  finished_at, report_sequence, progress_percent, size_bytes, locations,
+  finished_at, report_sequence, last_report_digest, progress_percent, size_bytes, locations,
   failure_code, failure_detail, version
 ) on bakery.backup_runs to bakery_app;
 
