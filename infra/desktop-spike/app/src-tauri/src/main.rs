@@ -6,6 +6,8 @@
 //! the credential as a subprotocol. Every observation is appended to a JSON-lines
 //! report; the credential itself is never written there.
 
+mod platform;
+
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD as B64, Engine};
 use rand::RngCore;
 use serde_json::{json, Value};
@@ -15,11 +17,10 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
+use platform::{APP_LINK, CLIENT_ID};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_opener::OpenerExt;
 
-const CLIENT_ID: &str = "bakery-desktop";
-const APP_LINK: &str = "bakery://auth/callback";
 const KEYRING_SERVICE: &str = "com.bakery.desktop.spike";
 
 struct Pending {
@@ -111,7 +112,7 @@ async fn start_sign_in(app: AppHandle) {
     let (redirect, listener) = if state.redirect_mode == "loopback" {
         let l = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
         let port = l.local_addr().unwrap().port();
-        (format!("http://127.0.0.1:{port}/callback"), Some(l))
+        (platform::loopback_redirect(port), Some(l))
     } else {
         (APP_LINK.to_string(), None)
     };
@@ -174,21 +175,12 @@ async fn start_sign_in(app: AppHandle) {
 async fn handle_callback(app: AppHandle, raw: String) {
     let state = app.state::<AppState>();
     let out = state.out.clone();
-    let Ok(url) = url::Url::parse(&raw) else {
-        report(&out, "callback_rejected", json!({ "reason": "not a url" }));
-        return;
-    };
-    let app_link = url.scheme() == "bakery" && url.host_str() == Some("auth") && url.path() == "/callback";
-    let loopback = url.scheme() == "http"
-        && matches!(url.host_str(), Some("127.0.0.1") | Some("[::1]"))
-        && url.path() == "/callback";
-    if !(app_link || loopback) {
-        report(&out, "callback_rejected", json!({ "reason": "not a callback address" }));
-        return;
-    }
-    let Some(code) = url.query_pairs().find(|(k, _)| k == "code").map(|(_, v)| v.to_string()) else {
-        report(&out, "callback_rejected", json!({ "reason": "no code" }));
-        return;
+    let code = match platform::accept_callback(&raw) {
+        Ok(code) => code,
+        Err(reason) => {
+            report(&out, "callback_rejected", json!({ "reason": reason }));
+            return;
+        }
     };
     // One sign-in at a time, one callback per sign-in: a second delivery finds nothing pending.
     let Some(pending) = state.pending.lock().unwrap().take() else {
@@ -273,6 +265,8 @@ fn main() {
             report(&st.out, "app_started", json!({
                 "server": st.server, "redirectMode": st.redirect_mode,
                 "os": std::env::consts::OS, "arch": std::env::consts::ARCH }));
+            // `register` exists only on these two: the call is compiled out elsewhere, and a test in
+            // platform.rs keeps `registers_scheme_at_runtime` in step with this condition.
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             {
                 let r = app.deep_link().register("bakery");
