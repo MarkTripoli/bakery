@@ -1076,7 +1076,8 @@ test.describe("auth journey", () => {
     await expectNoAxeViolations(page);
     await expect(page.getByText("Add a six-digit authenticator code."))
       .toBeVisible();
-    await page.getByRole("link", {
+    // Two-factor off is a row with a Turn on button, not a link to a page.
+    await page.getByRole("button", {
       name: "Set up two-factor authentication",
       exact: true,
     })
