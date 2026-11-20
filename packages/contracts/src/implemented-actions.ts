@@ -479,6 +479,7 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowsCopy: "workflows.copy",
     WorkflowVersionsList: "workflowVersions.list",
     WorkflowVersionsGet: "workflowVersions.get",
+    WorkflowVersionsSkills: "workflowVersions.skills",
     WorkflowVersionsCreate: "workflowVersions.create",
     WorkflowVersionsUpdate: "workflowVersions.update",
     WorkflowVersionsPublish: "workflowVersions.publish",

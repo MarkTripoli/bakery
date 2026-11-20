@@ -1693,6 +1693,28 @@ export const clientManifest = {
     },
     {
       "group": "Definitions",
+      "method": "GET",
+      "path": "/v1/workflows/{id}/versions/{versionId}/skills",
+      "action": "workflowVersions.skills",
+      "access": "Developer",
+      "permission": "workflowVersion:read",
+      "input": "WorkflowVersionPath",
+      "output": "WorkflowVersionSkills",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
       "method": "PATCH",
       "path": "/v1/workflows/{id}/versions/{versionId}",
       "action": "workflowVersions.update",
@@ -15668,6 +15690,7 @@ export const clientManifest = {
             "workflowVersions.list",
             "workflowVersions.create",
             "workflowVersions.get",
+            "workflowVersions.skills",
             "workflowVersions.update",
             "workflowVersions.publish",
             "workflowActivations.create",
@@ -19923,6 +19946,16 @@ export const clientManifest = {
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation. Each array item follows this format."
+          }
+        },
+        "resolveSkillSlots": {
+          "description": "Steps, by JSON Pointer, whose missing-skill slot the author settled with this save by choosing another skill or removing the step skill. A workflow copied from one that used a personal skill has one open slot per such step, and publishing is refused while any is open. A pointer with no open slot is ignored. WorkflowDraftUpdate.resolveSkillSlots must contain at most 64 items.",
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Steps, by JSON Pointer, whose missing-skill slot the author settled with this save by choosing another skill or removing the step skill. A workflow copied from one that used a personal skill has one open slot per such step, and publishing is refused while any is open. A pointer with no open slot is ignored. Each array item follows this format."
           }
         }
       },
@@ -25942,7 +25975,7 @@ export const clientManifest = {
             "answer",
             "take_over"
           ],
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
         },
         "stepKey": {
           "description": "The step the request concerns, or omitted for the run as a whole. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
@@ -25960,6 +25993,12 @@ export const clientManifest = {
           "type": "string",
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "questionId": {
+          "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         }
       },
       "required": [
@@ -39755,6 +39794,7 @@ export const clientManifest = {
                   "workflowVersions.list",
                   "workflowVersions.create",
                   "workflowVersions.get",
+                  "workflowVersions.skills",
                   "workflowVersions.update",
                   "workflowVersions.publish",
                   "workflowActivations.create",
@@ -59138,6 +59178,7 @@ export const clientManifest = {
             "workflowVersions.list",
             "workflowVersions.create",
             "workflowVersions.get",
+            "workflowVersions.skills",
             "workflowVersions.update",
             "workflowVersions.publish",
             "workflowActivations.create",
@@ -89471,6 +89512,21 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used as If-Match."
+        },
+        "questionId": {
+          "description": "RunRequest.questionId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The approval or question the request asks about, or null when it asks for none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -89683,6 +89739,21 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used as If-Match."
+              },
+              "questionId": {
+                "description": "RunRequest.questionId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The approval or question the request asks about, or null when it asks for none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
               }
             },
             "required": [
@@ -91924,6 +91995,139 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of SkillUseGrant."
+    },
+    "WorkflowVersionSkills": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 256,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "stepPath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "JSON Pointer of the step in the workflow definition that names the skill."
+              },
+              "skillVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Immutable skill version the step names; null for a missing-skill slot, which names no skill."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowStepSkill.skillVersionId may be null in this transport value."
+              },
+              "skillName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the skill, or for a missing-skill slot the name of the skill the original workflow used; null when the version no longer exists."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowStepSkill.skillName may be null in this transport value."
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Revision number of the skill version; null when it no longer exists."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowStepSkill.revision may be null in this transport value."
+              },
+              "scope": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "global",
+                      "organization",
+                      "personal"
+                    ],
+                    "description": "Whether the skill comes with Bakery (global), belongs to the organization, or is personal to one person; null when the version no longer exists."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowStepSkill.scope may be null in this transport value."
+              },
+              "ownerDisplayName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the person who owns a personal skill; null for any other skill."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkflowStepSkill.ownerDisplayName may be null in this transport value."
+              },
+              "mine": {
+                "type": "boolean",
+                "description": "True when the reader owns this personal skill."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "stopped",
+                  "unavailable",
+                  "missing"
+                ],
+                "description": "available when the skill can be used at this step now; stopped when a personal skill has no live use grant for this step and version; unavailable when it was removed or switched off, or its owner left the organization; missing when the workflow was copied from one that used a personal skill, which did not come with the copy."
+              },
+              "publishedVersionUsesIt": {
+                "type": "boolean",
+                "description": "True when a published version of this workflow still names the skill version; answered only to the skill owner, false for everyone else."
+              }
+            },
+            "required": [
+              "stepPath",
+              "skillVersionId",
+              "skillName",
+              "revision",
+              "scope",
+              "ownerDisplayName",
+              "mine",
+              "status",
+              "publishedVersionUsesIt"
+            ],
+            "additionalProperties": false,
+            "description": "One entry per step and skill version the workflow definition names. Each array item follows this format."
+          },
+          "description": "One entry per step and skill version the workflow definition names. WorkflowVersionSkills.items must contain at most 256 items."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "Every skill the steps of one workflow version name, ordered by step then skill version, with whether each can be used now. The same read serves a draft and a published version."
     }
   }
 } as const;

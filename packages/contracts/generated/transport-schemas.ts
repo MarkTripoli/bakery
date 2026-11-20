@@ -5760,6 +5760,15 @@ const transportSchemas = {
             "maxItems": 32
           },
           "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation."
+        },
+        {
+          "name": "resolveSkillSlots",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 64
+          },
+          "description": "Steps, by JSON Pointer, whose missing-skill slot the author settled with this save by choosing another skill or removing the step skill. A workflow copied from one that used a personal skill has one open slot per such step, and publishing is refused while any is open. A pointer with no open slot is ignored."
         }
       ],
       "description": "Replaces the content of the definition's shared draft under the draft's optimistic-concurrency version; published versions are immutable and cannot be updated."
@@ -12035,7 +12044,7 @@ const transportSchemas = {
           "name": "intent",
           "type": "enum(fyi|review|approve|answer|take_over)",
           "required": true,
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
         },
         {
           "name": "stepKey",
@@ -12061,6 +12070,12 @@ const transportSchemas = {
           "type": "timestamp",
           "required": false,
           "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
+        },
+        {
+          "name": "questionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
         }
       ],
       "rules": [
@@ -30627,7 +30642,8 @@ const transportSchemas = {
         "fallbackForName",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "questionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -30645,14 +30661,16 @@ const transportSchemas = {
         "fallbackForName": "string|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "questionId": "uuid|null"
       },
       "nullableFields": [
         "stepKey",
         "askedBy",
         "note",
         "neededBy",
-        "fallbackForName"
+        "fallbackForName",
+        "questionId"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -30671,8 +30689,12 @@ const transportSchemas = {
         "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
         "createdAt": "UTC time the request was made.",
         "updatedAt": "UTC time it last changed.",
-        "version": "Optimistic-concurrency version used as If-Match."
-      }
+        "version": "Optimistic-concurrency version used as If-Match.",
+        "questionId": "The approval or question the request asks about, or null when it asks for none."
+      },
+      "optionalFields": [
+        "questionId"
+      ]
     },
     "RunRequests": {
       "fields": [
@@ -31262,6 +31284,64 @@ const transportSchemas = {
     "Page<SkillUseGrant>": {
       "pageOf": "SkillUseGrant",
       "description": "Cursor page of SkillUseGrant rows in the collection's stable sort order. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
+    },
+    "WorkflowStepSkill": {
+      "fields": [
+        "stepPath",
+        "skillVersionId",
+        "skillName",
+        "revision",
+        "scope",
+        "ownerDisplayName",
+        "mine",
+        "status",
+        "publishedVersionUsesIt"
+      ],
+      "fieldTypes": {
+        "stepPath": "string",
+        "skillVersionId": "uuid|null",
+        "skillName": "string|null",
+        "revision": "integer|null",
+        "scope": "enum(global|organization|personal)|null",
+        "ownerDisplayName": "string|null",
+        "mine": "boolean",
+        "status": "enum(available|stopped|unavailable|missing)",
+        "publishedVersionUsesIt": "boolean"
+      },
+      "nullableFields": [
+        "skillName",
+        "revision",
+        "scope",
+        "ownerDisplayName",
+        "skillVersionId"
+      ],
+      "description": "One skill version named by one step of a workflow version, as the reader may see it. For a personal skill that is not the reader's own it is a placeholder: its name, its owner's display name and its version, never a link, a file or a description. A copy of a workflow that used a personal skill lists the step with status missing, naming the original skill, until the author chooses another skill or removes it.",
+      "fieldDescriptions": {
+        "stepPath": "JSON Pointer of the step in the workflow definition that names the skill.",
+        "skillVersionId": "Immutable skill version the step names; null for a missing-skill slot, which names no skill.",
+        "skillName": "Display name of the skill, or for a missing-skill slot the name of the skill the original workflow used; null when the version no longer exists.",
+        "revision": "Revision number of the skill version; null when it no longer exists.",
+        "scope": "Whether the skill comes with Bakery (global), belongs to the organization, or is personal to one person; null when the version no longer exists.",
+        "ownerDisplayName": "Display name of the person who owns a personal skill; null for any other skill.",
+        "mine": "True when the reader owns this personal skill.",
+        "status": "available when the skill can be used at this step now; stopped when a personal skill has no live use grant for this step and version; unavailable when it was removed or switched off, or its owner left the organization; missing when the workflow was copied from one that used a personal skill, which did not come with the copy.",
+        "publishedVersionUsesIt": "True when a published version of this workflow still names the skill version; answered only to the skill owner, false for everyone else."
+      }
+    },
+    "WorkflowVersionSkills": {
+      "fields": [
+        "items"
+      ],
+      "fieldTypes": {
+        "items": "WorkflowStepSkill[]"
+      },
+      "bounds": {
+        "itemsMaxItems": 256
+      },
+      "description": "Every skill the steps of one workflow version name, ordered by step then skill version, with whether each can be used now. The same read serves a draft and a published version.",
+      "fieldDescriptions": {
+        "items": "One entry per step and skill version the workflow definition names."
+      }
     }
   },
   "pageEnvelope": {
