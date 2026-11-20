@@ -43,6 +43,8 @@ export const AuthImplementedAction = Object.freeze(
     InstallationAdministratorsRevoke: "installationAdministrators.revoke",
     PasswordResetLinksCreate: "passwordResetLinks.create",
     PasswordResetsRedeem: "passwordResets.redeem",
+    DesktopSignInsStart: "desktopSignIns.start",
+    DesktopSignInsExchange: "desktopSignIns.exchange",
     AuditEventsList: "auditEvents.list",
     AuditEventsExport: "auditEvents.export",
     AuditEventsStream: "auditEvents.stream",
@@ -653,11 +655,14 @@ export const StorageImplementedAction = Object.freeze(
     StorageTrashList: "storageTrash.list",
     StorageSettingsGet: "storageSettings.get",
     StorageSettingsPut: "storageSettings.put",
+    AgentFileGrantsCreate: "agentFileGrants.create",
+    AgentFileGrantsRevoke: "agentFileGrants.revoke",
     StorageRootsList: "storageRoots.list",
     StorageFolderEntriesList: "storageFolderEntries.list",
     StorageFileVersionsList: "storageFileVersions.list",
     StorageFileUsesList: "storageFileUses.list",
     StorageFilesContent: "storageFiles.content",
+    StorageFilesByVersion: "storageFiles.byVersion",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const storageImplementedActions = Object.freeze(

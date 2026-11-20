@@ -1,13 +1,31 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "fc5ad8e2049255c2d45845a4be508819a425d824"
+    "a001079c230bfd1d039b46b5fb6cc88deb876dd5"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:8eb8f5a31e334f0933285c2863e135451e0610e0efe98bd520c8030c764c077c",
-  "reason": "#72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main fc5ad8e2049255c2d45845a4be508819a425d824: the events subscribe contract gains a memory scope kind (Scope.type and SyncQuery.scopeType accept `memory`, whose id is the organization and which only a caller who may read memory can subscribe to), on top of the #72 memory current-revision projection approved at sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b, which is preserved unchanged first below. The drift is one added enum value on request inputs.",
+  "targetCompatibilityDigest": "sha256:949683e8c4ba97da22844a7ba811b64a2c7bda99325bd0a7d2e68dfe050ddd5a",
+  "reason": "#72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a001079c230bfd1d039b46b5fb6cc88deb876dd5: the events subscribe contract gains a memory scope kind (Scope.type and SyncQuery.scopeType accept `memory`, whose id is the organization and which only a caller who may read memory can subscribe to), on top of the #72 memory current-revision projection approved at sha256:7d9b85a83e5f5a41393e5e6dcc407866073723de501b560c7518c019ba25c14e, which is preserved unchanged first below. The drift is one added enum value on request inputs.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "a001079c230bfd1d039b46b5fb6cc88deb876dd5"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7d9b85a83e5f5a41393e5e6dcc407866073723de501b560c7518c019ba25c14e",
+      "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a001079c230bfd1d039b46b5fb6cc88deb876dd5: MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes; This approval was displaced by the #72 live updates re-bind below, which adds the memory scope kind on top of it."
+    },
+    {
+      "fromBaseRefs": [
+        "a5f21505dd4b98a965c6ddb3f2d6a756e835ce06"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:0fb3b25cf12e177a1109c01437a66d54d4b52f7353c5b5bfa3715e2950ffef89",
+      "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a5f21505dd4b98a965c6ddb3f2d6a756e835ce06: MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes; the approval it displaced at sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "889c2fbfb938191e56ede7ed5dc7458216f131bd"

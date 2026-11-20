@@ -2028,6 +2028,7 @@ Redacted actor/action outcome trail.
 | `request_id` | `text` | no | none |
 | `trace_id` | `text` | no | none |
 | `details` | `jsonb` | no | none |
+| `agent_session_id` | `uuid?` | yes | none (outlives the session) |
 
 **Integrity:** Append-only; no prompts/credentials; Admin read; separate retention from short-lived streams. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
 

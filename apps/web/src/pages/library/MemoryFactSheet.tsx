@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import type { MemoryEntryResponse } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
@@ -33,10 +33,12 @@ export function memoryBadgeTone(
  * history is read here.
  */
 export function MemoryFactSheet(
-  { canManage, entry, onClose, phone, repositoryName }: {
+  { canManage, entry, onClose, onOpenSource, phone, repositoryName }: {
     readonly canManage: boolean;
     readonly entry: MemoryEntryResponse;
     readonly onClose: () => void;
+    /** Opens the source document at its cited version (a path in this app). */
+    readonly onOpenSource: (href: string) => void;
     readonly phone: boolean;
     readonly repositoryName: string | null;
   },
@@ -45,6 +47,12 @@ export function MemoryFactSheet(
   const scope = useProtectedScope();
   const { locale, timeZone, translate } = useI18n();
   const revisions = useQuery(memoryRevisionsQueryOptions(api, scope, entry.id));
+  const queryClient = useQueryClient();
+  const [checking, setChecking] = useState(false);
+  // The source box reads the fact from the list, so a retry reads the list again
+  // (and the history with it), not only the history.
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ["protected"] });
   const current = entry.currentRevision;
   const badge = memoryBadge(entry);
   // The current wording carries the fact's own state, not always "In use".
@@ -65,13 +73,37 @@ export function MemoryFactSheet(
       new Date(iso),
     );
 
+  // The cited version opens in the files browser; only an available source has
+  // a version this reader may open (the id is null for no access).
+  const sourceVersionId = current?.sourceArtifactVersionId ?? null;
+  const sourceHref = source.kind === "available" && sourceVersionId !== null
+    ? `/files/versions/${sourceVersionId}`
+    : null;
+  const sourceText = source.kind === "available"
+    ? translate("library.memory.source.boxAvailable" as never, {
+      name: source.name,
+      version: source.revision,
+    })
+    : "";
   const sourceBox = source.kind === "available"
     ? (
       <UI.Text data-testid="memory-source">
-        {translate("library.memory.source.boxAvailable" as never, {
-          name: source.name,
-          version: source.revision,
-        })}
+        {sourceHref === null ? sourceText : (
+          <UI.Link
+            href={sourceHref}
+            onClick={(event) => {
+              // Let a modified click (new tab) go to the browser.
+              if (
+                event.metaKey || event.ctrlKey || event.shiftKey ||
+                event.button !== 0
+              ) return;
+              event.preventDefault();
+              onOpenSource(sourceHref);
+            }}
+          >
+            {sourceText}
+          </UI.Link>
+        )}
       </UI.Text>
     )
     : (
@@ -82,9 +114,17 @@ export function MemoryFactSheet(
           ? (
             <UI.Button
               variant="secondary"
-              onClick={() => void revisions.refetch()}
+              disabled={checking}
+              onClick={() => {
+                setChecking(true);
+                void refresh().finally(() => setChecking(false));
+              }}
             >
-              {translate("library.memory.source.retry" as never)}
+              {translate(
+                (checking
+                  ? "library.memory.source.checking"
+                  : "library.memory.source.retry") as never,
+              )}
             </UI.Button>
           )
           : undefined}
@@ -239,6 +279,72 @@ export function MemoryFactSheet(
             {content}
           </UI.Stack>
         </div>
+      </UI.InspectorPanel>
+    </ShellSlot>
+  );
+}
+
+/**
+ * A link to a fact that cannot be shown: gone or not yours to see (both read
+ * the same, so the page says nothing about which), or not loaded. It opens in
+ * the same place a fact would, with Close.
+ */
+export function MemoryFactProblem(
+  { kind, onClose, onRetry, phone }: {
+    readonly kind: "missing" | "failed";
+    readonly onClose: () => void;
+    readonly onRetry: () => void;
+    readonly phone: boolean;
+  },
+) {
+  const { translate } = useI18n();
+  const title = translate(
+    (kind === "missing"
+      ? "library.memory.fact.notFoundTitle"
+      : "library.memory.fact.loadErrorTitle") as never,
+  );
+  const close = translate("library.memory.fact.close" as never);
+  const body = (
+    <UI.Stack gap="standard" data-testid="memory-fact-missing">
+      {phone ? null : <UI.Heading level="section">{title}</UI.Heading>}
+      <UI.Text>
+        {translate(
+          (kind === "missing"
+            ? "library.memory.fact.notFoundBody"
+            : "library.memory.fact.loadErrorBody") as never,
+        )}
+      </UI.Text>
+      <UI.Inline gap="compact">
+        {kind === "failed"
+          ? (
+            <UI.Button variant="secondary" onClick={onRetry}>
+              {translate("library.memory.source.retry" as never)}
+            </UI.Button>
+          )
+          : null}
+        <UI.Button variant="secondary" onClick={onClose}>{close}</UI.Button>
+      </UI.Inline>
+    </UI.Stack>
+  );
+  if (phone) {
+    return (
+      <UI.Sheet
+        open
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+        title={title}
+        dismissLabel={close}
+        variant="bottom"
+      >
+        {body}
+      </UI.Sheet>
+    );
+  }
+  return (
+    <ShellSlot name="inspector" size="medium">
+      <UI.InspectorPanel label={title} variant="column">
+        {body}
       </UI.InspectorPanel>
     </ShellSlot>
   );

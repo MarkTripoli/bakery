@@ -27,6 +27,8 @@ type Fact = {
   confidence?: string;
   expiresAt?: string | null;
   artifact?: string;
+  /** Fetchable by id, but not in the list (as when the list was cut short). */
+  unlisted?: boolean;
   artifactVersion?: number;
 };
 
@@ -184,6 +186,12 @@ async function memoryFixture(
       fact.body = content;
       bump(uuid(n));
     },
+    /** A source that could not be checked can be: the next read says so. */
+    recover: (n: number) => {
+      const fact = live.find((item) => item.n === n);
+      if (!fact) throw new Error(`no fact ${n}`);
+      fact.source = "available";
+    },
   };
   const refused = () =>
     options.refuse === undefined ? null : {
@@ -201,15 +209,38 @@ async function memoryFixture(
         reason: options.refuse,
       }),
     };
-  await page.route("**/v1/repositories**", (route) =>
-    route.fulfill(json({
-      items: [repository(API, "api-service"), repository(WEB, "web-app")],
-      nextCursor: null,
-    })));
-  await page.route(
-    "**/v1/artifacts**",
-    (route) => route.fulfill(json({ items: DOCUMENTS, nextCursor: null })),
-  );
+  const problemOf = (status: number, code: string) => ({
+    status,
+    contentType: "application/problem+json",
+    body: JSON.stringify({
+      type: "https://bakery.example/problems/test",
+      title: code,
+      detail: code,
+      status,
+      code,
+      retryable: false,
+      requestId: crypto.randomUUID(),
+      traceId: crypto.randomUUID(),
+    }),
+  });
+  // Two pages each, so a name or a document on the second page proves the
+  // lists are read to the end.
+  await page.route("**/v1/repositories**", (route) => {
+    const second = new URL(route.request().url()).searchParams.has("cursor");
+    return route.fulfill(json({
+      items: [
+        repository(second ? WEB : API, second ? "web-app" : "api-service"),
+      ],
+      nextCursor: second ? null : "page-2",
+    }));
+  });
+  await page.route("**/v1/artifacts**", (route) => {
+    const second = new URL(route.request().url()).searchParams.has("cursor");
+    return route.fulfill(json({
+      items: [DOCUMENTS[second ? 1 : 0]],
+      nextCursor: second ? null : "page-2",
+    }));
+  });
   // Registered after the artifacts list, so it wins for a document's versions.
   await page.route("**/v1/artifacts/*/versions**", (route) => {
     const artifactId = new URL(route.request().url()).pathname.split("/")[3];
@@ -274,8 +305,11 @@ async function memoryFixture(
       }));
     }
     if (one) {
+      if (one[1] === uuid(98)) {
+        return route.fulfill(problemOf(403, "AUTH_FORBIDDEN"));
+      }
       const fact = live.find((item) => uuid(item.n) === one[1]);
-      if (!fact) return route.fulfill(json({}, 404));
+      if (!fact) return route.fulfill(problemOf(404, "RESOURCE_NOT_FOUND"));
       if (request.method() === "PATCH") {
         const body = request.postDataJSON() as { status?: string };
         seen.updates.push({
@@ -311,7 +345,9 @@ async function memoryFixture(
       });
     }
     return route.fulfill(json({
-      items: live.map((fact) => entryOf(fact, versionOf(uuid(fact.n)))),
+      items: live.filter((fact) => !fact.unlisted).map((fact) =>
+        entryOf(fact, versionOf(uuid(fact.n)))
+      ),
       nextCursor: null,
     }));
   });
@@ -754,6 +790,75 @@ for (
       });
       await expect.poll(() => events.subscribes.length).toBe(2);
       await expect(page.getByTestId("memory-stale")).toHaveCount(0);
+    });
+
+    test("the source is a link to the cited version; a source nobody here may open is not", async ({ page }) => {
+      await memoryFixture(page);
+      const sheet = await open(page, 1);
+      const link = sheet.getByTestId("memory-source").getByRole("link", {
+        name: "Runbook, version 3",
+      });
+      await expect(link).toHaveAttribute(
+        "href",
+        `/files/versions/${uuid(7001)}`,
+      );
+      await link.click();
+      await expect(page).toHaveURL(
+        new RegExp(`/files/versions/${uuid(7001)}$`),
+      );
+      await page.goto(`/library?tab=memory&fact=${uuid(4)}`);
+      await expect(page.getByTestId("memory-source")).toContainText(
+        "You do not have access to this source.",
+      );
+      await expect(
+        page.getByTestId("memory-source").getByRole("link"),
+      ).toHaveCount(0);
+    });
+
+    test("Retry on a source that could not be checked reads the fact again and shows what it finds", async ({ page }) => {
+      const seen = await memoryFixture(page, [
+        { n: 6, body: "Retries use jittered backoff.", source: "unknown" },
+      ]);
+      const sheet = await open(page, 6);
+      await expect(sheet.getByTestId("memory-source")).toContainText(
+        "This source could not be checked right now.",
+      );
+      seen.recover(6);
+      await sheet.getByRole("button", { name: "Try again" }).click();
+      await expect(sheet.getByTestId("memory-source")).toHaveText(
+        "Runbook, version 3",
+      );
+    });
+
+    test("a link to a fact the list does not hold opens it; one that is gone or not yours says it was not found", async ({ page }) => {
+      await memoryFixture(page, [
+        ...WORLD,
+        { n: 7, body: "Hidden from the list, fetched by id.", unlisted: true },
+      ]);
+      await page.goto(`/library?tab=memory&fact=${uuid(7)}`);
+      await expect(page.getByTestId("memory-fact-body")).toHaveText(
+        "Hidden from the list, fetched by id.",
+      );
+      // Gone (404) and not yours (403) read the same.
+      for (const id of [99, 98]) {
+        await page.goto(`/library?tab=memory&fact=${uuid(id)}`);
+        const missing = page.getByTestId("memory-fact-missing");
+        await expect(
+          page.getByText("This fact was not found").first(),
+        ).toBeVisible();
+        await expect(missing).toContainText(
+          "It may have been removed, or you may not have access to it.",
+        );
+      }
+      await shot(page, "library-memory-missing", [], {
+        windowOnly: true,
+        only: viewport.name === "desktop" ? "desktop" : "mobile",
+      });
+      await page.getByTestId("memory-fact-missing").getByRole("button", {
+        name: "Close",
+      }).click();
+      await expect(page.getByTestId("memory-fact-missing")).toHaveCount(0);
+      await expect(page).not.toHaveURL(/fact=/);
     });
 
     if (viewport.name === "desktop") {

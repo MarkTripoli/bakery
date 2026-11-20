@@ -16,11 +16,16 @@ import {
   effectiveAccessQueryOptions,
   libraryAgentsQueryOptions,
   libraryMemoriesQueryOptions,
+  libraryRepositoriesQueryOptions,
   libraryWorkflowsQueryOptions,
-  repositoriesListQueryOptions,
+  memoryQueryOptions,
   workflowPresetsQueryOptions,
 } from "../api/query.ts";
-import { asyncKindForError, isForbiddenFailure } from "../app/async-state.ts";
+import {
+  asyncKindForError,
+  failureStatus,
+  isForbiddenFailure,
+} from "../app/async-state.ts";
 import { useConnectivity } from "../app/connectivity.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
@@ -40,6 +45,7 @@ import { ImportDialog } from "./library/ImportDialog.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
 import {
   memoryBadgeTone,
+  MemoryFactProblem,
   MemoryFactSheet,
 } from "./library/MemoryFactSheet.tsx";
 import {
@@ -86,7 +92,7 @@ export function LibraryPage() {
   });
   // Repository names for the rows: one read, never one per fact.
   const repositories = useQuery({
-    ...repositoriesListQueryOptions(api, scope, { limit: 100 }),
+    ...libraryRepositoriesQueryOptions(api, scope),
     enabled: ready && tab === "memory",
   });
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
@@ -117,9 +123,23 @@ export function LibraryPage() {
   const loading = !forbidden && failure === undefined &&
     active.some((query) => query.isPending);
 
-  const openFact = tab === "memory" && search.fact !== undefined
+  const listedFact = tab === "memory" && search.fact !== undefined
     ? memories.data?.items.find((entry) => entry.id === search.fact)
     : undefined;
+  // A link to a fact the loaded list does not hold (the list was cut short, or
+  // the fact is gone) reads that one fact, so the page never opens nothing.
+  const unlisted = tab === "memory" && search.fact !== undefined &&
+    memories.data !== undefined && listedFact === undefined;
+  const fetchedFact = useQuery({
+    ...memoryQueryOptions(api, scope, search.fact ?? ""),
+    enabled: ready && unlisted,
+  });
+  const openFact = listedFact ?? (unlisted ? fetchedFact.data : undefined);
+  const factProblem = unlisted && fetchedFact.isError
+    ? [403, 404].includes(failureStatus(fetchedFact.error) ?? 0)
+      ? "missing" as const
+      : "failed" as const
+    : null;
 
   const badgeRow = (
     definition: WorkflowDefinitionResponse | AgentDefinitionResponse,
@@ -150,7 +170,7 @@ export function LibraryPage() {
     };
   };
   const repositoryNames = new Map(
-    (repositories.data?.items ?? []).map((
+    (repositories.data ?? []).map((
       repository,
     ) => [repository.id, repository.name] as const),
   );
@@ -511,6 +531,7 @@ export function LibraryPage() {
           canManage={canManage}
           entry={openFact}
           phone={phone}
+          onOpenSource={(href) => void navigate({ to: href })}
           repositoryName={repositoryNames.get(openFact.repositoryId) ?? null}
           onClose={() => {
             const id = openFact.id;
@@ -526,6 +547,19 @@ export function LibraryPage() {
               )
             );
           }}
+        />
+      )}
+      {factProblem === null ? null : (
+        <MemoryFactProblem
+          kind={factProblem}
+          phone={phone}
+          onClose={() =>
+            void navigate({
+              to: "/library",
+              search: { tab: "memory" },
+              replace: true,
+            })}
+          onRetry={() => void fetchedFact.refetch()}
         />
       )}
       {importing
