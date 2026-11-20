@@ -798,7 +798,8 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "IDEMPOTENCY_IN_FLIGHT"
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INSTALLATION_QUIESCED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2666,7 +2667,8 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "INSTALLATION_QUIESCED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2814,7 +2816,8 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "INSTALLATION_QUIESCED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -6296,7 +6299,8 @@ export const clientManifest = {
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
         "DEPENDENCY_UNAVAILABLE",
-        "DEPENDENCY_TIMEOUT"
+        "DEPENDENCY_TIMEOUT",
+        "INSTALLATION_QUIESCED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -8612,6 +8616,31 @@ export const clientManifest = {
         "BODY_TOO_LARGE",
         "UNSUPPORTED_MEDIA_TYPE",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/runs/{id}/maintenance",
+      "action": "backupRunner.maintain",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupRunMaintenance",
+      "output": "BackupMaintenance",
+      "event": "",
+      "mcp": "",
+      "idempotency": "safe to repeat: the first ask holds the installation, later asks only check the drain",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
         "INTERNAL"
       ],
       "organizationContext": "none",
@@ -18449,6 +18478,7 @@ export const clientManifest = {
             "backupOffsite.verify",
             "backupRunner.claim",
             "backupRunner.report",
+            "backupRunner.maintain",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -26993,7 +27023,7 @@ export const clientManifest = {
           }
         },
         "failureCode": {
-          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report. A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site.",
+          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report (drain_timeout when the installation did not go quiet in time for the snapshot). A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site.",
           "type": "string",
           "enum": [
             "disk_full",
@@ -27001,6 +27031,7 @@ export const clientManifest = {
             "destination_unreachable",
             "key_missing",
             "incomplete_set",
+            "drain_timeout",
             "runner_error"
           ]
         },
@@ -31050,6 +31081,23 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Cursor page of a batch's results in case order, optionally one state."
+    },
+    "BackupRunMaintenance": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "leaseToken": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 128,
+          "description": "Proof that the runner still holds the claim on this backup run, returned once by the claim. Any other token is refused, and a request after the lease has lapsed answers 409 STATE_CONFLICT. BackupRunMaintenance.leaseToken must contain at least 32 characters. BackupRunMaintenance.leaseToken must contain at most 128 characters."
+        }
+      },
+      "required": [
+        "leaseToken"
+      ],
+      "additionalProperties": false,
+      "description": "The runner asks to hold the installation for the backup it has claimed, and keeps asking until the installation is quiet. The first ask enters maintenance, which stops new work from being admitted; each later ask checks whether everything in flight has finished. Asking again while it holds is safe and changes nothing."
     },
     "AlertChannelCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -45270,6 +45318,7 @@ export const clientManifest = {
                   "backupOffsite.verify",
                   "backupRunner.claim",
                   "backupRunner.report",
+                  "backupRunner.maintain",
                   "backupRunner.settings",
                   "telemetryDestinations.list",
                   "telemetryDestinations.get",
@@ -65736,6 +65785,7 @@ export const clientManifest = {
             "backupOffsite.verify",
             "backupRunner.claim",
             "backupRunner.report",
+            "backupRunner.maintain",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -90180,9 +90230,10 @@ export const clientManifest = {
                 "destination_unreachable",
                 "key_missing",
                 "incomplete_set",
+                "drain_timeout",
                 "runner_error"
               ],
-              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), drain_timeout (the installation did not go quiet in time for the snapshot, so no backup was taken and the installation was released), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
             },
             {
               "type": "null",
@@ -90389,9 +90440,10 @@ export const clientManifest = {
                       "destination_unreachable",
                       "key_missing",
                       "incomplete_set",
+                      "drain_timeout",
                       "runner_error"
                     ],
-                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), drain_timeout (the installation did not go quiet in time for the snapshot, so no backup was taken and the installation was released), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                   },
                   {
                     "type": "null",
@@ -90596,6 +90648,30 @@ export const clientManifest = {
             }
           ],
           "description": "BackupStatus.runnerLastUsedAt may be null in this transport value."
+        },
+        "maintenanceState": {
+          "type": "string",
+          "enum": [
+            "off",
+            "draining",
+            "quiesced"
+          ],
+          "description": "off normally; draining or quiesced while a backup holds the installation and new work is refused with 503 INSTALLATION_QUIESCED. A hold whose lease has lapsed reads as off."
+        },
+        "maintenanceSince": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the current hold began, or null when the installation is not held."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupStatus.maintenanceSince may be null in this transport value."
         }
       },
       "required": [
@@ -90606,7 +90682,9 @@ export const clientManifest = {
         "runningProgressPercent",
         "waitingRunId",
         "runnerConfigured",
-        "runnerLastUsedAt"
+        "runnerLastUsedAt",
+        "maintenanceState",
+        "maintenanceSince"
       ],
       "additionalProperties": false,
       "description": "The one answer to whether this installation is protected: a state word, the last good backup, the run in progress and whether a host runner has been set up and has been heard from."
@@ -108066,6 +108144,61 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The comparison of two batches. An incompatible pair is refused with one reason and carries no measures; a compatible pair never returns a change where a side has no measurement."
+    },
+    "BackupMaintenance": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "off",
+            "draining",
+            "quiesced"
+          ],
+          "description": "draining while the installation refuses new work and waits for work in flight; quiesced when nothing the check can see is left and the settle window has passed; off only if the hold has already ended."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The backup run that holds the installation."
+        },
+        "leaseExpiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the hold ends on its own unless the run reports again before then."
+        },
+        "liveAttempts": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Worker job attempts that are leased, running or canceling with an unexpired lease."
+        },
+        "openTransactions": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Other database transactions of the server role that began before the hold and are still open."
+        },
+        "retryAfterSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Whole seconds to wait before asking again; 0 when quiesced."
+        }
+      },
+      "required": [
+        "state",
+        "runId",
+        "leaseExpiresAt",
+        "liveAttempts",
+        "openTransactions",
+        "retryAfterSeconds"
+      ],
+      "additionalProperties": false,
+      "description": "Where the installation stands for the backup run that holds it: draining while work already in flight finishes, quiesced once nothing is left and the snapshot may be taken. The counts are everything the check can see and nothing more."
     },
     "AlertChannel": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "064ca6fd61b59fe9eae31cfe2469f62f9e635687"
+    "e321e76af1ce1933149b3345d832e98295ccc364"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:1f25130262c7f1a06b80a55cf63474047fd0dbd37cf8234a0898539354af3c69",
-  "reason": "#70 slice 2 waiting-on-a-model reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 064ca6fd61b59fe9eae31cfe2469f62f9e635687: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:8e68e8856af05cf093594afce7f54f58b31f1ee7e41065c23fcfeea17847cd05",
+  "reason": "#64 slice B quiesce re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main e321e76af1ce1933149b3345d832e98295ccc364: BackupStatus gains maintenanceState and maintenanceSince, both required (the installation maintenance switch a backup holds); the retryable 503 INSTALLATION_QUIESCED is added to the errors of five actions that start or change work, and the runner route backupRunner.maintain is new. A webhook delivery is accepted during a hold, so intake.webhook does not list it. Main's own approval is displaced, kept unchanged.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "064ca6fd61b59fe9eae31cfe2469f62f9e635687"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1f25130262c7f1a06b80a55cf63474047fd0dbd37cf8234a0898539354af3c69",
+      "reason": "#70 slice 2 waiting-on-a-model reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 064ca6fd61b59fe9eae31cfe2469f62f9e635687: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

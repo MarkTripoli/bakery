@@ -5321,5 +5321,7 @@
   "tasks.waiting.agent.mastra": "⟪Mastra⟫",
   "tasks.waiting.payment.subscription.inline": "⟪the subscription on a machine⟫",
   "tasks.waiting.payment.api_metered.inline": "⟪an API key charged per use⟫",
-  "tasks.waiting.payment.local.inline": "⟪a model running on a machine⟫"
+  "tasks.waiting.payment.local.inline": "⟪a model running on a machine⟫",
+  "problems.INSTALLATION_QUIESCED.description": "⟪Bakery is taking a backup and is not accepting new work for a short while. Try again after the time in the Retry-After header.⟫",
+  "problems.INSTALLATION_QUIESCED.title": "⟪Installation paused for a backup⟫"
 }

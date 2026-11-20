@@ -196,3 +196,73 @@ Deno.test("no error message carries the runner credential or the lease token", a
   assert(!error.message.includes(LEASE));
   assert(!error.message.includes("Bearer " + TOKEN));
 });
+
+const maintenanceAnswer = {
+  state: "draining",
+  runId: RUN,
+  leaseExpiresAt: "2026-11-20T12:05:00.000Z",
+  liveAttempts: 2,
+  openTransactions: 0,
+  retryAfterSeconds: 2,
+};
+
+Deno.test("maintain asks the server to hold the installation for this run, with the runner credential and the lease token", async () => {
+  const { fetcher, calls } = fakeFetch(() => json(200, maintenanceAnswer));
+  const answer = await api(fetcher).maintain(RUN, LEASE);
+  assertEquals(answer, maintenanceAnswer);
+  assertEquals(calls.length, 1);
+  assertEquals(calls[0].method, "POST");
+  assertEquals(
+    calls[0].url,
+    `http://bakery.test/v1/backup-runner/runs/${RUN}/maintenance`,
+  );
+  assertEquals(calls[0].auth, `Bearer ${TOKEN}`);
+  // Nothing but the lease token: no bytes, no key material.
+  assertEquals(JSON.parse(calls[0].body ?? "{}"), { leaseToken: LEASE });
+});
+
+Deno.test("maintain maps each refusal: a lost claim stops, anything else is a fatal request, a 5xx is worth asking again", async () => {
+  const answerWith = (status: number, body: unknown) => {
+    const { fetcher } = fakeFetch(() => json(status, body));
+    return api(fetcher).maintain(RUN, LEASE);
+  };
+  // The claim is gone: the run must stop.
+  for (const reason of ["lease_expired", "run_not_claimed"]) {
+    const error = await assertRejects(
+      () => answerWith(409, { code: "STATE_CONFLICT", reason }),
+      LeaseLost,
+    );
+    assertEquals(error.reason, reason);
+  }
+  // Another run holds the installation, or the credential was refused.
+  const held = await assertRejects(
+    () =>
+      answerWith(409, { code: "STATE_CONFLICT", reason: "maintenance_held" }),
+    ApiFatal,
+  );
+  assertEquals(held.code, "maintenance_held");
+  await assertRejects(
+    () => answerWith(403, { code: "AUTH_FORBIDDEN" }),
+    ApiFatal,
+  );
+  // A server that is busy or unreachable is asked again.
+  await assertRejects(
+    () => answerWith(503, { code: "DEPENDENCY_UNAVAILABLE" }),
+    ApiUnavailable,
+  );
+  await assertRejects(() => answerWith(429, {}), ApiUnavailable);
+  const { fetcher } = fakeFetch(() => new Error("connect ECONNREFUSED"));
+  await assertRejects(() => api(fetcher).maintain(RUN, LEASE), ApiUnavailable);
+});
+
+Deno.test("maintain never puts the credential or the lease token in an error", async () => {
+  const { fetcher } = fakeFetch(() =>
+    new Error(`connect failed for ${TOKEN} with ${LEASE}`)
+  );
+  const error = await assertRejects(
+    () => api(fetcher).maintain(RUN, LEASE),
+    ApiUnavailable,
+  );
+  assert(!error.message.includes(TOKEN));
+  assert(!error.message.includes(LEASE));
+});
