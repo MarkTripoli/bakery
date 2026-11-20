@@ -297,22 +297,27 @@ export function createArtifactActions(
   );
   // Library items need `library:read` on top of the route's file permission, so
   // searching files never reveals the library to someone who may not read it.
-  const searchFiles = createFileSearchHandler(options.secret, (context) => {
-    const actor = (context as Partial<AuthorizedActionContext>).authority;
-    if (actor === undefined) return false;
-    try {
-      authorize(
-        actor as Parameters<typeof authorize>[0],
-        "library:read",
-        {
-          action: ArtifactImplementedAction.FilesSearch,
-        },
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  });
+  const searchFiles = createFileSearchHandler(
+    options.secret,
+    (context) => {
+      const actor = (context as Partial<AuthorizedActionContext>).authority;
+      if (actor === undefined) return false;
+      try {
+        authorize(
+          actor as Parameters<typeof authorize>[0],
+          "library:read",
+          {
+            action: ArtifactImplementedAction.FilesSearch,
+          },
+        );
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    (context) =>
+      storageReader(context, ArtifactImplementedAction.FilesSearch).isAdmin,
+  );
   const listLibrary = createLibraryFolderHandler(options.secret);
   const blobUploads = createBlobUploadHandlers(options.blobStore);
   const trustedRepositoryResolver = createTrustedRepositoryResolver();

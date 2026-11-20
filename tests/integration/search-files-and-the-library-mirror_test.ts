@@ -107,11 +107,12 @@ async function search(
   fixture: Fixture,
   seed: Seed,
   input: Record<string, unknown>,
-  options: { library?: boolean; scopes?: Scopes } = {},
+  options: { library?: boolean; scopes?: Scopes; admin?: boolean } = {},
 ) {
   const handler = createFileSearchHandler(
     SECRET,
     () => options.library ?? true,
+    () => options.admin ?? true,
   );
   return await withPgTransaction(fixture.pgDatabase, (transaction) =>
     handler(
