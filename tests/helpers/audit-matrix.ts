@@ -1113,6 +1113,62 @@ export async function runAuditMatrix(
       }),
     },
     {
+      operation: "alertRules.update",
+      failure: () =>
+        call(f, "PATCH", "/v1/installation/alert-rules", developer, {
+          body: { rule: "queue_age", enabled: true },
+          headers: { "Idempotency-Key": key(), "If-Match": '"1"' },
+        }),
+      success: async () => {
+        // Write the rule's own value back, so the matrix leaves it as it found it.
+        const read = await call(
+          f,
+          "GET",
+          "/v1/installation/alert-rules",
+          f.adminCookie,
+          {},
+        );
+        const rule = ((await read.json()) as {
+          rules: { rule: string; version: number; enabled: boolean }[];
+        }).rules.find((r) => r.rule === "queue_age")!;
+        return {
+          response: await call(
+            f,
+            "PATCH",
+            "/v1/installation/alert-rules",
+            f.adminCookie,
+            {
+              body: { rule: "queue_age", enabled: rule.enabled },
+              headers: {
+                "Idempotency-Key": key(),
+                "If-Match": `"${rule.version}"`,
+              },
+            },
+          ),
+          organizationId: null,
+        };
+      },
+    },
+    {
+      // With no channel to send to it reaches nothing, and is still recorded.
+      operation: "alerts.sendTest",
+      failure: () =>
+        call(f, "POST", "/v1/installation/alert-tests", developer, {
+          body: {},
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/installation/alert-tests",
+          f.adminCookie,
+          { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
       operation: "alertChannels.rotateSecret",
       failure: () =>
         call(
