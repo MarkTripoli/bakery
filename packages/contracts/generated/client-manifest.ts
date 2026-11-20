@@ -5443,6 +5443,33 @@ export const clientManifest = {
     {
       "group": "Providers",
       "method": "POST",
+      "path": "/v1/runs/{id}/route-continuations",
+      "action": "routeContinuations.admit",
+      "access": "Developer",
+      "permission": "run:control",
+      "input": "RouteContinuationAdmit",
+      "output": "RouteContinuation",
+      "event": "routeContinuations.admitted",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
+      "method": "POST",
       "path": "/v1/workers/{id}/provider-bindings",
       "action": "workerProviderBindings.create",
       "access": "Admin",
@@ -15905,6 +15932,7 @@ export const clientManifest = {
             "providerIncidents.list",
             "providerIncidents.get",
             "routeContinuations.list",
+            "routeContinuations.admit",
             "workerProviderBindings.create",
             "workerProviderBindings.update",
             "workerProviderAuth.create",
@@ -26441,6 +26469,51 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+    },
+    "RouteContinuationAdmit": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runStepId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the stalled run step to continue, as named by the offer."
+        },
+        "incidentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the incident the offer was made for. If that incident has recovered, been superseded or is not the route's current one, the submission is stale and commits nothing."
+        },
+        "incidentGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The incident generation the offer named. A different generation means the line moved on and the submission is stale. RouteContinuationAdmit.incidentGeneration must be at least 1."
+        },
+        "targetRouteId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the route to continue on, one the offer marked eligible."
+        },
+        "runVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The run version the offer named. If the run changed since, the submission is refused as a failed precondition and nothing is committed. RouteContinuationAdmit.runVersion must be at least 1."
+        }
+      },
+      "required": [
+        "runStepId",
+        "incidentId",
+        "incidentGeneration",
+        "targetRouteId",
+        "runVersion"
+      ],
+      "additionalProperties": false,
+      "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40075,6 +40148,7 @@ export const clientManifest = {
                   "providerIncidents.list",
                   "providerIncidents.get",
                   "routeContinuations.list",
+                  "routeContinuations.admit",
                   "workerProviderBindings.create",
                   "workerProviderBindings.update",
                   "workerProviderAuth.create",
@@ -59493,6 +59567,7 @@ export const clientManifest = {
             "providerIncidents.list",
             "providerIncidents.get",
             "routeContinuations.list",
+            "routeContinuations.admit",
             "workerProviderBindings.create",
             "workerProviderBindings.update",
             "workerProviderAuth.create",
@@ -92208,6 +92283,153 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Every skill the steps of one workflow version name, ordered by step then skill version, with whether each can be used now. The same read serves a draft and a published version."
+    },
+    "RouteContinuation": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of this continuation."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the run the step belongs to."
+        },
+        "runStepId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the step that was continued."
+        },
+        "jobId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the step's job that was moved (the earliest, when a step has several live jobs; all were moved)."
+        },
+        "incidentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the incident the choice was made against."
+        },
+        "incidentGeneration": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Generation of that incident when the choice was admitted."
+        },
+        "sourceRouteId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the route the step was pinned to."
+        },
+        "targetRouteId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the route it now runs on."
+        },
+        "previousPin": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider key the step sends to."
+            },
+            "model": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Model identifier the step runs."
+            },
+            "billingRoute": {
+              "type": "string",
+              "enum": [
+                "api",
+                "subscription"
+              ],
+              "description": "Billing route the step's spend follows: api or subscription."
+            },
+            "billingAccountId": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider billing account the step's spend is attributed to."
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "billingRoute",
+            "billingAccountId"
+          ],
+          "additionalProperties": false,
+          "description": "The provider, model, billing route and billing account the step had before."
+        },
+        "newPin": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider key the step sends to."
+            },
+            "model": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Model identifier the step runs."
+            },
+            "billingRoute": {
+              "type": "string",
+              "enum": [
+                "api",
+                "subscription"
+              ],
+              "description": "Billing route the step's spend follows: api or subscription."
+            },
+            "billingAccountId": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider billing account the step's spend is attributed to."
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "billingRoute",
+            "billingAccountId"
+          ],
+          "additionalProperties": false,
+          "description": "The provider, model, billing route and billing account the step has now."
+        },
+        "admittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp at which the continuation was admitted."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "runStepId",
+        "jobId",
+        "incidentId",
+        "incidentGeneration",
+        "sourceRouteId",
+        "targetRouteId",
+        "previousPin",
+        "newPin",
+        "admittedAt"
+      ],
+      "additionalProperties": false,
+      "description": "The record that a stalled step was continued on another route. The old attempt is fenced, the job is queued again on the new pin, and the step's one budget reservation is re-priced in place, so no second reservation exists and none is left held. Both the pin the step had and the pin it now has are kept."
     }
   }
 } as const;
