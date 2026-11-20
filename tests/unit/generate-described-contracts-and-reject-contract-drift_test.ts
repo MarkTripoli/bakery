@@ -897,13 +897,19 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "6eefa213893fcce48b6511332ef3798e3524602b",
     "de64639a4d4cfbf49bc3402f7d21deffd06ef74a",
     "94e8c0e8c04f896c3f56374303ac9853d21405aa",
+    "1ce09ba92c2007f4837308efdbabfc93baaaff67",
   ];
   const approvedDigest =
-    "sha256:1d16dc619e99c9bae62393095f6a862b1005d4e455d11016fa4ba6899cbd6ecf";
+    "sha256:64858f3ae4c0236b9c7335599e50d05f0adad1c8fc5989d4eed5cf97f2768577";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced by the #400 re-bind onto main 1ce09ba92: main's own #69
+    // approval, kept unchanged.
+    "sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926",
+    // Displaced by the #400 re-bind onto main 1ce09ba92 (#714 merged).
+    "sha256:1d16dc619e99c9bae62393095f6a862b1005d4e455d11016fa4ba6899cbd6ecf",
     // Newest first, matching the file: a displaced approval is prepended, so the
     // approval this change removed from force heads the history it joins.
     // Displaced by the #400 re-bind onto main 94e8c0e8c.
@@ -1019,6 +1025,11 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "sha256:23925a33300c5bace9bf0ea5729725c8779c2e6ac70f0a3290aaf2335daff1f2",
     "sha256:6bda73092281a4782bdf22990a05724cb6689eb6521e6002ce90c8a3649b68f8",
     "sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f",
+    // Main's own approvals displaced since this branch last merged it.
+    "sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc",
+    "sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b",
+    "sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1",
+    "sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3",
   ];
   const options = {
     baseRef: approvedBases[0],

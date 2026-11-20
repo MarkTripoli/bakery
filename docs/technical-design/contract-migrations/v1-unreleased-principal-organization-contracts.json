@@ -13,13 +13,45 @@
     "968c2ab9257fad06adb6132eb743a4f62c578e17",
     "6eefa213893fcce48b6511332ef3798e3524602b",
     "de64639a4d4cfbf49bc3402f7d21deffd06ef74a",
-    "94e8c0e8c04f896c3f56374303ac9853d21405aa"
+    "94e8c0e8c04f896c3f56374303ac9853d21405aa",
+    "1ce09ba92c2007f4837308efdbabfc93baaaff67"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:1d16dc619e99c9bae62393095f6a862b1005d4e455d11016fa4ba6899cbd6ecf",
-  "reason": "#400 re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main ced976823321297101162056fc78417a396f8236: secret.identity.read becomes a plan action, so the flat-era input field SecretIdentityReadInput.secretRef is renamed identityRef (the plan compiler refuses any action input field whose name carries a secret word, and the field is an opaque uuid reference, not a secret). The worker action's published output name changes from SecretIdentityToolResult to the flat plan-facing SecretIdentityOutput (the worker result is still checked against the strict SecretIdentityToolResult union), and the workflow action capability vocabulary gains secret.identity. The breaking drift is the one renamed input field; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 5b8d39e853b302f1424cf36da10a1e8ca0d71c4d after #400 merged origin/main; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:b810e7ccc1b92adfbd41c4baee6b7ab89bb7ea2496b80e255731454eaff4e19a is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main a83b7ec57da9bf29078c23b24d3cdda776f255fe (#702 and #711 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:8f194c24ed520a1644c7d1e0575ceeb56761f2675962b0b9c0d8adfbc927b726 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 9da88825036edcc588db4c2ac892297a8638b8cb (#706 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:d6aa2d82f6414d196b7ee0780b964513e0c25772e3b499c65c775e04a7fa43c7 is preserved first below. Base extended again to main 968c2ab9257fad06adb6132eb743a4f62c578e17 (#719 merged): same digest, same drift, no approval displaced. Re-bound again by dev-workflows on 2026-11-19 to main 6eefa213893fcce48b6511332ef3798e3524602b (#721 and #710 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:ed93d6ab9c60fe57f298963e296af917252d61894392c63eec098f47242eb94d is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main de64639a4d4cfbf49bc3402f7d21deffd06ef74a; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:5178d631d0dfff391ce01c4b044cb87ed2684f95e529dba270b3a7aea30440c8 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:5746a2c129a47b9dba605b034d3d1e4968b55ca95e922c75cbff0207d1057fc5 is preserved first below.",
+  "targetCompatibilityDigest": "sha256:64858f3ae4c0236b9c7335599e50d05f0adad1c8fc5989d4eed5cf97f2768577",
+  "reason": "#400 re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main ced976823321297101162056fc78417a396f8236: secret.identity.read becomes a plan action, so the flat-era input field SecretIdentityReadInput.secretRef is renamed identityRef (the plan compiler refuses any action input field whose name carries a secret word, and the field is an opaque uuid reference, not a secret). The worker action's published output name changes from SecretIdentityToolResult to the flat plan-facing SecretIdentityOutput (the worker result is still checked against the strict SecretIdentityToolResult union), and the workflow action capability vocabulary gains secret.identity. The breaking drift is the one renamed input field; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 5b8d39e853b302f1424cf36da10a1e8ca0d71c4d after #400 merged origin/main; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:b810e7ccc1b92adfbd41c4baee6b7ab89bb7ea2496b80e255731454eaff4e19a is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main a83b7ec57da9bf29078c23b24d3cdda776f255fe (#702 and #711 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:8f194c24ed520a1644c7d1e0575ceeb56761f2675962b0b9c0d8adfbc927b726 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 9da88825036edcc588db4c2ac892297a8638b8cb (#706 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:d6aa2d82f6414d196b7ee0780b964513e0c25772e3b499c65c775e04a7fa43c7 is preserved first below. Base extended again to main 968c2ab9257fad06adb6132eb743a4f62c578e17 (#719 merged): same digest, same drift, no approval displaced. Re-bound again by dev-workflows on 2026-11-19 to main 6eefa213893fcce48b6511332ef3798e3524602b (#721 and #710 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:ed93d6ab9c60fe57f298963e296af917252d61894392c63eec098f47242eb94d is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main de64639a4d4cfbf49bc3402f7d21deffd06ef74a; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:5178d631d0dfff391ce01c4b044cb87ed2684f95e529dba270b3a7aea30440c8 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:5746a2c129a47b9dba605b034d3d1e4968b55ca95e922c75cbff0207d1057fc5 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 1ce09ba92c2007f4837308efdbabfc93baaaff67 (#714 merged) on top of main's own #69 approval, preserved unchanged first below at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926; the breaking drift is unchanged (the one renamed input field) and my previous approval at sha256:1d16dc619e99c9bae62393095f6a862b1005d4e455d11016fa4ba6899cbd6ecf follows it.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "94e8c0e8c04f896c3f56374303ac9853d21405aa",
+        "3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "ced976823321297101162056fc78417a396f8236",
+        "1ba1b83c1cbe71a802b9494150042f20cae2af5c",
+        "3bdfc0b09e971bc73f6aa3368568a5a83d614549",
+        "4da415fd5d3079aaf259a47af29f74906ca9a16c",
+        "5914340150c35c0613a967f46464ae6b8689f652",
+        "5b8d39e853b302f1424cf36da10a1e8ca0d71c4d",
+        "91ec5a141de089dbef57b5827594eaccef5efb9b",
+        "a83b7ec57da9bf29078c23b24d3cdda776f255fe",
+        "9da88825036edcc588db4c2ac892297a8638b8cb",
+        "968c2ab9257fad06adb6132eb743a4f62c578e17",
+        "6eefa213893fcce48b6511332ef3798e3524602b",
+        "de64639a4d4cfbf49bc3402f7d21deffd06ef74a",
+        "94e8c0e8c04f896c3f56374303ac9853d21405aa"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1d16dc619e99c9bae62393095f6a862b1005d4e455d11016fa4ba6899cbd6ecf",
+      "reason": "#400 re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main ced976823321297101162056fc78417a396f8236: secret.identity.read becomes a plan action, so the flat-era input field SecretIdentityReadInput.secretRef is renamed identityRef (the plan compiler refuses any action input field whose name carries a secret word, and the field is an opaque uuid reference, not a secret). The worker action's published output name changes from SecretIdentityToolResult to the flat plan-facing SecretIdentityOutput (the worker result is still checked against the strict SecretIdentityToolResult union), and the workflow action capability vocabulary gains secret.identity. The breaking drift is the one renamed input field; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 5b8d39e853b302f1424cf36da10a1e8ca0d71c4d after #400 merged origin/main; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:b810e7ccc1b92adfbd41c4baee6b7ab89bb7ea2496b80e255731454eaff4e19a is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main a83b7ec57da9bf29078c23b24d3cdda776f255fe (#702 and #711 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:8f194c24ed520a1644c7d1e0575ceeb56761f2675962b0b9c0d8adfbc927b726 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 9da88825036edcc588db4c2ac892297a8638b8cb (#706 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:d6aa2d82f6414d196b7ee0780b964513e0c25772e3b499c65c775e04a7fa43c7 is preserved first below. Base extended again to main 968c2ab9257fad06adb6132eb743a4f62c578e17 (#719 merged): same digest, same drift, no approval displaced. Re-bound again by dev-workflows on 2026-11-19 to main 6eefa213893fcce48b6511332ef3798e3524602b (#721 and #710 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:ed93d6ab9c60fe57f298963e296af917252d61894392c63eec098f47242eb94d is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main de64639a4d4cfbf49bc3402f7d21deffd06ef74a; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:5178d631d0dfff391ce01c4b044cb87ed2684f95e529dba270b3a7aea30440c8 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:5746a2c129a47b9dba605b034d3d1e4968b55ca95e922c75cbff0207d1057fc5 is preserved first below."
+    },
     {
       "fromBaseRefs": [
         "ced976823321297101162056fc78417a396f8236",
@@ -982,6 +1014,44 @@
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f",
       "reason": "Epic E03 (#5) / FS18 (#151) settings contracts on main. Owner standing authorization, given directly to the orchestrator in its own session on 2026-10-09, verbatim: 'I don't worry about breaking changes. Don't do version increments or anything like that. Just make breaking changes freely as you need to.' This entry was written by the orchestrator, not by a builder. It binds exact main base 967d6b687ef222ccc39a7d91fc9a4fd97b432696 to target compatibility digest sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f, computed with generateContracts().compatibilityDigest on branch delivery/epic-e03-settings at e7887e1b762bd9551c0d26862e26c0357e9cd228. Relative to that base the delta is: adds profile.get (GET /v1/me/profile), profile.update (PATCH /v1/me/profile; self-only; Idempotency-Key and If-Match; VERSION_CONFLICT) and the public featureAvailability.get (GET /v1/feature-availability) with new schemas UserProfile, UserProfileUpdate and FeatureAvailability; implements the previously catalogued-only userPreferences.get and userPreferences.update and reshapes UserPreferences (theme, locale, timeZone, effectiveLocale, direction, availableLocales, casVersion, nullable id and timestamps) and UserPreferencesUpdate (optional theme, locale and timeZone plus required expectedCasVersion; the free-form preferences field is removed, which is the breaking change); adds nullable defaultLocale to Organization, OrganizationAccess and OrganizationUpdate; adds timeZone to PrincipalIdentity; adds VERSION_CONFLICT to the userPreferences.update and organizations.update error lists. No operation or schema is removed. The previous top-level approval and every earlier approval remain in priorApprovals. Any other base or generated delta needs a separate entry."
+    },
+    {
+      "fromBaseRefs": [
+        "de64639a4d4cfbf49bc3402f7d21deffd06ef74a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main de64639a4d4cfbf49bc3402f7d21deffd06ef74a: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "bafc1fb3056996606b9392156f474cbbed264c06"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main bafc1fb3056996606b9392156f474cbbed264c06: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "968c2ab9257fad06adb6132eb743a4f62c578e17",
+        "9da88825036edcc588db4c2ac892297a8638b8cb"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 9da88825036edcc588db4c2ac892297a8638b8cb: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "0eb879783c9ec575e77852b3b560dde8f45349a3",
+        "a83b7ec57da9bf29078c23b24d3cdda776f255fe"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main a83b7ec57da9bf29078c23b24d3cdda776f255fe: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below."
     }
   ]
 }
