@@ -237,7 +237,10 @@ Deno.test("every bakery files command works against a real server with a real ac
     const inFolder = await cli(["files", "search", "--in", "/shared"]);
     assertEquals(inFolder.code, 0);
     assert(
-      inFolder.lines.includes("/shared/plan.md  file  13 B"),
+      // The CLI pads its columns to the longest path, so match any run of spaces.
+      inFolder.lines.some((line) =>
+        /^\/shared\/plan\.md\s+file\s+13 B$/.test(line)
+      ),
       "a search in a folder lists its files: " + inFolder.lines.join(" | "),
     );
 
