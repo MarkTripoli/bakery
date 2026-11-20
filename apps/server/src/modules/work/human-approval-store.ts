@@ -8,6 +8,8 @@ import { StandardError } from "@bakery/contracts/http";
 import { appendDomainEvent } from "@bakery/persistence/event-audit";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { mayActOnQuestion } from "../auth/application/run-grants.ts";
+import { completeRequestsOnQuestion } from "./run-requests.ts";
 import {
   activeElapsedMs,
   APPROVAL_EXPIRED_OUTCOME,
@@ -368,8 +370,13 @@ export async function decideHumanApproval(
   // every caller to check first. An approval addressed to named people does not
   // exist for anybody else, which is the same refusal the route gives.
   if (
-    row.audience.type === "principals" &&
-    !(row.audience.principalIds ?? []).includes(input.principalId)
+    !await mayActOnQuestion(
+      transaction,
+      input.organizationId,
+      input.principalId,
+      row,
+      "approve",
+    )
   ) notFound();
   if (row.status === "answered") conflict("approval_decided");
   if (row.status !== "open") conflict(`approval_${row.status}`);
@@ -407,6 +414,14 @@ export async function decideHumanApproval(
     ],
   );
   if (swapped.rows.length !== 1) conflict("approval_unavailable");
+  // The request that asked for this decision is done, and so is its power.
+  await completeRequestsOnQuestion(
+    transaction,
+    input.organizationId,
+    input.principalId,
+    input.approvalId,
+    "handled",
+  );
 
   const outcome = outcomeForDecision(input.decision);
   // The ledger kind is the decision's own word, so a reader filters on the same
