@@ -13,24 +13,22 @@
  */
 import { assert, assertEquals } from "@std/assert";
 import { probeArtifactBytes } from "../../apps/server/src/modules/knowledge/probe.ts";
+import { PNG_FRAME, writeStub } from "../helpers/probe-stub-launcher.ts";
 
 const dir = await Deno.makeTempDir({ prefix: "bakery-probe-test-" });
 
+/** A stub whose probe branch is the shell given here. */
 async function stub(name: string, body: string): Promise<string> {
-  const path = `${dir}/${name}`;
-  await Deno.writeTextFile(path, `#!/bin/sh\n${body}\n`);
-  await Deno.chmod(path, 0o755);
-  return path;
+  // Self-test frames are answered by the helper's sealed branch. The stubs below
+  // are about what happens once the sandbox says yes, so the sealed answer is
+  // the precondition for all of them.
+  return await writeStub(dir, name, { probe: body });
 }
 
 const input = { path: "/tmp/whatever", sizeBytes: 16 };
 
 Deno.test("a probe that answers is read back as its result", async () => {
-  const launcher = await stub(
-    "ok",
-    `cat > /dev/null
-     printf '%s' '{"result":{"status":"described","kind":"image","mediaType":"image/png","byteLength":16,"width":2,"height":2}}'`,
-  );
+  const launcher = await stub("ok", `printf '%s' '${PNG_FRAME}'`);
   assertEquals(await probeArtifactBytes(input, { launcherPath: launcher }), {
     status: "described",
     kind: "image",
@@ -42,7 +40,7 @@ Deno.test("a probe that answers is read back as its result", async () => {
 });
 
 Deno.test("a probe that writes nothing is unreadable, not an empty file", async () => {
-  const launcher = await stub("silent", "cat > /dev/null");
+  const launcher = await stub("silent", ":");
   assertEquals(
     await probeArtifactBytes(input, { launcherPath: launcher }),
     { status: "refused", code: "unreadable" },
@@ -50,7 +48,7 @@ Deno.test("a probe that writes nothing is unreadable, not an empty file", async 
 });
 
 Deno.test("a probe that outlives its budget is killed and reported as a timeout", async () => {
-  const launcher = await stub("slow", "cat > /dev/null\nsleep 30");
+  const launcher = await stub("slow", "sleep 30");
   const started = Date.now();
   const result = await probeArtifactBytes(input, {
     launcherPath: launcher,
@@ -64,8 +62,7 @@ Deno.test("a probe that outlives its budget is killed and reported as a timeout"
 Deno.test("a probe that writes for ever is cut off rather than buffered", async () => {
   const launcher = await stub(
     "flood",
-    `cat > /dev/null
-     while : ; do printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; done`,
+    `while : ; do printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; done`,
   );
   assertEquals(
     await probeArtifactBytes(input, {
@@ -78,7 +75,7 @@ Deno.test("a probe that writes for ever is cut off rather than buffered", async 
 
 Deno.test("a probe killed by its memory limit says so", async () => {
   // 137 is SIGKILL, which is what the unit's OOMPolicy delivers.
-  const launcher = await stub("oom", "cat > /dev/null\nexit 137");
+  const launcher = await stub("oom", "exit 137");
   assertEquals(
     await probeArtifactBytes(input, { launcherPath: launcher }),
     { status: "refused", code: "memory", limit: 536870912 },
@@ -86,7 +83,7 @@ Deno.test("a probe killed by its memory limit says so", async () => {
 });
 
 Deno.test("a launcher that exits 69 is the host, not the file", async () => {
-  const launcher = await stub("unavailable", "cat > /dev/null\nexit 69");
+  const launcher = await stub("unavailable", "exit 69");
   assertEquals(
     await probeArtifactBytes(input, { launcherPath: launcher }),
     { status: "refused", code: "sandbox-unavailable" },
@@ -105,8 +102,7 @@ Deno.test("a launcher that cannot be started at all is unavailable", async () =>
 Deno.test("a frame that is not the schema is malformed, never a confident guess", async () => {
   const launcher = await stub(
     "liar",
-    `cat > /dev/null
-     printf '%s' '{"result":{"status":"described","kind":"image","mediaType":"image/png","byteLength":16,"width":-2}}'`,
+    `printf '%s' '{"result":{"status":"described","kind":"image","mediaType":"image/png","byteLength":16,"width":-2}}'`,
   );
   assertEquals(
     await probeArtifactBytes(input, { launcherPath: launcher }),
@@ -119,8 +115,7 @@ Deno.test("the child is told the path and size and nothing else", async () => {
   // sends is visible here, so a future field cannot be added unnoticed.
   const launcher = await stub(
     "echo",
-    `body=$(cat)
-     case "$body" in
+    `case "$request" in
        '{"path":"/tmp/whatever","sizeBytes":16}') ;;
        *) printf '%s' '{"result":{"status":"refused","code":"malformed"}}'; exit 0 ;;
      esac

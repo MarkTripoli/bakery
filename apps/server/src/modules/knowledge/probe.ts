@@ -27,6 +27,7 @@ import {
   type ArtifactProbeFailureCode,
   ArtifactProbeFrameSchema,
   type ArtifactProbeResult,
+  ArtifactProbeSelfTestFrameSchema,
 } from "@bakery/contracts/artifact-probe";
 import { readBlobProbe, writeBlobProbe } from "./blob-probes.ts";
 
@@ -114,18 +115,29 @@ function refused(code: ArtifactProbeFailureCode, limit?: number) {
     : { status: "refused", code, limit } as const;
 }
 
-/**
- * Runs the probe and always answers with a result: a refusal here is a fact
- * about this attempt, and the caller stores it rather than retrying into the
- * same wall.
- */
-export async function probeArtifactBytes(
-  input: ArtifactProbeInput,
-  options: ArtifactProbeOptions = {},
-): Promise<ArtifactProbeResult> {
-  const launcherPath = options.launcherPath ?? SERVER_ARTIFACT_PROBE_LAUNCHER;
-  const timeoutMs = options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS;
+type LauncherExchange = Readonly<{
+  /** The launcher's own exit code, or null when it was never started. */
+  code: number | null;
+  bytes: Uint8Array;
+  overflow: boolean;
+  timedOut: boolean;
+  /** The exchange outlived its budget and was abandoned. */
+  late: boolean;
+}>;
 
+/**
+ * One exchange with the launcher: send a frame, bounded read, bounded wait.
+ *
+ * Both the probe and the sandbox self-test go through this, so the bounds are
+ * the same for asking "what is this file" and for asking "is this sandbox
+ * sealed". A preflight with weaker bounds than the thing it guards would let a
+ * hostile file hold the server open through the check instead of the probe.
+ */
+async function runLauncher(
+  request: unknown,
+  launcherPath: string,
+  timeoutMs: number,
+): Promise<LauncherExchange> {
   let child: Deno.ChildProcess;
   try {
     child = new Deno.Command(launcherPath, {
@@ -137,14 +149,19 @@ export async function probeArtifactBytes(
   } catch {
     // The launcher could not be started at all: a missing file or a host with
     // no systemd. Either way nothing ran, so nothing was measured.
-    return refused("sandbox-unavailable");
+    return {
+      code: null,
+      bytes: new Uint8Array(),
+      overflow: false,
+      timedOut: false,
+      late: false,
+    };
   }
 
-  const request = new TextEncoder().encode(
-    JSON.stringify({ path: input.path, sizeBytes: input.sizeBytes }),
-  );
   const writer = child.stdin.getWriter();
-  await writer.write(request).catch(() => {});
+  await writer.write(new TextEncoder().encode(JSON.stringify(request))).catch(
+    () => {},
+  );
   await writer.close().catch(() => {});
 
   let timedOut = false;
@@ -170,25 +187,154 @@ export async function probeArtifactBytes(
       ) => ({
         out,
         st,
-        late: false,
+        late: false as const,
       })),
       new Promise<{ late: true }>((resolve) =>
         setTimeout(() => resolve({ late: true }), timeoutMs + 1_000)
       ),
     ]);
-    if (elapsed.late || timedOut) return refused("timeout", timeoutMs);
-    const { out: output, st: status } = elapsed;
-    // 69 is EX_UNAVAILABLE from the launcher: no user bus, no systemd.
-    if (status.code === 69) return refused("sandbox-unavailable");
-    if (status.code === 137) {
-      return refused("memory", ARTIFACT_PROBE_MEMORY_MAX_BYTES);
+    if (elapsed.late) {
+      return {
+        code: null,
+        bytes: new Uint8Array(),
+        overflow: false,
+        timedOut: false,
+        late: true,
+      };
     }
-    if (output.overflow) return refused("malformed");
-    if (!status.success || output.bytes.byteLength === 0) {
-      return refused("unreadable");
-    }
+    return {
+      code: elapsed.st.code,
+      bytes: elapsed.out.bytes,
+      overflow: elapsed.out.overflow,
+      timedOut,
+      late: false,
+    };
+  } catch {
+    return {
+      code: null,
+      bytes: new Uint8Array(),
+      overflow: false,
+      timedOut,
+      late: false,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Exit codes that mean the host could not build the unit at all.
+ *
+ * 69 is the launcher's own EX_UNAVAILABLE; 218 and 226 are what systemd returns
+ * when it cannot set up the namespaces the properties ask for. They arrive as
+ * the unit's status, which is why they are read here as well as in the
+ * launcher: a host that cannot build the sandbox must never look like a file
+ * that could not be read.
+ */
+const SANDBOX_SETUP_FAILURES: readonly number[] = Object.freeze([69, 218, 226]);
+
+/**
+ * Whether a worker inside the unit is actually cut off from the network.
+ *
+ * The properties say `PrivateNetwork=yes`; on some hosts systemd accepts that
+ * and then logs "proceeding without", leaving the unit on the host's own
+ * network. The unit's configuration therefore cannot answer this question and
+ * the kernel must: a connect that succeeds means there is no sandbox, and
+ * everything the probe would do afterwards would be done with the server's
+ * privileges.
+ *
+ * Cached per process, because the answer is a property of the machine and not
+ * of the file: re-asking for every probe would pay a unit start each time to
+ * learn the same thing. `forgetSandboxPreflight` exists for tests, which need
+ * to ask twice in one process.
+ */
+const preflight = new Map<string, Promise<boolean>>();
+
+/** Test-only: drops the cached answer so the next call asks the host again. */
+export function forgetSandboxPreflight(): void {
+  preflight.clear();
+}
+
+export function sandboxHoldsNetwork(
+  options: ArtifactProbeOptions = {},
+): Promise<boolean> {
+  const launcherPath = options.launcherPath ?? SERVER_ARTIFACT_PROBE_LAUNCHER;
+  const timeoutMs = options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS;
+  const key = `${launcherPath}\u0000${timeoutMs}`;
+  const cached = preflight.get(key);
+  if (cached !== undefined) return cached;
+  const answer = askSandboxHoldsNetwork(launcherPath, timeoutMs);
+  preflight.set(key, answer);
+  return answer;
+}
+
+async function askSandboxHoldsNetwork(
+  launcherPath: string,
+  timeoutMs: number,
+): Promise<boolean> {
+  const exchange = await runLauncher(
+    { selfTest: "network" },
+    launcherPath,
+    timeoutMs,
+  );
+  // Everything that is not a clear "the connect failed" is a "no": a sandbox
+  // that cannot be asked is not a sandbox that can be trusted, and the cost of
+  // being wrong in this direction is a missing preview rather than a stranger's
+  // file running with the server's network.
+  if (exchange.late || exchange.timedOut) return false;
+  if (exchange.code === null) return false;
+  if (SANDBOX_SETUP_FAILURES.includes(exchange.code)) return false;
+  if (exchange.overflow || exchange.bytes.byteLength === 0) return false;
+  try {
+    const parsed = ArtifactProbeSelfTestFrameSchema.safeParse(
+      JSON.parse(new TextDecoder().decode(exchange.bytes)),
+    );
+    if (!parsed.success) return false;
+    return parsed.data.reachable === false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Runs the probe and always answers with a result: a refusal here is a fact
+ * about this attempt, and the caller stores it rather than retrying into the
+ * same wall.
+ */
+export async function probeArtifactBytes(
+  input: ArtifactProbeInput,
+  options: ArtifactProbeOptions = {},
+): Promise<ArtifactProbeResult> {
+  const launcherPath = options.launcherPath ?? SERVER_ARTIFACT_PROBE_LAUNCHER;
+  const timeoutMs = options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS;
+
+  // Fail closed before the file is touched: if the sandbox is not sealed on
+  // this host, the answer is about the host, not the bytes, and the bytes are
+  // never handed to a process that could reach the network with them.
+  if (!(await sandboxHoldsNetwork(options))) {
+    return refused("sandbox-unavailable");
+  }
+
+  const exchange = await runLauncher(
+    { path: input.path, sizeBytes: input.sizeBytes },
+    launcherPath,
+    timeoutMs,
+  );
+  if (exchange.late || exchange.timedOut) return refused("timeout", timeoutMs);
+  if (exchange.code === null) return refused("sandbox-unavailable");
+  if (SANDBOX_SETUP_FAILURES.includes(exchange.code)) {
+    return refused("sandbox-unavailable");
+  }
+  if (exchange.code === 137) {
+    return refused("memory", ARTIFACT_PROBE_MEMORY_MAX_BYTES);
+  }
+  if (exchange.overflow) return refused("malformed");
+  if (exchange.code !== 0 || exchange.bytes.byteLength === 0) {
+    return refused("unreadable");
+  }
+  try {
     const parsed = ArtifactProbeFrameSchema.safeParse(
-      JSON.parse(new TextDecoder().decode(output.bytes)),
+      JSON.parse(new TextDecoder().decode(exchange.bytes)),
     );
     // A frame that does not match the schema is this code's defect, not the
     // file's, and saying so is more useful than a confident wrong answer.
@@ -196,8 +342,6 @@ export async function probeArtifactBytes(
     return parsed.data.result;
   } catch {
     return refused("unreadable");
-  } finally {
-    clearTimeout(timer);
   }
 }
 

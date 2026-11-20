@@ -120,6 +120,48 @@ export const ArtifactProbeFrameSchema = z.object({
 export type ArtifactProbeFrame = z.infer<typeof ArtifactProbeFrameSchema>;
 
 /**
+ * The address the sandbox self-test tries to reach, and must not.
+ *
+ * A public resolver: reachable from anywhere with a route, so a connect that
+ * succeeds means the network is open, not that the target happened to be up. If
+ * this address is unreachable the answer is "the sandbox holds", which is the
+ * answer the server wants, and an unreachable target can only ever cause the
+ * server to be more careful, never less.
+ */
+export const ARTIFACT_PROBE_SELF_TEST_HOST = "1.1.1.1";
+export const ARTIFACT_PROBE_SELF_TEST_PORT = 443;
+
+/**
+ * What the sandbox self-test asks: can a worker inside the unit reach the
+ * network at all?
+ *
+ * This exists because a declared property is not an enforced one. A user
+ * manager that cannot create a network namespace accepts `PrivateNetwork=yes`
+ * and logs "proceeding without", and the unit then runs with the host's own
+ * network. Nothing in the unit's configuration can tell the server that, so the
+ * server asks the only question that has an answer: did a connect succeed?
+ */
+export const ArtifactProbeSelfTestRequestSchema = z.object({
+  selfTest: z.literal("network").describe("Ask whether the sandbox is sealed."),
+}).strict().describe(
+  "The frame the server sends to run the sandbox self-test.",
+);
+
+export const ArtifactProbeSelfTestFrameSchema = z.object({
+  selfTest: z.literal("network").describe("The question that was answered."),
+  reachable: z.boolean().describe(
+    "True when a connection succeeded, which means the sandbox is not sealed.",
+  ),
+  detail: z.string().optional().describe(
+    "The error name the worker saw, or a short note.",
+  ),
+}).strict().describe("What the sandbox self-test answers.");
+
+export type ArtifactProbeSelfTestFrame = z.infer<
+  typeof ArtifactProbeSelfTestFrameSchema
+>;
+
+/**
  * Whether anything can be shown for these bytes at all, and what. The artifact
  * view asks this, not the probe result directly, so the rule for showing a
  * file lives in one place.

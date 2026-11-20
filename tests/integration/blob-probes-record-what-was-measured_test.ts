@@ -15,6 +15,15 @@ import {
   readBlobProbe,
   writeBlobProbe,
 } from "../../apps/server/src/modules/knowledge/blob-probes.ts";
+import {
+  forgetSandboxPreflight,
+  probeBlob,
+} from "../../apps/server/src/modules/knowledge/probe.ts";
+import {
+  PNG_FRAME,
+  UNSEALED,
+  writeStub,
+} from "../helpers/probe-stub-launcher.ts";
 import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 
 /** A blob row owned by the fixture's organization. */
@@ -214,5 +223,35 @@ Deno.test("re-reading a stored row yields the same result the probe produced", a
       [fixture.organizationId, blobId],
     );
     assertEquals(probeFromRow(rows[0] as never).result, written);
+  });
+});
+
+Deno.test("a host whose sandbox is not sealed leaves no row behind", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const blobId = await seedBlob(fixture, "probe unsealed host");
+    const dir = await Deno.makeTempDir({ prefix: "bakery-probe-unsealed-" });
+    // The self-test says a connect succeeded inside the unit, so there is no
+    // sandbox; the probe branch would have answered happily, and the answer must
+    // not be taken or recorded.
+    const launcher = await writeStub(dir, "unsealed", {
+      selfTest: UNSEALED,
+      probe: `printf '%s' '${PNG_FRAME}'`,
+    });
+    forgetSandboxPreflight();
+    const result = await probeBlob(fixture.pgDatabase, {
+      organizationId: fixture.organizationId,
+      blobId,
+      path: "/tmp/whatever",
+      sizeBytes: 16,
+    }, { launcherPath: launcher });
+    assertEquals(result, { status: "refused", code: "sandbox-unavailable" });
+    assertEquals(
+      await readBlobProbe(fixture.pgDatabase, {
+        organizationId: fixture.organizationId,
+        blobId,
+      }),
+      null,
+      "a sandbox that was not sealed is not a fact about the file",
+    );
   });
 });

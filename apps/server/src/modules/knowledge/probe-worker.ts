@@ -19,9 +19,12 @@
  */
 import {
   ARTIFACT_PROBE_MAX_BYTES,
+  ARTIFACT_PROBE_SELF_TEST_HOST,
+  ARTIFACT_PROBE_SELF_TEST_PORT,
   type ArtifactProbeFrame,
   type ArtifactProbeReport,
   type ArtifactProbeResult,
+  type ArtifactProbeSelfTestFrame,
 } from "@bakery/contracts/artifact-probe";
 import { classifyArtifactMedia } from "../knowledge/media.ts";
 import { describeImage } from "./probe-image.ts";
@@ -45,13 +48,62 @@ function refuse(
   });
 }
 
-/** Reads what the parent said, or reports that it cannot. */
+/**
+ * Answers whether the sandbox this worker is running in is sealed.
+ *
+ * The worker is the right process to ask, because it runs *inside* the unit: a
+ * check made by the server would test the server's network. A connect that
+ * succeeds is the only answer that means "not sealed"; an address that is
+ * simply down also produces a failed connect, so this can only ever make the
+ * server more careful.
+ */
+async function selfTest(): Promise<void> {
+  try {
+    const connection = await Deno.connect({
+      hostname: ARTIFACT_PROBE_SELF_TEST_HOST,
+      port: ARTIFACT_PROBE_SELF_TEST_PORT,
+      transport: "tcp",
+    });
+    connection.close();
+    // Reaching the address at all is the finding, so the connection is closed
+    // without sending anything: nothing leaves this process but the answer.
+    Deno.stdout.writeSync(encoder.encode(JSON.stringify(
+      {
+        selfTest: "network",
+        reachable: true,
+        detail: "connected",
+      } satisfies ArtifactProbeSelfTestFrame,
+    )));
+  } catch (error) {
+    Deno.stdout.writeSync(encoder.encode(JSON.stringify(
+      {
+        selfTest: "network",
+        reachable: false,
+        detail: (error as Error).name,
+      } satisfies ArtifactProbeSelfTestFrame,
+    )));
+  }
+  Deno.exit(0);
+}
+
+/**
+ * Reads what the parent said, or reports that it cannot.
+ *
+ * A self-test frame is recognised here rather than in a separate worker: the
+ * point of the self-test is that it runs inside the same unit, through the same
+ * launcher, with the same properties as a real probe. A second entry point
+ * could drift from the one being checked.
+ */
 async function readRequest(): Promise<
-  { path: string; sizeBytes: number } | undefined
+  { path: string; sizeBytes: number } | { selfTest: "network" } | undefined
 > {
   const request = await new Response(Deno.stdin.readable).json().catch(() =>
     undefined
   );
+  if (
+    request !== null && typeof request === "object" &&
+    (request as { selfTest?: unknown }).selfTest === "network"
+  ) return { selfTest: "network" };
   if (
     request === null || typeof request !== "object" ||
     typeof (request as { path?: unknown }).path !== "string" ||
@@ -64,6 +116,7 @@ async function readRequest(): Promise<
 async function probe(): Promise<void> {
   const request = await readRequest();
   if (request === undefined) return refuse("unreadable");
+  if ("selfTest" in request) return await selfTest();
   if (request.sizeBytes > ARTIFACT_PROBE_MAX_BYTES) {
     return refuse("too-large", ARTIFACT_PROBE_MAX_BYTES);
   }
