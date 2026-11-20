@@ -234956,6 +234956,21 @@
               ],
               "description": "FileSearchHit.entryId may be null in this transport value."
             },
+            "itemId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Id of the catalog item a library hit mirrors, the same id its Library page and its catalog reads use; null for a file."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "FileSearchHit.itemId may be null in this transport value."
+            },
             "path": {
               "type": "string",
               "maxLength": 65536,
@@ -235152,6 +235167,7 @@
           "required": [
             "source",
             "entryId",
+            "itemId",
             "path",
             "name",
             "kind",
@@ -235182,6 +235198,21 @@
                 "item"
               ],
               "description": "folder for a section, item for a published catalog item."
+            },
+            "id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Id of the catalog item the entry mirrors, the same id its Library page and its catalog reads use; null for a folder."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "LibraryEntry.id may be null in this transport value."
             },
             "path": {
               "type": "string",
@@ -235225,6 +235256,7 @@
           },
           "required": [
             "type",
+            "id",
             "path",
             "name",
             "kind",
@@ -235265,6 +235297,21 @@
                       }
                     ],
                     "description": "FileSearchHit.entryId may be null in this transport value."
+                  },
+                  "itemId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Id of the catalog item a library hit mirrors, the same id its Library page and its catalog reads use; null for a file."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "FileSearchHit.itemId may be null in this transport value."
                   },
                   "path": {
                     "type": "string",
@@ -235462,6 +235509,7 @@
                 "required": [
                   "source",
                   "entryId",
+                  "itemId",
                   "path",
                   "name",
                   "kind",
@@ -235683,6 +235731,21 @@
                     ],
                     "description": "folder for a section, item for a published catalog item."
                   },
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Id of the catalog item the entry mirrors, the same id its Library page and its catalog reads use; null for a folder."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "LibraryEntry.id may be null in this transport value."
+                  },
                   "path": {
                     "type": "string",
                     "maxLength": 65536,
@@ -235725,6 +235788,7 @@
                 },
                 "required": [
                   "type",
+                  "id",
                   "path",
                   "name",
                   "kind",
@@ -242321,7 +242385,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:7ea89271b3b2f9f3c608afa6a7393d8d7bd750dc3d9057900e07db51673b1f3d",
+  "compatibilityDigest": "sha256:928543ce7127d5ca9bccf916e51986b4ab7cb169f31db4f6f3f18acb2076d042",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -434624,6 +434688,21 @@
           ],
           "description": "FileSearchHit.entryId may be null in this transport value."
         },
+        "itemId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Id of the catalog item a library hit mirrors, the same id its Library page and its catalog reads use; null for a file."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "FileSearchHit.itemId may be null in this transport value."
+        },
         "path": {
           "type": "string",
           "maxLength": 65536,
@@ -434820,6 +434899,7 @@
       "required": [
         "source",
         "entryId",
+        "itemId",
         "path",
         "name",
         "kind",
@@ -434850,6 +434930,21 @@
             "item"
           ],
           "description": "folder for a section, item for a published catalog item."
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Id of the catalog item the entry mirrors, the same id its Library page and its catalog reads use; null for a folder."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "LibraryEntry.id may be null in this transport value."
         },
         "path": {
           "type": "string",
@@ -434893,6 +434988,7 @@
       },
       "required": [
         "type",
+        "id",
         "path",
         "name",
         "kind",
@@ -434933,6 +435029,21 @@
                   }
                 ],
                 "description": "FileSearchHit.entryId may be null in this transport value."
+              },
+              "itemId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Id of the catalog item a library hit mirrors, the same id its Library page and its catalog reads use; null for a file."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.itemId may be null in this transport value."
               },
               "path": {
                 "type": "string",
@@ -435130,6 +435241,7 @@
             "required": [
               "source",
               "entryId",
+              "itemId",
               "path",
               "name",
               "kind",
@@ -435351,6 +435463,21 @@
                 ],
                 "description": "folder for a section, item for a published catalog item."
               },
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Id of the catalog item the entry mirrors, the same id its Library page and its catalog reads use; null for a folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "LibraryEntry.id may be null in this transport value."
+              },
               "path": {
                 "type": "string",
                 "maxLength": 65536,
@@ -435393,6 +435520,7 @@
             },
             "required": [
               "type",
+              "id",
               "path",
               "name",
               "kind",

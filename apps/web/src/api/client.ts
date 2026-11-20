@@ -577,8 +577,10 @@ export type FileSearchPage = ClientOutputMap["Page<FileSearchHit>"];
 export type FileSearchHit = FileSearchPage["items"][number];
 export type FileSearchInput = Pick<
   ClientInputMap["FileSearchQuery"],
-  "query" | "path" | "kind" | "mediaGroup" | "cursor"
+  "query" | "path" | "kind" | "mediaGroup" | "producerId" | "cursor"
 >;
+export type LibraryPage = ClientOutputMap["Page<LibraryEntry>"];
+export type LibraryEntry = LibraryPage["items"][number];
 
 export type BakeryApiClient = {
   /** The stored files and their folders: the read-only files browser's reads. */
@@ -619,6 +621,13 @@ export type BakeryApiClient = {
       input: FileSearchInput,
       signal?: AbortSignal,
     ) => Promise<ApiResult<FileSearchPage>>;
+    /** One folder of the read-only library mirror (`/library`, `/library/kinds`). */
+    readonly library: (
+      organizationId: string,
+      path: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<LibraryPage>>;
     /** A file's bytes: its current version, or the one at `revision`. */
     readonly content: (
       organizationId: string,
@@ -1147,6 +1156,8 @@ export type BakeryApiClient = {
     /** `GET /v1/principals`: the organization's members, service accounts and workers. */
     readonly list: (options: {
       readonly organizationId: string;
+      /** The page after this cursor; omitted for the first. */
+      readonly cursor?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<PrincipalPage>>;
   };
@@ -3109,6 +3120,25 @@ export function createBakeryApiClient({
           return failed(error);
         }
       },
+      async library(org, path, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["files.library"]({
+              path,
+              cursor,
+              limit: 100,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
       async content(org, fileId, revision, signal) {
         const scoped = createBakeryClient({
           baseUrl,
@@ -3531,9 +3561,15 @@ export function createBakeryApiClient({
         try {
           return {
             ok: true,
-            data: await client.actions["principals.list"]({ limit: 100 }, {
-              signal: options.signal,
-            }),
+            data: await client.actions["principals.list"](
+              {
+                limit: 100,
+                ...(options.cursor === undefined
+                  ? {}
+                  : { cursor: options.cursor }),
+              },
+              { signal: options.signal },
+            ),
           };
         } catch (error) {
           return failed(error);

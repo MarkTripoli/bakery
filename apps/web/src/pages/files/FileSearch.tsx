@@ -1,10 +1,14 @@
-import { useEffect, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { formatNumber } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import type { FileSearchHit } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
-import { fileSearchQueryOptions } from "../../api/query.ts";
+import {
+  fileKindsQueryOptions,
+  filePeopleQueryOptions,
+  fileSearchQueryOptions,
+} from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
@@ -25,12 +29,17 @@ export type MediaGroup = typeof MEDIA_GROUPS[number];
 export type SearchState = {
   readonly q: string;
   readonly type: MediaGroup | undefined;
+  /** A kind's name as the library lists it (`plan`), or any kind. */
+  readonly kind: string | undefined;
+  /** The principal who made the file, or anyone. */
+  readonly by: string | undefined;
   readonly everywhere: boolean;
 };
 
 /** A search runs from two letters, or as soon as a filter is set. */
 export function isSearching(state: SearchState): boolean {
-  return state.q.trim().length >= 2 || state.type !== undefined;
+  return state.q.trim().length >= 2 || state.type !== undefined ||
+    state.kind !== undefined || state.by !== undefined;
 }
 
 /** The search field and its filters, one row; typing is settled for 250 ms. */
@@ -42,16 +51,155 @@ export function FileSearchControls(
   },
 ) {
   const { translate } = useI18n();
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const kinds = useQuery(fileKindsQueryOptions(api, scope));
+  const people = useQuery(filePeopleQueryOptions(api, scope));
+  const kindOptions = [
+    { value: "", label: translate("files.search.kind.any") },
+    ...(kinds.data?.items ?? [])
+      .filter((entry) => entry.type === "item")
+      .map((entry) => ({
+        value: entry.path.slice(entry.path.lastIndexOf("/") + 1),
+        label: entry.name,
+      })),
+  ];
+  if (
+    state.kind !== undefined &&
+    !kindOptions.some((option) => option.value === state.kind)
+  ) {
+    kindOptions.push({ value: state.kind, label: state.kind });
+  }
+  // Everyone who can have made a file, disabled accounts included: their files
+  // are still there to find, so they are listed and marked, not hidden.
+  const principals = people.data?.items ?? [];
+  const byOptions = [
+    { value: "", label: translate("files.search.by.any") },
+    ...[
+      ...principals.filter((item) => item.principalType === "human"),
+      ...principals.filter((item) => item.principalType !== "human"),
+    ].map((item) => ({
+      value: item.id,
+      label: item.disabledAt === null
+        ? item.displayName
+        : translate("files.search.by.disabled", { name: item.displayName }),
+    })),
+  ];
+  if (
+    state.by !== undefined &&
+    !byOptions.some((option) => option.value === state.by)
+  ) {
+    // An id nobody lists (an account that is gone): a plain word, never the id.
+    byOptions.push({
+      value: state.by,
+      label: translate("files.search.by.unknown"),
+    });
+  }
   const [text, setText] = useState(state.q);
   useEffect(() => setText(state.q), [state.q]);
+  // One writer for the address. Typed text is committed after a short pause;
+  // any other change (a filter, Clear filters) commits the text itself and
+  // cancels that pause. A timer left running would fire with the filters it saw
+  // when it was armed and write them back over a change made after it, which is
+  // how "Clear filters" could be undone a quarter of a second later.
+  const pending = useRef<ReturnType<typeof globalThis.setTimeout> | undefined>(
+    undefined,
+  );
+  const cancelPending = () => {
+    if (pending.current === undefined) return;
+    globalThis.clearTimeout(pending.current);
+    pending.current = undefined;
+  };
   useEffect(() => {
     if (text === state.q) return;
-    const timer = globalThis.setTimeout(
-      () => onChange({ ...state, q: text }),
-      250,
-    );
-    return () => globalThis.clearTimeout(timer);
+    pending.current = globalThis.setTimeout(() => {
+      pending.current = undefined;
+      onChange({ ...state, q: text });
+    }, 250);
+    return cancelPending;
   }, [text, state, onChange]);
+  const change = (patch: Partial<SearchState>) => {
+    cancelPending();
+    onChange({ ...state, q: text, ...patch });
+  };
+  const phone = useShellViewport() === "phone";
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const active =
+    [state.type, state.kind, state.by].filter((value) => value !== undefined)
+      .length + (state.everywhere && !atTop ? 1 : 0);
+  const anySet = state.q !== "" || state.type !== undefined ||
+    state.kind !== undefined || state.by !== undefined;
+  const clearSearch = anySet
+    ? (
+      <UI.Button
+        variant="secondary"
+        onClick={() => {
+          setText("");
+          change({ q: "", type: undefined, kind: undefined, by: undefined });
+        }}
+      >
+        {translate("files.search.clear")}
+      </UI.Button>
+    )
+    : null;
+  const filtersSet = state.type !== undefined || state.kind !== undefined ||
+    state.by !== undefined || (state.everywhere && !atTop);
+  const filterItems = (
+    <>
+      {atTop ? null : (
+        <UI.Combobox
+          label={translate("files.search.where")}
+          value={state.everywhere ? "all" : "folder"}
+          onChange={(event) =>
+            change({ everywhere: event.currentTarget.value === "all" })}
+          options={[
+            {
+              value: "folder",
+              label: translate("files.search.where.folder"),
+            },
+            { value: "all", label: translate("files.search.where.all") },
+          ]}
+        />
+      )}
+      <UI.Combobox
+        label={translate("files.search.type")}
+        value={state.type ?? ""}
+        onChange={(event) => {
+          const value = event.currentTarget.value;
+          change({
+            type: (MEDIA_GROUPS as readonly string[]).includes(value)
+              ? value as MediaGroup
+              : undefined,
+          });
+        }}
+        options={[
+          { value: "", label: translate("files.search.type.any") },
+          ...MEDIA_GROUPS.map((group) => ({
+            value: group,
+            label: translate(`files.search.type.${group}` as never),
+          })),
+        ]}
+      />
+      <UI.Combobox
+        label={translate("files.search.kind")}
+        value={state.kind ?? ""}
+        onChange={(event) => {
+          const value = event.currentTarget.value;
+          change({ kind: value === "" ? undefined : value });
+        }}
+        options={kindOptions}
+      />
+      <UI.Combobox
+        label={translate("files.search.by")}
+        value={state.by ?? ""}
+        onChange={(event) => {
+          const value = event.currentTarget.value;
+          change({ by: value === "" ? undefined : value });
+        }}
+        options={byOptions}
+      />
+    </>
+  );
   return (
     <UI.Stack gap="compact" data-testid="files-search">
       <UI.SearchField
@@ -62,65 +210,113 @@ export function FileSearchControls(
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             setText("");
-            onChange({ ...state, q: "" });
+            change({ q: "" });
           }
         }}
       />
-      <UI.Inline gap="compact" data-controls="filters">
-        {atTop ? null : (
-          <UI.Combobox
-            label={translate("files.search.where")}
-            value={state.everywhere ? "all" : "folder"}
-            onChange={(event) =>
-              onChange({
-                ...state,
-                everywhere: event.currentTarget.value === "all",
-              })}
-            options={[
-              {
-                value: "folder",
-                label: translate("files.search.where.folder"),
-              },
-              { value: "all", label: translate("files.search.where.all") },
-            ]}
-          />
-        )}
-        <UI.Combobox
-          label={translate("files.search.type")}
-          value={state.type ?? ""}
-          onChange={(event) => {
-            const value = event.currentTarget.value;
-            onChange({
-              ...state,
-              type: (MEDIA_GROUPS as readonly string[]).includes(value)
-                ? value as MediaGroup
-                : undefined,
-            });
-          }}
-          options={[
-            { value: "", label: translate("files.search.type.any") },
-            ...MEDIA_GROUPS.map((group) => ({
-              value: group,
-              label: translate(`files.search.type.${group}` as never),
-            })),
-          ]}
-        />
-        {state.q !== "" || state.type !== undefined
-          ? (
-            <UI.Button
-              variant="secondary"
-              onClick={() => {
-                setText("");
-                onChange({ ...state, q: "", type: undefined });
-              }}
+      {phone
+        ? (
+          <>
+            <UI.Inline gap="compact">
+              <UI.Button
+                variant="secondary"
+                aria-haspopup="dialog"
+                onClick={() => setSheetOpen(true)}
+              >
+                {active > 0
+                  ? translate("files.filters.buttonCount", { count: active })
+                  : translate("files.filters.button")}
+              </UI.Button>
+              {clearSearch}
+            </UI.Inline>
+            <UI.Sheet
+              open={sheetOpen}
+              onOpenChange={setSheetOpen}
+              title={translate("files.filters.title")}
+              dismissLabel={translate("files.filters.close")}
             >
-              {translate("files.search.clear")}
-            </UI.Button>
-          )
-          : null}
-      </UI.Inline>
+              <UI.Stack gap="standard" data-controls="filters">
+                {filterItems}
+                <UI.Button
+                  variant="secondary"
+                  disabled={!filtersSet}
+                  onClick={() =>
+                    change({
+                      type: undefined,
+                      kind: undefined,
+                      by: undefined,
+                      everywhere: false,
+                    })}
+                >
+                  {translate("files.filters.clear")}
+                </UI.Button>
+                <UI.Button
+                  variant="primary"
+                  onClick={() => setSheetOpen(false)}
+                >
+                  {translate("files.filters.show")}
+                </UI.Button>
+              </UI.Stack>
+            </UI.Sheet>
+          </>
+        )
+        : (
+          <UI.Inline gap="compact" data-controls="filters">
+            {filterItems}
+            {clearSearch}
+          </UI.Inline>
+        )}
     </UI.Stack>
   );
+}
+
+/** The catalog kinds the Library copy names, which have words of their own. */
+const LIBRARY_KINDS: readonly string[] = [
+  "skill",
+  "agent",
+  "workflow",
+  "kind",
+  "package",
+];
+
+/**
+ * Where a Library hit opens: its own page for a workflow or an agent, which is
+ * what the folder table opens too. Any other hit has no page of its own and
+ * opens the folder it sits in, as does a hit with no id.
+ */
+export function libraryItemTarget(hit: FileSearchHit):
+  | {
+    readonly to: "/library/workflows/$workflowId";
+    readonly params: { readonly workflowId: string };
+  }
+  | {
+    readonly to: "/library/agents/$agentId";
+    readonly params: { readonly agentId: string };
+  }
+  | null {
+  if (hit.source !== "library" || hit.itemId === null) return null;
+  if (hit.kind === "workflow") {
+    return {
+      to: "/library/workflows/$workflowId",
+      params: { workflowId: hit.itemId },
+    };
+  }
+  if (hit.kind === "agent") {
+    return {
+      to: "/library/agents/$agentId",
+      params: { agentId: hit.itemId },
+    };
+  }
+  return null;
+}
+
+/** The address of that page, for the link's own href. */
+export function libraryItemHref(hit: FileSearchHit): string | null {
+  const target = libraryItemTarget(hit);
+  if (target === null) return null;
+  return target.to === "/library/workflows/$workflowId"
+    ? `/library/workflows/${target.params.workflowId}`
+    : `/library/agents/${target.params.agentId}`;
 }
 
 /** The hits of one search as a list; a file opens in its folder, a library item by its path. */
@@ -140,6 +336,8 @@ export function FileSearchResults(
     ...fileSearchQueryOptions(api, scope, {
       ...(state.q.trim() !== "" ? { query: state.q.trim() } : {}),
       ...(state.type !== undefined ? { mediaGroup: state.type } : {}),
+      ...(state.kind !== undefined ? { kind: state.kind } : {}),
+      ...(state.by !== undefined ? { producerId: state.by } : {}),
       ...(!state.everywhere && folderPath !== "" ? { path: folderPath } : {}),
     }),
     enabled: scope.organizationId !== null,
@@ -167,7 +365,7 @@ export function FileSearchResults(
     );
   }
   const size = (hit: FileSearchHit) => {
-    if (hit.sizeBytes === null) return "";
+    if (hit.sizeBytes === null) return translate("files.size.none");
     const { value, unit } = sizeParts(hit.sizeBytes);
     return translate(`files.size.${unit}` as never, {
       value: formatNumber(value, locale, {
@@ -175,13 +373,19 @@ export function FileSearchResults(
       }),
     });
   };
+  // A Library hit's kind is the catalog's word for it ("workflow"), which the
+  // folder table one click away writes as "Workflow"; the two must agree.
+  const kindName = (hit: FileSearchHit) =>
+    hit.source === "library" && LIBRARY_KINDS.includes(hit.kind)
+      ? translate(`files.library.kind.${hit.kind}` as never)
+      : hit.kind;
   const where = (hit: FileSearchHit) =>
     hit.source === "library"
       ? translate("files.search.library")
       : hit.path.slice(0, hit.path.lastIndexOf("/")) || "/";
   const link = (hit: FileSearchHit) => (
     <UI.Link
-      href={hit.path}
+      href={libraryItemHref(hit) ?? hit.path}
       variant="quiet"
       data-name="true"
       onClick={(event) => {
@@ -211,7 +415,7 @@ export function FileSearchResults(
                   {translate("files.search.column.where")}: {where(hit)}
                 </UI.Text>
                 <UI.Text variant="caption">
-                  {translate("files.table.kind")}: {hit.kind}
+                  {translate("files.table.kind")}: {kindName(hit)}
                 </UI.Text>
                 {hit.producerName === null ? null : (
                   <UI.Text variant="caption">
@@ -262,7 +466,7 @@ export function FileSearchResults(
             header: translate("files.search.column.name"),
             cell: (hit) => (
               <UI.Link
-                href={hit.path}
+                href={libraryItemHref(hit) ?? hit.path}
                 variant="quiet"
                 data-name="true"
                 onClick={(event) => {
@@ -288,12 +492,12 @@ export function FileSearchResults(
           {
             id: "kind",
             header: translate("files.table.kind"),
-            cell: (hit) => hit.kind,
+            cell: kindName,
           },
           {
             id: "madeBy",
             header: translate("files.search.column.madeBy"),
-            cell: (hit) => hit.producerName ?? "",
+            cell: (hit) => hit.producerName ?? translate("files.kind.none"),
           },
           {
             id: "size",
