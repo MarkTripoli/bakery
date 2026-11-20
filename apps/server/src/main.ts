@@ -20,6 +20,7 @@ import {
   createServerTelemetryFromConfig,
   SERVER_TELEMETRY_CLOSE_MS,
 } from "./platform/telemetry.ts";
+import { createAlertEvaluator } from "./modules/monitoring/alert-evaluator.ts";
 import { createDestinationLoader } from "./modules/monitoring/destination-loader.ts";
 import {
   createDestinationFanout,
@@ -220,6 +221,18 @@ async function runServer(config: RuntimeConfig): Promise<void> {
     destinations: destinationFanout.send,
   });
   destinationLoader.start();
+  // The five alert rules are checked on a timer; what changes goes to the
+  // enabled alert channels, signed.
+  const alertEvaluator = createAlertEvaluator({
+    database: pgDatabase,
+    secretsKey: config.secretsKey,
+    // The pinned fetch, so a name re-pointed after the address check cannot
+    // send a signed alert to an internal address.
+    fetch: telemetryDeliveryDependencies.fetch,
+    addressPolicy: telemetryDeliveryDependencies.addressPolicy,
+    fanout: destinationFanout,
+  });
+  alertEvaluator.start();
   // Sampling the ledger is what puts an application metric in the registry at
   // all; before this, the registry held zero series and nothing flushed.
   const operationalMetrics = startOperationalMetricSampling({
@@ -284,6 +297,7 @@ async function runServer(config: RuntimeConfig): Promise<void> {
           await server.shutdown();
         } finally {
           destinationLoader.stop();
+          alertEvaluator.stop();
           // Stop sampling before the final flush, so the last metric record is
           // the last sample rather than a reading of a database already closing.
           await stopSamplingThenCloseTelemetry({
