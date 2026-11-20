@@ -165,9 +165,12 @@ export type RegisteredPreview =
 /**
  * Registers the preview of the attempt the caller has already proved it holds
  * (lease, fence, session). A newer attempt's registration stops the older
- * attempts' live previews of the same job in the same statement chain, so two
- * previews are never offered for one run at once. Repeating the same
- * registration is a replay; the same route key for anything else is a conflict.
+ * attempts' live previews of the same JOB in the same statement chain, so one
+ * job never has live previews from two attempts at once. Previews are replaced
+ * per job, not per run: a run with several jobs keeps each job's preview, and
+ * one attempt may register more than one app (one route key each). Repeating
+ * the same registration is a replay; the same route key for anything else is a
+ * conflict.
  */
 export async function registerPreview(
   transaction: PgTransactionClient,
