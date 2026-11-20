@@ -4,6 +4,7 @@ import {
   type probeSkillStorage,
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
+import { createBackupRoutes } from "./modules/backups/actions.ts";
 import {
   createEmailSettingsRoutes,
   type EmailSettingsDependencies,
@@ -970,6 +971,15 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       dependencies: { ...skillStorage, probe: options.skillStorageProbe },
+    }),
+  );
+  app.route(
+    "/",
+    createBackupRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      secret: options.config.auth.secret,
     }),
   );
   app.route(
