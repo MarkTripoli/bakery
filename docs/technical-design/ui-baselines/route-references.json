@@ -243,6 +243,13 @@
       "frames": []
     },
     {
+      "routeId": "forgot-password",
+      "path": "/sign-in/forgot-password",
+      "status": "no-mock",
+      "rationale": "Designed by design-ux on #241 (the UX design comment of 2026-11-19); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "sign-in",
       "path": "/sign-in",
       "status": "baselined",
@@ -5052,6 +5059,20 @@
       "path": "/settings/organization/roles",
       "status": "no-mock",
       "rationale": "Custom roles page (E16 phase 14): the organization's custom roles with create, edit, assign and delete, moved off the Access page so Access fits its Paper frames. The Paper custom-roles frames stay owned by the planned organization-roles entry (path /organization/roles); no candidate fixture scores this route against them yet, so no golden is claimed. Behaviour is covered by apps/web/tests/custom-roles.spec.ts on desktop and phone viewports, not by pixel scoring.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-plugins",
+      "path": "/settings/organization/plugins",
+      "status": "no-mock",
+      "rationale": "Designed in design-ux's #76 revision 3 (design-76/v3 on the pr-evidence branch): token-value mocks, not Paper frames, so there is no Paper artboard to score. Not searched against the Paper artboard list; the page is judged against those mocks in the PR's visual evidence and by the Storybook component lanes.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-plugin",
+      "path": "/settings/organization/plugins/$installId",
+      "status": "no-mock",
+      "rationale": "Designed in design-ux's #76 revision 3 (design-76/v3 on the pr-evidence branch): token-value mocks, not Paper frames, so there is no Paper artboard to score. Not searched against the Paper artboard list; the page is judged against those mocks in the PR's visual evidence and by the Storybook component lanes.",
       "frames": []
     },
     {

@@ -884,16 +884,44 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "3b8d4ef5651aeb7feb2a38518001271c1436646f",
+    "0ab8a30353e2d19599a02affbad1c09f05fcbec6",
   ];
   const approvedDigest =
-    "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580";
+    "sha256:050bbfec6c6d3ccd73991e61264bee8b5d336bfd701d2a73dc9fc1374b2ee3aa";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced when main moved again (#725): the digest follows the tree, so the
+    // earlier one no longer authorises it.
+    "sha256:350a67b467395a98dc007935426ca0ec22397a03e33c236f38510f471d3026d3",
+    // Displaced by the #434 MCP connections re-bind: connection create and update drop
+    // secretId for a write-only secret, and discovery, classification and use grants
+    // add their actions.
+    "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1",
+    // The same #57 merge from Bakery change before main moved again (#724): the
+    // digest follows the tree, so the earlier one no longer authorises it.
+    "sha256:468a1fc65fc3b08483d56cf8108a2d8cb76241bab428558a44b78b723a0d8a53",
+    // Displaced by the #57 merge from Bakery re-bind: PullRequest gains required
+    // mayMerge and mergeMethod, on top of the #69 memberships display name.
+    "sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926",
+    // Displaced by the #69 memberships display name re-bind: the same field on a
+    // later main (#715 and #722 changed other contracts).
+    "sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc",
+    // Displaced by the #69 memberships display name re-bind: the same field on a
+    // later main (run requests changed other contracts).
+    "sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b",
+    // Displaced by the #69 memberships display name re-bind: the same field on a
+    // later main (other contracts changed meanwhile).
+    "sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1",
     // Newest first, matching the file: a displaced approval is prepended, so the
     // approval this change removed from force heads the history it joins.
+    // Displaced by the #69 memberships display name re-bind: the same field on a
+    // later main (#706 changed other contracts).
+    "sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3",
+    // Displaced by the #69 memberships display name re-bind: OrganizationMembership
+    // gains a required displayName.
+    "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
     // Displaced by the #69 ticket preview, link reads and status note re-bind.
     "sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d",
     // Displaced by the #26 probe re-bind: RouteHealth gains reasonSince and the

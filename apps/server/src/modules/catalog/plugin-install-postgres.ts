@@ -50,7 +50,7 @@ const STATE_ORDERING = "createdAt:desc,id:desc";
 const INSTALL_COLUMNS = `
   i.id, i.plugin_package_id, i.plugin_version_id, i.scope,
   i.owner_principal_id, i.status, i.state_schema_version, i.activated_at,
-  i.disabled_at, i.created_at, i.updated_at, i.version
+  i.disabled_at, i.created_at, i.updated_at, i.version, i.last_update_failure
 `;
 
 const STATE_COLUMNS = `
@@ -72,6 +72,7 @@ type InstallRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  last_update_failure: unknown;
 };
 
 type StateRow = {
@@ -109,6 +110,10 @@ function toInstall(row: InstallRow, organizationId: string): PluginInstall {
     createdAt: iso(row.created_at)!,
     updatedAt: iso(row.updated_at)!,
     version: row.version,
+    lastUpdateFailure: row.last_update_failure === null ||
+        row.last_update_failure === undefined
+      ? null
+      : row.last_update_failure as PluginInstall["lastUpdateFailure"],
   };
 }
 
@@ -556,8 +561,14 @@ export async function updatePluginInstall(
   );
 
   const nextStatus = input.status ?? row.status;
-  const nextVersionId = input.versionId ?? row.plugin_version_id;
-  const upgraded = nextVersionId !== row.plugin_version_id;
+  // A version that does not pass its checks is not switched to: the install
+  // keeps running on its prior version and the refusal is noted on it. The rest
+  // of the same request (a status change, a dismissal) still applies, so a
+  // refused update never swallows a disable and its revocation.
+  let refused:
+    | { versionId: string; versionName: string; reason: string }
+    | null = null;
+  let nextVersionId = row.plugin_version_id;
 
   if (
     input.versionId !== undefined && input.versionId !== row.plugin_version_id
@@ -571,8 +582,9 @@ export async function updatePluginInstall(
     const version = await transaction.query<{
       manifest: unknown;
       sdk_range: string;
+      version_name: string;
     }>(
-      `select v.manifest, v.sdk_range
+      `select v.manifest, v.sdk_range, v.version_name
          from bakery.plugin_versions v
          join bakery.plugin_packages p
            on p.organization_id = v.organization_id
@@ -590,47 +602,55 @@ export async function updatePluginInstall(
         params: { reason: "plugin_version_not_found" },
       });
     }
-    if (!satisfiesSdkRange(versionRow.sdk_range)) {
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        params: { reason: "plugin_sdk_incompatible" },
-      });
-    }
+    // The refusal is recorded on the install and the request is answered as
+    // the install itself, not as an error: an error would roll this
+    // transaction back and take the record with it.
     let manifest;
-    try {
-      manifest = parsePluginManifest(versionRow.manifest);
-    } catch (error) {
-      if (error instanceof PluginManifestError) {
-        throw new StandardError({
-          code: "STATE_CONFLICT",
-          params: { reason: `plugin_manifest_${error.code.toLowerCase()}` },
-        });
+    if (!satisfiesSdkRange(versionRow.sdk_range)) {
+      refused = {
+        versionId: input.versionId,
+        versionName: versionRow.version_name,
+        reason: "plugin_sdk_incompatible",
+      };
+    } else {
+      try {
+        manifest = parsePluginManifest(versionRow.manifest);
+      } catch (error) {
+        if (!(error instanceof PluginManifestError)) throw error;
+        refused = {
+          versionId: input.versionId,
+          versionName: versionRow.version_name,
+          reason: `plugin_manifest_${error.code.toLowerCase()}`,
+        };
       }
-      throw error;
     }
 
-    // Replace the grant set rather than adding to it: the install's authority
-    // is the new version's manifest, not the union with the old one.
-    await transaction.query(
-      `delete from bakery.plugin_install_grants
-        where organization_id = $1 and plugin_install_id = $2`,
-      [organizationId, installId],
-    );
-    for (const capability of manifest.requestedCapabilities) {
+    if (refused === null && manifest !== undefined) {
+      nextVersionId = input.versionId;
+      // Replace the grant set rather than adding to it: the install's authority
+      // is the new version's manifest, not the union with the old one.
       await transaction.query(
-        `insert into bakery.plugin_install_grants
-           (organization_id, plugin_install_id, capability)
-         values ($1, $2, $3)`,
-        [organizationId, installId, capability],
+        `delete from bakery.plugin_install_grants
+          where organization_id = $1 and plugin_install_id = $2`,
+        [organizationId, installId],
+      );
+      for (const capability of manifest.requestedCapabilities) {
+        await transaction.query(
+          `insert into bakery.plugin_install_grants
+             (organization_id, plugin_install_id, capability)
+           values ($1, $2, $3)`,
+          [organizationId, installId, capability],
+        );
+      }
+      await transaction.query(
+        `update bakery.plugin_installs
+            set state_schema_version = $3
+          where organization_id = $1 and id = $2`,
+        [organizationId, installId, manifest.stateSchemaVersion],
       );
     }
-    await transaction.query(
-      `update bakery.plugin_installs
-          set state_schema_version = $3
-        where organization_id = $1 and id = $2`,
-      [organizationId, installId, manifest.stateSchemaVersion],
-    );
   }
+  const upgraded = nextVersionId !== row.plugin_version_id;
 
   // An uninstalled row is finished. Reactivating it would resurrect a row the
   // caller was told was gone, and the partial unique index on a live install of
@@ -640,7 +660,7 @@ export async function updatePluginInstall(
   // answer 200, which reads as "this install is live again".
   if (
     row.status === "uninstalled" &&
-    (nextStatus !== "uninstalled" || upgraded)
+    (nextStatus !== "uninstalled" || upgraded || refused !== null)
   ) {
     throw new StandardError({
       code: "STATE_CONFLICT",
@@ -670,17 +690,36 @@ export async function updatePluginInstall(
     );
   }
 
+  // A successful move to another version, or a person dismissing it, clears
+  // the note of the last update that did not start.
+  // A refusal in this request replaces the older note, and wins over a
+  // dismissal of it.
+  const clearFailure = upgraded || input.dismissUpdateFailure === true;
+  const failureNote = refused === null
+    ? null
+    : JSON.stringify({ ...refused, at: new Date().toISOString() });
   const rows = await transaction.query<InstallRow>(
     `update bakery.plugin_installs i
         set plugin_version_id = $3,
             status = $4,
             activated_at = case when $4 = 'enabled' then now() else i.activated_at end,
             disabled_at = case when $4 in ('disabled', 'uninstalled') then now() else i.disabled_at end,
+            last_update_failure = case
+              when $6::jsonb is not null then $6::jsonb
+              when $5::boolean then null
+              else i.last_update_failure end,
             updated_at = now(),
             version = i.version + 1
       where i.organization_id = $1 and i.id = $2
       returning ${INSTALL_COLUMNS.replaceAll("i.", "")}`,
-    [organizationId, installId, nextVersionId, nextStatus],
+    [
+      organizationId,
+      installId,
+      nextVersionId,
+      nextStatus,
+      clearFailure,
+      failureNote,
+    ],
   );
   return toInstall(rows.rows[0], organizationId);
 }

@@ -3,6 +3,7 @@ import { focusFirstInvalidField } from "../../app/auth-form.ts";
 import type { SecurityFailure } from "../../app/security-failures.ts";
 import {
   ChangePasswordScreen,
+  PASSWORD_CONFIRM_INPUT_ID,
   PASSWORD_CURRENT_INPUT_ID,
   PASSWORD_NEW_INPUT_ID,
 } from "../../screens/ChangePasswordScreen.tsx";
@@ -32,10 +33,21 @@ function PasswordHost({ spec }: { readonly spec: PasswordSpecimen }) {
   const [failure, setFailure] = useState(spec.failure);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [confirmMismatch, setConfirmMismatch] = useState(false);
   const later = useDelayed();
 
   const submit = () => {
     if (pending) return;
+    if (next !== confirm) {
+      setConfirmMismatch(true);
+      setTimeout(() =>
+        focusFirstInvalidField([
+          { id: PASSWORD_CONFIRM_INPUT_ID, invalid: true },
+        ]), 0);
+      return;
+    }
+    setConfirmMismatch(false);
     const invalidCurrent = current === "";
     const weakNew = next.length < FIXTURE_MIN_LENGTH;
     if (invalidCurrent || weakNew) {
@@ -58,9 +70,15 @@ function PasswordHost({ spec }: { readonly spec: PasswordSpecimen }) {
   return (
     <ChangePasswordScreen
       async={async}
+      confirmMismatch={confirmMismatch}
+      confirmPassword={confirm}
       currentPassword={current}
       failure={failure}
       newPassword={next}
+      onConfirmChange={(value) => {
+        setConfirm(value);
+        setConfirmMismatch(false);
+      }}
       onCurrentChange={setCurrent}
       onNewChange={setNext}
       onRefresh={settle}

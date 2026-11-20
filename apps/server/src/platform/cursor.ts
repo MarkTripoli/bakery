@@ -7,6 +7,29 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
 const DECIMAL_SEQUENCE = /^(0|[1-9]\d*)$/;
+/** Filter text longer than this is bound by its SHA-256, keeping a cursor small. */
+const MAX_INLINE_FILTER_CHARS = 96;
+const HASHED = "sha256:";
+
+/**
+ * The filters a cursor is bound to. Short filters are carried as written. Long
+ * ones (a list with several UUID filters) are carried as their SHA-256, which
+ * binds exactly the same filters but keeps the cursor under its size cap. Only
+ * row cursors do this; a sequence cursor may be asked for its filters back.
+ */
+async function boundFilters(filters: string): Promise<string> {
+  // Text that already looks like a hash is hashed too, so the hashed form of one
+  // filter set can never be mistaken for another set written as that text.
+  if (
+    filters.length <= MAX_INLINE_FILTER_CHARS && !filters.startsWith(HASHED)
+  ) return filters;
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(filters)),
+  );
+  return `${HASHED}${
+    Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("")
+  }`;
+}
 
 export type CursorBinding = {
   action: string;
@@ -110,11 +133,15 @@ function bindingRowCursorKind(binding: CursorBinding): RowCursorKind {
   if (
     binding.ordering === "createdAt:asc,id:asc" ||
     binding.ordering === "createdAt:desc,id:desc" ||
-    binding.ordering === "openedAt:desc,id:desc"
+    binding.ordering === "openedAt:desc,id:desc" ||
+    binding.ordering === "trashedAt:desc,id:desc"
   ) return "timestamp";
+  // A storage folder lists folders first, then by name: the ordinal carries
+  // the kind rank and the server reads the name key back from the row id.
   if (
     binding.ordering === "position:asc,iteration:asc,id:asc" ||
-    binding.ordering === "revision:desc,id:desc"
+    binding.ordering === "revision:desc,id:desc" ||
+    binding.ordering === "kind:asc,nameKey:asc,id:asc"
   ) {
     return "ordinal";
   }
@@ -200,14 +227,19 @@ async function decodePayload(
   return payload as Record<string, unknown>;
 }
 
-function validPayloadBinding(
+async function validPayloadBinding(
   record: Record<string, unknown>,
   binding: CursorBinding,
-): boolean {
+  filters: "bound" | "verbatim" = "verbatim",
+): Promise<boolean> {
   return record.v === CURSOR_VERSION && record.a === binding.action &&
     record.p === binding.principalId &&
     record.o === (binding.organizationId ?? UNSCOPED) &&
-    record.r === binding.ordering && record.f === binding.filters &&
+    record.r === binding.ordering &&
+    record.f ===
+      (filters === "bound"
+        ? await boundFilters(binding.filters)
+        : binding.filters) &&
     record.s === binding.schemaVersion;
 }
 
@@ -227,7 +259,7 @@ export async function encodeCursor(
     p: binding.principalId,
     o: binding.organizationId ?? UNSCOPED,
     r: binding.ordering,
-    f: binding.filters,
+    f: await boundFilters(binding.filters),
     s: binding.schemaVersion,
     k: "row",
     ...(kind === "timestamp"
@@ -265,7 +297,8 @@ export async function decodeCursor(
     }
     : null;
   if (
-    !validPayloadBinding(record, binding) || record.k !== "row" ||
+    !(await validPayloadBinding(record, binding, "bound")) ||
+    record.k !== "row" ||
     !position || positionKind(position) !== expectedKind
   ) return invalidCursor();
   return position;
@@ -304,7 +337,7 @@ export async function decodeSequenceCursor(
   const record = await decodePayload(secret, cursor);
   if (
     Object.keys(record).sort().join(",") !== "a,f,k,o,p,q,r,s,v" ||
-    !validPayloadBinding(record, binding) || record.k !== "sequence" ||
+    !(await validPayloadBinding(record, binding)) || record.k !== "sequence" ||
     typeof record.q !== "string" || !DECIMAL_SEQUENCE.test(record.q)
   ) return invalidCursor();
   return { sequence: record.q };
@@ -344,7 +377,8 @@ export async function decodeSequenceIdCursor(
   const record = await decodePayload(secret, cursor);
   if (
     Object.keys(record).sort().join(",") !== "a,f,i,k,o,p,q,r,s,v" ||
-    !validPayloadBinding(record, binding) || record.k !== "sequence-row" ||
+    !(await validPayloadBinding(record, binding)) ||
+    record.k !== "sequence-row" ||
     typeof record.q !== "string" || !DECIMAL_SEQUENCE.test(record.q) ||
     typeof record.i !== "string" || !UUID.test(record.i)
   ) return invalidCursor();
