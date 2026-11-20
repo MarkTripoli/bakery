@@ -45,6 +45,8 @@ export const AUDIT_MATRIX_ACTIONS = [
   "alertChannels.test",
   "alertChannels.rotateSecret",
   "alertChannels.delete",
+  "alertRules.update",
+  "alerts.sendTest",
   "emailSettings.test",
   "emailSettings.put",
   "emailSettings.delete",
