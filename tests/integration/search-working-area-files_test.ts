@@ -284,18 +284,18 @@ Deno.test("another member's personal file is never a search hit, and my own is",
       ) {
         assertEquals(await found(fixture, query), [], query);
       }
-      for (
-        const query of [
-          "query=secret-admin",
-          "query=secret&producerId=" + fixture.principalId,
-        ]
-      ) {
-        assertEquals(
-          await found(fixture, query, { cookie: other.cookie }),
-          [],
-          query,
-        );
-      }
+      assertEquals(
+        await found(fixture, "query=secret-admin", { cookie: other.cookie }),
+        [],
+      );
+      // The shared file was written by the admin, so a producer filter on the
+      // admin still finds it for the member, and never the admin's personal one.
+      assertEquals(
+        await found(fixture, "query=secret&producerId=" + fixture.principalId, {
+          cookie: other.cookie,
+        }),
+        ["/shared/secret-shared.md"],
+      );
     } finally {
       await removeMember(fixture, other);
     }
