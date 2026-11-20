@@ -1171,8 +1171,16 @@ const libraryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/library",
   // `?tab=agents` opens the Agents list; Workflows is the page itself.
-  validateSearch: (search: Record<string, unknown>): { tab?: "agents" } =>
-    search.tab === "agents" ? { tab: "agents" } : {},
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { tab?: "agents" | "memory"; fact?: string } => {
+    if (search.tab === "agents") return { tab: "agents" };
+    if (search.tab !== "memory") return {};
+    // An open fact is only meaningful on the Memory tab.
+    return typeof search.fact === "string" && search.fact !== ""
+      ? { tab: "memory", fact: search.fact }
+      : { tab: "memory" };
+  },
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: LibraryPage,
