@@ -1243,7 +1243,7 @@ async function cloneFundedJobOntoStep(
   });
   return await cloneRow(pg, "jobs", job.jobId, {
     id: crypto.randomUUID(),
-    action: "second-action",
+    action: "harness.repair",
     installation_reservation_id: installation,
   });
 }
@@ -1377,6 +1377,25 @@ Deno.test("admit: only a recorded continuation can make a job's pin differ from 
     } finally {
       await done(seeded);
     }
+  }
+});
+
+Deno.test("admit: control: a second job cloned onto the step claims by itself, with no continuation", async () => {
+  // Proves the two-job fixture before it is trusted: if a cloned job could not be
+  // claimed at all, the two-job case below would fail for that reason and prove nothing
+  // about continuations.
+  const seeded = await seed();
+  try {
+    const worker = await registeredWorker(seeded.fixture, { slots: 4 });
+    const pg = database(seeded.fixture);
+    const secondJobId = await cloneFundedJobOntoStep(pg, seeded.job);
+    assertEquals(await claimStatus(seeded, worker), 200);
+    assertEquals(await claimStatus(seeded, worker), 200);
+    assertEquals(await claimStatus(seeded, worker), 204);
+    assertEquals(await attemptsOf(seeded, seeded.job.jobId), 1);
+    assertEquals(await attemptsOf(seeded, secondJobId), 1);
+  } finally {
+    await done(seeded);
   }
 });
 
