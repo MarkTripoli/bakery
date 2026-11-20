@@ -11,6 +11,7 @@
  * is for organization Admins only.
  */
 
+import { Buffer } from "node:buffer";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "@bakery/persistence";
@@ -842,9 +843,7 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
 export const SESSION_CONTENT_MAX_BYTES = 8 * 1024 * 1024;
 
 function contentBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
+  return Buffer.from(bytes).toString("base64");
 }
 
 /**
