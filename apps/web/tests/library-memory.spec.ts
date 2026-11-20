@@ -838,6 +838,19 @@ for (
       ).toHaveCount(0);
     });
 
+    test("starting Approve while the corrected-while-open notice shows ends the notice", async ({ page }) => {
+      const seen = await memoryFixture(page);
+      const events = await memoryEvents(page);
+      // Fact 2 is a suggestion, so Approve is offered.
+      const sheet = await open(page, 2);
+      await expect.poll(() => events.subscribes.length).toBeGreaterThan(0);
+      seen.correct(2, "The staging database is reset on Tuesdays.");
+      events.revised(2);
+      await expect(sheet.getByTestId("memory-changed-by-other")).toBeVisible();
+      await sheet.getByRole("button", { name: "Approve", exact: true }).click();
+      await expect(sheet.getByTestId("memory-changed-by-other")).toHaveCount(0);
+    });
+
     test("a source removed while the fact is open changes the badge and the source box, with no notice", async ({ page }) => {
       const seen = await memoryFixture(page);
       const events = await memoryEvents(page);
