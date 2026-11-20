@@ -285,7 +285,11 @@ Deno.test("mcp discovery: it pins an immutable snapshot, sends the sealed creden
     assertEquals(details.added, ["read_page", "search"]);
     assertEquals(details.unchanged, false);
     // Never a schema or a description, only names.
-    assertEquals(audit[0].details.includes("tool"), false);
+    // The tools' descriptions are "<name> tool" and their schemas have an
+    // "inputSchema"; neither may appear, only the names under added.
+    assertEquals(audit[0].details.includes("search tool"), false);
+    assertEquals(audit[0].details.includes("read_page tool"), false);
+    assertEquals(audit[0].details.includes("inputSchema"), false);
 
     // The capabilities read shows the pin, over the real route.
     const read = await send(

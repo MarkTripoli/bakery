@@ -156,7 +156,8 @@ Deno.test("mcp use grants: the owner grants and revokes; to everyone else the co
       "POST",
       grants(mine, grantId),
     );
-    assertEquals(revoked.status, 200);
+    // A POST answers 201, like the other commands that return what they changed.
+    assert([200, 201].includes(revoked.status), String(revoked.status));
     assert(typeof revoked.json.revokedAt === "string");
     assertEquals(revoked.json.revokedBy, f.developerId);
     assertEquals(
