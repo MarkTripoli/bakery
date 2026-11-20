@@ -188,7 +188,7 @@ export function safeDetail(
 
 class ProbeIntegrityError extends Error {}
 
-function mapProbeError(
+export function mapProbeError(
   error: unknown,
   credentials: BackupS3Credentials,
 ): BackupProbeResult {
