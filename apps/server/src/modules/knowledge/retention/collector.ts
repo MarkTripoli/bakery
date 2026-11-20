@@ -5,6 +5,7 @@ import { hasProtectedArtifactReference } from "./references.ts";
 import { appendMemorySourceChanged } from "../memory-source-state.ts";
 import { isTerminalTask } from "./policy.ts";
 import { postgresErrorCode } from "../../../platform/postgres-errors.ts";
+import { assertNotQuiesced } from "../../../platform/maintenance.ts";
 
 export async function collectArtifactVersion(
   ownerDatabase: PgDatabase,
@@ -15,6 +16,8 @@ export async function collectArtifactVersion(
     throw new StandardError({ code: "VALIDATION_FAILED" });
   }
   return await withPgTransaction(ownerDatabase, async (transaction) => {
+    // A backup holds the installation: nothing is collected until it lets go.
+    await assertNotQuiesced(transaction);
     const role = await transaction.query<{ allowed: boolean }>(
       `select session_user='bakery' and current_user='bakery'
       and (select datdba::regrole::text from pg_database where datname=current_database())='bakery' as allowed`,

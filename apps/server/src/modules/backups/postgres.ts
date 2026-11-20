@@ -21,6 +21,12 @@ import {
   reportDigest,
 } from "./state.ts";
 import { isBackupDue, staleAfterMs } from "./schedule.ts";
+import {
+  extendMaintenance,
+  type MaintenanceActor,
+  readMaintenanceState,
+  releaseMaintenance,
+} from "./maintenance.ts";
 import { readBackupSchedule } from "./settings.ts";
 
 type Run = z.output<typeof contractSchemas.BackupRun>;
@@ -155,6 +161,7 @@ export async function readBackupStatus(
     `select last_used_at as "lastUsedAt"
        from bakery.backup_runner_credentials where id = true`,
   );
+  const maintenance = await readMaintenanceState(transaction);
   const heldRow = held.rows[0] ?? null;
   const lastGoodAt = good.rows[0]?.finishedAt ?? null;
   const state = backupStateWord({
@@ -178,6 +185,8 @@ export async function readBackupStatus(
     waitingRunId: waiting.rows[0]?.id ?? null,
     runnerConfigured: credential.rows.length === 1,
     runnerLastUsedAt: iso(credential.rows[0]?.lastUsedAt ?? null),
+    maintenanceState: maintenance.state,
+    maintenanceSince: iso(maintenance.since),
   });
 }
 
@@ -415,6 +424,7 @@ export async function reportRun(
   transaction: PgTransactionClient,
   runId: string,
   report: ReportBody & { readonly leaseToken: string },
+  actor: MaintenanceActor,
 ): Promise<Run> {
   const found = await transaction.query<ReportRow>(
     `select id, status, report_sequence as "reportSequence",
@@ -450,6 +460,19 @@ export async function reportRun(
   );
   if (decision.kind === "apply") {
     await applyReport(transaction, runId, report, digest);
+    // The installation hold follows the run: a running report extends it with
+    // the claim, a terminal report (completed, failed, a drain timeout) lets go.
+    if (report.status === "running") {
+      await extendMaintenance(transaction, runId);
+    } else {
+      await releaseMaintenance(
+        transaction,
+        runId,
+        report.status,
+        actor,
+        report.failureCode ?? null,
+      );
+    }
   }
   const current = await transaction.query<RunRow>(
     `select ${RUN_COLUMNS} from bakery.backup_runs where id = $1`,

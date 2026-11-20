@@ -37,6 +37,7 @@ export const BackupFailureCode = Object.freeze(
     DestinationUnreachable: "destination_unreachable",
     KeyMissing: "key_missing",
     IncompleteSet: "incomplete_set",
+    DrainTimeout: "drain_timeout",
     RunnerError: "runner_error",
     RunnerLost: "runner_lost",
   } as const,

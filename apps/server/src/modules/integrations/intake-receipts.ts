@@ -32,6 +32,7 @@ import {
 } from "./intake-events.ts";
 import { verifyGitHubSignature } from "./intake-signature.ts";
 import { GITHUB_PROVIDER } from "./postgres.ts";
+import { assertNotQuiesced } from "../../platform/maintenance.ts";
 import {
   findTrackedPullRequest,
   resolveRepositoryId,
@@ -612,7 +613,12 @@ export async function recordDelivery(
   try {
     return await withPgTransaction(
       database,
-      (transaction) => receive(transaction, prepared, context),
+      async (transaction) => {
+        // A backup holds the installation: no delivery is recorded until it
+        // lets go. GitHub redelivers on a 503, so nothing is lost.
+        await assertNotQuiesced(transaction);
+        return await receive(transaction, prepared, context);
+      },
       context.signal,
     );
   } catch (error) {
