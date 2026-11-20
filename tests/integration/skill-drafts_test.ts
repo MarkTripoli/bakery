@@ -240,7 +240,8 @@ Deno.test("a skill's draft starts from its active version, is edited and checked
         contentBase64: b64("x"),
       },
     });
-    assertEquals(unsafe.status, 422, await unsafe.clone().text());
+    // The request schema refuses an unsafe path before any draft is read.
+    assertEquals(unsafe.status, 400, await unsafe.clone().text());
     const runnable = await owner.call("POST", `${draftPath}/files`, {
       version: draft.version,
       body: {
