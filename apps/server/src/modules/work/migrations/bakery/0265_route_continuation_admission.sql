@@ -27,7 +27,7 @@
 --     once and never changed or removed: no UPDATE and no DELETE.
 --
 -- "One continuation per step and incident generation" is the unique constraint
--- 0225 states, and it is what makes a second concurrent winner impossible even if
+-- 0230 states, and it is what makes a second concurrent winner impossible even if
 -- the application's locking were wrong.
 
 grant update (

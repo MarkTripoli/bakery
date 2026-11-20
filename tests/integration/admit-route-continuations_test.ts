@@ -1173,6 +1173,81 @@ async function attemptsOf(seeded: Seeded, jobId: string) {
   )).rows[0].count as number;
 }
 
+/** Copies one row of a table, overriding the named columns; returns the new row's id. */
+async function cloneRow(
+  pg: ReturnType<typeof database>,
+  table: string,
+  id: string,
+  overrides: Record<string, unknown>,
+): Promise<string> {
+  const result = await pg.query(
+    `insert into bakery.${table}
+       select (jsonb_populate_record(null::bakery.${table}, to_jsonb(source) || $2::jsonb)).*
+         from bakery.${table} as source where source.id = $1
+       returning id`,
+    [id, JSON.stringify(overrides)],
+  );
+  return result.rows[0].id as string;
+}
+
+/**
+ * A second funded job on the SAME run step as `job`, with its own reservations, budget
+ * intent and call intent, as a step with two actions on the source route has. Each part
+ * is a copy of the first job's, so it is priced and funded the same way.
+ */
+async function cloneFundedJobOntoStep(
+  pg: ReturnType<typeof database>,
+  job: AdmittedJob,
+): Promise<string> {
+  const original = (await pg.query(
+    `select installation_reservation_id from bakery.jobs where id = $1`,
+    [job.jobId],
+  )).rows[0];
+  const intent = (await pg.query(
+    `select id, dedupe_key, provider_call_intent_id
+       from bakery.budget_action_intents
+      where installation_reservation_id = $1`,
+    [original.installation_reservation_id],
+  )).rows[0];
+  const dedupeKey = `${intent.dedupe_key}:second`;
+  const reservations = new Map<string, string>();
+  for (
+    const row of (await pg.query(
+      `select id from bakery.budget_reservations where dedupe_key = $1`,
+      [intent.dedupe_key],
+    )).rows
+  ) {
+    reservations.set(
+      row.id,
+      await cloneRow(pg, "budget_reservations", row.id, {
+        id: crypto.randomUUID(),
+        dedupe_key: dedupeKey,
+      }),
+    );
+  }
+  const installation = reservations.get(original.installation_reservation_id)!;
+  const call = await cloneRow(
+    pg,
+    "provider_call_intents",
+    intent.provider_call_intent_id,
+    {
+      id: crypto.randomUUID(),
+      installation_reservation_id: installation,
+    },
+  );
+  await cloneRow(pg, "budget_action_intents", intent.id, {
+    id: crypto.randomUUID(),
+    dedupe_key: dedupeKey,
+    installation_reservation_id: installation,
+    provider_call_intent_id: call,
+  });
+  return await cloneRow(pg, "jobs", job.jobId, {
+    id: crypto.randomUUID(),
+    action: "second-action",
+    installation_reservation_id: installation,
+  });
+}
+
 Deno.test("admit: only a recorded continuation can make a job's pin differ from the frozen one", async () => {
   // A job re-pinned by hand, with no continuation behind it: the claim refuses it
   // exactly as it refused any job whose configuration left the frozen one.
@@ -1302,5 +1377,43 @@ Deno.test("admit: only a recorded continuation can make a job's pin differ from 
     } finally {
       await done(seeded);
     }
+  }
+});
+
+Deno.test("admit: a step with two moving jobs moves both, and both can be claimed", async () => {
+  const seeded = await seed();
+  try {
+    const worker = await registeredWorker(seeded.fixture, { slots: 4 });
+    const pg = database(seeded.fixture);
+    const secondJobId = await cloneFundedJobOntoStep(pg, seeded.job);
+
+    await admit(seeded);
+
+    // Both jobs were re-pinned onto the target route, and one continuation was
+    // recorded for the step: the structure allows one per step and generation.
+    const pins = (await pg.query(
+      `select id, billing ->> 'model' as model from bakery.jobs
+        where run_step_id = $1 order by id`,
+      [seeded.job.runStepId],
+    )).rows;
+    assertEquals(pins.length, 2);
+    for (const pin of pins) assertEquals(pin.model, TARGET_BILLING.model);
+    assertEquals(
+      (await pg.query(
+        `select count(*)::int as count from bakery.route_continuations
+          where run_step_id = $1`,
+        [seeded.job.runStepId],
+      )).rows[0].count,
+      1,
+    );
+
+    // Neither is stuck: each claims in turn, and nothing is left over.
+    assertEquals(await claimStatus(seeded, worker), 200);
+    assertEquals(await claimStatus(seeded, worker), 200);
+    assertEquals(await claimStatus(seeded, worker), 204);
+    assertEquals(await attemptsOf(seeded, seeded.job.jobId), 1);
+    assertEquals(await attemptsOf(seeded, secondJobId), 1);
+  } finally {
+    await done(seeded);
   }
 });
