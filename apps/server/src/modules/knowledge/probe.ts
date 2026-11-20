@@ -20,6 +20,7 @@
  *   compared with the blob row before the child is started: a 900 MB file is
  *   described as too large by the server, which costs it nothing.
  */
+import type { PgDatabase } from "../../platform/database.ts";
 import {
   ARTIFACT_PROBE_MEMORY_MAX_BYTES,
   ARTIFACT_PROBE_TIMEOUT_MS,
@@ -27,6 +28,7 @@ import {
   ArtifactProbeFrameSchema,
   type ArtifactProbeResult,
 } from "@bakery/contracts/artifact-probe";
+import { readBlobProbe, writeBlobProbe } from "./blob-probes.ts";
 
 /** The unit properties the launcher pins; the test holds both lists equal. */
 export const ARTIFACT_PROBE_UNIT_PROPERTIES: readonly string[] = Object.freeze([
@@ -191,4 +193,34 @@ export async function probeArtifactBytes(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * The probe result for a blob: the stored one when there is one, otherwise a
+ * fresh run whose answer is recorded.
+ *
+ * `force` re-runs even when a row exists, which is what an operator asks for
+ * after a describer changes — the bytes are the same, so nothing else would
+ * ever invalidate the row. A `sandbox-unavailable` answer is never stored, so a
+ * host that comes back to life is asked again by the next reader without
+ * anything having to clear a cache.
+ */
+export async function probeBlob(
+  database: Pick<PgDatabase, "query">,
+  input: {
+    organizationId: string;
+    blobId: string;
+    path: string;
+    sizeBytes: number;
+    force?: boolean;
+  },
+  options: ArtifactProbeOptions = {},
+): Promise<ArtifactProbeResult> {
+  if (input.force !== true) {
+    const stored = await readBlobProbe(database, input);
+    if (stored !== null) return stored.result;
+  }
+  const result = await probeArtifactBytes(input, options);
+  await writeBlobProbe(database, { ...input, result });
+  return result;
 }
