@@ -633,6 +633,20 @@ export const skillStorageImplementedActions = Object.freeze(
   Object.values(SkillStorageImplementedAction),
 );
 
+export const BackupImplementedAction = Object.freeze(
+  {
+    BackupsList: "backups.list",
+    BackupsStatus: "backups.status",
+    BackupsStart: "backups.start",
+    BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
+    BackupRunnerClaim: "backupRunner.claim",
+    BackupRunnerReport: "backupRunner.report",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const backupImplementedActions = Object.freeze(
+  Object.values(BackupImplementedAction),
+);
+
 export const BlobUploadImplementedAction = Object.freeze(
   {
     BlobUploadStart: "blobUploads.start",
@@ -787,6 +801,7 @@ export const implementedActions = Object.freeze(
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
+    ...backupImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
     ...blobUploadImplementedActions,
