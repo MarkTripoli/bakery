@@ -92,6 +92,7 @@ export {
   appendAttemptEvent,
   applyStartedLifecycle,
   assertArtifactReference,
+  type AttemptLockMode,
   loadAttemptAuthority,
   loadEventsByIds,
   loadExistingEvent,

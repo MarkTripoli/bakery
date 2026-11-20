@@ -73,6 +73,32 @@ type Agent = {
 };
 
 /**
+ * A session call that has not answered in 30 s fails the test by name. The
+ * gateway holds the attempt row while the operation runs on another
+ * connection; a lock the two wait on in turn never errors in Postgres (the
+ * cycle runs through the client), so without this a regression hangs.
+ */
+async function bounded(
+  call: Promise<Response>,
+  tool: string,
+): Promise<Response> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      call,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("session call " + tool + " hung for 30 s")),
+          30_000,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * An agent in a real session: a registered worker claims a seeded job and
  * calls Bakery's own operations through the self-connection with the session
  * credential the claim minted.
@@ -104,19 +130,22 @@ async function agentSession(
     attemptId: assignment.attemptId,
     job,
     call: (tool, args, ifMatch) =>
-      workerRequest(
-        fixture,
-        worker.credential,
-        "/v1/worker/attempts/" + assignment.attemptId + "/session-call",
-        { tool, arguments: args },
-        {
-          headers: {
-            "x-session-credential": token,
-            ...(ifMatch === undefined
-              ? {}
-              : { "If-Match": '"' + ifMatch + '"' }),
+      bounded(
+        workerRequest(
+          fixture,
+          worker.credential,
+          "/v1/worker/attempts/" + assignment.attemptId + "/session-call",
+          { tool, arguments: args },
+          {
+            headers: {
+              "x-session-credential": token,
+              ...(ifMatch === undefined
+                ? {}
+                : { "If-Match": '"' + ifMatch + '"' }),
+            },
           },
-        },
+        ),
+        tool,
       ),
   };
 }
