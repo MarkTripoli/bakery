@@ -250,7 +250,7 @@ export function MemoryFactActions(
         </UI.Toast>
       )}
       {failureNotice}
-      {actions.approve
+      {actions.approve && correcting === null
         ? (
           <UI.Text variant="muted">
             {translate("library.memory.fact.suggestedHint" as never)}
@@ -383,6 +383,7 @@ export function MemoryFactActions(
                 value={draft.source}
                 state={sources.isPending ? "loading" : undefined}
                 disabled={sources.isPending || sources.isError}
+                required
                 onChange={(event) => edit({ source: event.target.value })}
                 aria-invalid={showMissing(missing.source) || undefined}
                 options={[
