@@ -4495,5 +4495,8 @@
   "library.memory.refusal.forbidden": "⟪Only an administrator can change remembered facts.⟫",
   "library.memory.correct.savedNotApproved": "⟪The correction was saved, but the fact was not put in use.⟫",
   "library.memory.action.adminOnly": "⟪Only an administrator can change remembered facts.⟫",
-  "library.memory.refusal.source": "⟪The source could not be found, so nothing was changed. Choose another source, or correct the fact with a new one.⟫"
+  "library.memory.refusal.source": "⟪The source could not be found, so nothing was changed. Choose another source, or correct the fact with a new one.⟫",
+  "library.memory.live.offline": "⟪You are offline. What you see may be out of date.⟫",
+  "library.memory.live.lost": "⟪Live updates are paused. Reconnecting. What you see may be out of date.⟫",
+  "library.memory.live.corrected": "⟪Someone else corrected this fact. The new wording is shown.⟫"
 }

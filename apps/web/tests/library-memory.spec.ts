@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test, type WebSocketRoute } from "@playwright/test";
 import { libraryFixture, uuid } from "./helpers/library-fixture.ts";
 import { MOCK_ORGANIZATION_ID } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
@@ -176,6 +176,14 @@ async function memoryFixture(
         sourceArtifactVersionId: string;
       };
     }[],
+    /** Another person corrects a fact: the next read shows the new wording. */
+    correct: (n: number, content: string) => {
+      const fact = live.find((item) => item.n === n);
+      if (!fact) throw new Error(`no fact ${n}`);
+      fact.revisions = (fact.revisions ?? 1) + 1;
+      fact.body = content;
+      bump(uuid(n));
+    },
   };
   const refused = () =>
     options.refuse === undefined ? null : {
@@ -282,6 +290,69 @@ async function memoryFixture(
     }));
   });
   return seen;
+}
+
+/** The organization's event socket: it answers a subscription with a cursor, and pushes a memory signal on request. */
+async function memoryEvents(page: Page) {
+  const sockets: WebSocketRoute[] = [];
+  const requests = new Map<WebSocketRoute, string>();
+  const subscribes: { scopes: unknown }[] = [];
+  let sequence = 1;
+  await page.routeWebSocket(/\/v1\/events/, (socket) => {
+    sockets.push(socket);
+    socket.send(JSON.stringify({
+      type: "hello",
+      protocolVersion: 1,
+      connectionId: crypto.randomUUID(),
+      highwater: "1",
+      retainedFrom: "0",
+    }));
+    socket.onMessage((message) => {
+      const frame = JSON.parse(String(message)) as {
+        type: string;
+        requestId: string;
+        scopes: unknown;
+      };
+      if (frame.type !== "subscribe") return;
+      subscribes.push({ scopes: frame.scopes });
+      requests.set(socket, frame.requestId);
+      sequence += 1;
+      socket.send(JSON.stringify({
+        type: "cursor",
+        requestId: frame.requestId,
+        cursor: `cursor-${sequence}`,
+        highwater: String(sequence),
+      }));
+    });
+  });
+  return {
+    subscribes,
+    /** The server tells the open tab that fact `n` was revised. */
+    revised: (n: number) => {
+      const socket = sockets.at(-1);
+      if (!socket) throw new Error("no event socket is open");
+      sequence += 1;
+      socket.send(JSON.stringify({
+        type: "events",
+        requestId: requests.get(socket),
+        events: [{
+          id: crypto.randomUUID(),
+          sequence: String(sequence),
+          type: "memory.revised",
+          schemaVersion: 1,
+          occurredAt: STAMP,
+          repositoryId: null,
+          taskId: null,
+          conversationId: null,
+          workerHostId: null,
+          workerEnrollmentId: null,
+          payload: { resourceId: uuid(n), resourceVersion: sequence },
+        }],
+        highwater: String(sequence),
+      }));
+    },
+    drop: () => sockets.at(-1)?.close(),
+  };
 }
 
 for (
@@ -494,6 +565,8 @@ for (
       });
       await expect(row(page, 2)).toContainText("In use");
       await expect(row(page, 2)).toContainText("corrected once");
+      // The page's own correction is not announced as someone else's.
+      await expect(sheet.getByTestId("memory-changed-by-other")).toHaveCount(0);
       await expect(sheet.getByTestId("memory-fact-body")).toHaveText(
         "The staging database is reset every Tuesday.",
       );
@@ -594,6 +667,41 @@ for (
       ) {
         await expect(sheet.getByRole("button", { name })).toHaveCount(0);
       }
+    });
+
+    test("another person's correction reaches the open tab, and the open fact says so", async ({ page }) => {
+      const seen = await memoryFixture(page);
+      const events = await memoryEvents(page);
+      const sheet = await open(page, 1);
+      await expect.poll(() => events.subscribes.length).toBeGreaterThan(0);
+      expect(events.subscribes[0].scopes).toEqual([
+        { type: "memory", id: MOCK_ORGANIZATION_ID },
+      ]);
+      await expect(sheet.getByTestId("memory-changed-by-other")).toHaveCount(0);
+      seen.correct(1, "Deploys run from main after review.");
+      events.revised(1);
+      await expect(sheet.getByTestId("memory-fact-body")).toHaveText(
+        "Deploys run from main after review.",
+      );
+      await expect(sheet.getByTestId("memory-changed-by-other")).toContainText(
+        "Someone else corrected this fact. The new wording is shown.",
+      );
+      await expect(row(page, 1)).toContainText("corrected 3 times");
+      await shot(page, "library-memory-changed", [], { windowOnly: true });
+    });
+
+    test("a dropped connection says updates are paused, then clears when it is back", async ({ page }) => {
+      await memoryFixture(page);
+      const events = await memoryEvents(page);
+      await page.goto("/library?tab=memory");
+      await expect.poll(() => events.subscribes.length).toBe(1);
+      await expect(page.getByTestId("memory-stale")).toHaveCount(0);
+      events.drop();
+      await expect(page.getByTestId("memory-stale")).toContainText(
+        "Live updates are paused. Reconnecting.",
+      );
+      await expect.poll(() => events.subscribes.length).toBe(2);
+      await expect(page.getByTestId("memory-stale")).toHaveCount(0);
     });
   });
 }

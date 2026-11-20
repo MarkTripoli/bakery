@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type {
@@ -9,6 +9,7 @@ import type {
   WorkflowPresetResponse,
 } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
+import { useLiveEvents } from "../api/use-live-events.ts";
 import {
   effectiveAccessQueryOptions,
   libraryAgentsQueryOptions,
@@ -90,6 +91,16 @@ export function LibraryPage() {
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const canManage = access.data?.role === "admin";
   const offlineNow = useConnectivity() === "offline";
+  const queryClient = useQueryClient();
+  // Another person's change to a fact reaches an open Memory tab as a signal;
+  // the page then reads again. A dropped connection is said out loud.
+  const live = useLiveEvents(
+    ready && tab === "memory" && scope.organizationId
+      ? [{ type: "memory", id: scope.organizationId }]
+      : [],
+    () => void queryClient.invalidateQueries({ queryKey: ["protected"] }),
+  );
+  const memoryStale = tab === "memory" && (offlineNow || live === "lost");
   const [copying, setCopying] = useState<WorkflowPresetResponse | null>(null);
   const [importing, setImporting] = useState(false);
   const importOpener = useRef<HTMLElement | null>(null);
@@ -310,6 +321,17 @@ export function LibraryPage() {
           ? (
             <UI.InlineNotice tone="warning">
               {translate("library.truncated" as never)}
+            </UI.InlineNotice>
+          )
+          : null}
+        {memoryStale
+          ? (
+            <UI.InlineNotice tone="warning" data-testid="memory-stale">
+              {translate(
+                (offlineNow
+                  ? "library.memory.live.offline"
+                  : "library.memory.live.lost") as never,
+              )}
             </UI.InlineNotice>
           )
           : null}
