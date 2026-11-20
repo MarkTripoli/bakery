@@ -257,6 +257,7 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0270_private_previews",
       "0271_telemetry_destinations",
       "0274_evaluation_batches",
+      "0276_skill_drafts",
       "0285_step_write_set",
       "0286_step_write_limits",
       "0287_step_read_set",
