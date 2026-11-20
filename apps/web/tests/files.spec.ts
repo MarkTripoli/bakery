@@ -735,7 +735,7 @@ for (
         .toBeHidden();
       await expect(details.getByRole("button", { name: "Download" }))
         .toBeVisible();
-      await expect(details.getByRole("button", { name: /Copy path/ }))
+      await expect(details.getByRole("button", { name: /Copy the path of/ }))
         .toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "files-open-image");
