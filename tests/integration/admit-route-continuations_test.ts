@@ -1427,8 +1427,10 @@ Deno.test("admit: a second job on a step is refused by the claim check itself, s
     await admit(seeded);
 
     // After it: both jobs were moved to the target route, one continuation was
-    // recorded for the step, the real job claims on its new pin, and the extra job is
-    // refused exactly as before.
+    // recorded for the step, and the extra job is refused exactly as before, whether or
+    // not the continuation happens to name it. Which of the two jobs the admission plans
+    // first, and so which the row names, is not defined here, because a real step has
+    // one job; the real job's claim after an admission is pinned by the cases above.
     const pins = (await pg.query(
       `select billing ->> 'model' as model from bakery.jobs where run_step_id = $1`,
       [seeded.job.runStepId],
@@ -1443,7 +1445,6 @@ Deno.test("admit: a second job on a step is refused by the claim check itself, s
       )).rows[0].count,
       1,
     );
-    assertEquals(await claimCheck(seeded, seeded.job.jobId), "accepted");
     assertEquals(await claimCheck(seeded, secondJobId), refused);
   } finally {
     await done(seeded);
