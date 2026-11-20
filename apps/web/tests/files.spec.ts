@@ -124,9 +124,11 @@ for (
     test("Load more adds the next page of a long folder", async ({ page }) => {
       await filesFixture(page, { pageSize: 2 });
       await page.goto("/files/projects/web-app");
-      await expect(page.getByRole("link", { name: "demo.mp4" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "demo.webm" })).toHaveCount(
+        0,
+      );
       await page.getByRole("button", { name: "Load more" }).click();
-      await expect(page.getByRole("link", { name: "demo.mp4" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "demo.webm" })).toBeVisible();
     });
 
     test("a link to a file past the first page opens its details", async ({ page }) => {
@@ -264,7 +266,7 @@ for (
       const results = page.getByTestId("files-results");
       await expect(results.getByRole("link", { name: "plan.md" }))
         .toBeVisible();
-      await expect(results.getByRole("link", { name: "demo.mp4" }))
+      await expect(results.getByRole("link", { name: "demo.webm" }))
         .toHaveCount(0);
       await expect(page).toHaveURL(/q=plan/);
       expect(
@@ -291,7 +293,9 @@ for (
       );
       await expect(page).toHaveURL(/kind=plan/);
       await expect(page.getByRole("link", { name: "plan.md" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "demo.mp4" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "demo.webm" })).toHaveCount(
+        0,
+      );
       expect(seen.searches.some((search) => search.includes("kind=plan")))
         .toBe(true);
       await withFilters(page, async (filters) => {
@@ -513,7 +517,9 @@ for (
       await expect(page.getByRole("link", { name: "plan.md" })).toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "files-fact-filter");
-      await expect(page.getByRole("link", { name: "demo.mp4" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "demo.webm" })).toHaveCount(
+        0,
+      );
       expect(
         seen.searches.some((search) =>
           search.includes("factKey=risk") && search.includes("factValue=high")
@@ -537,7 +543,7 @@ for (
         (filters) => filters.getByLabel("File type").selectOption("video"),
       );
       const results = page.getByTestId("files-results");
-      await expect(results.getByRole("link", { name: "demo.mp4" }))
+      await expect(results.getByRole("link", { name: "demo.webm" }))
         .toBeVisible();
       await expect(results.getByRole("link", { name: "plan.md" }))
         .toHaveCount(0);
@@ -619,8 +625,6 @@ for (
       await still(page, "files-preview-too-large");
       await page.goto(`/files/projects/web-app?file=${uuid(41)}`);
       await expect(page.locator("video")).toBeVisible();
-      await page.mouse.move(700, 700);
-      await still(page, "files-preview-video");
       await open(46);
       await expect(page.getByText("No preview for this kind of file."))
         .toBeVisible();
@@ -683,6 +687,61 @@ for (
       );
       // Nothing was read into the page: no bytes until someone presses play.
       expect(seen.contents).toHaveLength(0);
+      // Pressing play (muted, which the browser allows) makes it ask for what it
+      // plays, by Range, and decode a real frame.
+      await player.evaluate(async (element) => {
+        const video = element as HTMLVideoElement;
+        video.muted = true;
+        await video.play();
+      });
+      await expect.poll(() =>
+        player.evaluate((element) => (element as HTMLVideoElement).readyState)
+      ).toBeGreaterThanOrEqual(2);
+      await player.evaluate((element) => (element as HTMLVideoElement).pause());
+      await expect.poll(() =>
+        player.evaluate((element) => (element as HTMLVideoElement).videoWidth)
+      ).toBe(320);
+      expect(seen.ranges.length).toBeGreaterThan(0);
+      await page.mouse.move(700, 700);
+      await still(page, "files-video-player");
+    });
+
+    test("an audio file shows a player that is not autoplayed and plays from its address", async ({ page }) => {
+      // An audio-only WebM beside the others; the shared tree has none.
+      const audio = {
+        ...TREE.find((entry) => entry.id === 41)!,
+        id: 47,
+        name: "standup.webm",
+        path: "/projects/web-app/standup.webm",
+        mediaType: "audio/webm",
+        sizeBytes: 5132,
+      };
+      const { seen } = await filesFixture(page, { tree: [...TREE, audio] });
+      await page.goto(`/files/projects/web-app?file=${uuid(47)}`);
+      const player = page.locator("audio");
+      await expect(player).toBeVisible();
+      await expect(player).toHaveAttribute("controls", "");
+      await expect(player).toHaveAttribute("preload", "none");
+      await expect(player).not.toHaveAttribute("autoplay", /.*/);
+      await expect(player).toHaveAttribute(
+        "src",
+        new RegExp(
+          `/v1/storage/files/${uuid(47)}/content\\?organizationId=`,
+        ),
+      );
+      expect(seen.contents).toHaveLength(0);
+      await player.evaluate(async (element) => {
+        const sound = element as HTMLAudioElement;
+        sound.muted = true;
+        await sound.play();
+      });
+      await expect.poll(() =>
+        player.evaluate((element) => (element as HTMLAudioElement).readyState)
+      ).toBeGreaterThanOrEqual(2);
+      await player.evaluate((element) => (element as HTMLAudioElement).pause());
+      expect(seen.ranges.length).toBeGreaterThan(0);
+      await page.mouse.move(700, 700);
+      await still(page, "files-audio-player");
     });
 
     test("a file whose contents were removed says so and offers no Download", async ({ page }) => {

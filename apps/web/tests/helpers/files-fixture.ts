@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { deflateSync } from "node:zlib";
+import { DEMO_WEBM, STANDUP_WEBM } from "./media-fixtures.ts";
 import type { Page } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
@@ -185,12 +186,12 @@ export const TREE: Entry[] = [
   {
     id: 41,
     parent: 20,
-    path: "/projects/web-app/demo.mp4",
-    name: "demo.mp4",
+    path: "/projects/web-app/demo.webm",
+    name: "demo.webm",
     kind: "file",
     policy: "record",
     kindName: null,
-    mediaType: "video/mp4",
+    mediaType: "video/webm",
     sizeBytes: 3_400_000,
     updatedAt: "2026-01-03T10:00:00.000Z",
   },
@@ -327,6 +328,8 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
     searches: [] as string[],
     /** The query string of each facts read. */
     facts: [] as string[],
+    /** The Range header of each content read that sent one: what a player asked for. */
+    ranges: [] as string[],
   };
   const json = (route: import("@playwright/test").Route, body: string) =>
     route.fulfill({ status: 200, contentType: "application/json", body });
@@ -657,6 +660,50 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
             requestId: crypto.randomUUID(),
             traceId: crypto.randomUUID(),
           }),
+        });
+      }
+      // A player's reads: the whole file, or the Range it asked for, as a real
+      // server answers it (206 with Content-Range; 416 past the end).
+      const media = fileId === uuid(41)
+        ? { bytes: DEMO_WEBM, type: "video/webm" }
+        : fileId === uuid(47)
+        ? { bytes: STANDUP_WEBM, type: "audio/webm" }
+        : null;
+      if (media !== null) {
+        const range = route.request().headers()["range"];
+        const total = media.bytes.length;
+        const common = {
+          "content-type": media.type,
+          "accept-ranges": "bytes",
+        };
+        if (range === undefined) {
+          return route.fulfill({
+            status: 200,
+            body: media.bytes,
+            headers: { ...common, "content-length": String(total) },
+          });
+        }
+        seen.ranges.push(range);
+        const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+        const start = match?.[1] ? Number(match[1]) : 0;
+        const end = match?.[2]
+          ? Math.min(Number(match[2]), total - 1)
+          : total - 1;
+        if (start >= total || start > end) {
+          return route.fulfill({
+            status: 416,
+            headers: { ...common, "content-range": `bytes */${total}` },
+          });
+        }
+        const slice = media.bytes.subarray(start, end + 1);
+        return route.fulfill({
+          status: 206,
+          body: slice,
+          headers: {
+            ...common,
+            "content-length": String(slice.length),
+            "content-range": `bytes ${start}-${end}/${total}`,
+          },
         });
       }
       if (fileId === uuid(43)) {
