@@ -18,6 +18,8 @@ import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-jo
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import { assertAgentFileWrite } from "../../apps/server/src/modules/knowledge/agent-file-guard.ts";
+import { stepFilesForAttempt } from "../../apps/server/src/modules/execution/step-files.ts";
+import { DEFAULT_STEP_FILES } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 type Json = Record<string, unknown>;
@@ -346,4 +348,40 @@ Deno.test("a grant is bounded: a person only, a future expiry within 30 days, a 
       )).reason,
       "agent_file_grant_revoked",
     );
+  }));
+
+Deno.test("the claim mints the step's files section (O44, O45) into the session credential", () =>
+  withWorkerFixture(async (fixture) => {
+    const agent = await agentSession(
+      fixture,
+      "agent-448-scopes",
+      async () => {},
+    );
+    // The step has no files section, so the defaults apply on a real run.
+    const files = await withPgTransaction(
+      fixture.pgDatabase,
+      (tx) => stepFilesForAttempt(tx, fixture.organizationId, agent.attemptId),
+    );
+    assertEquals(files, DEFAULT_STEP_FILES);
+    const stored = await fixture.pgDatabase.query<{ scopes: string[] }>(
+      "select scopes from bakery.session_operation_credentials" +
+        " where organization_id = $1 and attempt_id = $2" +
+        " and revoked_at is null",
+      [fixture.organizationId, agent.attemptId],
+    );
+    const scopes = stored.rows[0]?.scopes ?? [];
+    for (
+      const scope of [
+        "files.read",
+        "files.read:project",
+        "files.read:shared",
+        "files.read:library",
+        "files.write",
+        "files.write:attachments",
+        "files.write:assets",
+        "files.write:workspaces",
+      ]
+    ) assert(scopes.includes(scope), scope + " in " + JSON.stringify(scopes));
+    // No personal area is ever minted.
+    assert(!scopes.some((scope) => scope.includes("users")));
   }));

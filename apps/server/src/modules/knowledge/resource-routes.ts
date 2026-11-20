@@ -52,6 +52,7 @@ import {
   createFileUseLister,
   createFileVersionLister,
   createFolderLister,
+  createSessionFileContentReader,
   listStorageRoots,
   parseRevision,
   readStorageFileByVersion,
@@ -619,7 +620,7 @@ export function createArtifactActions(
       handler: (context) =>
         blobUploads.completeUpload(context, { id: context.params.id }),
     });
-  registerStorageActions(registry, options.secret);
+  registerStorageActions(registry, options.secret, options.blobStore);
   registerCommentActions(registry, options.secret, options.blobStore);
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
@@ -631,7 +632,12 @@ export function createArtifactActions(
 }
 
 /** The working-area actions over the storage tree (#447). */
-function registerStorageActions(registry: ActionRegistry, secret: string) {
+function registerStorageActions(
+  registry: ActionRegistry,
+  secret: string,
+  blobStore: OrganizationBlobStore | undefined,
+) {
+  const readSessionContent = createSessionFileContentReader(blobStore);
   const listTrash = createTrashLister(secret);
   const listFolder = createFolderLister(secret);
   const listVersions = createFileVersionLister(secret);
@@ -716,8 +722,10 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
           ),
         ),
     })
-    // The bytes are a raw Response served by the route below, under this
-    // action's authority; the registered handler is never reached.
+    // A person's bytes are a raw Response served by the route below, under
+    // this action's authority. The registered handler is reached only by an
+    // agent's session call (files.read), which answers JSON: the same reader
+    // and guard, with the bytes as base64.
     .register({
       name: A.StorageFilesContent,
       method: HttpMethod.Get,
@@ -725,8 +733,15 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
       input: contractSchemas.StorageFileContentQuery,
       output: contractSchemas.BinaryArtifact,
       policy: readPolicy,
-      handler: () => {
-        throw new StandardError({ code: "INTERNAL" });
+      handler: async (context, input) => {
+        if (context.agentSession === undefined) {
+          throw new StandardError({ code: "INTERNAL" });
+        }
+        return await readSessionContent(
+          context,
+          storageReader(context, A.StorageFilesContent),
+          input as { range?: string; revision?: number },
+        );
       },
     })
     .register({

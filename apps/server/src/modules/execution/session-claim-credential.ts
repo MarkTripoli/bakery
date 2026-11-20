@@ -30,7 +30,12 @@ import {
 } from "../auth/application/agent-power-grants.ts";
 import type { PgTransactionClient } from "@bakery/persistence";
 import type { OperationScope } from "./session-credential.ts";
-import { FILES_WRITE_SCOPE } from "../knowledge/agent-file-scope.ts";
+import {
+  FILES_READ_SCOPE,
+  FILES_WRITE_SCOPE,
+  stepFileScopes,
+} from "../knowledge/agent-file-scope.ts";
+import { stepFilesForAttempt } from "./step-files.ts";
 
 export type SessionClaimCredentialInput = Readonly<{
   organizationId: string;
@@ -71,8 +76,10 @@ export type MintedSessionCredential = Readonly<{
  * reachable without a second list to remember.
  */
 export function readScopesForSession(): readonly OperationScope[] {
+  // files.read is the one read a definition decides: a sealed step must not
+  // get the storage read tools, so it is minted from the step's files section.
   const read = sessionOperationScopeValues().filter((scope) =>
-    scope.endsWith(".read")
+    scope.endsWith(".read") && scope !== FILES_READ_SCOPE
   );
   return [...new Set(read)].sort();
 }
@@ -161,6 +168,12 @@ export async function issueCredentialForAttempt(
         input.organizationId,
         input.attemptId,
       ),
+      // The step's files section, defaults applied (O44, O45), pinned into
+      // the credential so each storage call is judged against the section
+      // the session was claimed under.
+      ...stepFileScopes(
+        await stepFilesForAttempt(tx, input.organizationId, input.attemptId),
+      ),
     ];
   return await issueStoredSessionCredential(tx, {
     organizationId: input.organizationId,
@@ -214,5 +227,15 @@ export async function grantedScopesForAttempt(
     [organizationId, origin.workflowId],
   );
   if (fileGrants.rows.length > 0) scopes.add(FILES_WRITE_SCOPE);
+  // A live grant of either access widens where the agent may read, so it
+  // offers the read tools too; the guard checks the grant on every read.
+  const readGrants = await tx.query(
+    `select 1 from bakery.agent_file_grants
+      where organization_id = $1 and workflow_id = $2
+        and revoked_at is null and expires_at > now()
+      limit 1`,
+    [organizationId, origin.workflowId],
+  );
+  if (readGrants.rows.length > 0) scopes.add(FILES_READ_SCOPE);
   return [...scopes].sort();
 }

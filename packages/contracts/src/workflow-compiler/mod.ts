@@ -115,3 +115,20 @@ export {
   WorkflowStepKeyError,
 } from "./plan.ts";
 export type { PlanStep, WorkflowPlan } from "./plan.ts";
+export {
+  DEFAULT_STEP_FILES,
+  isSealedStep,
+  resolveStepFiles,
+  WORKFLOW_FILE_READ_AREAS,
+  WORKFLOW_FILE_TREE_READ_AREAS,
+  WORKFLOW_FILE_TREE_WRITE_AREAS,
+  WORKFLOW_FILE_WRITE_AREAS,
+  WorkflowFileReadAreaSchema,
+  WorkflowFileWriteAreaSchema,
+  WorkflowStepFilesSchema,
+} from "./step-files.ts";
+export type {
+  WorkflowFileReadArea,
+  WorkflowFileWriteArea,
+  WorkflowStepFiles,
+} from "./step-files.ts";

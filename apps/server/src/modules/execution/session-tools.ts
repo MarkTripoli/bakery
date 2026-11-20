@@ -88,6 +88,13 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     "storageEntries.copy": "files.write",
     "storageEntries.move": "files.write",
     "storageEntries.trash": "files.write",
+    // The read half (O44): the roots, a folder's entries and a file's bytes,
+    // offered where the step's files section reaches a tree area. Not a
+    // blanket read: a sealed step (read: [inputs]) is never offered them, and
+    // every call is judged again by the same layered guard as a write.
+    "storageRoots.list": "files.read",
+    "storageFolderEntries.list": "files.read",
+    "storageFiles.content": "files.read",
   });
 
 /**

@@ -22,7 +22,14 @@
  *    organization, or the target does not exist ({@link storageScopeRefusal}).
  */
 
+import {
+  WORKFLOW_FILE_TREE_READ_AREAS,
+  WORKFLOW_FILE_TREE_WRITE_AREAS,
+  type WorkflowFileReadArea,
+  type WorkflowFileWriteArea,
+} from "@bakery/contracts/workflow-compiler";
 import { type AreaEntry, isVisibleTo, writeRefusal } from "./storage-areas.ts";
+import type { StoragePolicy } from "./storage-tree.ts";
 
 /** What a file grant lets an agent do in the folder it names. */
 export const AgentFileAccess = Object.freeze(
@@ -42,6 +49,9 @@ export function isAgentFileAccess(value: unknown): value is AgentFileAccess {
 
 /** The session scope that offers the storage write operations as tools. */
 export const FILES_WRITE_SCOPE = "files.write";
+
+/** The session scope that offers the storage read operations as tools. */
+export const FILES_READ_SCOPE = "files.read";
 
 /** The longest a file grant may live; a grant is a loan, not a standing right. */
 export const MAX_FILE_GRANT_DAYS = 30;
@@ -82,6 +92,18 @@ export const AgentFileRefusal = Object.freeze(
     PrincipalCannotWrite: "agent_file_principal_cannot_write",
     /** Granting is a person's act (O51, O52): an agent never widens its own scope. */
     GrantRequiresPerson: "agent_file_grant_requires_person",
+    /**
+     * The area is outside the step's files section and no person granted the
+     * workflow a folder there: a sealed step, a step that narrowed its reads,
+     * or another project's tree.
+     */
+    AreaNotDeclared: "agent_file_area_not_declared",
+    /**
+     * /connections holds outside storage read through only for connections
+     * the definition binds; no binding is recorded for a step yet, so a read
+     * there needs a person's grant.
+     */
+    ConnectionNotBound: "agent_file_connection_not_bound",
   } as const,
 );
 export type AgentFileRefusal =
@@ -298,11 +320,15 @@ export type StorageAuditActor = Readonly<{
   fileGrantId: string | null;
 }>;
 
-/** What an allowed agent write carries into its audit row. */
+/**
+ * What an allowed agent write carries into its audit row. The grant is null
+ * when the write landed in one of the step's default write areas (O45), which
+ * no grant was needed for.
+ */
 export type AgentWrite = Readonly<{
   attemptId: string;
   agentSessionId: string | null;
-  fileGrantId: string;
+  fileGrantId: string | null;
 }>;
 
 export function storageAuditActor(
@@ -321,4 +347,257 @@ export function storageAuditActor(
     agentSessionId: agent?.agentSessionId ?? null,
     fileGrantId: agent?.fileGrantId ?? null,
   };
+}
+
+/**
+ * Where in the tree an entry sits, as the files section names places
+ * (section 17.6). "Own" means the work item and project of the run the
+ * session belongs to; another project's tree is `OtherProject`.
+ */
+export const AgentTreeArea = Object.freeze(
+  {
+    Trash: "trash",
+    System: "system",
+    Personal: "personal",
+    Library: "library",
+    Connections: "connections",
+    Shared: "shared",
+    ProjectsRoot: "projects_root",
+    Project: "project",
+    WorkItem: "work_item",
+    Attachments: "attachments",
+    RunFolder: "run_folder",
+    Assets: "assets",
+    Workspaces: "workspaces",
+    OtherProject: "other_project",
+    Unknown: "unknown",
+  } as const,
+);
+export type AgentTreeArea = typeof AgentTreeArea[keyof typeof AgentTreeArea];
+
+/** One folder of a chain, root first, as the area rules read it. */
+export type ChainEntry = Readonly<{
+  systemKey: string | null;
+  policy: StoragePolicy;
+  ownerId: string | null;
+}>;
+
+/** The run a session belongs to, which decides what "own" means. */
+export type AgentOwnPlaces = Readonly<{
+  taskId: string | null;
+  applicationId: string | null;
+}>;
+
+/**
+ * The area an entry is in, from the folders above it (root first, the entry
+ * itself last). Trash and /system win over everything, then a personal
+ * folder anywhere in the chain, then the top-level area. Inside /projects the
+ * most specific own place wins: attachments or the run folder before the
+ * work item, assets and workspaces before the project.
+ */
+export function agentTreeAreaOf(
+  chain: readonly ChainEntry[],
+  own: AgentOwnPlaces,
+): AgentTreeArea {
+  const keys = chain.map((entry) => entry.systemKey);
+  if (keys.includes("trash")) return AgentTreeArea.Trash;
+  if (keys.includes("system")) return AgentTreeArea.System;
+  if (
+    chain.some((entry) =>
+      entry.policy === "personal" || entry.policy === "scratch"
+    )
+  ) return AgentTreeArea.Personal;
+  switch (keys[0]) {
+    case "library":
+      return AgentTreeArea.Library;
+    case "connections":
+      return AgentTreeArea.Connections;
+    case "shared":
+      return AgentTreeArea.Shared;
+    case "projects":
+      break;
+    default:
+      return AgentTreeArea.Unknown;
+  }
+  if (chain.length === 1) return AgentTreeArea.ProjectsRoot;
+  if (own.taskId !== null) {
+    const task = "task:" + own.taskId;
+    if (keys.includes(task + ":attachments")) return AgentTreeArea.Attachments;
+    if (keys.includes(task + ":runs")) return AgentTreeArea.RunFolder;
+    if (keys.includes(task)) return AgentTreeArea.WorkItem;
+  }
+  if (own.applicationId !== null) {
+    const project = "project:" + own.applicationId;
+    if (keys.includes(project + ":assets")) return AgentTreeArea.Assets;
+    if (keys.includes(project + ":workspaces")) {
+      return AgentTreeArea.Workspaces;
+    }
+    if (keys.includes(project)) return AgentTreeArea.Project;
+  }
+  return AgentTreeArea.OtherProject;
+}
+
+/** The owner of the personal folder an entry is under, or null. */
+export function personalOwnerOf(chain: readonly ChainEntry[]): string | null {
+  for (const entry of chain) {
+    if (
+      (entry.policy === "personal" || entry.policy === "scratch") &&
+      entry.ownerId !== null
+    ) return entry.ownerId;
+  }
+  return null;
+}
+
+const OWN_PROJECT: readonly AgentTreeArea[] = Object.freeze([
+  AgentTreeArea.ProjectsRoot,
+  AgentTreeArea.Project,
+  AgentTreeArea.WorkItem,
+  AgentTreeArea.Attachments,
+  AgentTreeArea.RunFolder,
+  AgentTreeArea.Assets,
+  AgentTreeArea.Workspaces,
+]);
+
+/** The tree areas each declared read area reaches (O44). */
+export const READ_AREA_REACH: Readonly<
+  Record<WorkflowFileReadArea, readonly AgentTreeArea[]>
+> = Object.freeze({
+  inputs: Object.freeze([]),
+  outputs: Object.freeze([]),
+  workspace: Object.freeze([]),
+  work_item: Object.freeze([
+    AgentTreeArea.WorkItem,
+    AgentTreeArea.Attachments,
+    AgentTreeArea.RunFolder,
+  ]),
+  project: OWN_PROJECT,
+  shared: Object.freeze([AgentTreeArea.Shared]),
+  library: Object.freeze([AgentTreeArea.Library]),
+  connections: Object.freeze([AgentTreeArea.Connections]),
+});
+
+/** The tree areas each declared write area reaches (O45). */
+export const WRITE_AREA_REACH: Readonly<
+  Record<WorkflowFileWriteArea, readonly AgentTreeArea[]>
+> = Object.freeze({
+  outputs: Object.freeze([]),
+  workspace: Object.freeze([]),
+  run_folder: Object.freeze([AgentTreeArea.RunFolder]),
+  attachments: Object.freeze([AgentTreeArea.Attachments]),
+  assets: Object.freeze([AgentTreeArea.Assets]),
+  workspaces: Object.freeze([AgentTreeArea.Workspaces]),
+});
+
+/** The session scope naming one declared tree area, as the claim mints it. */
+export function fileAreaScope(
+  access: AgentFileAccess,
+  area: WorkflowFileReadArea | WorkflowFileWriteArea,
+): string {
+  return "files." + access + ":" + area;
+}
+
+/**
+ * The session scopes a step's resolved files section mints at claim: the
+ * read tools when it reads any tree area, the write tools when it writes
+ * one, and one area scope per declared tree area so the guard judges every
+ * call against the section the session was claimed under. A sealed step
+ * (read: [inputs]) gets no read tool at all.
+ */
+export function stepFileScopes(
+  files: Readonly<{
+    read: readonly WorkflowFileReadArea[];
+    write: readonly WorkflowFileWriteArea[];
+  }>,
+): readonly string[] {
+  const scopes = new Set<string>();
+  for (const area of files.read) {
+    if (!WORKFLOW_FILE_TREE_READ_AREAS.includes(area)) continue;
+    scopes.add(FILES_READ_SCOPE);
+    scopes.add(fileAreaScope(AgentFileAccess.Read, area));
+  }
+  for (const area of files.write) {
+    if (!WORKFLOW_FILE_TREE_WRITE_AREAS.includes(area)) continue;
+    scopes.add(FILES_WRITE_SCOPE);
+    scopes.add(fileAreaScope(AgentFileAccess.Write, area));
+  }
+  return [...scopes].sort();
+}
+
+/** The tree areas a session's scopes declare for one access. */
+export function declaredTreeAreas(
+  scopes: readonly string[] | undefined,
+  access: AgentFileAccess,
+): readonly AgentTreeArea[] {
+  const prefix = "files." + access + ":";
+  const reach: Readonly<Record<string, readonly AgentTreeArea[]>> =
+    access === AgentFileAccess.Read ? READ_AREA_REACH : WRITE_AREA_REACH;
+  const areas = new Set<AgentTreeArea>();
+  for (const scope of scopes ?? []) {
+    if (!scope.startsWith(prefix)) continue;
+    for (const area of reach[scope.slice(prefix.length)] ?? []) {
+      areas.add(area);
+    }
+  }
+  return [...areas];
+}
+
+/**
+ * Layer 2 for a read, the area axis: whether an agent may open this entry.
+ * /trash and /system are unreachable; a personal folder, the starter's own
+ * included, opens only with a live grant its owner made; /connections only
+ * with a grant (no binding is recorded yet); anywhere else needs the step's
+ * files section to reach the area, or a live grant covering the entry.
+ */
+export function agentReadAreaRefusal(
+  input: Readonly<{
+    area: AgentTreeArea;
+    declared: readonly AgentTreeArea[];
+    liveGrant: AgentFileGrant | undefined;
+    personalOwnerId: string | null;
+  }>,
+): AgentFileRefusal | undefined {
+  switch (input.area) {
+    case AgentTreeArea.Trash:
+      return AgentFileRefusal.TrashArea;
+    case AgentTreeArea.System:
+      return AgentFileRefusal.SystemArea;
+    case AgentTreeArea.Personal:
+      return input.liveGrant !== undefined &&
+          input.personalOwnerId !== null &&
+          input.liveGrant.grantedById === input.personalOwnerId
+        ? undefined
+        : AgentFileRefusal.PersonalArea;
+    case AgentTreeArea.Connections:
+      return input.liveGrant !== undefined
+        ? undefined
+        : AgentFileRefusal.ConnectionNotBound;
+    default:
+      return input.liveGrant !== undefined ||
+          input.declared.includes(input.area)
+        ? undefined
+        : AgentFileRefusal.AreaNotDeclared;
+  }
+}
+
+/**
+ * The top-level folders an agent sees in the roots listing: never the
+ * caller's personal folder, /trash or /system, and only the areas its files
+ * section reaches. /connections stays out until a binding is recorded.
+ */
+export function agentRootKeys(
+  keys: readonly string[],
+  declared: readonly AgentTreeArea[],
+): string[] {
+  return keys.filter((key) => {
+    switch (key) {
+      case "projects":
+        return declared.includes(AgentTreeArea.ProjectsRoot);
+      case "shared":
+        return declared.includes(AgentTreeArea.Shared);
+      case "library":
+        return declared.includes(AgentTreeArea.Library);
+      default:
+        return false;
+    }
+  });
 }
