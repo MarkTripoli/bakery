@@ -17,6 +17,7 @@ import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import { assertMayAuthorSkill } from "./skill-scope-guard.ts";
+import { insertLocalSkillIdentity } from "./skill-identity.ts";
 import { deleteSkillUseGrant, listSkillUseGrants } from "./skill-use-grants.ts";
 import {
   type RunRow,
@@ -33,14 +34,16 @@ import {
 const PAGE_ORDERING = "createdAt:desc,id:desc";
 const SOURCE_COLUMNS = `id, source_type, locator, publisher, license,
   last_checked_at, enabled, created_at, updated_at, version`;
-const SKILL_COLUMNS = `id, source_id, slug, name, active_version_id, enabled,
-  scope, owner_principal_id, created_at, updated_at, version`;
+export const SKILL_COLUMNS =
+  `id, source_id, slug, name, active_version_id, enabled,
+  scope, owner_principal_id, copied_from_skill_id, copied_from_version_id,
+  created_at, updated_at, version`;
 /**
  * A person sees every shared skill and their own personal (Private) skills, and
  * nobody else's. The one place a personal skill reaches another person is a
  * workflow it is attached to; that path never goes through these reads.
  */
-const SKILL_VISIBLE_TO = (principalParam: string) =>
+export const SKILL_VISIBLE_TO = (principalParam: string) =>
   `(scope <> 'personal' or owner_principal_id = ${principalParam}::uuid)`;
 const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
   run.workflow_version_id, run.skill_source_id, run.repository_profile_id,
@@ -129,7 +132,7 @@ type SkillSourceRow = {
   updated_at: Date | string;
   version: number;
 };
-type SkillRow = {
+export type SkillRow = {
   id: string;
   source_id: string | null;
   slug: string;
@@ -138,6 +141,8 @@ type SkillRow = {
   enabled: boolean;
   scope: "global" | "organization" | "personal";
   owner_principal_id: string | null;
+  copied_from_skill_id: string | null;
+  copied_from_version_id: string | null;
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
@@ -183,13 +188,15 @@ export function toSkill(row: SkillRow) {
     enabled: row.enabled,
     scope: row.scope,
     ownerPrincipalId: row.owner_principal_id,
+    copiedFromSkillId: row.copied_from_skill_id,
+    copiedFromVersionId: row.copied_from_version_id,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     version: row.version,
   };
 }
 
-async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
+export async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
   } catch (error) {
@@ -205,7 +212,7 @@ async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-async function recordMutation(
+export async function recordMutation(
   transaction: PgTransactionClient,
   context: ActionContext,
   options: {
@@ -761,35 +768,17 @@ export function createCatalogHandlers(
         ownerPrincipalId: scope === "personal" ? principalId : null,
       });
       const skillId = crypto.randomUUID();
-      const sourceId = crypto.randomUUID();
-      const locator =
-        `bakery://organizations/${organizationId}/skills/${skillId}`;
-      const result = await boundedMutation(async () => {
-        await transaction.query(
-          `insert into bakery.skill_sources (
-             id, organization_id, source_type, locator, display_name,
-             publisher, license, last_checked_at, enabled
-           ) values ($1, $2, 'local_bundle', $3, $4, null, null, null, true)`,
-          [sourceId, organizationId, locator, persistedInput.name],
-        );
-        return await transaction.query<SkillRow>(
-          `insert into bakery.skills (
-             id, organization_id, source_id, slug, name, active_version_id,
-             enabled, scope, owner_principal_id
-           ) values ($1, $2, $3, $4, $5, null, true, $6, $7)
-           returning ${SKILL_COLUMNS}`,
-          [
-            skillId,
-            organizationId,
-            sourceId,
-            persistedInput.slug,
-            persistedInput.name,
-            scope,
-            scope === "personal" ? principalId : null,
-          ],
-        );
-      });
-      const row = result.rows[0];
+      const row = await boundedMutation(() =>
+        insertLocalSkillIdentity<SkillRow>(transaction, organizationId, {
+          skillId,
+          sourceId: crypto.randomUUID(),
+          slug: persistedInput.slug,
+          name: persistedInput.name,
+          scope,
+          ownerPrincipalId: scope === "personal" ? principalId : null,
+          copiedFrom: null,
+        }, SKILL_COLUMNS)
+      );
       if (!row) throw new Error("CATALOG_SKILL_INSERT_FAILED");
       await recordMutation(transaction, context, {
         organizationId,
@@ -809,6 +798,15 @@ export function createCatalogHandlers(
 
     deleteSkillUseGrant(context: ActionContext) {
       return deleteSkillUseGrant(context);
+    },
+
+    copySkill(
+      _context: ActionContext,
+      _input: z.output<typeof contractSchemas.SkillCopy>,
+    ) {
+      return Promise.reject(
+        new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
+      );
     },
 
     createSkillVersion(
