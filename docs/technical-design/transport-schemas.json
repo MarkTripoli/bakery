@@ -342,6 +342,11 @@
       "status": 422,
       "retryable": false,
       "slug": "storage-file-too-large"
+    },
+    "STEP_WRITE_LIMIT_EXCEEDED": {
+      "status": 409,
+      "retryable": false,
+      "slug": "step-write-limit-exceeded"
     }
   },
   "conventions": {
@@ -12107,7 +12112,7 @@
       ],
       "rules": [
         "Idempotency-Key is required. Writing a new file needs no If-Match and refuses one (412). Replacing an existing file needs a strong If-Match with the entry's version (428 when missing, 412 when stale).",
-        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal.",
+        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal. An agent's write that would take its step past the step write limits (stepWriteFiles, stepWriteBytes) is 409 STEP_WRITE_LIMIT_EXCEEDED with reason files or bytes and the limit it hit.",
         "A parent in a record area, the library, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with a reason; a missing parent, or another member's personal folder, is 404."
       ],
       "description": "Writes a file at a path in a working area (O42, chapter 25 section 17.4 put and upload): the first write makes the file entry, each later write adds a version. Working areas keep the newest versions up to the organization's setting; scratch keeps only the latest."
@@ -12220,6 +12225,26 @@
             "max": 1125899906842624
           },
           "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB."
+        },
+        {
+          "name": "stepWriteBytes",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1048576,
+            "max": 1099511627776
+          },
+          "description": "Bytes one agent step (one run step attempt) may write to Bakery Files through its puts and copies before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason bytes (O49). Left out, the organization follows Bakery's default of 2 GiB. A person's own writes are never limited by it."
+        },
+        {
+          "name": "stepWriteFiles",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 1000000
+          },
+          "description": "Distinct files and folders one agent step (one run step attempt) may write, make, copy, move or trash before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason files (O49). Left out, the organization follows Bakery's default of 2,000. A person's own writes are never limited by it."
         }
       ],
       "rules": [
@@ -30910,6 +30935,8 @@
         "organizationQuotaBytes",
         "projectQuotaBytes",
         "personalQuotaBytes",
+        "stepWriteBytes",
+        "stepWriteFiles",
         "organizationUsedBytes",
         "organizationQuotaState",
         "customized",
@@ -30923,6 +30950,8 @@
         "organizationQuotaBytes": "integer",
         "projectQuotaBytes": "integer",
         "personalQuotaBytes": "integer",
+        "stepWriteBytes": "integer",
+        "stepWriteFiles": "integer",
         "organizationUsedBytes": "integer",
         "organizationQuotaState": "enum(ok|warning|paused)",
         "customized": "boolean",
@@ -30938,6 +30967,8 @@
         "organizationQuotaBytes": "Bytes the organization's working-area files may hold.",
         "projectQuotaBytes": "Bytes each project's working-area files may hold.",
         "personalQuotaBytes": "Bytes each member's personal folder may hold.",
+        "stepWriteBytes": "Bytes one agent step may write before its writes are refused (O49); the default 2 GiB unless an Admin saved another value.",
+        "stepWriteFiles": "Distinct files and folders one agent step may write before its writes are refused (O49); the default 2,000 unless an Admin saved another value.",
         "organizationUsedBytes": "Bytes working-area file versions hold now, trash included until it is swept or purged.",
         "organizationQuotaState": "Where usage stands against the organization quota: warning from 75%, paused from 90%, when new writes are refused.",
         "customized": "False while the organization uses Bakery's defaults; true once an Admin saved its own values.",

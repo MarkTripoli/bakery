@@ -47,6 +47,7 @@ import {
   quotaState,
   revisionsToPrune,
   scopeKeyFromAncestors,
+  stepWriteLimitRefusal,
   type StorageLimits,
   writeRefusal,
 } from "./storage-areas.ts";
@@ -303,11 +304,12 @@ export async function readStorageLimits(
   tx: Pick<PgTransactionClient, "query">,
   organizationId: string,
 ): Promise<StorageLimits & { version: number; customized: boolean }> {
-  const found = await tx.query<Record<string, string | number>>(
+  const found = await tx.query<Record<string, string | number | null>>(
     "select working_versions_kept, trash_retention_days," +
       " scratch_retention_days, max_file_bytes::text," +
       " organization_quota_bytes::text, project_quota_bytes::text," +
-      " personal_quota_bytes::text, version" +
+      " personal_quota_bytes::text, step_write_bytes::text," +
+      " step_write_files, version" +
       " from bakery.storage_settings where organization_id = $1",
     [organizationId],
   );
@@ -323,6 +325,13 @@ export async function readStorageLimits(
     organizationQuotaBytes: Number(row.organization_quota_bytes),
     projectQuotaBytes: Number(row.project_quota_bytes),
     personalQuotaBytes: Number(row.personal_quota_bytes),
+    // Null is the default (migration 0286), so a saved row follows it.
+    stepWriteBytes: row.step_write_bytes === null
+      ? DEFAULT_STORAGE_LIMITS.stepWriteBytes
+      : Number(row.step_write_bytes),
+    stepWriteFiles: row.step_write_files === null
+      ? DEFAULT_STORAGE_LIMITS.stepWriteFiles
+      : Number(row.step_write_files),
     version: Number(row.version),
     customized: true,
   };
@@ -393,6 +402,65 @@ async function assertQuota(
     : limits.personalQuotaBytes;
   const used = await usedBytes(tx, organizationId, scopeKey);
   if (!admitsWrite(used, addedBytes, limit)) quotaRefusal(scopeKey);
+}
+
+/**
+ * Refuses an agent write that would take its run step attempt past the step
+ * write limits (O49): the distinct entries and the bytes the attempt already
+ * wrote, from its write set, plus this write. A person's own write (agent
+ * null) is never limited. Identical-bytes puts record no write-set row, so
+ * they neither count nor reach here.
+ *
+ * Race-safe: it takes the same per-organization storage lock assertQuota
+ * takes, before counting, and holds it to commit. The write-set row of this
+ * write is inserted later in the same transaction, so a concurrent write of
+ * the same attempt waits on the lock until this one commits and then counts
+ * its row (each statement under READ COMMITTED sees rows committed before it
+ * began). A transaction-level advisory lock is re-entrant, so taking it again
+ * after assertQuota costs nothing.
+ */
+async function assertStepWriteLimit(
+  tx: PgTransactionClient,
+  organizationId: string,
+  agent: AgentWrite | null,
+  entryId: string,
+  addedBytes: number,
+  limits: StorageLimits,
+): Promise<void> {
+  if (agent === null) return;
+  await tx.query(
+    "select pg_advisory_xact_lock(hashtext('storage-quota:' || $1))",
+    [organizationId],
+  );
+  // Bytes count once per version a put or copy made; a move or trash names
+  // the version it already had and adds none.
+  const found = await tx.query<
+    { files: string; bytes: string; written: boolean }
+  >(
+    "select count(distinct w.entry_id)::text as files," +
+      " coalesce(sum(v.size_bytes) filter" +
+      " (where w.op in ('put', 'copy')), 0)::text as bytes," +
+      " coalesce(bool_or(w.entry_id = $3), false) as written" +
+      " from bakery.step_write_set w" +
+      " left join bakery.storage_file_versions v" +
+      " on v.organization_id = w.organization_id and v.id = w.new_version_id" +
+      " where w.organization_id = $1 and w.attempt_id = $2",
+    [organizationId, agent.attemptId, entryId],
+  );
+  const row = found.rows[0];
+  const reason = stepWriteLimitRefusal(
+    { files: Number(row.files), bytes: Number(row.bytes) },
+    { newEntry: !row.written, addedBytes },
+    limits,
+  );
+  if (reason === undefined) return;
+  throw new StandardError({
+    code: "STEP_WRITE_LIMIT_EXCEEDED",
+    params: {
+      reason,
+      limit: reason === "files" ? limits.stepWriteFiles : limits.stepWriteBytes,
+    },
+  });
 }
 
 type FileBytes = {
@@ -861,6 +929,14 @@ export async function putStorageFile(context: ActionContext, input: PutInput) {
     bytes.sizeBytes,
     limits,
   );
+  await assertStepWriteLimit(
+    tx,
+    organizationId,
+    agent,
+    entry.id,
+    bytes.sizeBytes,
+    limits,
+  );
   const previousVersionId = entry.current_version_id;
   const newVersionId = await appendVersion(tx, {
     organizationId,
@@ -919,6 +995,14 @@ export async function createStorageFolder(
     nameKey,
     kind: "folder",
   });
+  await assertStepWriteLimit(
+    tx,
+    organizationId,
+    agent,
+    entry.id,
+    0,
+    await readStorageLimits(tx, organizationId),
+  );
   await audit(tx, context, {
     organizationId,
     principalId,
@@ -1027,6 +1111,14 @@ export async function copyStorageEntry(
     tx,
     organizationId,
     entry.scope_key,
+    bytes.sizeBytes,
+    limits,
+  );
+  await assertStepWriteLimit(
+    tx,
+    organizationId,
+    agent,
+    entry.id,
     bytes.sizeBytes,
     limits,
   );
@@ -1153,6 +1245,14 @@ export async function moveStorageEntry(
       " where organization_id = $1 and id = $2",
     [organizationId, entry.id, parent.id, name, nameKey],
   );
+  await assertStepWriteLimit(
+    tx,
+    organizationId,
+    agent,
+    entry.id,
+    0,
+    await readStorageLimits(tx, organizationId),
+  );
   await audit(tx, context, {
     organizationId,
     principalId,
@@ -1202,6 +1302,14 @@ export async function trashStorageEntry(context: ActionContext) {
       " trashed_by_id = $4, version = version + 1, updated_at = now()" +
       " where organization_id = $1 and id = $2",
     [organizationId, entry.id, top.get("trash")!, principalId],
+  );
+  await assertStepWriteLimit(
+    tx,
+    organizationId,
+    agent,
+    entry.id,
+    0,
+    await readStorageLimits(tx, organizationId),
   );
   await audit(tx, context, {
     organizationId,
@@ -1369,12 +1477,22 @@ async function settingsView(tx: PgTransactionClient, organizationId: string) {
     organizationQuotaBytes: limits.organizationQuotaBytes,
     projectQuotaBytes: limits.projectQuotaBytes,
     personalQuotaBytes: limits.personalQuotaBytes,
+    stepWriteBytes: limits.stepWriteBytes,
+    stepWriteFiles: limits.stepWriteFiles,
     organizationUsedBytes: used,
     organizationQuotaState: quotaState(used, limits.organizationQuotaBytes),
     customized: limits.customized,
     version: limits.version,
   };
 }
+
+/**
+ * What an Admin saves. The step write limits may be left out: absent stores
+ * null, which follows Bakery's default (O49).
+ */
+export type StorageSettingsInput =
+  & Omit<StorageLimits, "stepWriteBytes" | "stepWriteFiles">
+  & Partial<Pick<StorageLimits, "stepWriteBytes" | "stepWriteFiles">>;
 
 /** The organization's storage limits with its usage against its quota. */
 export async function getStorageSettings(context: ActionContext) {
@@ -1388,11 +1506,17 @@ export async function getStorageSettings(context: ActionContext) {
  */
 export async function putStorageSettings(
   context: ActionContext,
-  input: StorageLimits,
+  input: StorageSettingsInput,
 ) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
-  const invalid = invalidLimit(input);
+  const invalid = invalidLimit({
+    ...input,
+    stepWriteBytes: input.stepWriteBytes ??
+      DEFAULT_STORAGE_LIMITS.stepWriteBytes,
+    stepWriteFiles: input.stepWriteFiles ??
+      DEFAULT_STORAGE_LIMITS.stepWriteFiles,
+  });
   if (invalid) unprocessable(invalid, "out_of_range");
   await tx.query(
     "select pg_advisory_xact_lock(hashtext('storage-settings:' || $1))",
@@ -1414,8 +1538,9 @@ export async function putStorageSettings(
     "insert into bakery.storage_settings" +
       " (organization_id, working_versions_kept, trash_retention_days," +
       " scratch_retention_days, max_file_bytes, organization_quota_bytes," +
-      " project_quota_bytes, personal_quota_bytes, updated_by_id)" +
-      " values ($1, $2, $3, $4, $5, $6, $7, $8, $9)" +
+      " project_quota_bytes, personal_quota_bytes, updated_by_id," +
+      " step_write_bytes, step_write_files)" +
+      " values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)" +
       " on conflict (organization_id) do update set" +
       " working_versions_kept = excluded.working_versions_kept," +
       " trash_retention_days = excluded.trash_retention_days," +
@@ -1424,6 +1549,8 @@ export async function putStorageSettings(
       " organization_quota_bytes = excluded.organization_quota_bytes," +
       " project_quota_bytes = excluded.project_quota_bytes," +
       " personal_quota_bytes = excluded.personal_quota_bytes," +
+      " step_write_bytes = excluded.step_write_bytes," +
+      " step_write_files = excluded.step_write_files," +
       " updated_by_id = excluded.updated_by_id," +
       " version = bakery.storage_settings.version + 1, updated_at = now()",
     [
@@ -1436,6 +1563,8 @@ export async function putStorageSettings(
       input.projectQuotaBytes,
       input.personalQuotaBytes,
       principalId,
+      input.stepWriteBytes ?? null,
+      input.stepWriteFiles ?? null,
     ],
   );
   await appendAudit(tx, {

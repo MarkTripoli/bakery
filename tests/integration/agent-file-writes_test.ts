@@ -473,3 +473,91 @@ Deno.test("the claim mints the step's files section (O44, O45) into the session 
     // No personal area is ever minted.
     assert(!scopes.some((scope) => scope.includes("users")));
   }));
+
+Deno.test("an agent at its step's file limit is refused the next write; a person is not (O49)", () =>
+  withWorkerFixture(async (fixture) => {
+    const current = await json(
+      await asPerson(fixture, "GET", "/v1/storage/settings"),
+      200,
+    );
+    assertEquals(current.stepWriteFiles, 2000);
+    assertEquals(current.stepWriteBytes, 2 * 1024 ** 3);
+    const {
+      organizationUsedBytes: _used,
+      organizationQuotaState: _state,
+      customized: _customized,
+      version: _version,
+      ...limits
+    } = current;
+    const saved = await json(
+      await asPerson(fixture, "PUT", "/v1/storage/settings", {
+        ...limits,
+        stepWriteFiles: 2,
+      }),
+      200,
+    );
+    assertEquals(saved.stepWriteFiles, 2);
+    const folder = await json(
+      await asPerson(fixture, "POST", "/v1/storage/folders", {
+        path: "/shared/agent-448-limits",
+      }),
+      201,
+    );
+    const agent = await agentSession(
+      fixture,
+      "agent-448-limits",
+      async (job) => {
+        await grantFolder(
+          fixture,
+          job.workflowId,
+          folder.id as string,
+          "write",
+        );
+      },
+    );
+    const first = await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-limits/1.md"),
+      ),
+    );
+    await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-limits/2.md"),
+      ),
+    );
+    // A new version of a file the step already wrote is not a new file.
+    await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-limits/1.md", "agent bytes, again"),
+        first.version as number,
+      ),
+    );
+    const refused = await agent.call(
+      "storageFiles.put",
+      file("/shared/agent-448-limits/3.md"),
+    );
+    assertEquals(await refusal(refused), {
+      status: 409,
+      code: "STEP_WRITE_LIMIT_EXCEEDED",
+      reason: "files",
+    });
+    const kept = await fixture.pgDatabase.query<{ n: string }>(
+      "select count(*)::text as n from bakery.storage_entries" +
+        " where organization_id = $1 and parent_id = $2",
+      [fixture.organizationId, folder.id],
+    );
+    assertEquals(kept.rows[0].n, "2");
+    // A person's writes are never limited by a step's limit.
+    await json(
+      await asPerson(
+        fixture,
+        "PUT",
+        "/v1/storage/files",
+        file("/shared/agent-448-limits/3.md", "person bytes"),
+      ),
+      200,
+    );
+  }));
