@@ -185,7 +185,13 @@ export async function enqueueUnprobedPage(
               case when v.blob_id is null then v.revision end,
               null::uuid as artifact_version_id
          from bakery.storage_file_versions v
-        where v.purged_at is null
+         -- Purge state lives on the entry, not the version: 0249 adds purged_at
+         -- to storage_entries only, so a version is live exactly while its entry
+         -- is. A join rather than a subquery because the entry is also what the
+         -- visibility rule would need later.
+         join bakery.storage_entries e
+           on e.organization_id = v.organization_id and e.id = v.entry_id
+        where e.purged_at is null
           and (v.blob_id is not null or v.content is not null)
           and not exists (
             select 1 from bakery.blob_probes p
@@ -499,9 +505,11 @@ export async function readInlineProbeSubjectBytes(
   revision: number,
 ): Promise<{ bytes: Uint8Array; sizeBytes: number } | null> {
   const { rows } = await database.query<{ content: Uint8Array | null }>(
-    `select content from bakery.storage_file_versions
-      where organization_id = $1 and entry_id = $2 and revision = $3
-        and purged_at is null and content is not null`,
+    `select v.content from bakery.storage_file_versions v
+       join bakery.storage_entries e
+         on e.organization_id = v.organization_id and e.id = v.entry_id
+      where v.organization_id = $1 and v.entry_id = $2 and v.revision = $3
+        and e.purged_at is null and v.content is not null`,
     [organizationId, entryId, revision],
   );
   const content = rows[0]?.content;
