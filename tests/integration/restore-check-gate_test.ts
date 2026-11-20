@@ -1,6 +1,10 @@
 import { assert, assertEquals } from "@std/assert";
 import { join } from "node:path";
 import {
+  installDenoWrapper,
+  installReleaseManifestShim,
+} from "../helpers/backup-sandbox-release.ts";
+import {
   INCOMPLETE_FILE,
   STORES,
   writeBackupManifest,
@@ -69,8 +73,8 @@ async function withCheck(
     await Deno.mkdir(bin);
     await Deno.mkdir(opt, { recursive: true });
     await Deno.mkdir(join(dir, "var/lib/bakery"), { recursive: true });
-    await Deno.symlink(REPO, join(opt, "background"));
-    await Deno.symlink(Deno.execPath(), join(bin, "deno"));
+    await installReleaseManifestShim(opt, REPO);
+    await installDenoWrapper(bin);
     const mark = join(dir, "docker-calls");
     await Deno.writeTextFile(
       join(bin, "docker"),
