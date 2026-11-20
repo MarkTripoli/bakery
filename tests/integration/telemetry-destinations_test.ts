@@ -444,6 +444,16 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
     await fanout.close(0);
     await collector.close();
     await other.close();
+    // The sealed secrets name the administrator who made them, so they go before
+    // the fixture removes its principals.
+    for (
+      const statement of [
+        "delete from bakery.telemetry_destinations",
+        "update bakery.secrets set active_version_id = null where provider = 'telemetry'",
+        "delete from bakery.secret_versions where secret_id in (select id from bakery.secrets where provider = 'telemetry')",
+        "delete from bakery.secrets where provider = 'telemetry'",
+      ]
+    ) await f.pgDatabase.query(statement);
     await f.finish();
     await Deno.remove(keyFile);
   }
