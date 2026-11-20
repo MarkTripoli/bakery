@@ -49,6 +49,15 @@ export const FAULTS = {
   PRECONDITION_FAILED: [412, false, "precondition-failed"],
   PRECONDITION_REQUIRED: [428, false, "precondition-required"],
   STATE_CONFLICT: [409, false, "state-conflict"],
+  // The storage tree's folder policy refused the operation (#447): rm or mv in a
+  // record area, a file write into the library, /trash or /system, or a change
+  // to a folder Bakery made. `reason` names which.
+  STORAGE_AREA_REFUSED: [409, false, "storage-area-refused"],
+  // New writes are paused: usage would pass 90% of a quota (#447). `reason`
+  // names the quota: organization, project or personal.
+  STORAGE_QUOTA_EXCEEDED: [409, false, "storage-quota-exceeded"],
+  // The file is larger than the organization's maximum file size (#447).
+  STORAGE_FILE_TOO_LARGE: [422, false, "storage-file-too-large"],
   VERSION_CONFLICT: [409, false, "version-conflict"],
   EXPECTED_SEQUENCE: [409, true, "expected-sequence"],
   LEASE_EXPIRED: [409, true, "lease-expired"],
@@ -480,7 +489,9 @@ export function toProblem(
   const resetMetadata = standard?.code === "STATE_CONFLICT"
     ? safeResetMetadata(rawParams)
     : undefined;
-  const reason = standard?.code === "STATE_CONFLICT"
+  const reason = standard?.code === "STATE_CONFLICT" ||
+      standard?.code === "STORAGE_AREA_REFUSED" ||
+      standard?.code === "STORAGE_QUOTA_EXCEEDED"
     ? safeConflictReason(rawParams?.reason)
     : standard?.code === "DEPENDENCY_UNAVAILABLE"
     ? safeUnavailableReason(rawParams?.reason)
@@ -766,8 +777,11 @@ export function createNormalizedCommandMetadata(
     [
       "emailSettings.put",
       "integrationAppRegistrations.put",
+      "mcpToolClassifications.put",
       "scopeProfiles.put",
       "skillStorageSettings.put",
+      "storageFiles.put",
+      "storageSettings.put",
     ],
   );
   const patchNeedsIfMatch = (method === "PATCH" &&

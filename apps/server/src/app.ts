@@ -110,9 +110,11 @@ import {
   type EventsSocketLimits,
   type EventsSocketRegistry,
 } from "./modules/work/events-socket.ts";
+import { createMcpManagementRoutes } from "./modules/mcp/routes.ts";
 import {
   createGroupRoutes,
   createNotificationRoutes,
+  createRunRequestRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
   registerNotificationProjection,
@@ -821,6 +823,16 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createMcpManagementRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+      secretsKey: options.config.secretsKey,
+    }),
+  );
+  app.route(
+    "/",
     createTicketRoutes({
       database: options.pgDatabase,
       session: tokenSession,
@@ -856,6 +868,13 @@ export function createApp(options: {
           },
         },
       }),
+    }),
+  );
+  app.route(
+    "/",
+    createRunRequestRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
     }),
   );
   app.route(

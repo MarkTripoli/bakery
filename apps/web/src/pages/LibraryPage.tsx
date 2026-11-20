@@ -10,6 +10,8 @@ import type {
 } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import { useLiveEvents } from "../api/use-live-events.ts";
+
+import { focusAfterPaint } from "../app/focus.ts";
 import {
   effectiveAccessQueryOptions,
   libraryAgentsQueryOptions,
@@ -20,7 +22,6 @@ import {
 } from "../api/query.ts";
 import { asyncKindForError, isForbiddenFailure } from "../app/async-state.ts";
 import { useConnectivity } from "../app/connectivity.ts";
-import { focusAfterPaint } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
@@ -181,6 +182,15 @@ export function LibraryPage() {
           name: repositoryName,
         }),
       openLabel: translate("library.memory.openNamed" as never, { fact }),
+      // A suggestion waits on a person: its button says so and is the primary one.
+      ...(badge === "suggested"
+        ? {
+          openText: translate("library.memory.review" as never),
+          primary: true,
+        }
+        : {}),
+      ...(badge === "noLongerUsed" ? { muted: true } : {}),
+      selected: search.fact === entry.id,
     };
   };
   const presetRow = (preset: WorkflowPresetResponse): LibraryRow => {
@@ -502,12 +512,20 @@ export function LibraryPage() {
           entry={openFact}
           phone={phone}
           repositoryName={repositoryNames.get(openFact.repositoryId) ?? null}
-          onClose={() =>
+          onClose={() => {
+            const id = openFact.id;
             void navigate({
               to: "/library",
               search: { tab: "memory" },
               replace: true,
-            })}
+            });
+            // Back to the row that opened it.
+            focusAfterPaint(() =>
+              document.querySelector<HTMLElement>(
+                `[data-library-id="${id}"] button`,
+              )
+            );
+          }}
         />
       )}
       {importing

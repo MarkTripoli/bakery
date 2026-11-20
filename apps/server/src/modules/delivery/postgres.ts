@@ -25,6 +25,11 @@ import {
   decodeCursor,
   encodeCursor,
 } from "../../platform/cursor.ts";
+import { effectivePermissions } from "../auth/application/authorize.ts";
+import type {
+  AuthorizedActionContext,
+  OrganizationActor,
+} from "../auth/application/authority.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   DECISION_REVIEW_STATUSES,
@@ -702,7 +707,7 @@ type PullRequestRow = {
 const PULL_REQUEST_STATUSES: readonly string[] = ["open", "merged", "closed"];
 
 /** The `PullRequest` projection. */
-function toPullRequest(row: PullRequestRow) {
+function toPullRequest(row: PullRequestRow, mayMerge: boolean) {
   if (!PULL_REQUEST_STATUSES.includes(row.status)) {
     throw new Error("DELIVERY_READ_PULL_REQUEST_INVALID");
   }
@@ -720,7 +725,22 @@ function toPullRequest(row: PullRequestRow) {
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     version: row.version,
+    mayMerge,
+    // The repository practice, served so the page sends it and never picks one.
+    mergeMethod: PULL_REQUEST_MERGE_METHOD,
   };
+}
+
+/** The merge method Bakery uses: squash, the repository practice. */
+export const PULL_REQUEST_MERGE_METHOD = "squash" as const;
+
+/** Whether the caller holds the permission to merge a pull request. */
+export function callerMayMerge(context: ActionContext): boolean {
+  const actor = (context as Partial<AuthorizedActionContext>).authority;
+  if (!actor || !("organizationId" in actor)) return false;
+  return effectivePermissions(actor as OrganizationActor).includes(
+    "pullRequest:merge",
+  );
 }
 
 /**
@@ -792,7 +812,7 @@ export function createPullRequestsListHandler(secret: string) {
     const visible = result.rows.slice(0, limit);
     const last = visible.at(-1);
     return {
-      items: visible.map(toPullRequest),
+      items: visible.map((row) => toPullRequest(row, callerMayMerge(context))),
       nextCursor: result.rows.length > limit && last
         ? await encodeCursor(secret, binding, {
           createdAt: last.cursor_created_at,

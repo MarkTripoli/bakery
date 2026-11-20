@@ -3,7 +3,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import type { MemoryEntryResponse } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
-import { artifactsListQueryOptions } from "../../api/query.ts";
+import {
+  artifactsListQueryOptions,
+  artifactVersionsQueryOptions,
+} from "../../api/query.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { focusAfterPaint } from "../../app/focus.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
@@ -78,6 +81,22 @@ export function MemoryFactActions(
     }),
     enabled: correcting !== null && Boolean(scope.organizationId),
   });
+
+  // The version number of the chosen document's current version, so the person
+  // sees which exact version Bakery will link.
+  const chosenArtifact = (sources.data?.items ?? []).find((artifact) =>
+    artifact.currentVersionId !== null &&
+    artifact.currentVersionId === draft.source
+  );
+  const chosenVersions = useQuery({
+    ...artifactVersionsQueryOptions(api, scope, chosenArtifact?.id ?? "", {
+      limit: 100,
+    }),
+    enabled: chosenArtifact !== undefined && Boolean(scope.organizationId),
+  });
+  const chosenRevision = chosenVersions.data?.items.find((version) =>
+    version.id === draft.source
+  )?.revision;
 
   const fail = (error: unknown, savedOnly = false) => {
     const refusal = memoryRefusal(error);
@@ -404,7 +423,9 @@ export function MemoryFactActions(
             </UI.Field>
             <UI.Stack gap="tight">
               <UI.Combobox
-                label={translate("library.memory.correct.source" as never)}
+                label={`${
+                  translate("library.memory.correct.source" as never)
+                } *`}
                 value={draft.source}
                 state={sources.isPending ? "loading" : undefined}
                 disabled={sources.isPending || sources.isError}
@@ -431,6 +452,11 @@ export function MemoryFactActions(
                   ? translate("library.memory.correct.sourceError" as never)
                   : documents.length === 0
                   ? translate("library.memory.correct.sourceNone" as never)
+                  : chosenArtifact !== undefined && chosenRevision !== undefined
+                  ? translate("library.memory.correct.sourceVersion" as never, {
+                    name: chosenArtifact.name,
+                    version: chosenRevision,
+                  })
                   : translate("library.memory.correct.sourceHint" as never)}
               </UI.Text>
               {showMissing(missing.source)

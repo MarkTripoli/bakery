@@ -1,13 +1,109 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "6eefa213893fcce48b6511332ef3798e3524602b"
+    "fc5ad8e2049255c2d45845a4be508819a425d824"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:aa309a8ee340906dd99345446a09e60ab7bb4639fd65d30f9d375223ff394335",
-  "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 6eefa213893fcce48b6511332ef3798e3524602b: MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:8eb8f5a31e334f0933285c2863e135451e0610e0efe98bd520c8030c764c077c",
+  "reason": "#72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main fc5ad8e2049255c2d45845a4be508819a425d824: the events subscribe contract gains a memory scope kind (Scope.type and SyncQuery.scopeType accept `memory`, whose id is the organization and which only a caller who may read memory can subscribe to), on top of the #72 memory current-revision projection approved at sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b, which is preserved unchanged first below. The drift is one added enum value on request inputs.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "889c2fbfb938191e56ede7ed5dc7458216f131bd"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b",
+      "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 889c2fbfb938191e56ede7ed5dc7458216f131bd: MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes; the approval it displaced at sha256:050bbfec6c6d3ccd73991e61264bee8b5d336bfd701d2a73dc9fc1374b2ee3aa is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "0ab8a30353e2d19599a02affbad1c09f05fcbec6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:050bbfec6c6d3ccd73991e61264bee8b5d336bfd701d2a73dc9fc1374b2ee3aa",
+      "reason": "#434 MCP connections re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 0ab8a30353e2d19599a02affbad1c09f05fcbec6: McpConnectionCreate and McpConnectionUpdate drop the secretId reference input and gain a write-only secret (a caller can no longer point a connection at an arbitrary secret id; the credential is sealed server-side), McpConnectionCreate gains an optional scope (organization|personal), and McpConnection gains ownerPrincipalId. mcpConnections create, update and discover change from Admin to Developer-for-personal/Admin-for-organization access. No client writes these shapes: no handler existed before this change. mcpConnections.discover returns the McpCapabilitySnapshot it pinned instead of a Run (a remote server is asked inline; a Run belongs to local servers launched on a worker, a later slice) and carries no domain event. The approval it displaced is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "4e1f1fdf68726693d0b8c36cf23a94ac453512c5"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:350a67b467395a98dc007935426ca0ec22397a03e33c236f38510f471d3026d3",
+      "reason": "#434 MCP connections re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 4e1f1fdf68726693d0b8c36cf23a94ac453512c5: McpConnectionCreate and McpConnectionUpdate drop the secretId reference input and gain a write-only secret (a caller can no longer point a connection at an arbitrary secret id; the credential is sealed server-side), McpConnectionCreate gains an optional scope (organization|personal), and McpConnection gains ownerPrincipalId. mcpConnections create, update and discover change from Admin to Developer-for-personal/Admin-for-organization access. No client writes these shapes: no handler existed before this change. mcpConnections.discover returns the McpCapabilitySnapshot it pinned instead of a Run (a remote server is asked inline; a Run belongs to local servers launched on a worker, a later slice) and carries no domain event. The approval it displaced is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "167d6f712103081750c763063a1e49225738407d",
+        "9d60ae16861322c7425338069d24f9ccb0885089",
+        "1ce09ba92c2007f4837308efdbabfc93baaaff67"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1",
+      "reason": "#57 slice 1 merge from Bakery re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 167d6f712103081750c763063a1e49225738407d: PullRequest gains a required mayMerge (boolean, whether the caller holds pullRequest:merge) and a required mergeMethod (the squash default Bakery merges with), on an output no client writes. mergeAttempts.list (GET /v1/merge-attempts, keyset) and the pull request and run filters of mergeEntries.list are additive. The breaking drift is those two fields becoming required; the approval it displaced at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926 is preserved unchanged first below; main moved again (#724) and the digest followed, the earlier digest of this same change is kept next."
+    },
+    {
+      "fromBaseRefs": [
+        "9d60ae16861322c7425338069d24f9ccb0885089",
+        "1ce09ba92c2007f4837308efdbabfc93baaaff67"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:468a1fc65fc3b08483d56cf8108a2d8cb76241bab428558a44b78b723a0d8a53",
+      "reason": "#57 slice 1 merge from Bakery re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 9d60ae16861322c7425338069d24f9ccb0885089: PullRequest gains a required mayMerge (boolean, whether the caller holds pullRequest:merge) and a required mergeMethod (the squash default Bakery merges with), on an output no client writes. mergeAttempts.list (GET /v1/merge-attempts, keyset) and the pull request and run filters of mergeEntries.list are additive. The breaking drift is those two fields becoming required; the approval it displaced at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "94e8c0e8c04f896c3f56374303ac9853d21405aa",
+        "3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "de64639a4d4cfbf49bc3402f7d21deffd06ef74a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main de64639a4d4cfbf49bc3402f7d21deffd06ef74a: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "bafc1fb3056996606b9392156f474cbbed264c06"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main bafc1fb3056996606b9392156f474cbbed264c06: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "968c2ab9257fad06adb6132eb743a4f62c578e17",
+        "9da88825036edcc588db4c2ac892297a8638b8cb"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 9da88825036edcc588db4c2ac892297a8638b8cb: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "0eb879783c9ec575e77852b3b560dde8f45349a3",
+        "a83b7ec57da9bf29078c23b24d3cdda776f255fe"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main a83b7ec57da9bf29078c23b24d3cdda776f255fe: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "3b8d4ef5651aeb7feb2a38518001271c1436646f"

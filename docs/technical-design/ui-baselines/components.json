@@ -1,5 +1,5 @@
 {
-  "revision": "c0db40ddee04a47ed25d5294becc80b11291f83cd97596a10ee47ceb1f3c4ae3",
+  "revision": "4f0e635889893b33ebcfbcd294f3e12993fbf1616696dc254f6b855702824963",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -21559,7 +21559,7 @@
     {
       "id": "ui.stackedRow",
       "name": "StackedRow",
-      "description": "One ruled row of a narrow list: title and status over short detail lines.",
+      "description": "One ruled row of a narrow list: title and status over short detail lines; the row whose detail is open can be marked selected.",
       "level": "molecule",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Molecules/StackedRow",
