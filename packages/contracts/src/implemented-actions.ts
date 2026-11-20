@@ -698,6 +698,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsList: "skills.list",
     SkillsGet: "skills.get",
     SkillsCreate: "skills.create",
+    SkillsCopy: "skills.copy",
     SkillsUpdate: "skills.update",
     SkillVersionsCreate: "skillVersions.create",
     SkillUseGrantsList: "skills.useGrants.list",
@@ -710,7 +711,8 @@ export const catalogImplementedActions = Object.freeze(
 );
 export const catalogIdentityImplementedActions = Object.freeze(
   Object.values(CatalogImplementedAction).filter((action) =>
-    action !== CatalogImplementedAction.SkillVersionsCreate
+    action !== CatalogImplementedAction.SkillVersionsCreate &&
+    action !== CatalogImplementedAction.SkillsCopy
   ),
 );
 

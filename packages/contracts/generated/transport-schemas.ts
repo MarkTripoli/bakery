@@ -3961,6 +3961,42 @@ const transportSchemas = {
       ],
       "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published, as an organization skill or as a personal skill that belongs to the calling person."
     },
+    "SkillCopy": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill to copy; supplied via the request's {id} path segment. The copy starts from its active version, and the copy records this skill and that version as where it came from."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Display name of the new skill, shown wherever skills are listed or picked; independent of the name of the skill it was copied from."
+        },
+        {
+          "name": "scope",
+          "type": "enum(organization|personal)",
+          "required": true,
+          "description": "Who the copy is for: organization (visible to everyone in the organization, and copying into it needs the Admin role) or personal (shown as Private, belongs to the calling person alone). A skill that comes with Bakery can be copied into either, and the original is never changed."
+        },
+        {
+          "name": "slug",
+          "type": "slug",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "URL-safe identity of the new skill, unique within the organization for an organization copy and within the caller's own skills for a personal one; when omitted it is made from the name."
+        }
+      ],
+      "description": "Copies a skill the caller can see into a new organization or personal skill with its own identity, carrying the source's active version (every file and the manifest) as version 1 and recording the source skill and version it was copied from."
+    },
     "SkillImport": {
       "fields": [
         {
@@ -13941,7 +13977,9 @@ const transportSchemas = {
         "ownerPrincipalId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -13954,12 +13992,16 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "scope": "enum(global|organization|personal)",
-        "ownerPrincipalId": "uuid|null"
+        "ownerPrincipalId": "uuid|null",
+        "copiedFromSkillId": "uuid|null",
+        "copiedFromVersionId": "uuid|null"
       },
       "nullableFields": [
         "sourceId",
         "activeVersionId",
-        "ownerPrincipalId"
+        "ownerPrincipalId",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "sourceColumns": {
         "id": "id",
@@ -13972,7 +14014,9 @@ const transportSchemas = {
         "updatedAt": "updated_at",
         "version": "version",
         "scope": "scope",
-        "ownerPrincipalId": "owner_principal_id"
+        "ownerPrincipalId": "owner_principal_id",
+        "copiedFromSkillId": "copied_from_skill_id",
+        "copiedFromVersionId": "copied_from_version_id"
       },
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
@@ -13986,7 +14030,9 @@ const transportSchemas = {
         "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill.",
         "createdAt": "UTC timestamp when the skill record was created.",
         "updatedAt": "UTC timestamp when the skill record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the skill record."
+        "version": "Optimistic-concurrency version used when updating the skill record.",
+        "copiedFromSkillId": "Stable UUID of the skill this one was copied from; null when the skill was not made by copying.",
+        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying."
       }
     },
     "skill_versions": {
@@ -21221,7 +21267,9 @@ const transportSchemas = {
         "ownerPrincipalId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -21234,12 +21282,16 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "scope": "enum(global|organization|personal)",
-        "ownerPrincipalId": "uuid|null"
+        "ownerPrincipalId": "uuid|null",
+        "copiedFromSkillId": "uuid|null",
+        "copiedFromVersionId": "uuid|null"
       },
       "nullableFields": [
         "sourceId",
         "activeVersionId",
-        "ownerPrincipalId"
+        "ownerPrincipalId",
+        "copiedFromSkillId",
+        "copiedFromVersionId"
       ],
       "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use.",
       "fieldDescriptions": {
@@ -21253,7 +21305,9 @@ const transportSchemas = {
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
         "scope": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person.",
-        "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill."
+        "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill.",
+        "copiedFromSkillId": "Stable UUID of the skill this one was copied from; null when the skill was not made by copying.",
+        "copiedFromVersionId": "Stable UUID of the exact version of the source skill this copy started from; null when the skill was not made by copying."
       }
     },
     "SkillVersion": {
@@ -32006,6 +32060,15 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification for a newly created tenant skill; consumers fetch the authoritative skill through its REST operation."
+    },
+    "skills.copied": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification for a skill made by copying another; consumers fetch the authoritative skill through its REST operation."
     },
     "skills.updated": {
       "schemaVersion": 1,
