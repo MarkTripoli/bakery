@@ -17,11 +17,14 @@
  * naming the variable a person would set -- rather than accepting requests it cannot
  * verify.
  */
+import { StandardError, unprocessable } from "@bakery/contracts/http";
+import { appendAudit } from "@bakery/persistence";
 import {
   type PgDatabase,
   type PgTransactionClient,
   withPgTransaction,
 } from "../../platform/database.ts";
+import { encryptInstallationSecret } from "../secrets/crypto.ts";
 
 /** The provider name the settings row is stored under, in `bakery.secrets`. */
 export const SLACK_PROVIDER = "slack";
@@ -128,5 +131,364 @@ export async function loadSlackAppCredentials(
   return await withPgTransaction(
     database,
     (transaction) => readSlackAppCredentials(transaction),
+  );
+}
+
+/** What the settings screen shows about the app, with no secret in sight. */
+export type SlackAppSettings = Readonly<{
+  appId: string;
+  clientId: string;
+  /** When each secret was written. A saved secret is only its date, as Linear's is. */
+  signingSecretSavedAt: string;
+  clientSecretSavedAt: string;
+  /** The row version a save must quote, so a second editor cannot overwrite blind. */
+  version: number;
+  detailsCheckedAt: string | null;
+  detailsCheckResult: SlackCheckResult | null;
+  lastRequestAt: string | null;
+  lastRequestFailedAt: string | null;
+}>;
+
+/** What Slack said when the client ID and secret were last checked. */
+export type SlackCheckResult =
+  | "accepted"
+  | "client_id_refused"
+  | "client_secret_refused"
+  | "unreachable";
+
+/** The four values a save carries; the two secrets may be omitted to keep them. */
+export type SlackAppDraft = Readonly<{
+  appId: string;
+  clientId: string;
+  clientSecret?: string;
+  signingSecret?: string;
+}>;
+
+/**
+ * The settings, or null when no app is configured.
+ *
+ * The two "saved at" times come from the secrets themselves -- the version's
+ * creation time -- rather than from a duplicated column, so a rotated secret cannot
+ * report the date of the one it replaced.
+ */
+export async function readSlackAppSettings(
+  transaction: Pick<PgTransactionClient, "query">,
+): Promise<SlackAppSettings | null> {
+  const result = await transaction.query<{
+    appId: string;
+    clientId: string;
+    signingSavedAt: Date;
+    clientSavedAt: Date;
+    version: number;
+    detailsCheckedAt: Date | null;
+    detailsCheckResult: SlackCheckResult | null;
+    lastRequestAt: Date | null;
+    lastRequestFailedAt: Date | null;
+  }>(
+    `select settings.external_app_id as "appId",
+            settings.client_id as "clientId",
+            signing_version.created_at as "signingSavedAt",
+            client_version.created_at as "clientSavedAt",
+            settings.version,
+            settings.details_checked_at as "detailsCheckedAt",
+            settings.details_check_result as "detailsCheckResult",
+            settings.last_request_at as "lastRequestAt",
+            settings.last_request_failed_at as "lastRequestFailedAt"
+       from bakery.slack_app_settings as settings
+       join bakery.secrets as signing on signing.id = settings.signing_secret_id
+       join bakery.secret_versions as signing_version
+         on signing_version.id = signing.active_version_id
+       join bakery.secrets as client on client.id = settings.client_secret_id
+       join bakery.secret_versions as client_version
+         on client_version.id = client.active_version_id
+      where settings.id`,
+  );
+  const row = result.rows[0];
+  if (row === undefined) return null;
+  return {
+    appId: row.appId,
+    clientId: row.clientId,
+    signingSecretSavedAt: row.signingSavedAt.toISOString(),
+    clientSecretSavedAt: row.clientSavedAt.toISOString(),
+    version: row.version,
+    detailsCheckedAt: row.detailsCheckedAt?.toISOString() ?? null,
+    detailsCheckResult: row.detailsCheckResult,
+    lastRequestAt: row.lastRequestAt?.toISOString() ?? null,
+    lastRequestFailedAt: row.lastRequestFailedAt?.toISOString() ?? null,
+  };
+}
+
+/**
+ * Writes one installation-owned secret's next revision and points the secret at it.
+ *
+ * Rotation is an insert plus a pointer move: the old ciphertext stays readable for
+ * anything that already opened it, and the settings row never names a revision that
+ * does not exist.
+ */
+async function writeInstallationSecret(
+  transaction: PgTransactionClient,
+  input: {
+    readonly secretId: string | null;
+    readonly name: string;
+    readonly value: string;
+    readonly principalId: string;
+    readonly key: CryptoKey;
+    readonly keyId: string;
+  },
+): Promise<string> {
+  const secretId = input.secretId ?? crypto.randomUUID();
+  const previous = input.secretId === null ? 0 : (await transaction.query<
+    { revision: number }
+  >(
+    `select active_version_revision as revision from bakery.secrets
+      where id = $1`,
+    [secretId],
+  )).rows[0]?.revision ?? 0;
+  const revision = previous + 1;
+  const cipher = await encryptInstallationSecret(
+    input.key,
+    { secretId, revision, keyId: input.keyId },
+    input.value,
+  );
+  if (input.secretId === null) {
+    await transaction.query(
+      `insert into bakery.secrets
+         (id, name, provider, active_version_revision, created_at, updated_at)
+       values ($1, $2, $3, 1, now(), now())`,
+      [secretId, input.name, SLACK_PROVIDER],
+    );
+  }
+  const versionId = crypto.randomUUID();
+  await transaction.query(
+    `insert into bakery.secret_versions
+       (id, secret_id, revision, ciphertext, nonce, key_id, created_by)
+     values ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      versionId,
+      secretId,
+      revision,
+      cipher.ciphertext,
+      cipher.nonce,
+      input.keyId,
+      input.principalId,
+    ],
+  );
+  await transaction.query(
+    `update bakery.secrets
+        set active_version_id = $2, active_version_revision = $3,
+            generation = generation + 1,
+            invalidation_generation = invalidation_generation + 1,
+            version = version + 1, updated_at = now()
+      where id = $1`,
+    [secretId, versionId, revision],
+  );
+  return secretId;
+}
+
+/**
+ * Saves the app details, keeping a secret that was omitted.
+ *
+ * "Replace details" sends only what changed, so an omitted secret is not a
+ * cleared one: the stored revision stays active and its saved date does not move.
+ * The version check is the same one the Linear pair uses -- a second editor's save
+ * is refused rather than silently overwriting the first -- and the audit row names
+ * which secrets were replaced and nothing about their values.
+ */
+export async function saveSlackAppSettings(
+  transaction: PgTransactionClient,
+  input: SlackAppDraft & {
+    readonly principalId: string;
+    /** The row version the caller saw; omitted only for a first save. */
+    readonly expectedVersion?: number;
+    readonly key: CryptoKey;
+    readonly keyId: string;
+    readonly operation: string;
+    readonly requestId: string;
+    readonly traceId: string;
+  },
+): Promise<SlackAppSettings> {
+  const existing = await transaction.query<{
+    version: number;
+    signingSecretId: string;
+    clientSecretId: string;
+  }>(
+    `select version, signing_secret_id as "signingSecretId",
+            client_secret_id as "clientSecretId"
+       from bakery.slack_app_settings where id = true for update`,
+  );
+  const stored = existing.rows[0] ?? null;
+  if (stored === null && input.expectedVersion !== undefined) {
+    // Nothing is registered, so there is no version to hold the caller to.
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  if (stored !== null) {
+    if (input.expectedVersion === undefined) {
+      throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+    }
+    if (input.expectedVersion !== stored.version) {
+      throw new StandardError({ code: "PRECONDITION_FAILED" });
+    }
+  }
+
+  const signingSecretId = input.signingSecret === undefined
+    ? stored?.signingSecretId
+    : await writeInstallationSecret(transaction, {
+      secretId: stored?.signingSecretId ?? null,
+      name: "Slack signing secret",
+      value: input.signingSecret,
+      principalId: input.principalId,
+      key: input.key,
+      keyId: input.keyId,
+    });
+  const clientSecretId = input.clientSecret === undefined
+    ? stored?.clientSecretId
+    : await writeInstallationSecret(transaction, {
+      secretId: stored?.clientSecretId ?? null,
+      name: "Slack client secret",
+      value: input.clientSecret,
+      principalId: input.principalId,
+      key: input.key,
+      keyId: input.keyId,
+    });
+  // A first save must carry both: there is nothing to keep.
+  if (signingSecretId === undefined || clientSecretId === undefined) {
+    throw unprocessable(["clientSecret", "signingSecret"], "secret_required");
+  }
+
+  if (stored === null) {
+    await transaction.query(
+      `insert into bakery.slack_app_settings
+         (external_app_id, client_id, signing_secret_id, client_secret_id)
+       values ($1, $2, $3, $4)`,
+      [input.appId, input.clientId, signingSecretId, clientSecretId],
+    );
+  } else {
+    await transaction.query(
+      `update bakery.slack_app_settings
+          set external_app_id = $2, client_id = $3, signing_secret_id = $4,
+              client_secret_id = $5, updated_at = now(), version = version + 1,
+              -- A replaced secret makes the previous check meaningless.
+              details_checked_at = case when $6::boolean then null
+                else details_checked_at end,
+              details_check_result = case when $6::boolean then null
+                else details_check_result end
+        where id = true and version = $1`,
+      [
+        stored.version,
+        input.appId,
+        input.clientId,
+        signingSecretId,
+        clientSecretId,
+        input.signingSecret !== undefined || input.clientSecret !== undefined,
+      ],
+    );
+  }
+
+  await appendAudit(transaction, {
+    organizationId: null,
+    principalId: input.principalId,
+    operation: input.operation,
+    resourceType: "slack_app_settings",
+    resourceId: input.appId,
+    details: {
+      replaced: stored !== null,
+      clientSecretReplaced: input.clientSecret !== undefined,
+      signingSecretReplaced: input.signingSecret !== undefined,
+    },
+    requestId: input.requestId,
+    traceId: input.traceId,
+  });
+  const saved = await readSlackAppSettings(transaction);
+  if (saved === null) {
+    throw new Error("slack settings disappeared while saving");
+  }
+  return saved;
+}
+
+/**
+ * Removes the app details, and nothing else.
+ *
+ * Identity links and organization connections are kept: the design's dialog promises
+ * they work again when details are entered again, and deleting them would silently
+ * unlink people over a credential rotation. The secrets go, because the app they
+ * belonged to no longer exists here.
+ */
+export async function removeSlackAppSettings(
+  transaction: PgTransactionClient,
+  input: {
+    readonly principalId: string;
+    readonly operation: string;
+    readonly requestId: string;
+    readonly traceId: string;
+  },
+): Promise<void> {
+  const removed = await transaction.query<{
+    appId: string;
+    signingSecretId: string;
+    clientSecretId: string;
+  }>(
+    `delete from bakery.slack_app_settings
+      returning external_app_id as "appId",
+                signing_secret_id as "signingSecretId",
+                client_secret_id as "clientSecretId"`,
+  );
+  const row = removed.rows[0];
+  if (row === undefined) return;
+  for (const secretId of [row.signingSecretId, row.clientSecretId]) {
+    await transaction.query(
+      "update bakery.secrets set active_version_id = null where id = $1",
+      [secretId],
+    );
+    await transaction.query(
+      "delete from bakery.secret_versions where secret_id = $1",
+      [secretId],
+    );
+    await transaction.query("delete from bakery.secrets where id = $1", [
+      secretId,
+    ]);
+  }
+  await appendAudit(transaction, {
+    organizationId: null,
+    principalId: input.principalId,
+    operation: input.operation,
+    resourceType: "slack_app_settings",
+    resourceId: row.appId,
+    details: {},
+    requestId: input.requestId,
+    traceId: input.traceId,
+  });
+}
+
+/** Records that a check ran and what Slack answered, for the screen's first row. */
+export async function recordSlackCheck(
+  transaction: Pick<PgTransactionClient, "query">,
+  result: SlackCheckResult,
+): Promise<void> {
+  await transaction.query(
+    `update bakery.slack_app_settings
+        set details_checked_at = now(), details_check_result = $1
+      where id = true`,
+    [result],
+  );
+}
+
+/**
+ * Records how a real request from Slack went, for the screen's second row.
+ *
+ * This is the only way the signing secret is ever "tested": Slack signs with it, so
+ * a request that verified proves it and one that did not proves it wrong. Both times
+ * are kept, so a screen can say "Last accepted …" and still warn that a later one
+ * failed.
+ */
+export async function recordSlackRequest(
+  transaction: Pick<PgTransactionClient, "query">,
+  outcome: "accepted" | "refused",
+): Promise<void> {
+  await transaction.query(
+    outcome === "accepted"
+      ? `update bakery.slack_app_settings set last_request_at = now()
+          where id = true`
+      : `update bakery.slack_app_settings set last_request_failed_at = now()
+          where id = true`,
   );
 }

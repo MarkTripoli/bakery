@@ -43,6 +43,7 @@ import {
   readSlackAppCredentials,
   type SlackAppCredentials,
 } from "./slack-app-credentials.ts";
+import { recordSlackRequest } from "./slack-app-credentials.ts";
 import { decideSlackApproval } from "./slack-decisions.ts";
 import { claimSlackRequest } from "./slack-request-receipts.ts";
 import {
@@ -193,6 +194,13 @@ export function mountSlackInteractionsRoute(
       now: now(),
     });
     if (!verdict.ok) {
+      // The settings screen's second row reports this: a person who regenerated the
+      // signing secret in Slack sees "a request did not match the signing secret"
+      // there, which is the only way the secret is ever tested.
+      await withPgTransaction(
+        options.database,
+        (transaction) => recordSlackRequest(transaction, "refused"),
+      );
       // The reason is logged, never returned: "signature_mismatch" is not something
       // Slack or a person can act on, and it would tell a prober how close they got.
       log(
@@ -207,15 +215,17 @@ export function mountSlackInteractionsRoute(
 
     const claim = await withPgTransaction(
       options.database,
-      (transaction) =>
-        claimSlackRequest(transaction, {
+      async (transaction) => {
+        await recordSlackRequest(transaction, "accepted");
+        return await claimSlackRequest(transaction, {
           replayKey: verdict.replayKey,
           bodyDigest: verdict.bodyDigest,
           requestedAt: verdict.timestamp,
           // The workspace is only known once the payload is decoded, so the receipt
           // does not claim one; the decision matches it against the post.
           teamId: null,
-        }),
+        });
+      },
     );
 
     const payloadText = readPayloadField(rawBody);
