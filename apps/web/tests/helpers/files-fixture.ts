@@ -1,10 +1,78 @@
 import { createHash } from "node:crypto";
+import { deflateSync } from "node:zlib";
 import type { Page } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
 } from "./mock-session.ts";
 import { uuid } from "./issues-fixture.ts";
+
+/** A table of the CRC-32 the PNG format asks for each chunk. */
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const byte of bytes) c = CRC_TABLE[(c ^ byte) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type: string, data: Uint8Array): Buffer {
+  const body = Buffer.concat([Buffer.from(type, "ascii"), Buffer.from(data)]);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([length, body, crc]);
+}
+
+/**
+ * A 720x405 picture of three boxes joined by lines, built here so the fixture
+ * carries no binary: opening it full size has to look like something.
+ */
+function diagramPng(): Buffer {
+  const width = 720;
+  const height = 405;
+  const boxes = [
+    { x: 60, y: 140, w: 170, h: 120, color: [91, 110, 225] },
+    { x: 275, y: 140, w: 170, h: 120, color: [74, 160, 140] },
+    { x: 490, y: 140, w: 170, h: 120, color: [225, 150, 80] },
+  ];
+  const row = Buffer.alloc(1 + width * 3);
+  const raw = Buffer.alloc((1 + width * 3) * height);
+  for (let y = 0; y < height; y++) {
+    row.fill(0);
+    for (let x = 0; x < width; x++) {
+      let color = [244, 246, 250];
+      if (y >= 196 && y <= 203 && x >= 230 && x <= 490) color = [150, 158, 175];
+      for (const box of boxes) {
+        if (
+          x >= box.x && x < box.x + box.w && y >= box.y && y < box.y + box.h
+        ) {
+          color = box.color;
+        }
+      }
+      row[1 + x * 3] = color[0]!;
+      row[2 + x * 3] = color[1]!;
+      row[3 + x * 3] = color[2]!;
+    }
+    row.copy(raw, y * (1 + width * 3));
+  }
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8; // bit depth
+  header[9] = 2; // truecolor
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(raw)),
+    pngChunk("IEND", new Uint8Array()),
+  ]);
+}
 
 const STAMP = "2026-01-01T00:00:00.000Z";
 
@@ -592,11 +660,8 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
         });
       }
       if (fileId === uuid(43)) {
-        // A 1x1 transparent PNG.
-        const png = Buffer.from(
-          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-          "base64",
-        );
+        // A real picture, wide enough that opening it full size is visible.
+        const png = diagramPng();
         return route.fulfill({
           status: 200,
           body: png,
