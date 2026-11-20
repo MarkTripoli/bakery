@@ -2147,6 +2147,9 @@
   grid-column: 2;
   grid-row: 1;
   justify-self: start;
+  /* The tip is a touch target taller than the label's line; the negative
+     margin keeps it centred on the word without making the row taller. */
+  margin-block: calc(-1 * var(--target-coarse));
 }
 .ui-combobox-help select {
   grid-column: 1 / -1;
