@@ -9,10 +9,15 @@ import {
  * actions and no others, so a new action never becomes reachable by a grant by
  * accident: it has to be added here, in review, with its own refusal test.
  */
-Deno.test("a run grant reaches exactly the run, its steps and its task read", () => {
+Deno.test("a run grant reaches exactly the run, its steps, its task, its delivery evidence and its artifact versions", () => {
   assertEquals(
     Object.entries(RUN_GRANT_ACTIONS).sort(([a], [b]) => a < b ? -1 : 1),
     [
+      ["artifactComments.list", "artifactVersion"],
+      ["artifactVersions.content", "artifactVersion"],
+      ["checks.list", "run"],
+      ["runDeliveryDecisions.list", "run"],
+      ["runReviews.list", "run"],
       ["runSteps.list", "run"],
       ["runs.get", "run"],
       ["tasks.get", "task"],

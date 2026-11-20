@@ -51,6 +51,7 @@ import {
   hasLiveRunGrant,
   RUN_GRANT_ACTIONS,
   RUN_POWER_ACTIONS,
+  type RunGrantKind,
   type RunPower,
 } from "../application/run-grants.ts";
 import {
@@ -353,7 +354,7 @@ export function authorizeWithBindings(
   resolveTarget: (
     kind: NonNullable<(typeof BINDABLE_ACTIONS)[keyof typeof BINDABLE_ACTIONS]>,
   ) => Promise<BindingTarget | undefined>,
-  holdsRunGrant: (kind: "run" | "task") => Promise<boolean> = () =>
+  holdsRunGrant: (kind: RunGrantKind) => Promise<boolean> = () =>
     Promise.resolve(false),
   holdsRunPower: (power: RunPower) => Promise<boolean> = () =>
     Promise.resolve(false),
