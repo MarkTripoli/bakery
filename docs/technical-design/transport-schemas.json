@@ -29380,7 +29380,7 @@
         "progressPercent": "integer|null",
         "sizeBytes": "decimalString|null",
         "locations": "string[]",
-        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|runner_error|runner_lost)|null",
+        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|runner_error)|null",
         "failureDetail": "string|null"
       },
       "nullableFields": [
@@ -29408,7 +29408,7 @@
         "progressPercent": "Latest reported progress from 0 to 100, or null before any report.",
         "sizeBytes": "Size of the finished encrypted backup set in bytes as a decimal string, or null until completed.",
         "locations": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed.",
-        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, runner_error, or runner_lost when the runner stopped reporting; null otherwise.",
+        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise.",
         "failureDetail": "The runner's plain-text answer for the failure, or null."
       }
     },

@@ -233444,10 +233444,9 @@
                     "destination_refused",
                     "destination_unreachable",
                     "key_missing",
-                    "runner_error",
-                    "runner_lost"
+                    "runner_error"
                   ],
-                  "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, runner_error, or runner_lost when the runner stopped reporting; null otherwise."
+                  "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise."
                 },
                 {
                   "type": "null",
@@ -233653,10 +233652,9 @@
                           "destination_refused",
                           "destination_unreachable",
                           "key_missing",
-                          "runner_error",
-                          "runner_lost"
+                          "runner_error"
                         ],
-                        "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, runner_error, or runner_lost when the runner stopped reporting; null otherwise."
+                        "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise."
                       },
                       {
                         "type": "null",
@@ -255989,7 +255987,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:e468736f570f58624d7655ba31f14ef79f8b64c3300dd7173aefdb1575997f83",
+  "compatibilityDigest": "sha256:90003e0a5fef42415cd4efa10bc3bc8757f8248f89478266326f69f89350a469",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -444797,10 +444795,9 @@
                 "destination_refused",
                 "destination_unreachable",
                 "key_missing",
-                "runner_error",
-                "runner_lost"
+                "runner_error"
               ],
-              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, runner_error, or runner_lost when the runner stopped reporting; null otherwise."
+              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise."
             },
             {
               "type": "null",
@@ -445006,10 +445003,9 @@
                       "destination_refused",
                       "destination_unreachable",
                       "key_missing",
-                      "runner_error",
-                      "runner_lost"
+                      "runner_error"
                     ],
-                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, runner_error, or runner_lost when the runner stopped reporting; null otherwise."
+                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise."
                   },
                   {
                     "type": "null",
