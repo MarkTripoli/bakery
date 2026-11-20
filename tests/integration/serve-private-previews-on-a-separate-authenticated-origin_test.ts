@@ -1247,6 +1247,11 @@ Deno.test("an app's cookie stays on its own origin and cannot reach sibling prev
         const headers = new Headers();
         headers.append("set-cookie", "mine=1; Path=/; HttpOnly");
         headers.append("set-cookie", "toss=1; Domain=localhost; Path=/");
+        // The same attribute spelled the ways a browser still reads as Domain.
+        headers.append("set-cookie", "toss2=1; Domain =localhost; Path=/");
+        headers.append("set-cookie", "toss3=1; DOMAIN\t=localhost; Path=/");
+        headers.append("set-cookie", "toss4=1;  domain= localhost");
+        headers.append("set-cookie", "toss5=1; Domain");
         headers.append(
           "set-cookie",
           "bakery_running_preview=evil; Domain=localhost; Path=/",

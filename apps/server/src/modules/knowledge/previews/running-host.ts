@@ -191,17 +191,31 @@ function withoutPreviewCookie(header: string | null, name: string) {
 }
 
 /**
+ * The name of one cookie attribute as a browser reads it: what comes before the
+ * first `=`, with the space and tabs around it removed (RFC 6265 section 5.2),
+ * lower-cased. `Domain =x`, ` domain= x`, `DOMAIN\t=x` and a bare `Domain` all
+ * name the same attribute, so none of them may be matched by its spelling.
+ */
+export function cookieAttributeName(attribute: string): string {
+  const equals = attribute.indexOf("=");
+  return (equals < 0 ? attribute : attribute.slice(0, equals)).trim()
+    .toLowerCase();
+}
+
+/**
  * An app's cookie is kept to its own origin: a `Domain` attribute would reach
  * the sibling previews and could overwrite the session cookie of another
- * preview, so a cookie that names one is dropped.
+ * preview, so a cookie that names one is dropped, however it is spelled. Every
+ * other attribute passes through untouched: `Path`, `Secure`, `HttpOnly`,
+ * `SameSite` and the lifetimes only narrow a cookie that is already host-only.
  */
-function safeSetCookies(upstream: Headers): string[] {
+export function safeSetCookies(upstream: Headers): string[] {
   const all = typeof upstream.getSetCookie === "function"
     ? upstream.getSetCookie()
     : [];
   return all.filter((cookie) =>
     !cookie.split(";").slice(1).some((attribute) =>
-      attribute.trim().toLowerCase().startsWith("domain=")
+      cookieAttributeName(attribute) === "domain"
     )
   );
 }
