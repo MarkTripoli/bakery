@@ -120,6 +120,18 @@ Deno.test("a cookie and ?organizationId= read my file whole, by range, and 416 p
       (JSON.parse(await bad.text()) as Json).code,
       "MALFORMED_REQUEST",
     );
+    // The header wins: a malformed header is refused even beside a valid
+    // query, so the query can never stand in for a header that was sent.
+    const badHeader = await media(fixture, content, {
+      "Bakery-Organization-Id": "not-a-uuid",
+    });
+    const badHeaderText = await badHeader.text();
+    assertEquals(
+      (JSON.parse(badHeaderText) as Json).code,
+      "MALFORMED_REQUEST",
+      badHeaderText,
+    );
+    assert(!badHeaderText.includes("hello, media"), badHeaderText);
   }));
 
 Deno.test("the query organization is membership-checked and must agree with the header", () =>
