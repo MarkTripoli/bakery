@@ -371,3 +371,62 @@ Deno.test("the cache keeps at most the capped number of rows per version", async
   );
   assertEquals(query!.values, [ORG, VERSION, EXTRACT_CACHE_ROWS_PER_VERSION]);
 });
+
+// The identity read is the live authorization gate. A cache row that would
+// answer the request must never be consulted when that read finds nothing for
+// the caller, or finds the version purged.
+const CACHE_ROW = {
+  artifact_id: ARTIFACT,
+  start_byte: 0,
+  end_byte_exclusive: 10,
+  text: "hello worl",
+  has_more: false,
+  media_type: "text/plain",
+  digest: SHA,
+  extractor_version: CONTEXT_EXTRACTOR_VERSION,
+};
+
+function extractWithIdentity(identityRows: unknown[]) {
+  const { transaction, queries } = stubTransaction((sql) => {
+    if (sql.includes("from bakery.artifact_extracts e")) return [CACHE_ROW];
+    if (sql.includes("from bakery.artifact_versions v")) return identityRows;
+    throw new Error(`unexpected query: ${sql}`);
+  });
+  const call = () =>
+    extractArtifactVersion(
+      {
+        params: { id: VERSION },
+        authority: { organizationId: ORG, subject: { principalId: "p1" } },
+        transaction,
+      } as never,
+      {},
+    );
+  return { queries, call };
+}
+
+Deno.test("withdrawn access is refused even with a valid cache row, and the cache is never read", async () => {
+  const { queries, call } = extractWithIdentity([]);
+  const error = await assertRejects(call, StandardError);
+  assertEquals((error as StandardError).code, "RESOURCE_NOT_FOUND");
+  assertEquals(
+    queries.some((query) => query.sql.includes("artifact_extracts")),
+    false,
+  );
+});
+
+Deno.test("a purged version is refused even with a valid cache row, and the cache is never read", async () => {
+  const { queries, call } = extractWithIdentity([{
+    id: VERSION,
+    purged_at: "2026-11-20T00:00:00Z",
+    artifact_id: ARTIFACT,
+    media_type: "text/plain",
+    size_bytes: 10,
+    sha256: SHA,
+  }]);
+  const error = await assertRejects(call, StandardError);
+  assertEquals((error as StandardError).code, "ARTIFACT_CONTENT_EXPIRED");
+  assertEquals(
+    queries.some((query) => query.sql.includes("artifact_extracts")),
+    false,
+  );
+});

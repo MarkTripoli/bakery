@@ -179,3 +179,50 @@ Deno.test("only the chunk-aligned full window is written to the cache", async ()
   });
   assertEquals(rows.size, 1, "one row per chunk, however often it is read");
 });
+
+// A request that is not the chunk-aligned full window must read cold even after
+// its chunk is cached: the cached row holds the whole chunk's text, and serving
+// it would label that text with the window the caller asked for.
+for (
+  const [startByte, maxBytes] of [
+    [100, 10],
+    [70_000, 10],
+    [65_536, 20],
+    [0, 10],
+  ] as Array<[number, number]>
+) {
+  Deno.test(
+    `after the chunk is cached, start=${startByte} max=${maxBytes} still answers like a cold read`,
+    async () => {
+      const authority = {
+        organizationId: ORG,
+        subject: { principalId: "p1" },
+      };
+      const cold = await extractArtifactVersion(
+        {
+          params: { id: VERSION },
+          authority,
+          transaction: database().transaction,
+        } as never,
+        { startByte, maxBytes },
+      );
+      const warm = database();
+      const context = {
+        params: { id: VERSION },
+        authority,
+        transaction: warm.transaction,
+      } as never;
+      const chunk = Math.floor(startByte / 65_536) * 65_536;
+      await extractArtifactVersion(context, {
+        startByte: chunk,
+        maxBytes: 65_536,
+      });
+      assertEquals(warm.rows.size, 1, "the aligned read cached its chunk");
+      assertEquals(
+        await extractArtifactVersion(context, { startByte, maxBytes }),
+        cold,
+      );
+      assertEquals(warm.rows.size, 1, "the non-aligned read wrote nothing");
+    },
+  );
+}
