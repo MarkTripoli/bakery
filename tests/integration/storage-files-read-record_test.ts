@@ -256,7 +256,7 @@ async function world(fixture: Fixture) {
   return { own, file, other };
 }
 
-Deno.test("PROBE record-area file: versions, uses, bytes and conditional headers", () =>
+Deno.test("record-area file: versions, uses, bytes and conditional headers", () =>
   withWorkerFixture(async (fixture) => {
     const { own, file } = await world(fixture);
     const db = fixture.pgDatabase;
@@ -677,7 +677,7 @@ Deno.test("cursor binding: folder, versions, uses; other file, action, principal
     );
   }));
 
-Deno.test("PROBE tenancy, permission gate, /system descendants, validation", () =>
+Deno.test("tenancy, permission gate, /system descendants, validation", () =>
   withWorkerFixture(async (fixture) => {
     const { file } = await world(fixture);
     const db = fixture.pgDatabase;
