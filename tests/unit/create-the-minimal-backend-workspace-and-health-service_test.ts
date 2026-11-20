@@ -5,9 +5,11 @@ import {
   HEALTH_API_COMPATIBILITY,
   healthResponseSchema,
   healthStateSchema,
+} from "../../packages/contracts/src/health.ts";
+import {
   LOCAL_SERVER_ORIGIN,
   LOCAL_SERVER_PORT,
-} from "../../packages/contracts/src/health.ts";
+} from "../../packages/config/src/local-server.ts";
 import {
   createHealthApp,
   readiness,

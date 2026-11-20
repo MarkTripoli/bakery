@@ -25,11 +25,10 @@ export const dependencyHealthSchema = z.object({
  */
 export const HEALTH_API_COMPATIBILITY = 1;
 
-/** The port a Bakery server on this computer listens on unless told otherwise. */
-export const LOCAL_SERVER_PORT = 8000;
-
-/** The fixed address of a Bakery server on this computer with default settings. */
-export const LOCAL_SERVER_ORIGIN = `http://127.0.0.1:${LOCAL_SERVER_PORT}`;
+// One text for the level and its optional wrapper: the generated contract
+// shows the wrapper's, and the schema rail needs the level's own too.
+const COMPATIBILITY_DESCRIPTION =
+  "API compatibility level of this build, comparable as a number; absent on servers that predate it, which a client treats as older than level 1.";
 
 export const healthResponseSchema = z.object({
   service: z.string().min(1).describe(
@@ -42,11 +41,8 @@ export const healthResponseSchema = z.object({
   dependencies: z.array(dependencyHealthSchema).describe(
     "Bounded dependency checks included in readiness responses.",
   ),
-  compatibility: z.number().int().min(1).describe(
-    "API compatibility level of this build; a higher number is newer.",
-  ).optional().describe(
-    "API compatibility level of this build, comparable as a number; absent on servers that predate it, which a client treats as older than level 1.",
-  ),
+  compatibility: z.number().int().min(1).describe(COMPATIBILITY_DESCRIPTION)
+    .optional().describe(COMPATIBILITY_DESCRIPTION),
 }).describe(
   "Versioned health response shared by server and worker HTTP boundaries.",
 );
