@@ -9122,6 +9122,29 @@
     },
     {
       "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/runs/{id}/cutoff",
+      "action": "backupRunner.cutoff",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupRunCutoff",
+      "output": "BackupCutoff",
+      "event": "",
+      "mcp": null,
+      "idempotency": "safe to repeat: the first ask records the cutoff, later asks return the same one",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Backup runner protocol",
       "method": "GET",
       "path": "/v1/backup-runner/settings",
       "action": "backupRunner.settings",
