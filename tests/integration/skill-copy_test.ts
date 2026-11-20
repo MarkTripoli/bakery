@@ -13,6 +13,7 @@ import {
 
 type Skill = {
   id: string;
+  sourceId: string;
   slug: string;
   name: string;
   activeVersionId: string | null;
@@ -197,6 +198,7 @@ Deno.test("copying a skill carries its active version and records where it came 
       "publish-research-v1",
     );
     assertEquals(publish.status, 201, await publish.clone().text());
+    const sourceRow = { sourceId: source.sourceId };
     const sourceVersion = await publish.json() as {
       id: string;
       digest: string;
@@ -330,6 +332,31 @@ Deno.test("copying a skill carries its active version and records where it came 
     const organizationCopy = await adminOrganization.json() as Skill;
     assertEquals(organizationCopy.scope, "organization");
     assertEquals(organizationCopy.ownerPrincipalId, null);
+
+    // A skill that was switched off, or whose source was, cannot be copied into a
+    // new enabled skill.
+    for (
+      const [table, column, id] of [
+        ["skills", "id", source.id],
+        ["skill_sources", "id", sourceRow.sourceId],
+      ] as const
+    ) {
+      await fixture.pgDatabase.query(
+        `update bakery.${table} set enabled = false where ${column} = $1`,
+        [id],
+      );
+      const off = await post(
+        adminCookie,
+        `/v1/skills/${source.id}/copy`,
+        { name: "Research (off)", scope: "organization", slug: `off-${table}` },
+        `copy-while-off-${table}`,
+      );
+      assertEquals(off.status, 409, await off.clone().text());
+      await fixture.pgDatabase.query(
+        `update bakery.${table} set enabled = true where ${column} = $1`,
+        [id],
+      );
+    }
 
     // A skill that comes with Bakery can be copied but never changed.
     await fixture.pgDatabase.query(

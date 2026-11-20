@@ -78,15 +78,31 @@ export async function prepareSkillCopy(options: {
   store: SkillFileStoreOperations | undefined;
 }): Promise<SkillCopyPreparation> {
   const { transaction, organizationId, principalId, input } = options;
-  const source = await transaction.query<
-    { id: string; active_version_id: string | null }
-  >(
-    `select id, active_version_id from bakery.skills
+  const source = await transaction.query<{
+    id: string;
+    active_version_id: string | null;
+    enabled: boolean;
+    source_enabled: boolean;
+  }>(
+    `select id, active_version_id, enabled,
+            coalesce((select source.enabled from bakery.skill_sources as source
+                       where source.organization_id = $1
+                         and source.id = skills.source_id), false)
+              as source_enabled
+       from bakery.skills
       where organization_id = $1 and id = $2 and ${SKILL_VISIBLE_TO("$3")}`,
     [organizationId, options.sourceSkillId, principalId],
   );
   const sourceSkill = source.rows[0];
   if (!sourceSkill) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  // A skill that was switched off, or whose source was, is not one to start a
+  // new, enabled skill from.
+  if (!sourceSkill.enabled || !sourceSkill.source_enabled) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "skill_disabled" },
+    });
+  }
   const scope = input.scope;
   // A personal skill is a person's own; an agent or a token never owns one.
   if (
