@@ -9,7 +9,15 @@ import {
 } from "@bakery/persistence";
 import { postgresErrorCode } from "../../platform/postgres-errors.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
-import { NON_REPLAY_SAFE_EFFECT_STATES } from "./handoff-manifest.ts";
+import {
+  decideResume,
+  historyIsAuthorized,
+  loadSourceSession,
+} from "./handoff-eligibility.ts";
+import {
+  HandoffManifestSchema,
+  NON_REPLAY_SAFE_EFFECT_STATES,
+} from "./handoff-manifest.ts";
 
 /**
  * `handoffManifests.continue` (#33 slice 2): retire the source attempt of a
@@ -81,7 +89,8 @@ type ManifestRow = {
   source_fence: string;
   status: string;
   mode: string;
-  manifest: { repository?: { captureStatus?: string } } | null;
+  digest: string;
+  manifest: unknown;
 };
 
 export async function admitHandoffContinuation(
@@ -108,9 +117,16 @@ export async function admitHandoffContinuation(
 
   // 1. Attempts, then jobs, of the step.
   const attempts = (await transaction.query<
-    { id: string; job_id: string; status: string; fence: string }
+    {
+      id: string;
+      job_id: string;
+      status: string;
+      fence: string;
+      worker_host_id: string | null;
+    }
   >(
-    `select a.id, a.job_id, a.status, a.fence::text as fence
+    `select a.id, a.job_id, a.status, a.fence::text as fence,
+            a.worker_host_id
        from bakery.job_attempts as a
        join bakery.jobs as j
          on j.organization_id = a.organization_id and j.id = a.job_id
@@ -155,7 +171,7 @@ export async function admitHandoffContinuation(
   // 3. The manifest, under its lock, and the state it must still describe.
   const manifest = (await transaction.query<ManifestRow>(
     `select id, run_id, run_step_id, source_attempt_id,
-            source_fence::text as source_fence, status, mode, manifest
+            source_fence::text as source_fence, status, mode, digest, manifest
        from bakery.handoff_manifests
       where organization_id = $1 and id = $2
         for update`,
@@ -164,7 +180,11 @@ export async function admitHandoffContinuation(
   if (!manifest) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   if (manifest.status === "continued") throw refuse("already_continued");
   if (manifest.status !== "pending") throw refuse("manifest_blocked");
-  if (manifest.manifest?.repository?.captureStatus !== "complete") {
+  // The stored bytes were validated on the way in; a row that no longer parses
+  // is blocked, never guessed at.
+  const stored = HandoffManifestSchema.safeParse(manifest.manifest);
+  if (!stored.success) throw refuse("manifest_blocked");
+  if (stored.data.repository.captureStatus !== "complete") {
     // A paused capture is not a workspace anyone can safely continue from.
     throw refuse("capture_incomplete");
   }
@@ -200,6 +220,27 @@ export async function admitHandoffContinuation(
   );
   if (effects.rows.length > 0) throw refuse("effects_unresolved");
 
+  // Exact resume reuses the source's native history, so the server decides it
+  // from its own rows: the session, the host, the revision and the history's
+  // authorization. Any mismatch is a fresh bounded session, never a resume.
+  const decision = decideResume({
+    manifestId: manifest.id,
+    manifestDigest: manifest.digest,
+    manifest: stored.data,
+    session: await loadSourceSession(
+      transaction,
+      organizationId,
+      stored.data.sourceSessionId,
+    ),
+    sourceHostId: source.worker_host_id ?? "",
+    historyAuthorized: await historyIsAuthorized(transaction, {
+      organizationId,
+      taskId: stored.data.taskId,
+      runId: named.run_id,
+      manifest: stored.data,
+    }),
+  });
+
   // 4. The writes: fence the source, requeue the job, mark the manifest.
   const lost = await transaction.query(
     `update bakery.job_attempts
@@ -212,12 +253,21 @@ export async function admitHandoffContinuation(
   const requeued = await transaction.query<{ version: number }>(
     `update bakery.jobs
         set status = 'queued', current_fence = current_fence + 1,
+            current_checkpoints = $3::jsonb,
             available_at = clock_timestamp(),
             updated_at = clock_timestamp(), version = version + 1
       where organization_id = $1 and id = $2
         and status in ('leased', 'running')
       returning version`,
-    [organizationId, job.id],
+    [
+      organizationId,
+      job.id,
+      // The harness matches this record before any model turn; a fresh
+      // session starts from nothing.
+      JSON.stringify(
+        decision.mode === "exact_harness_resume" ? [decision.checkpoint] : [],
+      ),
+    ],
   );
   if (requeued.rows.length !== 1) throw refuse("fence_moved");
   const newFence = BigInt(job.current_fence) + 1n;
@@ -257,7 +307,7 @@ export async function admitHandoffContinuation(
         source.id,
         job.current_fence,
         newFence.toString(),
-        "fresh_session",
+        decision.mode,
         principalId,
       ],
     )).rows[0]!;
@@ -285,6 +335,8 @@ export async function admitHandoffContinuation(
       sourceAttemptId: source.id,
       previousFence: job.current_fence,
       newFence: newFence.toString(),
+      mode: decision.mode,
+      ...(decision.mode === "fresh_session" ? { reason: decision.reason } : {}),
     },
   });
   await appendDomainEvent(transaction, {
@@ -326,7 +378,7 @@ export async function admitHandoffContinuation(
     sourceAttemptId: source.id,
     previousFence: job.current_fence,
     newFence: newFence.toString(),
-    mode: "fresh_session" as const,
+    mode: decision.mode,
     admittedAt: new Date(continuation.created_at).toISOString(),
   };
 }
