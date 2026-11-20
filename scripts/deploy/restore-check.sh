@@ -26,8 +26,19 @@ umask 077
 # from before manifests has none, so it fails closed unless --allow-legacy says
 # the operator knows it is an old set (its old checks below still run).
 export DENO_DIR=${DENO_DIR:-$state/backup-runner/deno}
+# A fresh disaster-recovery host may have neither Deno nor a release checkout.
+# Say so and exit 70 (the documented "not a verified set" code) rather than die
+# with 127 from a missing command.
+verifier="$root/background/scripts/deploy/backup-manifest.ts"
+missing=""
+command -v deno > /dev/null 2>&1 || missing="deno (install Deno and put it on the PATH)"
+[[ -f "$verifier" ]] || missing+="${missing:+; }the release checkout $root/background (install or enable a release)"
+if [[ -n "$missing" ]]; then
+  echo "restore-check.sh cannot verify the set; missing: $missing. Nothing was restored." >&2
+  exit 70
+fi
 deno run --no-prompt "--allow-read=$snapshot" \
-  "$root/background/scripts/deploy/backup-manifest.ts" verify "$snapshot" ${legacy:+"$legacy"}
+  "$verifier" verify "$snapshot" ${legacy:+"$legacy"}
 temporary=$(mktemp -d /var/tmp/bakery-restore-check-XXXXXXXX)
 container="bakery-restore-check-$(cat /proc/sys/kernel/random/uuid)"
 cleanup() {

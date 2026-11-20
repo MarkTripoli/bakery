@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   installDenoWrapper,
   installReleaseManifestShim,
+  toolsWithoutDeno,
 } from "../helpers/backup-sandbox-release.ts";
 import {
   INCOMPLETE_FILE,
@@ -453,27 +454,6 @@ Deno.test("with the release checkout missing the dumps are still taken, kept as 
     await assertKeptIncomplete(box, result, "/previous-good-set");
   });
 });
-
-// A directory of wrappers for every system tool except `deno`, so the test does
-// not depend on whether the host has /usr/bin/deno (a dev or CI host may). The
-// wrappers are scripts, not links: the test permissions do not allow symlinks.
-async function toolsWithoutDeno(dir: string): Promise<string> {
-  const tools = join(dir, "tools-without-deno");
-  await Deno.mkdir(tools);
-  const seen = new Set<string>(["deno"]);
-  for (const source of ["/usr/bin", "/bin"]) {
-    for await (const entry of Deno.readDir(source)) {
-      if (seen.has(entry.name)) continue;
-      seen.add(entry.name);
-      await Deno.writeTextFile(
-        join(tools, entry.name),
-        `#!/bin/sh\nexec ${JSON.stringify(join(source, entry.name))} "$@"\n`,
-        { mode: 0o755 },
-      );
-    }
-  }
-  return tools;
-}
 
 Deno.test("with Deno missing the dumps are still taken, kept as an incomplete set, never latest", async () => {
   await withSandbox({}, async (box) => {
