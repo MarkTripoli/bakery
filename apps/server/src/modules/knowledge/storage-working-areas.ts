@@ -438,12 +438,11 @@ async function assertStepWriteLimit(
     { files: string; bytes: string; written: boolean }
   >(
     "select count(distinct w.entry_id)::text as files," +
-      " coalesce(sum(v.size_bytes) filter" +
-      " (where w.op in ('put', 'copy')), 0)::text as bytes," +
+      // bytes_written is kept on the row, so a version retention later
+      // deletes still counts against the step.
+      " coalesce(sum(w.bytes_written), 0)::text as bytes," +
       " coalesce(bool_or(w.entry_id = $3), false) as written" +
       " from bakery.step_write_set w" +
-      " left join bakery.storage_file_versions v" +
-      " on v.organization_id = w.organization_id and v.id = w.new_version_id" +
       " where w.organization_id = $1 and w.attempt_id = $2",
     [organizationId, agent.attemptId, entryId],
   );
