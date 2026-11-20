@@ -248,7 +248,7 @@ export function WorkSessionFixture() {
           versions={[]}
           version={version}
           onVersionChange={setVersion}
-          preview={<pre dir="ltr">{brief}</pre>}
+          preview={<UI.CodeBlock code={brief} />}
         />
       }
     >

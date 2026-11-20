@@ -106,6 +106,7 @@ function fakeApi(
       atVersion: rejecting,
       search: rejecting,
       content: rejecting,
+      probe: rejecting,
     },
     invitations: {
       preview: rejecting,
@@ -259,6 +260,7 @@ function fakeApi(
     getArtifactContent: rejecting,
     importArtifactVersion: rejecting,
     extractArtifactVersion: rejecting,
+    readArtifactProbe: rejecting,
     listTasks: rejecting,
     getTask: rejecting,
     createTask: rejecting,

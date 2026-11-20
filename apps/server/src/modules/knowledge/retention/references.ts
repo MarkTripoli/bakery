@@ -53,6 +53,24 @@ export const artifactVersionReferences = [
     protection: "none",
   },
   {
+    // A queued probe request asks about a version; it never keeps the bytes.
+    // The request goes when the version does, and a purge that leaves a request
+    // behind would ask about bytes nobody can read.
+    kind: "probe-request",
+    table: "probe_requests",
+    constraint: "probe_requests_artifact_version_fk",
+    protection: "none",
+  },
+  {
+    // A probe answer describes an artifact version; it never keeps the bytes
+    // alive. Purging the version removes the answer with it (#437), and asking
+    // again is a new request, not a lost fact.
+    kind: "probe-answer",
+    table: "blob_probes",
+    constraint: "blob_probes_artifact_version_fk",
+    protection: "none",
+  },
+  {
     // A check row cites its output as retained evidence. The bytes stay for as
     // long as the row exists: expiry alone never retires check evidence.
     kind: "retained-evidence",
