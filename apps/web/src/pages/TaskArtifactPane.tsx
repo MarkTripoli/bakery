@@ -20,6 +20,7 @@ import {
   isExtractableMediaType,
   MAX_TEXT_PREVIEW_BYTES,
 } from "./artifact-media.ts";
+import { ArtifactPreviewBody } from "./ArtifactContentPreview.tsx";
 import { FingerprintRow } from "./FingerprintRow.tsx";
 import { stepTitle } from "./task-timeline.ts";
 
@@ -290,6 +291,13 @@ export function TaskArtifactPane(
   const openHref = artifact
     ? `/tasks/${taskId}/artifacts/${artifact.id}`
     : undefined;
+  // What the selected version is, said the same way the artifact page says it.
+  // The pane has its own Download and Open in the footer, so the preview offers
+  // no second copy of them.
+  const preview = selected === undefined ? undefined : ArtifactPreviewBody({
+    version: selected,
+    label: t("tasks.artifactPane.preview"),
+  });
   return (
     <UI.ArtifactPane
       details={artifact && selected
@@ -346,7 +354,7 @@ export function TaskArtifactPane(
       onVersionChange={(versionId) =>
         artifact && setPicked({ artifactId: artifact.id, versionId })}
       openHref={openHref}
-      previewText={extraction?.text}
+      preview={preview}
       state={state}
       title={artifact?.name}
       version={selected?.id ?? ""}

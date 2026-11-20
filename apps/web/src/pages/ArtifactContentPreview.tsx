@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { ArtifactPreviewView } from "./ArtifactRetrievalView.tsx";
@@ -28,19 +28,59 @@ import { type PreviewState, previewState } from "./preview-state.ts";
  * mismatch state promises Bakery will not show the file, and a stream that
  * skipped the check would be the one path that showed it anyway.
  */
+export type PreviewVersion = Pick<
+  ArtifactVersionResponse,
+  "id" | "mediaType" | "sha256" | "sizeBytes"
+>;
+
+/** The artifact page's own preview: the body of the viewer, with its title. */
 export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
   readonly version: ArtifactVersionResponse;
   readonly onDownload: () => void;
   readonly onViewDetails: () => void;
 }) {
+  const t = useI18n().translate;
+  return (
+    <ArtifactPreviewBody
+      version={version}
+      label={t("artifact.preview.title")}
+      onDownload={onDownload}
+      onViewDetails={onViewDetails}
+    />
+  );
+}
+
+/**
+ * The preview, decided by what the probe measured (#437 slice 3).
+ *
+ * Both surfaces render this: the artifact page puts it in the viewer's body, the
+ * task pane puts it in the pane's preview region, and neither decides anything
+ * about the file itself. `previewState` owns that table.
+ *
+ * The bytes come through a header-authenticated fetch, digest-checked against
+ * the version record, and handed to the player as a blob URL. A ranged
+ * `<video src>` cannot check the digest yet, so it is not used here: the mismatch
+ * state promises Bakery will not show the file, and a stream that skipped the
+ * check would be the one path that showed it anyway.
+ */
+export function ArtifactPreviewBody(
+  { version, label, onDownload, onViewDetails }: {
+    readonly version: PreviewVersion | null;
+    readonly label: string;
+    /** Absent when the surrounding surface already offers these. */
+    readonly onDownload?: (() => void) | undefined;
+    readonly onViewDetails?: (() => void) | undefined;
+  },
+): ReactNode {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const { translate: t, locale } = useI18n();
+  // A caller with no version still calls the hooks, so the query key is empty
+  // rather than the call being skipped.
+  const versionId = version?.id ?? "";
   const probe = useQuery({
-    queryKey: protectedQueryKey(scope, "artifactVersions.probe", {
-      versionId: version.id,
-    }),
-    enabled: scope.organizationId !== null,
+    queryKey: protectedQueryKey(scope, "artifactVersions.probe", { versionId }),
+    enabled: scope.organizationId !== null && version !== null,
     retry: false,
     staleTime: Infinity,
     queryFn: async ({ signal }) => {
@@ -49,13 +89,14 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
       }
       const result = await api.readArtifactProbe({
         organizationId: scope.organizationId,
-        versionId: version.id,
+        versionId,
         signal,
       });
       if (!result.ok) throw result.error;
       return result.data;
     },
   });
+  if (version === null) return null;
   const answer = probeFromAnswer(probe.data ?? null);
   // No answer is not a refusal: a version whose bytes are stored inline, or one
   // nothing has probed yet, has never been asked about. Falling back to the
@@ -152,7 +193,7 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
   if (expired) {
     return (
       <ArtifactPreviewView
-        label={t("artifact.preview.title")}
+        label={label}
         state="unavailable"
         unavailable={{
           title: t("artifact.expired.title"),
@@ -160,7 +201,7 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
           expired: true,
           action: {
             label: t("artifact.retrieval.versionsTitle"),
-            onClick: onViewDetails,
+            onClick: onViewDetails ?? (() => void probe.refetch()),
           },
         }}
       />
@@ -173,10 +214,16 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
       </div>
     );
   }
-  const download = {
-    label: t("artifact.retrieval.download"),
-    onClick: onDownload,
+  const retry: { label: string; onClick: () => void } = {
+    label: t("files.preview.state.retry"),
+    onClick: () => void probe.refetch(),
   };
+  // The page offers Download itself; a surface that already has one in its
+  // footer gets Retry here instead of a second, identical button.
+  const download: { label: string; onClick: () => void } =
+    onDownload === undefined
+      ? retry
+      : { label: t("artifact.retrieval.download"), onClick: onDownload };
   if (
     state.kind !== "image" && state.kind !== "text" && state.kind !== "video" &&
     state.kind !== "audio"
@@ -191,18 +238,13 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
     );
     return (
       <ArtifactPreviewView
-        label={t("artifact.preview.title")}
+        label={label}
         state="unavailable"
         footer={footer}
         unavailable={{
           title: copy.title,
           description: copy.description,
-          action: state.kind === "host-unavailable"
-            ? {
-              label: t("files.preview.state.retry"),
-              onClick: () => void probe.refetch(),
-            }
-            : download,
+          action: state.kind === "host-unavailable" ? retry : download,
         }}
       />
     );
@@ -217,7 +259,10 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
           <UI.Button variant="outline" onClick={() => void content.refetch()}>
             {t("core.actions.retry")}
           </UI.Button>
-          <UI.Button variant="secondary" onClick={onDownload}>
+          <UI.Button
+            variant="secondary"
+            onClick={onDownload ?? (() => void content.refetch())}
+          >
             {download.label}
           </UI.Button>
         </UI.Inline>
@@ -234,20 +279,16 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
   if (state.kind === "video" || state.kind === "audio") {
     return (
       <ArtifactPreviewView
-        label={t("artifact.preview.title")}
+        label={label}
         state="content"
         footer={footer}
-        content={{
-          kind: state.kind,
-          src: mediaUrl ?? "",
-          label: t("artifact.preview.title"),
-        }}
+        content={{ kind: state.kind, src: mediaUrl ?? "", label }}
       />
     );
   }
   return (
     <ArtifactPreviewView
-      label={t("artifact.preview.title")}
+      label={label}
       state="content"
       footer={footer}
       content={state.kind === "image"
