@@ -446,7 +446,7 @@ for (
       const seen = await memoryFixture(page);
       const sheet = await open(page, 2);
       await expect(sheet).toContainText(
-        "Agents are not given a suggested fact. Read the source, then decide.",
+        "Agents are not given a suggested fact. Check it against its source, then decide.",
       );
       // The wording is the fact's own state, not "In use".
       const first = sheet.getByTestId("memory-history").getByRole("listitem")
@@ -652,6 +652,15 @@ for (
           "Releases are tagged by the on-call engineer.",
         );
         await expect(row(page, 3)).toHaveAttribute("aria-current", "true");
+        // Marked on the row itself too, not only for assistive technology.
+        await expect(row(page, 3).locator('[data-selected="true"]'))
+          .toHaveCount(
+            1,
+          );
+        await expect(row(page, 1).locator('[data-selected="true"]'))
+          .toHaveCount(
+            0,
+          );
         await expect(row(page, 1)).not.toHaveAttribute("aria-current", "true");
         await page.keyboard.press("Escape");
         await expect(sheet).toHaveCount(0);

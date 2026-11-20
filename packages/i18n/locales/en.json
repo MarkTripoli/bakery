@@ -3843,7 +3843,7 @@
   "library.memory.action.useAgain": "Use again",
   "library.memory.action.offline": "Not available while you are offline.",
   "library.memory.action.busy": "Saving.",
-  "library.memory.fact.suggestedHint": "Agents are not given a suggested fact. Read the source, then decide.",
+  "library.memory.fact.suggestedHint": "Agents are not given a suggested fact. Check it against its source, then decide.",
   "library.memory.stop.title": "Stop using this fact?",
   "library.memory.stop.body": "Agents will no longer be given it. It stays in the list as No longer used, with its history, and you can use it again.",
   "library.memory.stop.confirm": "Stop using",

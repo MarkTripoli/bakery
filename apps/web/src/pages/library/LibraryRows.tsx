@@ -108,6 +108,7 @@ export function LibraryRows(
           >
             <UI.StackedRow
               flush
+              selected={row.selected === true}
               title={title(row)}
               status={phone || !hasButton
                 ? badge ?? undefined
