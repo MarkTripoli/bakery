@@ -6125,7 +6125,7 @@
       "action": "previews.list",
       "access": "Developer",
       "permission": "preview:read",
-      "input": "TaskQuery",
+      "input": "PreviewQuery",
       "output": "Page<Preview>",
       "event": "",
       "mcp": "bakery_previews_list",
@@ -6134,11 +6134,12 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Workers",
@@ -6151,18 +6152,90 @@
       "output": "PreviewAccessResult",
       "event": "",
       "mcp": "",
-      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "idempotency": "Not replayed: every call issues a fresh one-use grant, and the grant is never stored in a replayable response",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/previews/{id}/stop",
+      "action": "previews.stop",
+      "access": "Developer",
+      "permission": "preview:access",
+      "input": "IdPath",
+      "output": "Preview",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "DELETE",
+      "path": "/v1/preview-grants/{id}",
+      "action": "previews.revokeAccess",
+      "access": "Developer",
+      "permission": "preview:access",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "GET",
+      "path": "/v1/preview-availability",
+      "action": "previews.availability",
+      "access": "Developer",
+      "permission": "preview:read",
+      "input": "Empty",
+      "output": "PreviewAvailability",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Worker protocol",
@@ -12403,7 +12476,12 @@
     "memories.create",
     "memories.update",
     "memoryRevisions.create",
-    "memoryRevisions.list"
+    "memoryRevisions.list",
+    "previews.list",
+    "previews.access",
+    "previews.stop",
+    "previews.revokeAccess",
+    "previews.availability"
   ],
   "openapi": {
     "openapi": "3.1.0",
@@ -27673,11 +27751,11 @@
           "operationId": "previews.list",
           "parameters": [
             {
-              "name": "repositoryId",
+              "name": "runId",
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Restrict results to previews, artifacts, or evaluation runs associated with this repository.",
+                "description": "Restrict results to the previews registered by attempts of this workflow run, newest first.",
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
@@ -27688,7 +27766,7 @@
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Restrict results to this status value, given as a free string rather than one shared enum because the valid values differ by the resource being listed (preview, artifact, or evaluation run). TaskQuery.status must contain at most 50 characters.",
+                "description": "Restrict results to the current state of the preview: starting, ready, stopped or expired. PreviewQuery.status must contain at most 50 characters.",
                 "type": "string",
                 "maxLength": 50
               }
@@ -27698,7 +27776,7 @@
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Opaque cursor carried from a prior page of this exact query; leave unset to start from the newest page. TaskQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "description": "Opaque cursor carried from a prior page of this exact query; leave unset to start from the newest page. PreviewQuery.cursor must contain at most 512 UTF-8 bytes.",
                 "type": "string",
                 "maxLength": 65536,
                 "x-utf8-max-bytes": 512
@@ -27709,10 +27787,22 @@
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Maximum number of items returned per page; defaults to 25, capped at 100. TaskQuery.limit must be at least 1. TaskQuery.limit must be at most 100.",
+                "description": "Maximum number of items returned per page; defaults to 25, capped at 100. PreviewQuery.limit must be at least 1. PreviewQuery.limit must be at most 100.",
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -27756,6 +27846,18 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -27790,6 +27892,167 @@
                   "$ref": "#/components/schemas/PreviewAccess"
                 }
               }
+            }
+          }
+        }
+      },
+      "/v1/previews/{id}/stop": {
+        "post": {
+          "operationId": "previews.stop",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Preview"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdPath"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/preview-grants/{id}": {
+        "delete": {
+          "operationId": "previews.revokeAccess",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "204": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/NoContent"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/preview-availability": {
+        "get": {
+          "operationId": "previews.availability",
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PreviewAvailability"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
             }
           }
         }
@@ -50247,6 +50510,9 @@
                 "jobAttempts.list",
                 "previews.list",
                 "previews.access",
+                "previews.stop",
+                "previews.revokeAccess",
+                "previews.availability",
                 "worker.register",
                 "worker.heartbeat",
                 "worker.claim",
@@ -50512,15 +50778,15 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
-            "expiresInSeconds": {
-              "description": "How long the issued preview access grant stays valid before the caller must request a new one; bounded between one minute and 24 hours. PreviewAccess.expiresInSeconds must be at least 60. PreviewAccess.expiresInSeconds must be at most 86400.",
+            "sessionSeconds": {
+              "description": "How long the signed-in preview session lasts once the grant is exchanged, from 60 seconds to 24 hours; it does not change how long the one-use grant can be exchanged, which is always 30 seconds. PreviewAccess.sessionSeconds must be at least 60. PreviewAccess.sessionSeconds must be at most 86400.",
               "type": "integer",
               "minimum": 60,
               "maximum": 86400
             }
           },
           "additionalProperties": false,
-          "description": "Requests a one-use access grant for a running preview; the caller's client posts the grant to the separate preview origin, which exchanges it for its own short-lived HttpOnly cookie."
+          "description": "Requests a one-use access grant for a running preview. The grant is exchangeable for 30 seconds only; the session it opens lasts sessionSeconds. The caller's client posts the grant to the separate preview origin, which exchanges it for its own HttpOnly cookie."
         },
         "PrincipalCreate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -54969,6 +55235,17 @@
               "type": "string",
               "pattern": "^[a-fA-F0-9]{40}(?:[a-fA-F0-9]{24})?$",
               "description": "Commit SHA the running preview was built from."
+            },
+            "workerSessionId": {
+              "description": "Worker session that holds the attempt; required for protocol v2 hosts.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "workerSessionGeneration": {
+              "description": "Generation of that worker session; required with workerSessionId.",
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$"
             }
           },
           "required": [
@@ -70753,6 +71030,37 @@
           ],
           "additionalProperties": false,
           "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
+        },
+        "PreviewQuery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "runId": {
+              "description": "Restrict results to the previews registered by attempts of this workflow run, newest first.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "status": {
+              "description": "Restrict results to the current state of the preview: starting, ready, stopped or expired. PreviewQuery.status must contain at most 50 characters.",
+              "type": "string",
+              "maxLength": 50
+            },
+            "cursor": {
+              "description": "Opaque cursor carried from a prior page of this exact query; leave unset to start from the newest page. PreviewQuery.cursor must contain at most 512 UTF-8 bytes.",
+              "type": "string",
+              "maxLength": 65536,
+              "x-utf8-max-bytes": 512
+            },
+            "limit": {
+              "description": "Maximum number of items returned per page; defaults to 25, capped at 100. PreviewQuery.limit must be at least 1. PreviewQuery.limit must be at most 100.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "additionalProperties": false,
+          "description": "Filters for listing the running-app previews of an organization, newest first."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -96661,6 +96969,9 @@
                 "jobAttempts.list",
                 "previews.list",
                 "previews.access",
+                "previews.stop",
+                "previews.revokeAccess",
+                "previews.availability",
                 "worker.register",
                 "worker.heartbeat",
                 "worker.claim",
@@ -97248,6 +97559,9 @@
                 "jobAttempts.list",
                 "previews.list",
                 "previews.access",
+                "previews.stop",
+                "previews.revokeAccess",
+                "previews.availability",
                 "worker.register",
                 "worker.heartbeat",
                 "worker.claim",
@@ -97835,6 +98149,9 @@
                 "jobAttempts.list",
                 "previews.list",
                 "previews.access",
+                "previews.stop",
+                "previews.revokeAccess",
+                "previews.availability",
                 "worker.register",
                 "worker.heartbeat",
                 "worker.claim",
@@ -106344,27 +106661,22 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Stable UUID identifying the preview record."
             },
-            "workspaceId": {
+            "runId": {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID linking this preview record to the related workspace entity."
+              "description": "The workflow run whose attempt registered this preview."
+            },
+            "attemptId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
             },
             "headSha": {
               "type": "string",
               "maxLength": 65536,
-              "description": "Head commit SHA associated with the record."
-            },
-            "routeKey": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Routing key used to reach the preview."
-            },
-            "upstreamPort": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "Local port exposed by the preview upstream."
+              "description": "Commit SHA the running preview was built from."
             },
             "status": {
               "type": "string",
@@ -106374,177 +106686,64 @@
                 "stopped",
                 "expired"
               ],
-              "description": "Current lifecycle status of the preview record."
+              "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
             },
-            "expiresAt": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the preview record expires."
-            },
-            "createdAt": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the preview record was created."
-            },
-            "updatedAt": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the preview record was last updated."
-            },
-            "version": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "Optimistic-concurrency version used when updating the preview record."
-            }
-          },
-          "required": [
-            "id",
-            "workspaceId",
-            "headSha",
-            "routeKey",
-            "upstreamPort",
-            "status",
-            "expiresAt",
-            "createdAt",
-            "updatedAt",
-            "version"
-          ],
-          "additionalProperties": false,
-          "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema."
-        },
-        "Previews": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID identifying the preview record."
-            },
-            "workspaceId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID linking this preview record to the related workspace entity."
-            },
-            "headSha": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Head commit SHA associated with the record."
-            },
-            "routeKey": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Routing key used to reach the preview."
-            },
-            "upstreamPort": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "Local port exposed by the preview upstream."
-            },
-            "status": {
-              "type": "string",
-              "enum": [
-                "starting",
-                "ready",
-                "stopped",
-                "expired"
+            "stopReason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "person",
+                    "run_cancelled",
+                    "run_ended",
+                    "machine_lost",
+                    "time_limit",
+                    "replaced"
+                  ],
+                  "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
               ],
-              "description": "Current lifecycle status of the preview record."
+              "description": "previews.stopReason may be null in the safe projection."
             },
-            "expiresAt": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the preview record expires."
-            },
-            "createdAt": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the preview record was created."
-            },
-            "updatedAt": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the preview record was last updated."
-            },
-            "version": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "Optimistic-concurrency version used when updating the preview record."
-            }
-          },
-          "required": [
-            "id",
-            "workspaceId",
-            "headSha",
-            "routeKey",
-            "upstreamPort",
-            "status",
-            "expiresAt",
-            "createdAt",
-            "updatedAt",
-            "version"
-          ],
-          "additionalProperties": false,
-          "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema."
-        },
-        "Preview": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID identifying the preview record."
-            },
-            "workspaceId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID linking this record to the related workspace entity."
-            },
-            "headSha": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Head commit SHA associated with the record."
-            },
-            "routeKey": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Contract-defined route key associated with the preview record."
-            },
-            "upstreamPort": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "Contract-defined upstream port associated with the preview record."
-            },
-            "status": {
-              "type": "string",
-              "enum": [
-                "starting",
-                "ready",
-                "stopped",
-                "expired"
+            "stoppedBy": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The principal who stopped it; set only when stopReason is person."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
               ],
-              "description": "Current lifecycle status of the record."
+              "description": "previews.stoppedBy may be null in the safe projection."
+            },
+            "stoppedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "previews.stoppedAt may be null in the safe projection."
             },
             "expiresAt": {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the record expires."
+              "description": "UTC timestamp when the preview stops by itself."
             },
             "createdAt": {
               "type": "string",
@@ -106567,18 +106766,280 @@
           },
           "required": [
             "id",
-            "workspaceId",
+            "runId",
+            "attemptId",
             "headSha",
-            "routeKey",
-            "upstreamPort",
             "status",
+            "stopReason",
+            "stoppedBy",
+            "stoppedAt",
             "expiresAt",
             "createdAt",
             "updatedAt",
             "version"
           ],
           "additionalProperties": false,
-          "description": "Registration for an authenticated developer preview URL exposing a worker's live workspace port during an attempt; returned when worker.previews registers it. status tracks starting/ready/stopped/expired, and access is private, session-bound, and served from a separate origin with no API cookies forwarded."
+          "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema."
+        },
+        "Previews": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID identifying the preview record."
+            },
+            "runId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The workflow run whose attempt registered this preview."
+            },
+            "attemptId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
+            },
+            "headSha": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Commit SHA the running preview was built from."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "starting",
+                "ready",
+                "stopped",
+                "expired"
+              ],
+              "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
+            },
+            "stopReason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "person",
+                    "run_cancelled",
+                    "run_ended",
+                    "machine_lost",
+                    "time_limit",
+                    "replaced"
+                  ],
+                  "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "previews.stopReason may be null in the safe projection."
+            },
+            "stoppedBy": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The principal who stopped it; set only when stopReason is person."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "previews.stoppedBy may be null in the safe projection."
+            },
+            "stoppedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "previews.stoppedAt may be null in the safe projection."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the preview stops by itself."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the record was created."
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the record was last updated."
+            },
+            "version": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Optimistic-concurrency version used when updating the record."
+            }
+          },
+          "required": [
+            "id",
+            "runId",
+            "attemptId",
+            "headSha",
+            "status",
+            "stopReason",
+            "stoppedBy",
+            "stoppedAt",
+            "expiresAt",
+            "createdAt",
+            "updatedAt",
+            "version"
+          ],
+          "additionalProperties": false,
+          "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema."
+        },
+        "Preview": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID identifying the preview record."
+            },
+            "runId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The workflow run whose attempt registered this preview."
+            },
+            "attemptId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
+            },
+            "headSha": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Commit SHA the running preview was built from."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "starting",
+                "ready",
+                "stopped",
+                "expired"
+              ],
+              "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
+            },
+            "stopReason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "person",
+                    "run_cancelled",
+                    "run_ended",
+                    "machine_lost",
+                    "time_limit",
+                    "replaced"
+                  ],
+                  "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "Preview.stopReason may be null in the safe projection."
+            },
+            "stoppedBy": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The principal who stopped it; set only when stopReason is person."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "Preview.stoppedBy may be null in the safe projection."
+            },
+            "stoppedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "Preview.stoppedAt may be null in the safe projection."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the preview stops by itself."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the record was created."
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the record was last updated."
+            },
+            "version": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Optimistic-concurrency version used when updating the record."
+            }
+          },
+          "required": [
+            "id",
+            "runId",
+            "attemptId",
+            "headSha",
+            "status",
+            "stopReason",
+            "stoppedBy",
+            "stoppedAt",
+            "expiresAt",
+            "createdAt",
+            "updatedAt",
+            "version"
+          ],
+          "additionalProperties": false,
+          "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned."
         },
         "pull_requests": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -143089,6 +143550,9 @@
                       "jobAttempts.list",
                       "previews.list",
                       "previews.access",
+                      "previews.stop",
+                      "previews.revokeAccess",
+                      "previews.availability",
                       "worker.register",
                       "worker.heartbeat",
                       "worker.claim",
@@ -147000,27 +147464,22 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "Stable UUID identifying the preview record."
                   },
-                  "workspaceId": {
+                  "runId": {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID linking this record to the related workspace entity."
+                    "description": "The workflow run whose attempt registered this preview."
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
                   },
                   "headSha": {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Head commit SHA associated with the record."
-                  },
-                  "routeKey": {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Contract-defined route key associated with the preview record."
-                  },
-                  "upstreamPort": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Contract-defined upstream port associated with the preview record."
+                    "description": "Commit SHA the running preview was built from."
                   },
                   "status": {
                     "type": "string",
@@ -147030,13 +147489,64 @@
                       "stopped",
                       "expired"
                     ],
-                    "description": "Current lifecycle status of the record."
+                    "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
+                  },
+                  "stopReason": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "person",
+                          "run_cancelled",
+                          "run_ended",
+                          "machine_lost",
+                          "time_limit",
+                          "replaced"
+                        ],
+                        "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the projected value is unavailable."
+                      }
+                    ],
+                    "description": "Preview.stopReason may be null in the safe projection."
+                  },
+                  "stoppedBy": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The principal who stopped it; set only when stopReason is person."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the projected value is unavailable."
+                      }
+                    ],
+                    "description": "Preview.stoppedBy may be null in the safe projection."
+                  },
+                  "stoppedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the projected value is unavailable."
+                      }
+                    ],
+                    "description": "Preview.stoppedAt may be null in the safe projection."
                   },
                   "expiresAt": {
                     "type": "string",
                     "format": "date-time",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "UTC timestamp when the record expires."
+                    "description": "UTC timestamp when the preview stops by itself."
                   },
                   "createdAt": {
                     "type": "string",
@@ -147059,18 +147569,20 @@
                 },
                 "required": [
                   "id",
-                  "workspaceId",
+                  "runId",
+                  "attemptId",
                   "headSha",
-                  "routeKey",
-                  "upstreamPort",
                   "status",
+                  "stopReason",
+                  "stoppedBy",
+                  "stoppedAt",
                   "expiresAt",
                   "createdAt",
                   "updatedAt",
                   "version"
                 ],
                 "additionalProperties": false,
-                "description": "Registration for an authenticated developer preview URL exposing a worker's live workspace port during an attempt; returned when worker.previews registers it. status tracks starting/ready/stopped/expired, and access is private, session-bound, and served from a separate origin with no API cookies forwarded."
+                "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned."
               },
               "description": "Preview items in this cursor page. Page<Preview>.items must contain at most 100 items."
             },
@@ -163878,37 +164390,51 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
+            "grantId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Identifier of this access grant, used to end one person's access before it expires. Not a secret."
+            },
             "grant": {
               "type": "string",
               "minLength": 1,
               "maxLength": 65536,
-              "description": "Capability grant issued for the preview."
+              "description": "One-use secret handoff value: 32 random bytes, base64url. Post it once, in a form body; never put it in a URL, log, event or cache. Only its sha256 is stored."
             },
             "exchangeUrl": {
               "type": "string",
               "format": "uri",
-              "description": "One-time URL used to exchange preview access."
+              "description": "Absolute URL on the separate preview origin that exchanges the posted grant for a preview session."
             },
             "previewUrl": {
               "type": "string",
               "format": "uri",
-              "description": "URL used to access the preview."
+              "description": "Absolute URL on the preview origin where the preview is shown after the exchange."
             },
             "expiresAt": {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the record expires."
+              "description": "When the grant stops being exchangeable, 30 seconds after it was issued. This is not the session length."
+            },
+            "sessionSeconds": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How long the session lasts after the grant is exchanged."
             }
           },
           "required": [
+            "grantId",
             "grant",
             "exchangeUrl",
             "previewUrl",
-            "expiresAt"
+            "expiresAt",
+            "sessionSeconds"
           ],
           "additionalProperties": false,
-          "description": "One-use grant is POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs."
+          "description": "One-use grant, exchangeable for 30 seconds, POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs. The session it opens lasts sessionSeconds."
         },
         "BinaryArtifact": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -237459,6 +237985,21 @@
           "additionalProperties": false,
           "description": "Cursor page of PluginStateItem."
         },
+        "PreviewAvailability": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "available": {
+              "type": "boolean",
+              "description": "True when the deployment configures a separate preview origin. When false every preview operation fails closed and clients show that previews are not set up."
+            }
+          },
+          "required": [
+            "available"
+          ],
+          "additionalProperties": false,
+          "description": "Whether this deployment can serve running-app previews."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -239050,7 +239591,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:f506e5854ff15ee450cbcf34360646778aae8fc120a57c4e4027bc71892c0a13",
+  "compatibilityDigest": "sha256:fb12bf61be83e3b951837c134f0c239561a70d6a1fed504370d8d208aea51510",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -246549,6 +247090,9 @@
             "jobAttempts.list",
             "previews.list",
             "previews.access",
+            "previews.stop",
+            "previews.revokeAccess",
+            "previews.availability",
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
@@ -246814,15 +247358,15 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "expiresInSeconds": {
-          "description": "How long the issued preview access grant stays valid before the caller must request a new one; bounded between one minute and 24 hours. PreviewAccess.expiresInSeconds must be at least 60. PreviewAccess.expiresInSeconds must be at most 86400.",
+        "sessionSeconds": {
+          "description": "How long the signed-in preview session lasts once the grant is exchanged, from 60 seconds to 24 hours; it does not change how long the one-use grant can be exchanged, which is always 30 seconds. PreviewAccess.sessionSeconds must be at least 60. PreviewAccess.sessionSeconds must be at most 86400.",
           "type": "integer",
           "minimum": 60,
           "maximum": 86400
         }
       },
       "additionalProperties": false,
-      "description": "Requests a one-use access grant for a running preview; the caller's client posts the grant to the separate preview origin, which exchanges it for its own short-lived HttpOnly cookie."
+      "description": "Requests a one-use access grant for a running preview. The grant is exchangeable for 30 seconds only; the session it opens lasts sessionSeconds. The caller's client posts the grant to the separate preview origin, which exchanges it for its own HttpOnly cookie."
     },
     "PrincipalCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -251285,6 +251829,17 @@
           "type": "string",
           "pattern": "^[a-fA-F0-9]{40}(?:[a-fA-F0-9]{24})?$",
           "description": "Commit SHA the running preview was built from."
+        },
+        "workerSessionId": {
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "workerSessionGeneration": {
+          "description": "Generation of that worker session; required with workerSessionId.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
         }
       },
       "required": [
@@ -267113,6 +267668,37 @@
       ],
       "additionalProperties": false,
       "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
+    },
+    "PreviewQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "description": "Restrict results to the previews registered by attempts of this workflow run, newest first.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "status": {
+          "description": "Restrict results to the current state of the preview: starting, ready, stopped or expired. PreviewQuery.status must contain at most 50 characters.",
+          "type": "string",
+          "maxLength": 50
+        },
+        "cursor": {
+          "description": "Opaque cursor carried from a prior page of this exact query; leave unset to start from the newest page. PreviewQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of items returned per page; defaults to 25, capped at 100. PreviewQuery.limit must be at least 1. PreviewQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters for listing the running-app previews of an organization, newest first."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -293115,6 +293701,9 @@
             "jobAttempts.list",
             "previews.list",
             "previews.access",
+            "previews.stop",
+            "previews.revokeAccess",
+            "previews.availability",
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
@@ -293702,6 +294291,9 @@
             "jobAttempts.list",
             "previews.list",
             "previews.access",
+            "previews.stop",
+            "previews.revokeAccess",
+            "previews.availability",
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
@@ -294289,6 +294881,9 @@
             "jobAttempts.list",
             "previews.list",
             "previews.access",
+            "previews.stop",
+            "previews.revokeAccess",
+            "previews.availability",
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
@@ -302828,27 +303423,22 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID identifying the preview record."
         },
-        "workspaceId": {
+        "runId": {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID linking this preview record to the related workspace entity."
+          "description": "The workflow run whose attempt registered this preview."
+        },
+        "attemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
         },
         "headSha": {
           "type": "string",
           "maxLength": 65536,
-          "description": "Head commit SHA associated with the record."
-        },
-        "routeKey": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Routing key used to reach the preview."
-        },
-        "upstreamPort": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Local port exposed by the preview upstream."
+          "description": "Commit SHA the running preview was built from."
         },
         "status": {
           "type": "string",
@@ -302858,177 +303448,64 @@
             "stopped",
             "expired"
           ],
-          "description": "Current lifecycle status of the preview record."
+          "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
         },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the preview record expires."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the preview record was created."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the preview record was last updated."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Optimistic-concurrency version used when updating the preview record."
-        }
-      },
-      "required": [
-        "id",
-        "workspaceId",
-        "headSha",
-        "routeKey",
-        "upstreamPort",
-        "status",
-        "expiresAt",
-        "createdAt",
-        "updatedAt",
-        "version"
-      ],
-      "additionalProperties": false,
-      "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema."
-    },
-    "Previews": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the preview record."
-        },
-        "workspaceId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID linking this preview record to the related workspace entity."
-        },
-        "headSha": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Head commit SHA associated with the record."
-        },
-        "routeKey": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Routing key used to reach the preview."
-        },
-        "upstreamPort": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Local port exposed by the preview upstream."
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "starting",
-            "ready",
-            "stopped",
-            "expired"
+        "stopReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "person",
+                "run_cancelled",
+                "run_ended",
+                "machine_lost",
+                "time_limit",
+                "replaced"
+              ],
+              "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
           ],
-          "description": "Current lifecycle status of the preview record."
+          "description": "previews.stopReason may be null in the safe projection."
         },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the preview record expires."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the preview record was created."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the preview record was last updated."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Optimistic-concurrency version used when updating the preview record."
-        }
-      },
-      "required": [
-        "id",
-        "workspaceId",
-        "headSha",
-        "routeKey",
-        "upstreamPort",
-        "status",
-        "expiresAt",
-        "createdAt",
-        "updatedAt",
-        "version"
-      ],
-      "additionalProperties": false,
-      "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema."
-    },
-    "Preview": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the preview record."
-        },
-        "workspaceId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID linking this record to the related workspace entity."
-        },
-        "headSha": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Head commit SHA associated with the record."
-        },
-        "routeKey": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Contract-defined route key associated with the preview record."
-        },
-        "upstreamPort": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Contract-defined upstream port associated with the preview record."
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "starting",
-            "ready",
-            "stopped",
-            "expired"
+        "stoppedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The principal who stopped it; set only when stopReason is person."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
           ],
-          "description": "Current lifecycle status of the record."
+          "description": "previews.stoppedBy may be null in the safe projection."
+        },
+        "stoppedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "previews.stoppedAt may be null in the safe projection."
         },
         "expiresAt": {
           "type": "string",
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the record expires."
+          "description": "UTC timestamp when the preview stops by itself."
         },
         "createdAt": {
           "type": "string",
@@ -303051,18 +303528,280 @@
       },
       "required": [
         "id",
-        "workspaceId",
+        "runId",
+        "attemptId",
         "headSha",
-        "routeKey",
-        "upstreamPort",
         "status",
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt",
         "expiresAt",
         "createdAt",
         "updatedAt",
         "version"
       ],
       "additionalProperties": false,
-      "description": "Registration for an authenticated developer preview URL exposing a worker's live workspace port during an attempt; returned when worker.previews registers it. status tracks starting/ready/stopped/expired, and access is private, session-bound, and served from a separate origin with no API cookies forwarded."
+      "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema."
+    },
+    "Previews": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the preview record."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow run whose attempt registered this preview."
+        },
+        "attemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
+        },
+        "headSha": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Commit SHA the running preview was built from."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "ready",
+            "stopped",
+            "expired"
+          ],
+          "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
+        },
+        "stopReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "person",
+                "run_cancelled",
+                "run_ended",
+                "machine_lost",
+                "time_limit",
+                "replaced"
+              ],
+              "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "previews.stopReason may be null in the safe projection."
+        },
+        "stoppedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The principal who stopped it; set only when stopReason is person."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "previews.stoppedBy may be null in the safe projection."
+        },
+        "stoppedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "previews.stoppedAt may be null in the safe projection."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the preview stops by itself."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when updating the record."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "attemptId",
+        "headSha",
+        "status",
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt",
+        "expiresAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema."
+    },
+    "Preview": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the preview record."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow run whose attempt registered this preview."
+        },
+        "attemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
+        },
+        "headSha": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Commit SHA the running preview was built from."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "ready",
+            "stopped",
+            "expired"
+          ],
+          "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
+        },
+        "stopReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "person",
+                "run_cancelled",
+                "run_ended",
+                "machine_lost",
+                "time_limit",
+                "replaced"
+              ],
+              "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stopReason may be null in the safe projection."
+        },
+        "stoppedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The principal who stopped it; set only when stopReason is person."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stoppedBy may be null in the safe projection."
+        },
+        "stoppedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stoppedAt may be null in the safe projection."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the preview stops by itself."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when updating the record."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "attemptId",
+        "headSha",
+        "status",
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt",
+        "expiresAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned."
     },
     "pull_requests": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -339693,6 +340432,9 @@
                   "jobAttempts.list",
                   "previews.list",
                   "previews.access",
+                  "previews.stop",
+                  "previews.revokeAccess",
+                  "previews.availability",
                   "worker.register",
                   "worker.heartbeat",
                   "worker.claim",
@@ -343616,27 +344358,22 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Stable UUID identifying the preview record."
               },
-              "workspaceId": {
+              "runId": {
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID linking this record to the related workspace entity."
+                "description": "The workflow run whose attempt registered this preview."
+              },
+              "attemptId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
               },
               "headSha": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Head commit SHA associated with the record."
-              },
-              "routeKey": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Contract-defined route key associated with the preview record."
-              },
-              "upstreamPort": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "Contract-defined upstream port associated with the preview record."
+                "description": "Commit SHA the running preview was built from."
               },
               "status": {
                 "type": "string",
@@ -343646,13 +344383,64 @@
                   "stopped",
                   "expired"
                 ],
-                "description": "Current lifecycle status of the record."
+                "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
+              },
+              "stopReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "person",
+                      "run_cancelled",
+                      "run_ended",
+                      "machine_lost",
+                      "time_limit",
+                      "replaced"
+                    ],
+                    "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stopReason may be null in the safe projection."
+              },
+              "stoppedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The principal who stopped it; set only when stopReason is person."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stoppedBy may be null in the safe projection."
+              },
+              "stoppedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stoppedAt may be null in the safe projection."
               },
               "expiresAt": {
                 "type": "string",
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC timestamp when the record expires."
+                "description": "UTC timestamp when the preview stops by itself."
               },
               "createdAt": {
                 "type": "string",
@@ -343675,18 +344463,20 @@
             },
             "required": [
               "id",
-              "workspaceId",
+              "runId",
+              "attemptId",
               "headSha",
-              "routeKey",
-              "upstreamPort",
               "status",
+              "stopReason",
+              "stoppedBy",
+              "stoppedAt",
               "expiresAt",
               "createdAt",
               "updatedAt",
               "version"
             ],
             "additionalProperties": false,
-            "description": "Registration for an authenticated developer preview URL exposing a worker's live workspace port during an attempt; returned when worker.previews registers it. status tracks starting/ready/stopped/expired, and access is private, session-bound, and served from a separate origin with no API cookies forwarded."
+            "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned."
           },
           "description": "Preview items in this cursor page. Page<Preview>.items must contain at most 100 items."
         },
@@ -360520,37 +361310,51 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
+        "grantId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifier of this access grant, used to end one person's access before it expires. Not a secret."
+        },
         "grant": {
           "type": "string",
           "minLength": 1,
           "maxLength": 65536,
-          "description": "Capability grant issued for the preview."
+          "description": "One-use secret handoff value: 32 random bytes, base64url. Post it once, in a form body; never put it in a URL, log, event or cache. Only its sha256 is stored."
         },
         "exchangeUrl": {
           "type": "string",
           "format": "uri",
-          "description": "One-time URL used to exchange preview access."
+          "description": "Absolute URL on the separate preview origin that exchanges the posted grant for a preview session."
         },
         "previewUrl": {
           "type": "string",
           "format": "uri",
-          "description": "URL used to access the preview."
+          "description": "Absolute URL on the preview origin where the preview is shown after the exchange."
         },
         "expiresAt": {
           "type": "string",
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the record expires."
+          "description": "When the grant stops being exchangeable, 30 seconds after it was issued. This is not the session length."
+        },
+        "sessionSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How long the session lasts after the grant is exchanged."
         }
       },
       "required": [
+        "grantId",
         "grant",
         "exchangeUrl",
         "previewUrl",
-        "expiresAt"
+        "expiresAt",
+        "sessionSeconds"
       ],
       "additionalProperties": false,
-      "description": "One-use grant is POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs."
+      "description": "One-use grant, exchangeable for 30 seconds, POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs. The session it opens lasts sessionSeconds."
     },
     "BinaryArtifact": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -434186,6 +434990,21 @@
       ],
       "additionalProperties": false,
       "description": "Cursor page of PluginStateItem."
+    },
+    "PreviewAvailability": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean",
+          "description": "True when the deployment configures a separate preview origin. When false every preview operation fails closed and clients show that previews are not set up."
+        }
+      },
+      "required": [
+        "available"
+      ],
+      "additionalProperties": false,
+      "description": "Whether this deployment can serve running-app previews."
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
