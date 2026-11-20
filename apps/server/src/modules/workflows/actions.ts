@@ -49,6 +49,10 @@ export type WorkflowsActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.WorkflowVersionPath>,
   ) => Promise<z.output<typeof contractSchemas.WorkflowVersion>>;
+  getVersionSkills: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.WorkflowVersionPath>,
+  ) => Promise<z.output<typeof contractSchemas.WorkflowVersionSkills>>;
   createVersion: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.WorkflowVersionCreate>,
@@ -188,6 +192,15 @@ export function createWorkflowsActionRegistry(
     output: contractSchemas.WorkflowVersion,
     policy: queryPolicy,
     handler: handlers.getVersion,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.WorkflowVersionsSkills,
+    method: HttpMethod.Get,
+    path: "/v1/workflows/:id/versions/:versionId/skills",
+    input: contractSchemas.WorkflowVersionPath,
+    output: contractSchemas.WorkflowVersionSkills,
+    policy: queryPolicy,
+    handler: handlers.getVersionSkills,
   });
   registry.register({
     name: WorkflowImplementedAction.WorkflowVersionsCreate,
