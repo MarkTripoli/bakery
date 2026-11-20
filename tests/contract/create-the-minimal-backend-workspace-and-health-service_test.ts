@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { createHealthApp } from "../../packages/contracts/src/health-app.ts";
+import { HEALTH_API_COMPATIBILITY } from "../../packages/contracts/src/health.ts";
 
 const app = createHealthApp({
   service: "bakery-server",
@@ -35,6 +36,7 @@ Deno.test("liveness is available while readiness reflects dependencies", async (
     service: "bakery-server",
     state: "ok",
     version: "test",
+    compatibility: HEALTH_API_COMPATIBILITY,
     dependencies: [],
   });
 
@@ -44,6 +46,7 @@ Deno.test("liveness is available while readiness reflects dependencies", async (
     service: "bakery-server",
     state: "unavailable",
     version: "test",
+    compatibility: HEALTH_API_COMPATIBILITY,
     dependencies: [
       { name: "migrations", state: "ok", reason: "AVAILABLE" },
       {
@@ -62,6 +65,7 @@ Deno.test("health aliases preserve status and body", async () => {
     service: "bakery-server",
     state: "ok",
     version: "test",
+    compatibility: HEALTH_API_COMPATIBILITY,
     dependencies: [],
   });
 
@@ -71,6 +75,7 @@ Deno.test("health aliases preserve status and body", async () => {
     service: "bakery-server",
     state: "unavailable",
     version: "test",
+    compatibility: HEALTH_API_COMPATIBILITY,
     dependencies: [
       { name: "migrations", state: "ok", reason: "AVAILABLE" },
       {
