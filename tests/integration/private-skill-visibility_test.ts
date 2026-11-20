@@ -304,102 +304,123 @@ Deno.test("a session's library.search shows its person only their own personal s
       "insert into bakery.principals (id, provider_user_id, display_name, principal_type) values ($1, $2, 'Other', 'human')",
       [otherPrincipal, otherUser],
     );
-    const insert = (
-      slug: string,
-      name: string,
-      description: string | null,
-      scope: string,
-      owner: string | null,
-    ) =>
-      db.query(
-        "insert into bakery.skills (id, organization_id, slug, name, description, scope, owner_principal_id) values ($1, $2, $3, $4, $5, $6, $7)",
-        [crypto.randomUUID(), org, slug, name, description, scope, owner],
+    try {
+      const insert = (
+        slug: string,
+        name: string,
+        description: string | null,
+        scope: string,
+        owner: string | null,
+      ) =>
+        db.query(
+          "insert into bakery.skills (id, organization_id, slug, name, description, scope, owner_principal_id) values ($1, $2, $3, $4, $5, $6, $7)",
+          [crypto.randomUUID(), org, slug, name, description, scope, owner],
+        );
+      await insert("zebra-shared", "Zebra Shared", null, "organization", null);
+      await insert(
+        "zebra-mine",
+        "Zebra Mine",
+        null,
+        "personal",
+        fixture.principalId,
       );
-    await insert("zebra-shared", "Zebra Shared", null, "organization", null);
-    await insert(
-      "zebra-mine",
-      "Zebra Mine",
-      null,
-      "personal",
-      fixture.principalId,
-    );
-    await insert(
-      "zebra-theirs",
-      "Zebra Theirs",
-      null,
-      "personal",
-      otherPrincipal,
-    );
-    await insert(
-      "stripes-theirs",
-      "Stripes Theirs",
-      "a zebra-only secret",
-      "personal",
-      otherPrincipal,
-    );
-    await insert(
-      "stripes-mine",
-      "Stripes Mine",
-      "a zebra-only secret",
-      "personal",
-      fixture.principalId,
-    );
+      await insert(
+        "zebra-theirs",
+        "Zebra Theirs",
+        null,
+        "personal",
+        otherPrincipal,
+      );
+      await insert(
+        "stripes-theirs",
+        "Stripes Theirs",
+        "a zebra-only secret",
+        "personal",
+        otherPrincipal,
+      );
+      await insert(
+        "stripes-mine",
+        "Stripes Mine",
+        "a zebra-only secret",
+        "personal",
+        fixture.principalId,
+      );
 
-    const assignment = await claimAssignment(fixture, worker) as unknown as {
-      attemptId: string;
-      sessionCredential: string;
-    };
-    const search = (args: Record<string, unknown>) =>
-      workerRequest(
-        fixture,
-        worker.credential,
-        SESSION_CALL_PATH.replace(":id", assignment.attemptId),
-        { tool: "library.search", arguments: args },
-        {
-          headers: {
-            [SESSION_CREDENTIAL_HEADER]: assignment.sessionCredential,
-          },
-        },
-      );
-    const run = async (args: Record<string, unknown>) => {
-      const res = await search(args);
-      const text = await res.text();
-      assertEquals(res.status, 200, text);
-      const page = (JSON.parse(text) as {
-        result: { items: { name: string }[]; nextCursor: string | null };
-      }).result;
-      return {
-        names: page.items.map((i) => i.name).sort(),
-        cursor: page.nextCursor,
+      const assignment = await claimAssignment(fixture, worker) as unknown as {
+        attemptId: string;
+        sessionCredential: string;
       };
-    };
-    // By name: shared + mine, never theirs.
-    assertEquals((await run({ query: "zebra" })).names, [
-      "Stripes Mine",
-      "Zebra Mine",
-      "Zebra Shared",
-    ]);
-    assertEquals((await run({ query: "zebra", kind: "skill" })).names, [
-      "Stripes Mine",
-      "Zebra Mine",
-      "Zebra Shared",
-    ]);
-    // By description: only mine.
-    assertEquals((await run({ query: "zebra-only" })).names, ["Stripes Mine"]);
-    // Their names do not match even when asked for exactly.
-    assertEquals((await run({ query: "Theirs" })).names, []);
-    // Paging walks exactly the three visible hits.
-    const seen: string[] = [];
-    let cursor: string | null = null;
-    for (let i = 0; i < 6; i++) {
-      const page = await run(
-        cursor === null
-          ? { query: "zebra", kind: "skill", limit: 1 }
-          : { query: "zebra", kind: "skill", limit: 1, cursor },
+      const search = (args: Record<string, unknown>) =>
+        workerRequest(
+          fixture,
+          worker.credential,
+          SESSION_CALL_PATH.replace(":id", assignment.attemptId),
+          { tool: "library.search", arguments: args },
+          {
+            headers: {
+              [SESSION_CREDENTIAL_HEADER]: assignment.sessionCredential,
+            },
+          },
+        );
+      const run = async (args: Record<string, unknown>) => {
+        const res = await search(args);
+        const text = await res.text();
+        assertEquals(res.status, 200, text);
+        const page = (JSON.parse(text) as {
+          result: { items: { name: string }[]; nextCursor: string | null };
+        }).result;
+        return {
+          names: page.items.map((i) => i.name).sort(),
+          cursor: page.nextCursor,
+        };
+      };
+      // By name: shared + mine, never theirs.
+      assertEquals((await run({ query: "zebra" })).names, [
+        "Stripes Mine",
+        "Zebra Mine",
+        "Zebra Shared",
+      ]);
+      assertEquals((await run({ query: "zebra", kind: "skill" })).names, [
+        "Stripes Mine",
+        "Zebra Mine",
+        "Zebra Shared",
+      ]);
+      // By description: only mine.
+      assertEquals((await run({ query: "zebra-only" })).names, [
+        "Stripes Mine",
+      ]);
+      // Their names do not match even when asked for exactly.
+      assertEquals((await run({ query: "Theirs" })).names, []);
+      // Paging walks exactly the three visible hits.
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      for (let i = 0; i < 6; i++) {
+        const page = await run(
+          cursor === null
+            ? { query: "zebra", kind: "skill", limit: 1 }
+            : { query: "zebra", kind: "skill", limit: 1, cursor },
+        );
+        seen.push(...page.names);
+        cursor = page.cursor;
+        if (cursor === null) break;
+      }
+      assertEquals(seen.sort(), ["Stripes Mine", "Zebra Mine", "Zebra Shared"]);
+    } finally {
+      // This file shares a database with the files after it: a second user left
+      // behind makes the next createSuperuser report a bootstrap conflict.
+      await db.query(
+        "delete from bakery.skills where organization_id = $1 and slug = any($2::text[])",
+        [org, [
+          "zebra-shared",
+          "zebra-mine",
+          "zebra-theirs",
+          "stripes-theirs",
+          "stripes-mine",
+        ]],
       );
-      seen.push(...page.names);
-      cursor = page.cursor;
-      if (cursor === null) break;
+      await db.query("delete from bakery.principals where id = $1", [
+        otherPrincipal,
+      ]);
+      await db.query('delete from public."user" where id = $1', [otherUser]);
     }
-    assertEquals(seen.sort(), ["Stripes Mine", "Zebra Mine", "Zebra Shared"]);
   }));
