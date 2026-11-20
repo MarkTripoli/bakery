@@ -332,6 +332,8 @@ for (
         .toBeVisible();
       await expect(page.getByText("To change anything here, open the Library."))
         .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-library-root");
       await page.getByTestId("files-page").getByRole("link", {
         name: "Workflows",
         exact: true,
