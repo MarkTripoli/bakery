@@ -2358,6 +2358,7 @@
   "settings.roles.thing.installationAdministrator": "installation administrators",
   "settings.roles.thing.installationAuditEvent": "installation audit events",
   "settings.roles.thing.installationSetting": "installation settings",
+  "settings.roles.thing.backup": "backups",
   "shell.navigation.scim": "SCIM provisioning",
   "settings.scim.section": "SCIM provisioning",
   "settings.scim.title": "User provisioning",

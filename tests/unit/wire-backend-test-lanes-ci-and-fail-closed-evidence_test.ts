@@ -759,7 +759,8 @@ Deno.test("the route job, the docs validation, the aggregate and the description
   const policy = await readWorkflow("description-policy.yml");
   assertEquals(
     [...policy.matchAll(/^ {4}runs-on: (.+)$/gm)].map((match) => match[1]),
-    ["ubuntu-24.04", "ubuntu-24.04"],
+    // issue, pull-request and verification: every one GitHub-hosted.
+    ["ubuntu-24.04", "ubuntu-24.04", "ubuntu-24.04"],
   );
 });
 
