@@ -884,51 +884,38 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "ced976823321297101162056fc78417a396f8236",
-    "1ba1b83c1cbe71a802b9494150042f20cae2af5c",
-    "3bdfc0b09e971bc73f6aa3368568a5a83d614549",
-    "4da415fd5d3079aaf259a47af29f74906ca9a16c",
-    "5914340150c35c0613a967f46464ae6b8689f652",
-    "5b8d39e853b302f1424cf36da10a1e8ca0d71c4d",
-    "91ec5a141de089dbef57b5827594eaccef5efb9b",
-    "a83b7ec57da9bf29078c23b24d3cdda776f255fe",
-    "9da88825036edcc588db4c2ac892297a8638b8cb",
-    "968c2ab9257fad06adb6132eb743a4f62c578e17",
-    "6eefa213893fcce48b6511332ef3798e3524602b",
-    "de64639a4d4cfbf49bc3402f7d21deffd06ef74a",
-    "94e8c0e8c04f896c3f56374303ac9853d21405aa",
-    "1ce09ba92c2007f4837308efdbabfc93baaaff67",
+    "4e1f1fdf68726693d0b8c36cf23a94ac453512c5",
   ];
   const approvedDigest =
-    "sha256:64858f3ae4c0236b9c7335599e50d05f0adad1c8fc5989d4eed5cf97f2768577";
+    "sha256:67dd9ea9809f99be4aeb719ea1edaaa80cec17fce3d6ebe6b814fb86fce62e50";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #400 re-bind onto main 1ce09ba92: main's own #69
-    // approval, kept unchanged.
+    // Displaced by the #400 S2 re-bind onto main 4e1f1fdf6: main's own approval, kept unchanged.
+    "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1",
+    // The same #57 merge from Bakery change before main moved again (#724): the
+    // digest follows the tree, so the earlier one no longer authorises it.
+    "sha256:468a1fc65fc3b08483d56cf8108a2d8cb76241bab428558a44b78b723a0d8a53",
+    // Displaced by the #57 merge from Bakery re-bind: PullRequest gains required
+    // mayMerge and mergeMethod, on top of the #69 memberships display name.
     "sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926",
-    // Displaced by the #400 re-bind onto main 1ce09ba92 (#714 merged).
-    "sha256:1d16dc619e99c9bae62393095f6a862b1005d4e455d11016fa4ba6899cbd6ecf",
+    // Displaced by the #69 memberships display name re-bind: the same field on a
+    // later main (#715 and #722 changed other contracts).
+    "sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc",
+    // Displaced by the #69 memberships display name re-bind: the same field on a
+    // later main (run requests changed other contracts).
+    "sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b",
+    // Displaced by the #69 memberships display name re-bind: the same field on a
+    // later main (other contracts changed meanwhile).
+    "sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1",
     // Newest first, matching the file: a displaced approval is prepended, so the
     // approval this change removed from force heads the history it joins.
-    // Displaced by the #400 re-bind onto main 94e8c0e8c.
-    "sha256:5746a2c129a47b9dba605b034d3d1e4968b55ca95e922c75cbff0207d1057fc5",
-    // Displaced by the #400 re-bind onto main de64639a4.
-    "sha256:5178d631d0dfff391ce01c4b044cb87ed2684f95e529dba270b3a7aea30440c8",
-    // Displaced by the #400 re-bind onto main 6eefa2138 (#721 and #710 merged).
-    "sha256:ed93d6ab9c60fe57f298963e296af917252d61894392c63eec098f47242eb94d",
-    // Displaced by the #400 re-bind onto main 9da888250 (#706 merged; the same
-    // renamed input field, only the base and the digest moved).
-    "sha256:d6aa2d82f6414d196b7ee0780b964513e0c25772e3b499c65c775e04a7fa43c7",
-    // Displaced by the #400 re-bind onto main a83b7ec57 (#702 and #711 merged;
-    // the same renamed input field, only the base and the digest moved).
-    "sha256:8f194c24ed520a1644c7d1e0575ceeb56761f2675962b0b9c0d8adfbc927b726",
-    // Displaced by the #400 re-bind onto main 5b8d39e85 (the same renamed input
-    // field; only the base and the compatibility digest moved).
-    "sha256:b810e7ccc1b92adfbd41c4baee6b7ab89bb7ea2496b80e255731454eaff4e19a",
-    // Displaced by the #400 re-bind: secret.identity.read becomes a plan action
-    // and its input field secretRef is renamed identityRef.
+    // Displaced by the #69 memberships display name re-bind: the same field on a
+    // later main (#706 changed other contracts).
+    "sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3",
+    // Displaced by the #69 memberships display name re-bind: OrganizationMembership
+    // gains a required displayName.
     "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
     // Displaced by the #69 ticket preview, link reads and status note re-bind.
     "sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d",
@@ -1025,11 +1012,27 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "sha256:23925a33300c5bace9bf0ea5729725c8779c2e6ac70f0a3290aaf2335daff1f2",
     "sha256:6bda73092281a4782bdf22990a05724cb6689eb6521e6002ce90c8a3649b68f8",
     "sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f",
-    // Main's own approvals displaced since this branch last merged it.
-    "sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc",
-    "sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b",
-    "sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1",
-    "sha256:d07a0bb613385bd6e7f94c9d25aac4655dd74ea34b6196b1e9f89acb748619d3",
+    // Displaced by the #400 S2 re-bind onto main 4e1f1fdf6: the approval in force before it.
+    "sha256:64858f3ae4c0236b9c7335599e50d05f0adad1c8fc5989d4eed5cf97f2768577",
+    // Displaced by the #400 re-bind onto main 1ce09ba92 (#714 merged).
+    "sha256:1d16dc619e99c9bae62393095f6a862b1005d4e455d11016fa4ba6899cbd6ecf",
+    // Newest first, matching the file: a displaced approval is prepended, so the
+    // approval this change removed from force heads the history it joins.
+    // Displaced by the #400 re-bind onto main 94e8c0e8c.
+    "sha256:5746a2c129a47b9dba605b034d3d1e4968b55ca95e922c75cbff0207d1057fc5",
+    // Displaced by the #400 re-bind onto main de64639a4.
+    "sha256:5178d631d0dfff391ce01c4b044cb87ed2684f95e529dba270b3a7aea30440c8",
+    // Displaced by the #400 re-bind onto main 6eefa2138 (#721 and #710 merged).
+    "sha256:ed93d6ab9c60fe57f298963e296af917252d61894392c63eec098f47242eb94d",
+    // Displaced by the #400 re-bind onto main 9da888250 (#706 merged; the same
+    // renamed input field, only the base and the digest moved).
+    "sha256:d6aa2d82f6414d196b7ee0780b964513e0c25772e3b499c65c775e04a7fa43c7",
+    // Displaced by the #400 re-bind onto main a83b7ec57 (#702 and #711 merged;
+    // the same renamed input field, only the base and the digest moved).
+    "sha256:8f194c24ed520a1644c7d1e0575ceeb56761f2675962b0b9c0d8adfbc927b726",
+    // Displaced by the #400 re-bind onto main 5b8d39e85 (the same renamed input
+    // field; only the base and the compatibility digest moved).
+    "sha256:b810e7ccc1b92adfbd41c4baee6b7ab89bb7ea2496b80e255731454eaff4e19a",
   ];
   const options = {
     baseRef: approvedBases[0],
