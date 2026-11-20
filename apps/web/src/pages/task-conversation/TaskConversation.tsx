@@ -36,6 +36,7 @@ import { NowLineOutlet, NowLineProvider } from "../now-line-slot.tsx";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { TaskFromIssue } from "../TaskFromIssue.tsx";
 import { Composer } from "./Composer.tsx";
 import {
   browserDraftStore,
@@ -733,6 +734,7 @@ export function TaskConversation(
           )
           : undefined}
         state={state}
+        meta={<TaskFromIssue taskId={task.id} />}
         data-ui-region="task-conversation"
         aria-label={t("tasks.conversation.heading")}
         role="region"

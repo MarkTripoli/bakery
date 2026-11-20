@@ -30,6 +30,7 @@ import {
 } from "../auth/application/agent-power-grants.ts";
 import type { PgTransactionClient } from "@bakery/persistence";
 import type { OperationScope } from "./session-credential.ts";
+import { FILES_WRITE_SCOPE } from "../knowledge/agent-file-scope.ts";
 
 export type SessionClaimCredentialInput = Readonly<{
   organizationId: string;
@@ -201,5 +202,17 @@ export async function grantedScopesForAttempt(
     if (!isAgentPower(power)) continue;
     for (const scope of POWER_SESSION_SCOPES[power]) scopes.add(scope);
   }
+  // Bakery Files (#448): the write tools are offered only where a person
+  // granted this workflow a folder to write, and the grant was live at claim.
+  // Live at claim is not enough to write: the guard judges the grant again at
+  // the time of every write.
+  const fileGrants = await tx.query(
+    `select 1 from bakery.agent_file_grants
+      where organization_id = $1 and workflow_id = $2 and access = 'write'
+        and revoked_at is null and expires_at > now()
+      limit 1`,
+    [organizationId, origin.workflowId],
+  );
+  if (fileGrants.rows.length > 0) scopes.add(FILES_WRITE_SCOPE);
   return [...scopes].sort();
 }

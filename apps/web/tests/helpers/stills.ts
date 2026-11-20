@@ -29,6 +29,30 @@ export async function still(
   if (!phone) {
     await page.setViewportSize({ width, height: target ? 3200 : 1500 });
   }
+  // The shell is as tall as the window and scrolls inside: grow the window by
+  // what its scrolling panes hide, so the sidebar and the page end together.
+  if (target === undefined && options.scrollTo === undefined) {
+    const hidden = await page.evaluate(() => {
+      // A page that scrolls as a whole hides what is below the window too.
+      let extra = document.documentElement.scrollHeight -
+        document.documentElement.clientHeight;
+      for (const element of document.querySelectorAll("*")) {
+        const overflow = getComputedStyle(element).overflowY;
+        if (overflow !== "auto" && overflow !== "scroll") continue;
+        extra = Math.max(extra, element.scrollHeight - element.clientHeight);
+      }
+      return extra;
+    });
+    if (hidden > 0) {
+      const size = page.viewportSize();
+      if (size !== null) {
+        await page.setViewportSize({
+          width: size.width,
+          height: Math.min(size.height + hidden, 6000),
+        });
+      }
+    }
+  }
   if (options.scrollTo === undefined) {
     await page.evaluate(() => {
       for (const element of document.querySelectorAll("*")) {

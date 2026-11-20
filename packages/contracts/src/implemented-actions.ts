@@ -375,6 +375,7 @@ export const DeliveryImplementedAction = Object.freeze(
     MergeEntriesList: "mergeEntries.list",
     MergeEntriesCreate: "mergeEntries.create",
     PullRequestsMerge: "pullRequests.merge",
+    MergeAttemptsList: "mergeAttempts.list",
     MergeAttemptsReconcile: "mergeAttempts.reconcile",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -491,6 +492,46 @@ export const WorkflowImplementedAction = Object.freeze(
 );
 export const workflowImplementedActions = Object.freeze(
   Object.values(WorkflowImplementedAction),
+);
+
+/**
+ * MCP server definitions (#434): the shared, organization-scoped record of what a
+ * remote server is. Connections, discovery and classification are separate groups
+ * as they land; the runtime registry and this list stay equal at every commit.
+ */
+export const McpServerImplementedAction = Object.freeze(
+  {
+    McpServersList: "mcpServers.list",
+    McpServersGet: "mcpServers.get",
+    McpServersCreate: "mcpServers.create",
+    McpServersUpdate: "mcpServers.update",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const mcpServerImplementedActions = Object.freeze(
+  Object.values(McpServerImplementedAction),
+);
+
+/**
+ * MCP connections (#434): one use of a server definition, organization or personal.
+ * Discovery pins what a server offers; the capabilities read shows the pin.
+ */
+export const McpConnectionImplementedAction = Object.freeze(
+  {
+    McpConnectionsList: "mcpConnections.list",
+    McpConnectionsGet: "mcpConnections.get",
+    McpConnectionsCreate: "mcpConnections.create",
+    McpConnectionsUpdate: "mcpConnections.update",
+    McpConnectionsDiscover: "mcpConnections.discover",
+    McpConnectionsCapabilities: "mcpConnections.capabilities",
+    McpToolClassificationsList: "mcpToolClassifications.list",
+    McpToolClassificationsPut: "mcpToolClassifications.put",
+    McpUseGrantsList: "mcpUseGrants.list",
+    McpUseGrantsCreate: "mcpUseGrants.create",
+    McpUseGrantsRevoke: "mcpUseGrants.revoke",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const mcpConnectionImplementedActions = Object.freeze(
+  Object.values(McpConnectionImplementedAction),
 );
 
 /** Registered workflow action discovery served by the handwritten Hono routes. */
@@ -612,6 +653,13 @@ export const StorageImplementedAction = Object.freeze(
     StorageTrashList: "storageTrash.list",
     StorageSettingsGet: "storageSettings.get",
     StorageSettingsPut: "storageSettings.put",
+    AgentFileGrantsCreate: "agentFileGrants.create",
+    AgentFileGrantsRevoke: "agentFileGrants.revoke",
+    StorageRootsList: "storageRoots.list",
+    StorageFolderEntriesList: "storageFolderEntries.list",
+    StorageFileVersionsList: "storageFileVersions.list",
+    StorageFileUsesList: "storageFileUses.list",
+    StorageFilesContent: "storageFiles.content",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const storageImplementedActions = Object.freeze(
@@ -733,6 +781,8 @@ export const implementedActions = Object.freeze(
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
+    ...mcpServerImplementedActions,
+    ...mcpConnectionImplementedActions,
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
     ...memoryImplementedActions,

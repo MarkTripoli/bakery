@@ -42,11 +42,27 @@ export function createPostgresMcpPinnedStatePort(
         grant_live: boolean;
         allowed_operations: unknown;
         dispatching_host_eligible: boolean;
+        owner_principal_id: string | null;
+        use_grant_live: boolean;
       }[]>`
           select
             connection.status as connection_status,
             server.transport as transport,
             connection.worker_host_id,
+            connection.owner_principal_id,
+            -- The owner's grant to the workflow this call is made for, live now. A
+            -- revoked grant, or one to another workflow, is not this one.
+            exists (
+              select 1
+                from bakery.mcp_use_grants use_grant
+                join bakery.workflow_versions granted_version
+                  on granted_version.organization_id = use_grant.organization_id
+                 and granted_version.workflow_id = use_grant.workflow_id
+               where use_grant.organization_id = connection.organization_id
+                 and use_grant.connection_id = connection.id
+                 and use_grant.revoked_at is null
+                 and granted_version.id = ${input.workflowVersionId ?? null}
+            ) as use_grant_live,
             connection.enabled_capabilities,
             pinned.id as pinned_id,
             binding.mcp_snapshot_digest as pinned_digest,
@@ -166,6 +182,10 @@ export function createPostgresMcpPinnedStatePort(
         grantLive: row.grant_live === true &&
           (row.allowed_operations !== null),
         dispatchingHostEligible: row.dispatching_host_eligible === true,
+        personal: row.owner_principal_id === null ? null : {
+          ownerPrincipalId: row.owner_principal_id,
+          useGrantLive: row.use_grant_live === true,
+        },
         pinnedSnapshot: row.pinned_id && row.pinned_digest
           ? {
             id: row.pinned_id,
