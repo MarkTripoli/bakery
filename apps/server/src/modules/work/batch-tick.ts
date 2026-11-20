@@ -241,10 +241,16 @@ async function apply(
       );
       for (const passed of result.passedOver ?? []) {
         position += 1;
+        // An issue passed over earlier is looked at again every time: its row is
+        // updated with the latest reason instead of added twice.
         await transaction.query(
           `insert into bakery.batch_issues
              (organization_id, batch_id, position, external_ticket_id, state, reason)
-           values ($1, $2, $3, $4, 'passed_over', $5)`,
+           values ($1, $2, $3, $4, 'passed_over', $5)
+           on conflict (batch_id, external_ticket_id) do update
+             set reason = excluded.reason, updated_at = now(),
+                 version = bakery.batch_issues.version + 1
+             where bakery.batch_issues.state = 'passed_over'`,
           [
             organizationId,
             id,
@@ -255,11 +261,19 @@ async function apply(
         );
       }
       if (result.started) {
+        // An issue passed over earlier and ready now becomes the started one, keeping
+        // its place in the list.
         await transaction.query(
           `insert into bakery.batch_issues
              (organization_id, batch_id, position, external_ticket_id, state,
               ticket_request_id, started_at)
-           values ($1, $2, $3, $4, 'started', $5, now())`,
+           values ($1, $2, $3, $4, 'started', $5, now())
+           on conflict (batch_id, external_ticket_id) do update
+             set state = 'started', reason = null,
+                 ticket_request_id = excluded.ticket_request_id,
+                 started_at = now(), updated_at = now(),
+                 version = bakery.batch_issues.version + 1
+             where bakery.batch_issues.state = 'passed_over'`,
           [
             organizationId,
             id,
