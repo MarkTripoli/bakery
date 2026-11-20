@@ -1,0 +1,38 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>#77 slice 3</title><style>:root{--color-border:#E3E6EB;--color-border-strong:#CBD0D8;--color-canvas:#F5F6F8;--color-control-border:#8A939F;--color-destructive:#BE3341;--color-destructive-surface:#FCEEEF;--color-fg:#141A24;--color-fg-muted:#5D6675;--color-fg-disabled:#9AA3B1;--color-focus:#0B63C6;--color-primary:#141A24;--color-primary-foreground:#FFFFFF;--color-selection:#0B63C6;--color-selection-surface:#ECF1F8;--color-status-neutral:#374151;--color-status-neutral-surface:#E5E7EB;--color-status-warning:#8F5A0B;--color-status-warning-surface:#FBF3E4;--color-surface:#FFFFFF;--color-surface-subtle:#EEF0F4;--desk:#D9DCE2;--bar:#E9EBEF;--winb:#B9BFC9;--dot:#B4BAC4;--scrim:rgba(20,26,36,.36);}
+*{box-sizing:border-box}
+body{margin:0;background:var(--desk);font:400 14px/20px Geist,Inter,system-ui,sans-serif;color:var(--color-fg);display:flex;align-items:center;justify-content:center}
+.d7win{background:var(--color-surface);border-radius:10px;box-shadow:0 18px 50px rgba(20,26,36,.28);overflow:hidden;display:flex;flex-direction:column;border:1px solid var(--winb)}
+.d7bar{height:36px;background:var(--bar);border-bottom:1px solid var(--color-border-strong);display:flex;align-items:center;padding:0 12px;font:500 13px/18px Geist,system-ui,sans-serif;color:var(--color-fg-muted);flex:none}
+.d7dots{display:flex;gap:7px}.d7dots i{width:11px;height:11px;border-radius:50%;background:var(--dot);display:block}
+.d7bar .d7t{flex:1;text-align:center;margin-right:50px}
+.d7body{flex:1;display:flex;min-height:0;position:relative}
+.d7center{flex:1;display:flex;align-items:center;justify-content:center;background:var(--color-canvas)}
+.d7panel{width:420px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;padding:32px;display:flex;flex-direction:column;gap:16px}
+.d7sm .d7panel{width:auto;flex:1;margin:0 16px;padding:24px;min-width:0}
+.d7panel h1{font:600 24px/32px Geist,system-ui,sans-serif;letter-spacing:-.02em;margin:0}
+.d7panel p{margin:0;color:var(--color-fg-muted)}
+.d7kv{border:1px solid var(--color-border);border-radius:6px}
+.d7kv div{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border-top:1px solid var(--color-border)}
+.d7kv div:first-child{border-top:0}.d7kv span:first-child{color:var(--color-fg-muted)}
+.d7mono{font:400 13px/20px "Geist Mono",ui-monospace,monospace;overflow-wrap:anywhere}
+.d7btn{font:500 14px/20px Geist,system-ui,sans-serif;height:36px;padding:0 14px;border-radius:4px;border:1px solid var(--color-border-strong);background:var(--color-surface);color:var(--color-fg);display:flex;align-items:center;justify-content:center;white-space:nowrap}
+.d7btn.d7pri{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-foreground)}
+.d7sm .d7btn{height:44px}
+.d7stack{display:flex;flex-direction:column;gap:8px}
+.d7wait{display:flex;gap:10px;align-items:center;border:1px solid var(--color-border);border-radius:6px;padding:10px 12px;background:var(--color-surface-subtle)}
+.d7spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--color-border-strong);border-top-color:var(--color-fg);flex:none}
+.d7wait small{display:block;color:var(--color-fg-muted);font-size:12px;line-height:18px}
+.d7note{border:1px solid var(--color-border);background:var(--color-surface-subtle);border-radius:6px;padding:10px 12px}
+.d7warn{border:1px solid var(--color-status-warning);background:var(--color-status-warning-surface);color:var(--color-status-warning);border-radius:6px;padding:10px 12px}
+.d7side{width:220px;border-right:1px solid var(--color-border);background:var(--color-canvas);padding:16px 12px;display:flex;flex-direction:column;gap:4px;flex:none}
+.d7side b{font-weight:600;padding:6px 8px 12px}.d7side span{padding:7px 8px;border-radius:4px;color:var(--color-fg-muted)}
+.d7side span.d7on{background:var(--color-selection-surface);color:var(--color-fg);font-weight:500}
+.d7main{flex:1;padding:28px 40px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.d7main h1{font:600 24px/32px Geist,system-ui,sans-serif;margin:0}
+.d7ta{border:1px solid var(--color-control-border);border-radius:4px;padding:10px 12px;min-height:84px;font:400 16px/24px Geist,system-ui,sans-serif}
+.d7dim{opacity:.45}
+.d7scrim{position:absolute;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center}
+.d7dlg{background:var(--color-surface);border-radius:8px;box-shadow:0 8px 24px rgba(20,26,36,.16);width:460px;padding:24px;display:flex;flex-direction:column;gap:12px}
+.d7dlg h2{font:600 16px/24px Geist,system-ui,sans-serif;margin:0}.d7dlg p{margin:0;color:var(--color-fg-muted)}
+.d7row{display:flex;gap:8px;justify-content:flex-end}
+body{width:1200px;height:800px}</style></head><body><div class="d7win" style="width:960px;height:640px"><div class="d7bar"><div class="d7dots"><i></i><i></i><i></i></div><div class="d7t">Bakery</div></div><div class="d7body"><div class="d7center"><div class="d7panel"><h1>Finish signing in in your browser</h1><p>Bakery opened your browser. Confirm the sign-in there. This window continues by itself.</p><div class="d7wait"><span class="d7spin"></span><div>Waiting for your browser<small>You have until 14:42 to confirm.</small></div></div><div class="d7stack"><span class="d7btn">Open the browser again</span><span class="d7btn">Cancel</span></div></div></div></div></div></body></html>
