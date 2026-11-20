@@ -7125,6 +7125,7 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
@@ -7147,6 +7148,7 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "MALFORMED_REQUEST",
         "INVALID_CURSOR",
@@ -238387,7 +238389,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:313a627fd5410ceb69e349360833439ba8af752f5c4b35632b65eb88beec05ec",
+  "compatibilityDigest": "sha256:ab1411692cabd8bdc9f77f0fff0237d31232e026fa035d46f7767344ccb7725d",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
