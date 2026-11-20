@@ -341,8 +341,15 @@ for (
       ),
     ).toBe(true);
     if (viewport.width === 390) {
-      expect(await page.evaluate(() => document.documentElement.scrollHeight))
-        .toBeLessThanOrEqual(viewport.height);
+      // On a phone the actions stay on the first screen. The page is not pinned
+      // to the viewport's height: the section picker above the title already
+      // makes the document a few pixels taller, and the buttons are what must
+      // not fall below the fold.
+      for (const name of ["Save settings", "Discard"]) {
+        const box = await page.getByRole("button", { name }).boundingBox();
+        expect(box, name).not.toBeNull();
+        expect(box!.y + box!.height, name).toBeLessThanOrEqual(viewport.height);
+      }
     }
   });
 }

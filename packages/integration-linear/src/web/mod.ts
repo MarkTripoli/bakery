@@ -24,6 +24,13 @@ export const linearWebProvider = defineWebProvider({
   manifest: linearProviderManifest,
   ConnectStep: undefined,
   /**
+   * Core's OAuth2 connect flow has no Linear route yet (#670 shipped the manifest and
+   * the ticket reads, not the connection), so Connect would fail. Remove this line
+   * when the flow lands.
+   */
+  connectAvailable: false,
+  registrationGuideUrl: "https://linear.app/settings/api",
+  /**
    * What kind of thing a Linear resource is, in the person's language.
    *
    * The resource's own name is data and the host renders it as data; this says

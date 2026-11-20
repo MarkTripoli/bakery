@@ -248,6 +248,9 @@ importers:
       '@bakery/i18n':
         specifier: workspace:*
         version: link:../i18n
+      '@bakery/integration-sdk':
+        specifier: workspace:*
+        version: link:../integration-sdk
 
   packages/integration-sdk:
     dependencies:
