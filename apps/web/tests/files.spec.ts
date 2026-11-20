@@ -112,6 +112,34 @@ for (
       await expect(page.getByRole("link", { name: "demo.mp4" })).toBeVisible();
     });
 
+    test("a link to a file past the first page opens its details", async ({ page }) => {
+      await filesFixture(page, { pageSize: 2 });
+      // plan.md is the fourth entry, so it is on the second page of two.
+      await page.goto(`/files/projects/web-app?file=${uuid(40)}`);
+      await expect(page.getByTestId("file-details")).toContainText(
+        "/projects/web-app/plan.md",
+      );
+    });
+
+    test("a link to a file that is not in the folder says so", async ({ page }) => {
+      await filesFixture(page, { pageSize: 2 });
+      await page.goto(`/files/projects/web-app?file=${uuid(99)}`);
+      await expect(page.getByText(/That file is not in this folder/))
+        .toBeVisible();
+      await expect(page.getByTestId("file-details")).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "files-file-missing");
+    });
+
+    test("a folder is found however long the list it sits in", async ({ page }) => {
+      await filesFixture(page, { pageSize: 1 });
+      await page.goto("/files/projects/web-app/media");
+      await expect(page.getByRole("link", { name: "broken.md" }))
+        .toBeVisible();
+      await expect(page.getByText(/This folder was not found|not found/i))
+        .toHaveCount(0);
+    });
+
     test("selecting a file opens its details, then Versions and Used by", async ({ page }) => {
       const { seen } = await filesFixture(page);
       await page.goto("/files/projects/web-app");

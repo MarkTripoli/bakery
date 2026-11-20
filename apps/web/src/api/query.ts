@@ -3162,9 +3162,6 @@ export function storageFileUsesQueryOptions(
   });
 }
 
-/** Most pages read while looking for one folder by its path. */
-const FOLDER_WALK_PAGES = 20;
-
 /**
  * The folders from the top of the tree down to the one at `path` (`/projects/web`),
  * or null when there is none. Folders are read by id, so the path is walked one
@@ -3190,11 +3187,9 @@ export function storageFolderChainQueryOptions(
         const parent: StorageFolderItem = current;
         let cursor: string | undefined;
         let next: StorageFolderItem | undefined;
-        for (
-          let page = 0;
-          page < FOLDER_WALK_PAGES && next === undefined;
-          page++
-        ) {
+        // Page all the way through the level: a real folder is never reported
+        // as missing because it sorts late in a long list.
+        while (next === undefined) {
           const entries = unwrap(
             await client.files.entries(
               organizationId,

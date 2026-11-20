@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { formatDate, formatNumber } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
@@ -196,6 +197,18 @@ export function FilesPage({ path }: { readonly path: string }) {
     ? null
     : rows.find((row) => row.id === search.file && row.kind === "file") ??
       null;
+  // A link to a file past the first page: page the folder until it turns up.
+  const wanted = search.file !== undefined && selected === null && !atTop;
+  const { hasNextPage, isFetchingNextPage, isError, fetchNextPage } = entries;
+  useEffect(() => {
+    if (wanted && hasNextPage && !isFetchingNextPage && !isError) {
+      void fetchNextPage();
+    }
+  }, [wanted, hasNextPage, isFetchingNextPage, isError, fetchNextPage]);
+  const fileMissing = search.file !== undefined && selected === null &&
+    !searching && !loading &&
+    (atTop || (entries.isSuccess && !entries.hasNextPage));
+  const fileFinding = wanted && !fileMissing && !searching && !loading;
   const filePage = selected !== null && phone && !searching;
   const detailsPanel = selected === null ? null : (
     <FileDetails
@@ -246,18 +259,18 @@ export function FilesPage({ path }: { readonly path: string }) {
               variant="back"
               onClick={(event) => {
                 event.preventDefault();
-                void navigate({
-                  to: crumbs.length > 2 ? "/files/$" : "/files",
-                  ...(crumbs.length > 2
-                    ? {
-                      params: {
-                        _splat: (crumbs.at(-2)?.href ?? "").slice(
-                          "/files/".length,
-                        ),
-                      },
-                    }
-                    : {}),
-                } as never);
+                if (crumbs.length > 2) {
+                  void navigate({
+                    to: "/files/$",
+                    params: {
+                      _splat: (crumbs.at(-2)?.href ?? "").slice(
+                        "/files/".length,
+                      ),
+                    },
+                  });
+                } else {
+                  void navigate({ to: "/files" });
+                }
               }}
             >
               {translate("files.back", {
@@ -287,6 +300,19 @@ export function FilesPage({ path }: { readonly path: string }) {
               })}
           />
         )}
+        {fileMissing
+          ? (
+            <UI.InlineNotice tone="information">
+              {translate("files.file.missing")}
+            </UI.InlineNotice>
+          )
+          : fileFinding
+          ? (
+            <UI.Text variant="muted" role="status">
+              {translate("files.file.finding")}
+            </UI.Text>
+          )
+          : null}
         {searching
           ? (
             <FileSearchResults
