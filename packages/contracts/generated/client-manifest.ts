@@ -27236,6 +27236,12 @@ export const clientManifest = {
           "maxLength": 200,
           "pattern": "^bytes=(?:\\d+-\\d*|-\\d+)$",
           "x-utf8-max-bytes": 100
+        },
+        "organizationId": {
+          "description": "Organization that owns the file, as a query parameter for a video or audio src, which cannot send the Bakery-Organization-Id header. Parsed and membership-checked exactly like the header; the header wins when present, and a header and query that differ are refused. Omitting both is SCOPE_REQUIRED.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         }
       },
       "additionalProperties": false,
