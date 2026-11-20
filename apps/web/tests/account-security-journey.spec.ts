@@ -297,10 +297,11 @@ test.describe("account security journey", () => {
     }
     await expect(page.getByText("Connected clients").first()).toBeVisible();
     await expect(page.getByText("Passkeys").first()).toBeVisible();
-    // The nav item reaches the same list the hub row does.
-    await page.getByRole("link", { name: "Connected clients" }).first().click();
-    // Connected clients live under Integrations (the issue 233 split); the old
-    // /settings/clients address redirects there.
+    // The hub row reaches the client list. Connected clients live under
+    // Integrations (the issue 233 split); the old /settings/clients address
+    // redirects there.
+    await page.getByRole("button", { name: "Manage connected clients" })
+      .click();
     await expect(page).toHaveURL(
       /\/settings\/organization\/integrations\/clients$/,
     );
