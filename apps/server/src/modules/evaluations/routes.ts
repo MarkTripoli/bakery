@@ -1,4 +1,5 @@
 import { Hono, type MiddlewareHandler } from "hono";
+import { StandardError } from "@bakery/contracts/http";
 import {
   ActionKind,
   ActionRegistry,
@@ -170,10 +171,13 @@ export function createEvaluationActionRegistry(
       explicitIdempotency: "key-and-if-match",
       successStatus: 200,
       policy: command,
-      handler: async (c) =>
-        S.EvaluationBatch.parse(
-          await cancelBatch(c, requireCommandMetadata(c).expectedVersion!),
-        ),
+      handler: async (c) => {
+        const expectedVersion = requireCommandMetadata(c).expectedVersion;
+        if (expectedVersion === undefined) {
+          throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+        }
+        return S.EvaluationBatch.parse(await cancelBatch(c, expectedVersion));
+      },
     })
     .register({
       name: A.EvaluationBatchesCompare,

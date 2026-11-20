@@ -675,6 +675,7 @@ export async function cancelBatch(
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
   const id = context.params.id;
+  if (id === undefined) notFound();
   const locked = await tx.query<BatchRow>(
     "select * from bakery.evaluation_batches where organization_id = $1 and id = $2 for update",
     [organizationId, id],
@@ -702,7 +703,7 @@ export async function cancelBatch(
       where organization_id = $1 and id = $2`,
     [organizationId, id, principalId],
   );
-  return await batchView(tx, organizationId, id!);
+  return await batchView(tx, organizationId, id);
 }
 
 // ---------------------------------------------------------------- results
@@ -899,18 +900,30 @@ export async function recordAttempt(
     unprocessable("score", "out_of_range");
   }
   if (!measured && !attempt.reason) unprocessable("reason", "reason_required");
-  const locked = await tx.query<ResultRow & { canceled_at: Date | null }>(
-    `select r.*, b.canceled_at from bakery.evaluation_results r
-       join bakery.evaluation_batches b
-         on b.organization_id = r.organization_id and b.id = r.batch_id
+  // Lock order matches cancelBatch: the batch row first, then the result
+  // row. The reverse order deadlocks a cancel racing a worker report, and a
+  // locked batch row keeps the cancel check below current.
+  const batch = await tx.query<{ canceled_at: Date | null }>(
+    `select b.canceled_at from bakery.evaluation_batches b
+      where b.organization_id = $1
+        and b.id = (select r.batch_id from bakery.evaluation_results r
+                     where r.organization_id = $1 and r.id = $2)
+      for update of b`,
+    [organizationId, resultId],
+  );
+  const batchRow = batch.rows[0];
+  if (!batchRow) notFound();
+  const locked = await tx.query<ResultRow>(
+    `select r.* from bakery.evaluation_results r
       where r.organization_id = $1 and r.id = $2 for update of r`,
     [organizationId, resultId],
   );
-  const row = locked.rows[0];
-  if (!row) notFound();
+  const found = locked.rows[0];
+  if (!found) notFound();
+  const row = { ...found, canceled_at: batchRow.canceled_at };
   const seen = await tx.query(
-    "select 1 from bakery.evaluation_attempts where result_id = $1 and delivery_key = $2",
-    [resultId, attempt.deliveryKey],
+    "select 1 from bakery.evaluation_attempts where organization_id = $1 and result_id = $2 and delivery_key = $3",
+    [organizationId, resultId, attempt.deliveryKey],
   );
   if (seen.rows[0]) return "duplicate";
   // A canceled batch takes no attempt, but the worker's result still lands:

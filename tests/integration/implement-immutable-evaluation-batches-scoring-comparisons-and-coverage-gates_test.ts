@@ -23,6 +23,16 @@ import {
   type WorkerAssignment,
 } from "../helpers/worker-execution/scenarios.ts";
 import { recordAttempt } from "../../apps/server/src/modules/evaluations/store.ts";
+import { readTestDatabaseConfig } from "../../packages/config/src/env.ts";
+import {
+  closePgDatabase,
+  openPgDatabase,
+} from "../../apps/server/src/platform/database.ts";
+import {
+  assertNoDeadlock,
+  holdRow,
+  raceInOrder,
+} from "../helpers/lock-race.ts";
 import { workerActionCapabilities } from "../../packages/contracts/src/contracts.ts";
 import {
   bindProviderCallIntent,
@@ -403,6 +413,52 @@ function judgeReceipt(
     occurredAt: new Date().toISOString(),
   };
 }
+
+// Cancel locks the batch then its missing results; a worker attempt must
+// take the same order. A third transaction holds the result row, the attempt
+// queues first, the cancel second. Under the old order (result row first,
+// batch later) the two waited on each other and Postgres raised 40P01.
+Deno.test("a cancel racing a worker attempt never deadlocks", () =>
+  withWorkerFixture(async (fixture) => {
+    const side = openPgDatabase(readTestDatabaseConfig().databaseUrl, 4);
+    try {
+      const w = await world(fixture);
+      const batch = await admit(fixture, w, [w.schema]);
+      const rows = await results(fixture, batch.id);
+      const hold = await holdRow(
+        side,
+        "select id from bakery.evaluation_results where id = $1 for update",
+        [rows[0].id],
+      );
+      const [attempt, cancel] = await raceInOrder(
+        side,
+        hold,
+        () => record(fixture, rows[0].id, "passed", 1),
+        () =>
+          call(
+            fixture,
+            "POST",
+            "/v1/evaluation-batches/" + batch.id + "/cancel",
+            { body: {}, ifMatch: Number(batch.version) },
+          ),
+      );
+      assertNoDeadlock(attempt);
+      assertNoDeadlock(cancel);
+      assert(attempt.status === "fulfilled");
+      assertEquals(attempt.value, "recorded");
+      assert(cancel.status === "fulfilled");
+      // The attempt moved the batch to running, so the cancel's If-Match
+      // is stale: one typed outcome, never a server error.
+      const text = await cancel.value.text();
+      assert([200, 412].includes(cancel.value.status), text);
+      const read = await ok(
+        await call(fixture, "GET", "/v1/evaluation-batches/" + batch.id),
+      );
+      assertEquals((read.counts as Json).passed, 1);
+    } finally {
+      await closePgDatabase(side);
+    }
+  }));
 
 Deno.test("an evaluation.score result settles its judge receipt against the reservation", () =>
   withWorkerFixture(async (fixture) => {
