@@ -453,6 +453,7 @@ Deno.test("a draft refuses a save past its file count or its size", async () => 
 Deno.test("two people opening a draft at the same moment both get the one draft", async () => {
   const root = await Deno.makeTempDir({ prefix: "bakery-74-race-" });
   const f = await openPersonalSkillFixture({ skillFileRoot: root });
+  const holder = await f.fixture.pgDatabase.connect();
   try {
     const owner = api(f, f.ownerCookie);
     const created = await f.post(f.ownerCookie, "/v1/skills", {
@@ -462,34 +463,54 @@ Deno.test("two people opening a draft at the same moment both get the one draft"
     assertEquals(created.status, 201, await created.clone().text());
     const skill = await created.json() as { id: string };
     const draftPath = `/v1/skills/${skill.id}/draft`;
-    const opened = await Promise.all(
-      Array.from({ length: 6 }, () => owner.call("POST", draftPath)),
+
+    // The other request's draft is inserted but not yet committed, so this
+    // request cannot see it and goes on to insert its own, which must wait for
+    // the first to finish. That is the overlap, held open on purpose.
+    const draftId = crypto.randomUUID();
+    await holder.query("begin");
+    await holder.query(
+      `insert into bakery.skill_drafts (
+         id, organization_id, skill_id, entry_path, created_by, updated_by
+       ) values ($1, $2, $3, 'SKILL.md', $4, $4)`,
+      [draftId, f.organizationId, skill.id, f.ownerPrincipalId],
     );
-    const bodies = await Promise.all(opened.map(async (response) => ({
-      status: response.status,
-      text: await response.text(),
-    })));
-    assertEquals(
-      bodies.map((body) => body.status),
-      [200, 200, 200, 200, 200, 200],
-      bodies.find((body) => body.status !== 200)?.text,
+    const pending = owner.call("POST", draftPath);
+    let blocked = false;
+    for (let wait = 0; wait < 400 && !blocked; wait += 1) {
+      const waiting = await f.fixture.pgDatabase.query<{ n: number }>(
+        `select count(*)::int as n from pg_stat_activity
+          where wait_event_type = 'Lock'
+            and query like '%insert into bakery.skill_drafts%'
+            and pid <> pg_backend_pid()`,
+      );
+      blocked = waiting.rows[0].n > 0;
+      if (!blocked) await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert(
+      blocked,
+      "the open request never waited on the other draft's insert",
     );
-    const ids = new Set(
-      bodies.map((body) => (JSON.parse(body.text) as Draft).id),
-    );
-    assertEquals(ids.size, 1, "every request got the same draft");
+    await holder.query("commit");
+
+    const response = await pending;
+    assertEquals(response.status, 200, await response.clone().text());
+    const draft = await response.json() as Draft;
+    assertEquals(draft.id, draftId, "the request returned the draft that won");
     const rows = await f.fixture.pgDatabase.query<{ count: string }>(
       "select count(*)::text as count from bakery.skill_drafts where skill_id = $1",
       [skill.id],
     );
     assertEquals(rows.rows[0].count, "1");
-    // Only the request that made the draft is audited as opening it.
+    // The request that lost made nothing, so it audits nothing.
     const audits = await f.fixture.pgDatabase.query<{ count: string }>(
-      "select count(*)::text as count from bakery.audit_events where operation = 'skillDrafts.open' and resource_id = $1",
-      [[...ids][0]],
+      "select count(*)::text as count from bakery.audit_events where operation = 'skillDrafts.open' and details->>'skillId' = $1",
+      [skill.id],
     );
-    assertEquals(audits.rows[0].count, "1");
+    assertEquals(audits.rows[0].count, "0");
   } finally {
+    await holder.query("rollback").catch(() => {});
+    holder.release();
     await f.close();
     await Deno.remove(root, { recursive: true });
   }
