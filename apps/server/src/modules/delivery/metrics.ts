@@ -17,6 +17,13 @@ import type { ActionContext } from "@bakery/contracts/action-registry";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
+  cohortSummary,
+  leadTimeHours,
+  readDeliveredTasks,
+  type TaskTimeline,
+  waitShares,
+} from "./task-times.ts";
+import {
   type CursorBinding,
   decodeCursor,
   encodeCursor,
@@ -41,6 +48,7 @@ export const MetricKey = Object.freeze(
     MergeRate: "prs.mergeRate",
     TurnaroundHours: "prs.turnaroundHours",
     ChangedLines: "prs.changedLines",
+    TaskLeadTime: "tasks.leadTimeHours",
   } as const,
 );
 export type MetricKey = typeof MetricKey[keyof typeof MetricKey];
@@ -58,7 +66,7 @@ type Definition = Readonly<{
   unit: Unit;
   cohort: string;
   /** The provider time a pull request is placed at for this metric. */
-  placedBy: "opened" | "merged" | "closed" | "cutoff";
+  placedBy: "opened" | "merged" | "closed" | "cutoff" | "delivered";
 }>;
 
 /**
@@ -105,6 +113,12 @@ export const METRIC_DEFINITIONS: Readonly<Record<MetricKey, Definition>> =
       cohort:
         "Added plus deleted lines, once per distinct pull request merged in each period",
       placedBy: "merged",
+    },
+    [MetricKey.TaskLeadTime]: {
+      unit: "hours",
+      cohort:
+        "Tasks delivered in each period: from the first admitted run to the first merged pull request, else the last completed run",
+      placedBy: "delivered",
     },
   });
 
@@ -184,9 +198,28 @@ export type PullRequestFact = Readonly<{
   transitions: readonly { kind: string; at: Date }[];
 }>;
 
+/** Delivered tasks placed at their delivery time, valued by lead time. */
+export function taskPlacements(
+  tasks: readonly TaskTimeline[],
+  window: MetricWindow,
+): Placement[] {
+  return tasks
+    .filter((task) => inWindow(task.deliveredAt, window))
+    .map((task) => ({
+      fact: null,
+      task,
+      countedAt: task.deliveredAt,
+      value: leadTimeHours(task),
+      missingReason: null,
+    }));
+}
+
 /** One record behind a metric: where it is placed and what it adds. */
 export type Placement = Readonly<{
-  fact: PullRequestFact;
+  /** The pull request behind a pull request metric; null for a task metric. */
+  fact: PullRequestFact | null;
+  /** The task behind a task metric; absent for a pull request metric. */
+  task?: TaskTimeline;
   countedAt: Date | null;
   value: number | null;
   missingReason: MissingReason | null;
@@ -417,7 +450,7 @@ export function aggregate(
     known[index] += 1;
     sample += 1;
     if (
-      key === MetricKey.MergeRate && p.value === 0 && p.fact.status === "open"
+      key === MetricKey.MergeRate && p.value === 0 && p.fact?.status === "open"
     ) {
       stillOpen += 1;
     }
@@ -430,6 +463,7 @@ export function aggregate(
         window.to.getTime(),
       ) - 1;
       for (const p of placed) {
+        if (p.fact === null) continue;
         const open = openAt(p.fact, new Date(end));
         if (open === null) continue;
         members[index] += 1;
@@ -678,26 +712,21 @@ export async function getMetricSeries(
 ) {
   const { transaction: tx, organizationId } = requireWorkTransaction(context);
   const window = metricWindow(input, now);
-  const { facts } = await readFacts(
-    tx,
-    organizationId,
-    input.repositoryId,
-    window,
-  );
   const repositories = await readSources(
     tx,
     organizationId,
     input.repositoryId,
     now,
   );
-  const anyRead = repositories.some((r) => r.lastSyncAt !== null) ||
-    facts.length > 0;
-  const body = aggregate(
-    input.metric,
-    placements(input.metric, facts, window),
+  const { placed, anyRecords, tasks } = await placementsFor(
+    tx,
+    organizationId,
+    input,
     window,
-    anyRead,
   );
+  const anyRead = repositories.some((r) => r.lastSyncAt !== null) ||
+    anyRecords;
+  const body = aggregate(input.metric, placed, window, anyRead);
   const synced = repositories.map((r) => r.lastSyncAt).filter((v) => v !== null)
     .sort();
   const definition = METRIC_DEFINITIONS[input.metric];
@@ -712,7 +741,52 @@ export async function getMetricSeries(
     lastSyncAt: synced.at(-1) ?? null,
     hiddenCount: 0,
     repositories,
+    summary: tasks === null ? null : cohortSummary(tasks),
     ...body,
+  };
+}
+
+/** The placements behind a metric, from pull requests or delivered tasks. */
+async function placementsFor(
+  tx: PgTransactionClient,
+  organizationId: string,
+  input: MetricInput,
+  window: MetricWindow,
+): Promise<
+  { placed: Placement[]; anyRecords: boolean; tasks: TaskTimeline[] | null }
+> {
+  if (input.metric === MetricKey.TaskLeadTime) {
+    let tasks: TaskTimeline[];
+    try {
+      tasks = await readDeliveredTasks(
+        tx,
+        organizationId,
+        input.repositoryId,
+        window.from,
+        window.to,
+      );
+    } catch (error) {
+      if (error instanceof RangeError) {
+        unprocessable("from", "window_too_large");
+      }
+      throw error;
+    }
+    return {
+      placed: taskPlacements(tasks, window),
+      anyRecords: tasks.length > 0,
+      tasks,
+    };
+  }
+  const { facts } = await readFacts(
+    tx,
+    organizationId,
+    input.repositoryId,
+    window,
+  );
+  return {
+    placed: placements(input.metric, facts, window),
+    anyRecords: facts.length > 0,
+    tasks: null,
   };
 }
 
@@ -726,7 +800,7 @@ function cursorTime(p: Placement): string {
 
 /** The keyset order of metrics.sources: placed time, unknown last, then id. */
 export function sortKey(p: Placement): [string, string] {
-  return [cursorTime(p), p.fact.id];
+  return [cursorTime(p), p.fact?.id ?? p.task?.taskId ?? ""];
 }
 
 /** metrics.sources */
@@ -757,13 +831,8 @@ export function createMetricSourcesLister(secret: string) {
       schemaVersion: 1,
     };
     const position = await decodeCursor(secret, input.cursor, binding);
-    const { facts } = await readFacts(
-      tx,
-      organizationId,
-      input.repositoryId,
-      window,
-    );
-    const rows = placements(input.metric, facts, window).sort((a, b) => {
+    const { placed } = await placementsFor(tx, organizationId, input, window);
+    const rows = placed.sort((a, b) => {
       const [at, ai] = sortKey(a);
       const [bt, bi] = sortKey(b);
       return at < bt ? -1 : at > bt ? 1 : ai < bi ? -1 : ai > bi ? 1 : 0;
@@ -779,27 +848,61 @@ export function createMetricSourcesLister(secret: string) {
     const last = page.at(-1);
     const more = start >= 0 && start + limit < rows.length;
     return {
-      items: page.map((p) => ({
-        kind: "pullRequest" as const,
-        id: p.fact.id,
-        repositoryId: p.fact.repositoryId,
-        taskId: p.fact.taskId,
-        providerNumber: p.fact.providerNumber,
-        url: p.fact.url,
-        status: p.fact.status,
-        openedAt: p.fact.openedAt?.toISOString() ?? null,
-        mergedAt: p.fact.mergedAt?.toISOString() ?? null,
-        closedAt: p.fact.closedAt?.toISOString() ?? null,
-        countedAt: p.countedAt?.toISOString() ?? null,
-        value: p.value,
-        missingReason: p.missingReason,
-      })),
+      items: page.map((p) => sourceRow(p)),
       nextCursor: more && last
         ? await encodeCursor(secret, binding, {
           createdAt: sortKey(last)[0],
-          id: last.fact.id,
+          id: sortKey(last)[1],
         })
         : null,
     };
+  };
+}
+
+/** One drilldown row: a pull request, or a task with where its time went. */
+function sourceRow(p: Placement) {
+  const counted = {
+    countedAt: p.countedAt?.toISOString() ?? null,
+    value: p.value,
+    missingReason: p.missingReason,
+  };
+  if (p.fact === null) {
+    const task = p.task!;
+    return {
+      kind: "task" as const,
+      id: task.taskId,
+      repositoryId: null,
+      taskId: task.taskId,
+      providerNumber: null,
+      url: null,
+      status: "delivered" as const,
+      openedAt: null,
+      mergedAt: null,
+      closedAt: null,
+      title: task.title,
+      requestedAt: task.requestedAt.toISOString(),
+      deliveredAt: task.deliveredAt?.toISOString() ?? null,
+      deliveryPoint: task.deliveryPoint,
+      waits: waitShares(task),
+      ...counted,
+    };
+  }
+  return {
+    kind: "pullRequest" as const,
+    id: p.fact.id,
+    repositoryId: p.fact.repositoryId,
+    taskId: p.fact.taskId,
+    providerNumber: p.fact.providerNumber,
+    url: p.fact.url,
+    status: p.fact.status,
+    openedAt: p.fact.openedAt?.toISOString() ?? null,
+    mergedAt: p.fact.mergedAt?.toISOString() ?? null,
+    closedAt: p.fact.closedAt?.toISOString() ?? null,
+    title: null,
+    requestedAt: null,
+    deliveredAt: null,
+    deliveryPoint: null,
+    waits: null,
+    ...counted,
   };
 }

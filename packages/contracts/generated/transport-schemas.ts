@@ -2870,9 +2870,10 @@ const transportSchemas = {
             "prs.openAtCutoff",
             "prs.mergeRate",
             "prs.turnaroundHours",
-            "prs.changedLines"
+            "prs.changedLines",
+            "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         {
           "name": "from",
@@ -12428,9 +12429,10 @@ const transportSchemas = {
             "prs.openAtCutoff",
             "prs.mergeRate",
             "prs.turnaroundHours",
-            "prs.changedLines"
+            "prs.changedLines",
+            "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         {
           "name": "from",
@@ -22233,7 +22235,8 @@ const transportSchemas = {
         "completeness",
         "missingReasons",
         "hiddenCount",
-        "repositories"
+        "repositories",
+        "summary"
       ],
       "fieldTypes": {
         "name": "string",
@@ -22250,7 +22253,8 @@ const transportSchemas = {
         "completeness": "enum(complete|partial|unknown)",
         "missingReasons": "MetricMissingReason[]",
         "hiddenCount": "integer",
-        "repositories": "MetricRepositorySource[]"
+        "repositories": "MetricRepositorySource[]",
+        "summary": "MetricTaskSummary|null"
       },
       "bounds": {
         "pointsMaxItems": 1000
@@ -22271,10 +22275,12 @@ const transportSchemas = {
         "completeness": "complete when every cohort member has a known value and none is still open where that matters; partial when some are unknown or still open; unknown when no pull request has been read.",
         "missingReasons": "Why records were left out, one entry per reason with its count; empty when nothing was left out.",
         "hiddenCount": "Records in scope the reader may not open; always 0 today, since every member who may read metrics may open every pull request of the organization.",
-        "repositories": "Each repository in scope with the state of its source, so a disconnected or stale source is never read as zero."
+        "repositories": "Each repository in scope with the state of its source, so a disconnected or stale source is never read as zero.",
+        "summary": "For tasks.leadTimeHours: the cohort's median, 9-in-10 and mean lead time, where the time went and how many tasks reached each delivery point; null for pull request metrics."
       },
       "nullableFields": [
-        "lastSyncAt"
+        "lastSyncAt",
+        "summary"
       ]
     },
     "UsageSummary": {
@@ -24539,6 +24545,72 @@ const transportSchemas = {
         "lastSyncAt": "Latest stored provider read of a pull request in this repository; null when none."
       }
     },
+    "MetricWaitShare": {
+      "fields": [
+        "category",
+        "hours",
+        "unknownReason"
+      ],
+      "fieldTypes": {
+        "category": "enum(agentWorking|queue|review|person|blocked|unaccounted)",
+        "hours": "number|null",
+        "unknownReason": "enum(not_recorded)|null"
+      },
+      "nullableFields": [
+        "hours",
+        "unknownReason"
+      ],
+      "description": "Hours of a task's (or a cohort's) lead time in one category. The categories never overlap; agentWorking, queue, review, person and unaccounted add up to the lead time exactly.",
+      "fieldDescriptions": {
+        "category": "agentWorking: an agent attempt ran; queue: a job was ready and not yet claimed; review: the independent review step ran; person: an approval, question or request waited for a person; blocked: blocked time, not recorded yet; unaccounted: lead time no recorded interval covers. Where intervals overlap, person wins, then review, agent and queue.",
+        "hours": "Hours in this category; null when unknown.",
+        "unknownReason": "not_recorded when Bakery keeps no history for this category (blocked); null otherwise."
+      }
+    },
+    "MetricDeliveryPointCount": {
+      "fields": [
+        "deliveryPoint",
+        "count"
+      ],
+      "fieldTypes": {
+        "deliveryPoint": "enum(merged_pull_request|completed_run)",
+        "count": "integer"
+      },
+      "description": "How many tasks in a cohort reached one delivery point.",
+      "fieldDescriptions": {
+        "deliveryPoint": "merged_pull_request: the task's first pull request merged; completed_run: the task has no merged pull request and its last run completed.",
+        "count": "Tasks that reached it."
+      }
+    },
+    "MetricTaskSummary": {
+      "fields": [
+        "median",
+        "p90",
+        "mean",
+        "breakdown",
+        "deliveryPoints"
+      ],
+      "fieldTypes": {
+        "median": "number|null",
+        "p90": "number|null",
+        "mean": "number|null",
+        "breakdown": "MetricWaitShare[]",
+        "deliveryPoints": "MetricDeliveryPointCount[]"
+      },
+      "nullableFields": [
+        "median",
+        "p90",
+        "mean"
+      ],
+      "description": "The lead-time summary of the tasks delivered in the window, computed on the server.",
+      "fieldDescriptions": {
+        "median": "Typical lead time in hours (nearest-rank median); null with no tasks.",
+        "p90": "Lead time 9 in 10 tasks finished within, in hours; null with no tasks.",
+        "mean": "Mean lead time in hours; null with no tasks.",
+        "breakdown": "Where the cohort's summed lead time went, by category; the known parts add up to the summed lead time.",
+        "deliveryPoints": "How many tasks reached each delivery point."
+      }
+    },
     "MetricSource": {
       "fields": [
         "kind",
@@ -24553,22 +24625,32 @@ const transportSchemas = {
         "closedAt",
         "countedAt",
         "value",
-        "missingReason"
+        "missingReason",
+        "title",
+        "requestedAt",
+        "deliveredAt",
+        "deliveryPoint",
+        "waits"
       ],
       "fieldTypes": {
-        "kind": "enum(pullRequest)",
+        "kind": "enum(pullRequest|task)",
         "id": "uuid",
-        "repositoryId": "uuid",
+        "repositoryId": "uuid|null",
         "taskId": "uuid",
-        "providerNumber": "integer",
-        "url": "string",
-        "status": "enum(open|closed|merged)",
+        "providerNumber": "integer|null",
+        "url": "string|null",
+        "status": "enum(open|closed|merged|delivered)",
         "openedAt": "timestamp|null",
         "mergedAt": "timestamp|null",
         "closedAt": "timestamp|null",
         "countedAt": "timestamp|null",
         "value": "number|null",
-        "missingReason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|still_open)|null"
+        "missingReason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|still_open)|null",
+        "title": "string|null",
+        "requestedAt": "timestamp|null",
+        "deliveredAt": "timestamp|null",
+        "deliveryPoint": "enum(merged_pull_request|completed_run)|null",
+        "waits": "MetricWaitShare[]|null"
       },
       "nullableFields": [
         "openedAt",
@@ -24576,23 +24658,36 @@ const transportSchemas = {
         "closedAt",
         "countedAt",
         "value",
-        "missingReason"
+        "missingReason",
+        "repositoryId",
+        "providerNumber",
+        "url",
+        "title",
+        "requestedAt",
+        "deliveredAt",
+        "deliveryPoint",
+        "waits"
       ],
-      "description": "One pull request behind a metric: its stable ids, provider number and page, lifecycle times, the time the metric counts it at and its own value; a null value is unknown and was left out of the number.",
+      "description": "One record behind a metric: a pull request with its lifecycle times, or a delivered task with its lead time and where it went. Its value is its own contribution; a null value is unknown and was left out of the number.",
       "fieldDescriptions": {
-        "kind": "What the row is; pull requests for every metric so far.",
-        "id": "Bakery id of the pull request, for linking to it.",
-        "repositoryId": "Repository the pull request belongs to.",
+        "kind": "pullRequest for pull request metrics, task for task metrics.",
+        "id": "Bakery id of the pull request or task, for linking to it.",
+        "repositoryId": "Repository of a pull request; null for a task.",
         "taskId": "Task the pull request delivers.",
-        "providerNumber": "Pull request number on the provider.",
-        "url": "Provider page of the pull request.",
-        "status": "Current state: open, closed without merge, or merged.",
+        "providerNumber": "Pull request number on the provider; null for a task.",
+        "url": "Provider page of a pull request; null for a task.",
+        "status": "A pull request's state (open, closed, merged); delivered for a task.",
         "openedAt": "Provider time it was opened; null when unread.",
         "mergedAt": "Provider time it was merged; null unless merged.",
         "closedAt": "Provider time it was last closed; null while open.",
         "countedAt": "The provider time this metric places it at (opened, merged or closed time); null when unknown.",
         "value": "Its own contribution in the series unit (1 for counts, hours, lines, or 1/0 merged for merge rate); null is unknown.",
-        "missingReason": "Why this record's value is unknown and it was left out of the number; null when it counted."
+        "missingReason": "Why this record's value is unknown and it was left out of the number; null when it counted.",
+        "title": "The task's title; null for a pull request.",
+        "requestedAt": "When the task's first run was admitted; null for a pull request.",
+        "deliveredAt": "When the task reached its delivery point; null for a pull request.",
+        "deliveryPoint": "Which delivery point the task reached; null for a pull request.",
+        "waits": "Where the task's lead time went; null for a pull request."
       }
     },
     "Page<MetricSource>": {

@@ -87,7 +87,7 @@ Deno.test("AC1: the June cohort: 2 merged, 48 h mean turnaround, 1 of 2 opened m
     48,
   );
   const rate = placements(MetricKey.MergeRate, [A, B, C], june);
-  assertEquals(rate.map((p) => [p.fact.id, p.value]), [["b", 1], ["c", 0]]);
+  assertEquals(rate.map((p) => [p.fact?.id, p.value]), [["b", 1], ["c", 0]]);
   const body = aggregate(MetricKey.MergeRate, rate, june, true);
   assertEquals(body.missingReasons, [{ reason: "still_open", count: 1 }]);
   assertEquals(body.completeness, "partial");

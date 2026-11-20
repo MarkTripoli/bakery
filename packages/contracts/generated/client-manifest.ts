@@ -15546,9 +15546,10 @@ export const clientManifest = {
             "prs.openAtCutoff",
             "prs.mergeRate",
             "prs.turnaroundHours",
-            "prs.changedLines"
+            "prs.changedLines",
+            "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -26346,9 +26347,10 @@ export const clientManifest = {
             "prs.openAtCutoff",
             "prs.mergeRate",
             "prs.turnaroundHours",
-            "prs.changedLines"
+            "prs.changedLines",
+            "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -61072,6 +61074,154 @@ export const clientManifest = {
             "description": "Each repository in scope with the state of its source, so a disconnected or stale source is never read as zero. Each array item follows this format."
           },
           "description": "Each repository in scope with the state of its source, so a disconnected or stale source is never read as zero."
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "median": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "Typical lead time in hours (nearest-rank median); null with no tasks."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MetricTaskSummary.median may be null in this transport value."
+                },
+                "p90": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "Lead time 9 in 10 tasks finished within, in hours; null with no tasks."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MetricTaskSummary.p90 may be null in this transport value."
+                },
+                "mean": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "description": "Mean lead time in hours; null with no tasks."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MetricTaskSummary.mean may be null in this transport value."
+                },
+                "breakdown": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "agentWorking",
+                          "queue",
+                          "review",
+                          "person",
+                          "blocked",
+                          "unaccounted"
+                        ],
+                        "description": "agentWorking: an agent attempt ran; queue: a job was ready and not yet claimed; review: the independent review step ran; person: an approval, question or request waited for a person; blocked: blocked time, not recorded yet; unaccounted: lead time no recorded interval covers. Where intervals overlap, person wins, then review, agent and queue."
+                      },
+                      "hours": {
+                        "anyOf": [
+                          {
+                            "type": "number",
+                            "description": "Hours in this category; null when unknown."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MetricWaitShare.hours may be null in this transport value."
+                      },
+                      "unknownReason": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "not_recorded"
+                            ],
+                            "description": "not_recorded when Bakery keeps no history for this category (blocked); null otherwise."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MetricWaitShare.unknownReason may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "category",
+                      "hours",
+                      "unknownReason"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Where the cohort's summed lead time went, by category; the known parts add up to the summed lead time. Each array item follows this format."
+                  },
+                  "description": "Where the cohort's summed lead time went, by category; the known parts add up to the summed lead time."
+                },
+                "deliveryPoints": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "deliveryPoint": {
+                        "type": "string",
+                        "enum": [
+                          "merged_pull_request",
+                          "completed_run"
+                        ],
+                        "description": "merged_pull_request: the task's first pull request merged; completed_run: the task has no merged pull request and its last run completed."
+                      },
+                      "count": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Tasks that reached it."
+                      }
+                    },
+                    "required": [
+                      "deliveryPoint",
+                      "count"
+                    ],
+                    "additionalProperties": false,
+                    "description": "How many tasks reached each delivery point. Each array item follows this format."
+                  },
+                  "description": "How many tasks reached each delivery point."
+                }
+              },
+              "required": [
+                "median",
+                "p90",
+                "mean",
+                "breakdown",
+                "deliveryPoints"
+              ],
+              "additionalProperties": false,
+              "description": "For tasks.leadTimeHours: the cohort's median, 9-in-10 and mean lead time, where the time went and how many tasks reached each delivery point; null for pull request metrics."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MetricSeries.summary may be null in this transport value."
         }
       },
       "required": [
@@ -61089,7 +61239,8 @@ export const clientManifest = {
         "completeness",
         "missingReasons",
         "hiddenCount",
-        "repositories"
+        "repositories",
+        "summary"
       ],
       "additionalProperties": false,
       "description": "The bounded time series GET /v1/metrics returns for one allowlisted metric key: half-open [from, to) UTC window, resolution, ordered points, and the provenance every card shows: unit, cohort, sample and missing counts, measurement revision, last sync and completeness. A null point is unknown, never zero."
@@ -65642,21 +65793,31 @@ export const clientManifest = {
               "kind": {
                 "type": "string",
                 "enum": [
-                  "pullRequest"
+                  "pullRequest",
+                  "task"
                 ],
-                "description": "What the row is; pull requests for every metric so far."
+                "description": "pullRequest for pull request metrics, task for task metrics."
               },
               "id": {
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Bakery id of the pull request, for linking to it."
+                "description": "Bakery id of the pull request or task, for linking to it."
               },
               "repositoryId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Repository the pull request belongs to."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Repository of a pull request; null for a task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.repositoryId may be null in this transport value."
               },
               "taskId": {
                 "type": "string",
@@ -65665,24 +65826,43 @@ export const clientManifest = {
                 "description": "Task the pull request delivers."
               },
               "providerNumber": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "Pull request number on the provider."
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Pull request number on the provider; null for a task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.providerNumber may be null in this transport value."
               },
               "url": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Provider page of the pull request."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Provider page of a pull request; null for a task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.url may be null in this transport value."
               },
               "status": {
                 "type": "string",
                 "enum": [
                   "open",
                   "closed",
-                  "merged"
+                  "merged",
+                  "delivered"
                 ],
-                "description": "Current state: open, closed without merge, or merged."
+                "description": "A pull request's state (open, closed, merged); delivered for a task."
               },
               "openedAt": {
                 "anyOf": [
@@ -65776,6 +65956,133 @@ export const clientManifest = {
                   }
                 ],
                 "description": "MetricSource.missingReason may be null in this transport value."
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The task's title; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.title may be null in this transport value."
+              },
+              "requestedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the task's first run was admitted; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.requestedAt may be null in this transport value."
+              },
+              "deliveredAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the task reached its delivery point; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.deliveredAt may be null in this transport value."
+              },
+              "deliveryPoint": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "merged_pull_request",
+                      "completed_run"
+                    ],
+                    "description": "Which delivery point the task reached; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.deliveryPoint may be null in this transport value."
+              },
+              "waits": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "agentWorking",
+                            "queue",
+                            "review",
+                            "person",
+                            "blocked",
+                            "unaccounted"
+                          ],
+                          "description": "agentWorking: an agent attempt ran; queue: a job was ready and not yet claimed; review: the independent review step ran; person: an approval, question or request waited for a person; blocked: blocked time, not recorded yet; unaccounted: lead time no recorded interval covers. Where intervals overlap, person wins, then review, agent and queue."
+                        },
+                        "hours": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "description": "Hours in this category; null when unknown."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "MetricWaitShare.hours may be null in this transport value."
+                        },
+                        "unknownReason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "not_recorded"
+                              ],
+                              "description": "not_recorded when Bakery keeps no history for this category (blocked); null otherwise."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "MetricWaitShare.unknownReason may be null in this transport value."
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "hours",
+                        "unknownReason"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Where the task's lead time went; null for a pull request. Each array item follows this format."
+                    },
+                    "description": "Where the task's lead time went; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.waits may be null in this transport value."
               }
             },
             "required": [
@@ -65791,10 +66098,15 @@ export const clientManifest = {
               "closedAt",
               "countedAt",
               "value",
-              "missingReason"
+              "missingReason",
+              "title",
+              "requestedAt",
+              "deliveredAt",
+              "deliveryPoint",
+              "waits"
             ],
             "additionalProperties": false,
-            "description": "One pull request behind a metric: its stable ids, provider number and page, lifecycle times, the time the metric counts it at and its own value; a null value is unknown and was left out of the number."
+            "description": "One record behind a metric: a pull request with its lifecycle times, or a delivered task with its lead time and where it went. Its value is its own contribution; a null value is unknown and was left out of the number."
           },
           "description": "MetricSource items in this cursor page. Page<MetricSource>.items must contain at most 100 items."
         },
