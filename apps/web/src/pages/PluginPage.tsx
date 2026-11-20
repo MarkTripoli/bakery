@@ -212,28 +212,39 @@ export function PluginPage({ installId }: { readonly installId: string }) {
               href: SETTINGS_HOME,
               label: translate("shell.states.settingsTitle"),
             },
-            {
-              href: PLUGINS_PATH,
-              label: translate("shell.navigation.plugins"),
-            },
-            { label: name || translate("shell.navigation.plugins") },
+            ...(name === ""
+              ? [{ label: translate("shell.navigation.plugins") }]
+              : [
+                {
+                  href: PLUGINS_PATH,
+                  label: translate("shell.navigation.plugins"),
+                },
+                { label: name },
+              ]),
           ]}
         />
       </ShellSlot>
       <UI.SettingsContent data-testid="plugin">
-        {loading ? <UI.Skeleton shape="row" /> : notFound
+        {loading
+          ? <UI.Skeleton shape="row" />
+          : notFound
           ? (
-            <UI.ErrorState
-              title={translate("settings.plugins.page.notFound")}
-              action={
-                <UI.Button
-                  variant="secondary"
-                  onClick={() => void navigate({ to: PLUGINS_PATH })}
-                >
-                  {translate("settings.plugins.page.back")}
-                </UI.Button>
-              }
-            />
+            <UI.Stack gap="standard">
+              <UI.Heading level="page">
+                {translate("shell.navigation.plugins")}
+              </UI.Heading>
+              <UI.ErrorState
+                title={translate("settings.plugins.page.notFound")}
+                action={
+                  <UI.Button
+                    variant="secondary"
+                    onClick={() => void navigate({ to: PLUGINS_PATH })}
+                  >
+                    {translate("settings.plugins.page.back")}
+                  </UI.Button>
+                }
+              />
+            </UI.Stack>
           )
           : row === undefined
           ? null
