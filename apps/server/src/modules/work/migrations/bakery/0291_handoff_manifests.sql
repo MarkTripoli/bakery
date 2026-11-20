@@ -35,6 +35,10 @@ create table bakery.handoff_manifests (
   source_fence bigint not null,
   mode text not null,
   digest text not null,
+  -- SHA-256 of the manifest exactly as the source sent it, before the server
+  -- replaced its safe boundary and pending effects. A retry is compared on this,
+  -- so the same bytes replay even after an effect settles or an event lands.
+  request_digest text not null,
   -- Server-computed; the source's own claim is never stored here.
   safe_boundary boolean not null,
   status text not null default 'pending',
