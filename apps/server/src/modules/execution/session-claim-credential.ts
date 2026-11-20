@@ -36,10 +36,10 @@ import {
   stepFileScopes,
 } from "../knowledge/agent-file-scope.ts";
 import { type ResolvedStepFiles, stepFilesForAttempt } from "./step-files.ts";
-import { isSealedStep } from "@bakery/contracts/workflow-compiler";
+import { readsOnlyInputs } from "@bakery/contracts/workflow-compiler";
 
 /**
- * The granted scopes a step keeps. A sealed step (O53) reads only its pinned
+ * The granted scopes a step keeps. An inputs-only step (O53) reads only its pinned
  * inputs and writes only its declared outputs, so a person's file grant never
  * reopens storage for it; every other step keeps all it was granted.
  */
@@ -47,7 +47,7 @@ export function grantedScopesForStep(
   files: ResolvedStepFiles,
   granted: readonly OperationScope[],
 ): readonly OperationScope[] {
-  return isSealedStep({ read: [...files.read], write: [...files.write] })
+  return readsOnlyInputs({ read: [...files.read], write: [...files.write] })
     ? granted.filter((scope) => !isFileScope(scope))
     : granted;
 }
@@ -98,7 +98,7 @@ export type MintedSessionCredential = Readonly<{
  * reachable without a second list to remember.
  */
 export function readScopesForSession(): readonly OperationScope[] {
-  // files.read is the one read a definition decides: a sealed step must not
+  // files.read is the one read a definition decides: an inputs-only step must not
   // get the storage read tools, so it is minted from the step's files section.
   const read = sessionOperationScopeValues().filter((scope) =>
     scope.endsWith(".read") && scope !== FILES_READ_SCOPE
@@ -191,7 +191,7 @@ export async function issueCredentialForAttempt(
   const scopes = input.scopes ??
     [
       ...readScopesForSession(),
-      // A sealed step (O53) reads only its pinned inputs and writes only its
+      // An inputs-only step (O53) reads only its pinned inputs and writes only its
       // declared outputs: a person's file grant never reopens storage for it.
       ...(files ? grantedScopesForStep(files, granted) : granted),
       // The step's files section, defaults applied (O44, O45), pinned into

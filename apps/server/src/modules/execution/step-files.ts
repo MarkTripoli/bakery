@@ -30,7 +30,7 @@ export type ResolvedStepFiles = Readonly<{
  * the step cannot be found in a plan that should name it, because a guess
  * would hand the session areas nobody declared.
  */
-export const SEALED_STEP_FILES: ResolvedStepFiles = Object.freeze({
+export const INPUTS_ONLY_STEP_FILES: ResolvedStepFiles = Object.freeze({
   read: Object.freeze(["inputs"] as const),
   write: Object.freeze(["outputs"] as const),
 });
@@ -39,7 +39,7 @@ export const SEALED_STEP_FILES: ResolvedStepFiles = Object.freeze({
  * The resolved files section of the step a run snapshot's plan declares
  * under this key. A run admitted before plans existed has no section to read
  * and takes the defaults every definition gets (O44, O45); a plan run whose
- * document or step cannot be read gets the sealed section, never the
+ * document or step cannot be read gets the inputs-only section, never the
  * defaults.
  */
 export function stepFilesFromSnapshot(
@@ -49,25 +49,25 @@ export function stepFilesFromSnapshot(
   if (!carriesPlanRuntime(snapshot)) return DEFAULT_STEP_FILES;
   const runtime = (snapshot as { runtime?: { document?: unknown } }).runtime;
   const document = WorkflowSemanticDocumentSchema.safeParse(runtime?.document);
-  if (!document.success) return SEALED_STEP_FILES;
+  if (!document.success) return INPUTS_ONLY_STEP_FILES;
   let qualifiedId: string;
   try {
     qualifiedId = parseStepKey(stepKey).qualifiedId;
   } catch (error) {
-    if (error instanceof WorkflowStepKeyError) return SEALED_STEP_FILES;
+    if (error instanceof WorkflowStepKeyError) return INPUTS_ONLY_STEP_FILES;
     throw error;
   }
   const step = buildWorkflowPlan(document.data).steps.find((candidate) =>
     candidate.qualifiedId === qualifiedId
   );
-  if (!step) return SEALED_STEP_FILES;
+  if (!step) return INPUTS_ONLY_STEP_FILES;
   return resolveStepFiles(step.files);
 }
 
 /**
  * The files section for an attempt, read in the claim transaction. An attempt
  * whose job belongs to no run step (a coordinator turn) has no tree to reach
- * and gets the sealed section.
+ * and gets the inputs-only section.
  */
 export async function stepFilesForAttempt(
   tx: Pick<PgTransactionClient, "query">,
@@ -90,6 +90,6 @@ export async function stepFilesForAttempt(
     [organizationId, attemptId],
   );
   const row = found.rows[0];
-  if (!row) return SEALED_STEP_FILES;
+  if (!row) return INPUTS_ONLY_STEP_FILES;
   return stepFilesFromSnapshot(row.snapshot, row.step_key);
 }
