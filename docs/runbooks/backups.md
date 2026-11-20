@@ -95,6 +95,13 @@ before starting any container if it does not. Then it verifies the checksums,
 decrypts, restores both databases into a throwaway container with no network,
 and checks the release journal.
 
+The verification needs **Deno on the `PATH` and the release checkout at
+`/opt/bakery/background`**, the same two things `backup.sh` needs for the
+manifest. A fresh disaster-recovery host may have neither. There,
+`restore-check.sh` stops before anything is restored, exits 70 and says which
+of the two is missing: install Deno, and install or enable a release so
+`/opt/bakery/background` exists, then run it again.
+
 A set taken **before manifests existed** has no manifest, so `restore-check.sh`
 fails closed on it. If you know it is an old set, pass `--allow-legacy` as a
 third argument to run only the older checks; the flag never excuses a set that

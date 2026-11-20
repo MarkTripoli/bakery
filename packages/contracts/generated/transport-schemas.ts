@@ -5066,6 +5066,74 @@ const transportSchemas = {
       ],
       "description": "Registers a running preview upstream for an attempt so Bakery can proxy client traffic to it; the record tracks its route, port and expiry until the preview stops."
     },
+    "WorkerHandoffManifest": {
+      "fields": [
+        {
+          "name": "leaseToken",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "Proof of the attempt's current lease backing this manifest; the manifest is refused once a newer attempt has advanced the job's fence."
+        },
+        {
+          "name": "fence",
+          "type": "decimalString",
+          "required": true,
+          "bounds": {
+            "min": 0
+          },
+          "description": "Monotonic fence value bound to the current attempt; the manifest is rejected once a newer attempt has advanced this job's fence."
+        },
+        {
+          "name": "manifest",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 32768
+          },
+          "description": "The bounded handoff manifest the source session writes before it stops: repository state as immutable artifact references, accepted decisions, the exact context selection, recent checks, effects still to reconcile, a durable checkpoint and a grant comparison digest. The server verifies every identifier and artifact digest, ignores the source's own safe-boundary and pending-effect claims and stores its own; it never holds a transcript, a secret or a lease token."
+        },
+        {
+          "name": "workerSessionId",
+          "type": "uuid",
+          "required": false,
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts."
+        },
+        {
+          "name": "workerSessionGeneration",
+          "type": "decimalString",
+          "required": false,
+          "description": "Generation of that worker session; required with workerSessionId."
+        }
+      ],
+      "rules": [
+        "The lease, the fence and the worker session are proved first, exactly as for every other attempt mutation, so a fenced, expired or foreign attempt can never write a manifest.",
+        "One manifest per source attempt: the same manifest replays, a different one for the same attempt is STATE_CONFLICT. A manifest over 32 KiB inline is BODY_TOO_LARGE; long content belongs in artifacts the manifest references.",
+        "The manifest is a record, never the authority: run, step, task, agent version, workflow version, source session, repository and every artifact reference are checked against the server's own rows, and a mismatch is UNPROCESSABLE."
+      ],
+      "description": "Persists the handoff manifest of an attempt before the source session stops, so a continuation can resume from a verified record or start fresh without replaying uncertain effects."
+    },
+    "HandoffContinue": {
+      "fields": [
+        {
+          "name": "runVersion",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The run version the person saw when they chose to hand the step off. If the run changed since, the submission is refused as a failed precondition and nothing is committed."
+        }
+      ],
+      "rules": [
+        "Exactly one submission wins however many handoff, cancel and recovery submissions race: the source attempt is fenced, the job's fence advances and the job is queued again in one transaction, or nothing is written.",
+        "A refusal names why and commits nothing: run_not_active, already_continued, manifest_blocked, source_not_live, fence_moved, job_terminal, cancel_requested, awaiting_reconciliation, attempt_budget_exhausted, effects_unresolved or capture_incomplete.",
+        "The job's input, billing and agent configuration are not changed; the continuation reads the stored manifest by its id."
+      ],
+      "description": "A person's choice to retire a live source attempt that stored a handoff manifest and admit its job again for a continuation, submitted against the run version they saw."
+    },
     "WorkerEnrollmentInspect": {
       "fields": [
         {
@@ -13658,6 +13726,65 @@ const transportSchemas = {
       ],
       "description": "Changes an alert channel's name, on or off state or address; the signing secret is untouched."
     },
+    "AlertRuleUpdate": {
+      "fields": [
+        {
+          "name": "rule",
+          "type": "enum(service_down|worker_lost|queue_age|route_incident|export_loss)",
+          "required": true,
+          "description": "Which of the five alert rules to change."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Turns the rule on or off without losing its limit; omit to keep the current state."
+        },
+        {
+          "name": "threshold",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 0,
+            "max": 1000000
+          },
+          "description": "The new limit in the rule's own unit, seconds or records; omit to keep it. A rule that has no limit refuses one, and so does a value above that rule's own maximum."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session. Idempotency-Key and a strong If-Match with the rule version are required (428 when missing, 412 when stale)."
+      ],
+      "description": "Changes one alert rule: turns it on or off, or sets the limit it fires at."
+    },
+    "AlertListQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of the same list, bound to the principal; it pages the history only."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum history entries returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Newest-first keyset on occurredAt DESC, id DESC; reject page and offset parameters. The firing list is not paged: it is at most one entry per rule and subject, bounded by the number of troubles open now."
+      ],
+      "description": "Pages the alert history, newest first; the alerts firing now come with the first page."
+    },
     "RunStepRevertWrites": {
       "fields": [
         {
@@ -16952,7 +17079,8 @@ const transportSchemas = {
         "reviewCycleId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "blockedReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -16968,10 +17096,12 @@ const transportSchemas = {
         "reviewCycleId": "uuid",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "blockedReason": "enum(already_merged|not_open|head_moved|base_moved|checks_not_passed|not_permitted|evidence_changed|github_refused|not_merged|unavailable)|null"
       },
       "nullableFields": [
-        "externalEffectId"
+        "externalEffectId",
+        "blockedReason"
       ],
       "sourceColumns": {
         "id": "id",
@@ -16987,7 +17117,8 @@ const transportSchemas = {
         "reviewCycleId": "review_cycle_id",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
-        "version": "version"
+        "version": "version",
+        "blockedReason": "blocked_reason"
       },
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
@@ -17004,7 +17135,8 @@ const transportSchemas = {
         "reviewCycleId": "Stable UUID linking this merge entry record to the related review cycle entity.",
         "createdAt": "UTC timestamp when the merge entry record was created.",
         "updatedAt": "UTC timestamp when the merge entry record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the merge entry record."
+        "version": "Optimistic-concurrency version used when updating the merge entry record.",
+        "blockedReason": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded."
       }
     },
     "deployments": {
@@ -20442,7 +20574,8 @@ const transportSchemas = {
         "updatedAt",
         "version",
         "mayMerge",
-        "mergeMethod"
+        "mergeMethod",
+        "targetBranch"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -20459,7 +20592,8 @@ const transportSchemas = {
         "version": "integer",
         "runId": "uuid|null",
         "mayMerge": "boolean",
-        "mergeMethod": "enum(merge|squash|rebase)"
+        "mergeMethod": "enum(merge|squash|rebase)",
+        "targetBranch": "string"
       },
       "nullableFields": [
         "mergedSha",
@@ -20481,7 +20615,8 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version used when updating the record.",
         "runId": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run.",
         "mayMerge": "Whether the caller holds the permission to merge this pull request from Bakery (the pullRequest:merge permission). It says nothing about whether the pull request is ready to merge; the checks and the dispatch still decide that.",
-        "mergeMethod": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one."
+        "mergeMethod": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one.",
+        "targetBranch": "Branch this pull request merges into: its repository's default branch, the branch Bakery opens pull requests against and the one mergeEntries.create takes."
       }
     },
     "ReviewCycle": {
@@ -23317,6 +23452,91 @@ const transportSchemas = {
         "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
+    "HandoffManifestRecord": {
+      "fields": [
+        "id",
+        "taskId",
+        "runId",
+        "runStepId",
+        "sourceAttemptId",
+        "sourceFence",
+        "mode",
+        "digest",
+        "safeBoundary",
+        "status",
+        "manifest",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "taskId": "uuid",
+        "runId": "uuid",
+        "runStepId": "uuid",
+        "sourceAttemptId": "uuid",
+        "sourceFence": "decimalString",
+        "mode": "enum(fresh_session|exact_harness_resume)",
+        "digest": "string",
+        "safeBoundary": "boolean",
+        "status": "enum(pending|continued|blocked)",
+        "manifest": "json",
+        "createdAt": "timestamp"
+      },
+      "description": "A stored handoff manifest: where one source attempt stopped, with the server's own safe-boundary computation and the digest a continuation pins. It is a record to be re-verified, never the authority for run state.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the stored manifest.",
+        "taskId": "Task the manifest continues.",
+        "runId": "Workflow run the manifest continues.",
+        "runStepId": "Workflow step whose attempt wrote the manifest.",
+        "sourceAttemptId": "Attempt that wrote the manifest; there is at most one manifest per attempt.",
+        "sourceFence": "Fence of the source attempt when the manifest was written; decimal string.",
+        "mode": "Whether the source asked for a fresh session or an exact harness resume; the receiving side decides eligibility again.",
+        "digest": "SHA-256 of the canonical stored manifest, so a reader can tell two manifests apart and a continuation can pin exactly one.",
+        "safeBoundary": "Whether resuming here cannot repeat a non-replay-safe operation, computed by the server from the event journal and the effect ledger; the source's own claim is ignored.",
+        "status": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused).",
+        "manifest": "The stored manifest with the server's pending-effect list and safe boundary in place of the source's claims.",
+        "createdAt": "UTC timestamp when the manifest was stored."
+      }
+    },
+    "HandoffContinuation": {
+      "fields": [
+        "id",
+        "manifestId",
+        "runId",
+        "runStepId",
+        "jobId",
+        "sourceAttemptId",
+        "previousFence",
+        "newFence",
+        "mode",
+        "admittedAt"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "id": "uuid",
+        "manifestId": "uuid",
+        "runId": "uuid",
+        "runStepId": "uuid",
+        "jobId": "uuid",
+        "sourceAttemptId": "uuid",
+        "previousFence": "decimalString",
+        "newFence": "decimalString",
+        "mode": "enum(fresh_session|exact_harness_resume)",
+        "admittedAt": "timestamp"
+      },
+      "description": "The record that a source attempt was retired and its job admitted again for a continuation. The source is fenced, so it can no longer publish; the job is queued again on the same pin with the same input; the manifest is marked used.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this continuation.",
+        "manifestId": "UUID of the handoff manifest the continuation was admitted from; at most one continuation exists per manifest.",
+        "runId": "UUID of the run the step belongs to.",
+        "runStepId": "UUID of the step that was continued.",
+        "jobId": "UUID of the job that was queued again.",
+        "sourceAttemptId": "UUID of the attempt that was retired.",
+        "previousFence": "Fence of the source attempt before the handoff; decimal string.",
+        "newFence": "The job's fence now; any event, artifact or result under the previous fence is refused as lease-fenced.",
+        "mode": "What the continuation will do: a fresh session now, an exact harness resume only after the server has matched the session, host, version, commit and checkpoint.",
+        "admittedAt": "UTC timestamp when the continuation was admitted."
+      }
+    },
     "MergeEntry": {
       "projection": "merge_entries",
       "fields": [
@@ -23333,7 +23553,8 @@ const transportSchemas = {
         "reviewCycleId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "blockedReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -23349,10 +23570,12 @@ const transportSchemas = {
         "reviewCycleId": "uuid",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "blockedReason": "enum(already_merged|not_open|head_moved|base_moved|checks_not_passed|not_permitted|evidence_changed|github_refused|not_merged|unavailable)|null"
       },
       "nullableFields": [
-        "externalEffectId"
+        "externalEffectId",
+        "blockedReason"
       ],
       "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds.",
       "fieldDescriptions": {
@@ -23369,7 +23592,8 @@ const transportSchemas = {
         "reviewCycleId": "Stable UUID linking this record to the related review cycle entity.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "blockedReason": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded."
       }
     },
     "Deployment": {
@@ -31262,6 +31486,8 @@ const transportSchemas = {
         "citation",
         "text",
         "truncated",
+        "limits",
+        "redactions",
         "tokens",
         "countState"
       ],
@@ -31271,6 +31497,8 @@ const transportSchemas = {
         "citation": "json|null",
         "text": "string|null",
         "truncated": "boolean",
+        "limits": "enum(binary_media|no_text_extractor|extraction_failed)|null",
+        "redactions": "integer",
         "tokens": "integer",
         "countState": "enum(measured|estimated|unknown)"
       },
@@ -31285,6 +31513,8 @@ const transportSchemas = {
         "citation": "Reproducible citation of the version and, for a window, its exact byte range and extractor; null for a caller-supplied text item.",
         "text": "The bounded text admitted to the prompt, or null for every reference kind.",
         "truncated": "Whether the window ends before the version does.",
+        "limits": "Why the item carries no content: binary_media (images, audio, video and unknown binaries are references only), no_text_extractor (PDFs have no text extractor yet) or extraction_failed (a text window could not be produced); null when the item carries text.",
+        "redactions": "How many credentials were replaced by a redaction marker in the text of this item; 0 for a reference or for text with none.",
         "tokens": "What the item counted as under countState.",
         "countState": "Whether tokens was measured, estimated from bounded metadata, or unknown."
       }
@@ -34454,6 +34684,108 @@ const transportSchemas = {
         "tookMs": "Milliseconds the test took."
       }
     },
+    "AlertRule": {
+      "fields": [
+        "rule",
+        "label",
+        "help",
+        "unit",
+        "enabled",
+        "threshold",
+        "defaultThreshold",
+        "maxThreshold",
+        "firing",
+        "version",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "rule": "enum(service_down|worker_lost|queue_age|route_incident|export_loss)",
+        "label": "string",
+        "help": "string",
+        "unit": "enum(seconds|records)|null",
+        "enabled": "boolean",
+        "threshold": "integer|null",
+        "defaultThreshold": "integer|null",
+        "maxThreshold": "integer|null",
+        "firing": "integer",
+        "version": "integer",
+        "updatedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "unit",
+        "threshold",
+        "defaultThreshold",
+        "maxThreshold",
+        "updatedAt"
+      ],
+      "description": "One alert rule as an installation administrator sees it: what it watches in plain words, whether it is on, the limit it fires at and how many alerts it has open now.",
+      "fieldDescriptions": {
+        "rule": "Which of the five rules this is.",
+        "label": "Plain name shown in the list.",
+        "help": "One sentence saying what the rule watches and when it fires.",
+        "unit": "What the limit counts, seconds or records, or null for a rule with no limit.",
+        "enabled": "Whether the rule is checked at all.",
+        "threshold": "The limit in force: the saved one, or the default when none was saved; null for a rule with no limit.",
+        "defaultThreshold": "The limit used when none is saved, or null.",
+        "maxThreshold": "The highest limit a person may set, or null.",
+        "firing": "How many alerts from this rule are open now.",
+        "version": "Monotonic revision; submit it as If-Match when changing the rule.",
+        "updatedAt": "UTC time the rule was last changed, or null when it never was."
+      }
+    },
+    "AlertRuleList": {
+      "fields": [
+        "rules"
+      ],
+      "fieldTypes": {
+        "rules": "json[]"
+      },
+      "nullableFields": [],
+      "description": "The five alert rules in the order a person sees them, each with its state.",
+      "fieldDescriptions": {
+        "rules": "The rules, each shaped as an AlertRule."
+      }
+    },
+    "AlertList": {
+      "fields": [
+        "firing",
+        "events",
+        "nextCursor"
+      ],
+      "fieldTypes": {
+        "firing": "json[]",
+        "events": "json[]",
+        "nextCursor": "string|null"
+      },
+      "nullableFields": [
+        "nextCursor"
+      ],
+      "description": "What is wrong now and what happened lately: the alerts firing now (first page only) and a newest-first page of history.",
+      "fieldDescriptions": {
+        "firing": "Alerts firing now, each with rule, subject, text and firedAt; empty on later pages.",
+        "events": "History entries, each with id, kind (fired, resolved or test), rule, subject, text, occurredAt, channelsOk and channelsFailed.",
+        "nextCursor": "Opaque token for the next page, or null when there is none."
+      }
+    },
+    "AlertTestSendResult": {
+      "fields": [
+        "channels",
+        "sent",
+        "failed"
+      ],
+      "fieldTypes": {
+        "channels": "json[]",
+        "sent": "integer",
+        "failed": "integer"
+      },
+      "nullableFields": [],
+      "description": "What a test alert did: one answer per enabled channel and how many accepted it or did not.",
+      "fieldDescriptions": {
+        "channels": "One entry per enabled channel with channelId, name, ok, status and reason.",
+        "sent": "How many channels accepted the test message.",
+        "failed": "How many channels refused it or did not answer."
+      }
+    },
     "RunStepWritesReverted": {
       "fields": [
         "runId",
@@ -35828,6 +36160,15 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "routeContinuations.admitted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "handoffContinuations.admitted": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",

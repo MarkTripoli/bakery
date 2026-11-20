@@ -111,6 +111,7 @@ Deno.test("issue 71 contract: the catalog lists the failures the receiver answer
     BODY_TOO_LARGE: 413,
     IDEMPOTENCY_PAYLOAD_MISMATCH: 422,
     DEPENDENCY_UNAVAILABLE: 503,
+    INSTALLATION_QUIESCED: 503,
   };
   assertEquals([...entry.errors].sort(), Object.keys(expected).sort());
   for (const [code, status] of Object.entries(expected)) {

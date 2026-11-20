@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type Cutoff,
@@ -157,7 +159,7 @@ export function keyFingerprint(key: Uint8Array): string {
  * logged or kept: the buffer is zeroed as soon as the digest is taken.
  */
 export async function readKeyFingerprint(path: string): Promise<string> {
-  const bytes = await Deno.readFile(path);
+  const bytes = await readFile(path);
   try {
     return keyFingerprint(bytes);
   } finally {
@@ -269,8 +271,7 @@ export async function hashFile(
 ): Promise<{ readonly sha256: string; readonly bytes: number }> {
   const hash = createHash("sha256");
   let bytes = 0;
-  using file = await Deno.open(path, { read: true });
-  for await (const chunk of file.readable) {
+  for await (const chunk of createReadStream(path)) {
     hash.update(chunk);
     bytes += chunk.length;
   }
@@ -410,7 +411,7 @@ export async function writeBackupManifest(
     note:
       "The secrets key is not in this set. The operator holds it and must save it separately; without it saved secrets cannot be read after a restore. Only its id and a fingerprint are recorded: the key file was read once, to compute the fingerprint, and never copied or logged.",
   };
-  await Deno.writeTextFile(
+  await writeFile(
     join(input.directory, MANIFEST_FILE),
     `${JSON.stringify(manifest, null, 2)}\n`,
     { mode: 0o600 },
@@ -471,7 +472,7 @@ function keyEntry(
 
 async function readReleaseSha(path: string): Promise<string | null> {
   try {
-    const state = JSON.parse(await Deno.readTextFile(path)) as {
+    const state = JSON.parse(await readFile(path, "utf8")) as {
       active?: { sha?: unknown };
     };
     const sha = state.active?.sha;
@@ -484,8 +485,8 @@ async function readReleaseSha(path: string): Promise<string | null> {
 /** Writes SHA256SUMS over every file in the set except itself. */
 export async function writeChecksums(directory: string): Promise<void> {
   const names: string[] = [];
-  for await (const entry of Deno.readDir(directory)) {
-    if (entry.isFile && entry.name !== CHECKSUMS_FILE) names.push(entry.name);
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name !== CHECKSUMS_FILE) names.push(entry.name);
   }
   names.sort();
   const lines: string[] = [];
@@ -493,7 +494,7 @@ export async function writeChecksums(directory: string): Promise<void> {
     const { sha256 } = await hashFile(join(directory, name));
     lines.push(`${sha256}  ./${name}`);
   }
-  await Deno.writeTextFile(
+  await writeFile(
     join(directory, CHECKSUMS_FILE),
     `${lines.join("\n")}\n`,
     { mode: 0o600 },
@@ -570,7 +571,7 @@ export async function readIncompleteMarker(
 ): Promise<IncompleteMarker | null> {
   let text: string;
   try {
-    text = await Deno.readTextFile(join(directory, INCOMPLETE_FILE));
+    text = await readFile(join(directory, INCOMPLETE_FILE), "utf8");
   } catch {
     return null;
   }
@@ -636,7 +637,7 @@ export async function verifyBackupDirectory(
   }
   let text: string;
   try {
-    text = await Deno.readTextFile(join(directory, MANIFEST_FILE));
+    text = await readFile(join(directory, MANIFEST_FILE), "utf8");
   } catch {
     return {
       complete: false,
@@ -755,8 +756,8 @@ export async function verifyBackupDirectory(
   }
 
   const present: string[] = [];
-  for await (const entry of Deno.readDir(directory)) {
-    if (entry.isFile) present.push(entry.name);
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.isFile()) present.push(entry.name);
   }
   for (const name of present) {
     if (!listed.has(name)) {
@@ -770,7 +771,7 @@ export async function verifyBackupDirectory(
 
   try {
     const sums = parseChecksums(
-      await Deno.readTextFile(join(directory, CHECKSUMS_FILE)),
+      await readFile(join(directory, CHECKSUMS_FILE), "utf8"),
     );
     if (sums === null) {
       problems.push({

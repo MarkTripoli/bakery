@@ -859,6 +859,15 @@ export function createCatalogHandlers(
       );
     },
 
+    publishSkillDraft(
+      _context: ActionContext,
+      _input: z.output<typeof contractSchemas.IdPath>,
+    ) {
+      return Promise.reject(
+        new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
+      );
+    },
+
     createSkillVersion(
       _context: ActionContext,
       _input: z.output<typeof contractSchemas.LocalSkillVersion>,

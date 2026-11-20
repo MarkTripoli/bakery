@@ -92,6 +92,9 @@ export type DeliveryDecisionListResponse =
 export type PullRequestListResponse = ClientOutputMap["Page<PullRequest>"];
 export type MergeAttemptListResponse = ClientOutputMap["Page<MergeAttempt>"];
 export type MergeAttemptResponse = ClientOutputMap["MergeAttempt"];
+export type MergeEntryListResponse = ClientOutputMap["Page<MergeEntry>"];
+export type MergeEntryResponse = ClientOutputMap["MergeEntry"];
+export type MergeEntryCreate = ClientInputMap["MergeEntryCreate"];
 export type MergeReconciliationResponse =
   ClientOutputMap["MergeReconciliation"];
 export type SyncQuery = ClientInputMap["SyncQuery"];
@@ -131,6 +134,8 @@ export type IntegrationClientCredentials =
   ClientOutputMap["IntegrationClientCredentials"];
 export type IntegrationClientCredentialsPut =
   ClientInputMap["IntegrationClientCredentialsPut"];
+export type StorageSettings = ClientOutputMap["StorageSettings"];
+export type StorageSettingsPut = ClientInputMap["StorageSettingsPut"];
 export type SkillStorageSettings = ClientOutputMap["SkillStorageSettings"];
 export type SkillStorageSettingsPut = ClientInputMap["SkillStorageSettingsPut"];
 export type SkillStorageVerification =
@@ -1219,6 +1224,21 @@ export type BakeryApiClient = {
       signal?: AbortSignal,
     ) => Promise<ApiResult<InstallationCapabilities>>;
   };
+  readonly storageSettings: {
+    /** `GET /v1/storage/settings`: the organization's storage limits and how much of the quota is used. */
+    readonly get: (options: {
+      readonly organizationId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<StorageSettings>>;
+    /** `PUT /v1/storage/settings`: replace every limit; `version` 0 is the first save and sends no If-Match. */
+    readonly put: (options: {
+      readonly organizationId: string;
+      readonly input: StorageSettingsPut;
+      readonly version: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<StorageSettings>>;
+  };
   readonly usage: {
     /** `GET /v1/usage`: the installation's usage summary (administrators only). */
     readonly list: (options: {
@@ -1575,6 +1595,29 @@ export type BakeryApiClient = {
     readonly mergeMethod: "merge" | "squash" | "rebase";
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<MergeAttemptResponse>>;
+  /**
+   * One pull request's merge queue entries, newest first. An entry still
+   * queued, being checked or merging reads the same after a reload.
+   */
+  readonly listMergeEntries: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeEntryListResponse>>;
+  /**
+   * Asks Bakery to queue a merge of the candidate the person saw: the exact
+   * head and base, with the run, review and checks that vouch for it. Bakery
+   * checks that nothing changed, then merges; a repeat with the same key
+   * answers with the same entry.
+   */
+  readonly createMergeEntry: (options: {
+    readonly organizationId: string;
+    readonly input: MergeEntryCreate;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeEntryResponse>>;
   /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
   readonly reconcileMergeAttempts: (options: {
     readonly organizationId: string;
@@ -3815,6 +3858,40 @@ export function createBakeryApiClient({
       },
     },
 
+    storageSettings: {
+      async get(options) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(options.organizationId).actions[
+              "storageSettings.get"
+            ]({}, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async put(options) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(options.organizationId).actions[
+              "storageSettings.put"
+            ](options.input, {
+              // The first save has no version yet and refuses an If-Match.
+              ...(options.version === 0
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
     usage: {
       async list(options) {
         try {
@@ -5235,6 +5312,40 @@ export function createBakeryApiClient({
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
           { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMergeEntries(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeEntries.list"](
+          {
+            pullRequestId: options.pullRequestId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createMergeEntry(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeEntries.create"](
+          options.input,
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
         );
         return { ok: true, data };
       } catch (error) {

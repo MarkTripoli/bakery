@@ -47,6 +47,7 @@ import type {
   MemoryEntryResponse,
   MemoryRevisionResponse,
   MergeAttemptListResponse,
+  MergeEntryListResponse,
   MessageListResponse,
   MetricSeries,
   MetricSourcePage,
@@ -92,6 +93,7 @@ import type {
   StorageFileVersionPage,
   StorageFolderItem,
   StorageFolderPage,
+  StorageSettings,
   SyncQuery,
   SyncResponse,
   TaskCursorQuery,
@@ -1553,6 +1555,25 @@ export function userPreferencesQueryOptions(
   });
 }
 
+/** The organization's storage limits and how much of its quota is used. */
+export function storageSettingsQueryOptions(
+  client: Pick<BakeryApiClient, "storageSettings">,
+  scope: ApiScope,
+) {
+  return queryOptions<StorageSettings, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "storageSettings.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.storageSettings.get({
+          organizationId: requireOrganization(scope),
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 export function organizationQueryOptions(
   client: Pick<BakeryApiClient, "organizations">,
   scope: ApiScope,
@@ -2829,6 +2850,33 @@ export function mergeAttemptsQueryOptions(
     queryFn: async ({ signal }) =>
       unwrap(
         await client.listMergeAttempts({
+          organizationId: requireOrganization(scope),
+          pullRequestId,
+          limit: 10,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * One pull request's merge queue entries, newest first. Kept fresh so the page
+ * says what the queue is doing after a reload, and shows a stopped merge's
+ * reason rather than guessing one.
+ */
+export function mergeEntriesQueryOptions(
+  client: Pick<BakeryApiClient, "listMergeEntries">,
+  scope: ApiScope,
+  pullRequestId: string,
+) {
+  return queryOptions<MergeEntryListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "mergeEntries.list", {
+      pullRequestId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listMergeEntries({
           organizationId: requireOrganization(scope),
           pullRequestId,
           limit: 10,

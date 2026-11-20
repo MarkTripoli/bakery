@@ -1,3 +1,4 @@
+import process from "node:process";
 import {
   type Cutoff,
   parseCutoff,
@@ -37,7 +38,7 @@ import {
 
 function fail(message: string, code = 64): never {
   console.error(message);
-  Deno.exit(code);
+  process.exit(code);
 }
 
 function flag(args: string[], name: string): string | undefined {
@@ -84,7 +85,7 @@ async function main(args: string[]): Promise<void> {
       return;
     }
     console.error(`BACKUP_INCOMPLETE ${describeProblems(result.problems)}`);
-    Deno.exit(70);
+    process.exit(70);
   }
   if (command === "build") {
     const started = new Date(flag(rest, "--started") ?? "");
@@ -163,7 +164,7 @@ async function main(args: string[]): Promise<void> {
     } catch (error) {
       if (error instanceof IncompleteBackup) {
         console.error(error.message);
-        Deno.exit(70);
+        process.exit(70);
       }
       throw error;
     }
@@ -172,4 +173,4 @@ async function main(args: string[]): Promise<void> {
   fail("BACKUP_MANIFEST_USAGE the command is build or verify");
 }
 
-await main(Deno.args);
+await main(process.argv.slice(2));
