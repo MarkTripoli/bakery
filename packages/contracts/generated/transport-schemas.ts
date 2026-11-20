@@ -31187,6 +31187,7 @@ const transportSchemas = {
       "fields": [
         "source",
         "entryId",
+        "itemId",
         "path",
         "name",
         "kind",
@@ -31206,6 +31207,7 @@ const transportSchemas = {
       "fieldTypes": {
         "source": "enum(files|library)",
         "entryId": "uuid|null",
+        "itemId": "uuid|null",
         "path": "string",
         "name": "string",
         "kind": "string",
@@ -31224,6 +31226,7 @@ const transportSchemas = {
       },
       "nullableFields": [
         "entryId",
+        "itemId",
         "mediaType",
         "mediaGroup",
         "sizeBytes",
@@ -31240,6 +31243,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "source": "Where the hit lives: the organization's file tree, or the read-only library mirror.",
         "entryId": "Stable UUID of the file's tree entry; null for a library item, which is shown by path.",
+        "itemId": "Id of the catalog item a library hit mirrors, the same id its Library page and its catalog reads use; null for a file.",
         "path": "Absolute path of the hit in the tree, for example /projects/<project>/artifacts/<work item>/plan.md or /library/skills/<slug>.",
         "name": "Name of the file or library item.",
         "kind": "The artifact type of a file, or the library kind of a library item.",
@@ -31260,6 +31264,7 @@ const transportSchemas = {
     "LibraryEntry": {
       "fields": [
         "type",
+        "id",
         "path",
         "name",
         "kind",
@@ -31267,18 +31272,21 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "type": "enum(folder|item)",
+        "id": "uuid|null",
         "path": "string",
         "name": "string",
         "kind": "string|null",
         "createdAt": "timestamp|null"
       },
       "nullableFields": [
+        "id",
         "kind",
         "createdAt"
       ],
       "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path.",
       "fieldDescriptions": {
         "type": "folder for a section, item for a published catalog item.",
+        "id": "Id of the catalog item the entry mirrors, the same id its Library page and its catalog reads use; null for a folder.",
         "path": "Absolute path: /library/<section> or /library/<section>/<slug>.",
         "name": "Display name of the section or item.",
         "kind": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder.",
