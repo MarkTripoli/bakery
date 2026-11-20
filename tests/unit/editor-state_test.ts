@@ -2,6 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import {
   canRedo,
   canUndo,
+  definitionOf,
   editorReducer,
   type EditorState,
   editorStateOf,
@@ -138,4 +139,55 @@ Deno.test("a step added to a list that already uses its id gets a free one", () 
   const state = editorStateOf([step("step"), step("step-2")]);
   assertEquals(freeStepId(state, "step"), "step-3");
   assertEquals(freeStepId(state, "review"), "review");
+});
+
+const SEALED = {
+  kind: "action",
+  id: "implement",
+  uses: "harness.implement",
+  sealed: true,
+  files: { read: ["src/**"], write: ["src/app.ts"] },
+};
+const FILES_ONLY = {
+  id: "review",
+  uses: "agent.review",
+  files: { read: ["docs/**"] },
+};
+const SPEC = {
+  name: "ship",
+  steps: [{ id: "brief", uses: "task.brief" }, SEALED, FILES_ONLY],
+};
+const savedStep = (saved: Record<string, unknown>, id: string) =>
+  (saved.steps as Record<string, unknown>[]).find((one) => one.id === id);
+const editorStepsOf = (spec: typeof SPEC) =>
+  spec.steps.map((node) => step(node.id, node.uses));
+
+Deno.test("editing a neighbouring step keeps sealed and files exactly (#448)", () => {
+  const start = editorStateOf(editorStepsOf(SPEC));
+  const edits: Parameters<typeof editorReducer>[1][] = [
+    { kind: "move", id: "brief", index: 2 },
+    { kind: "add", step: step("notify", "chat.notify") },
+    { kind: "remove", id: "brief" },
+  ];
+  for (const action of edits) {
+    const saved = definitionOf(SPEC, apply(start, action).steps);
+    assertEquals(savedStep(saved, "implement"), SEALED);
+    assertEquals(savedStep(saved, "review"), FILES_ONLY);
+    assertEquals(saved.name, "ship");
+  }
+});
+
+Deno.test("a changed step keeps the keys the editor does not hold", () => {
+  const saved = definitionOf(SPEC, [
+    step("implement", "harness.other"),
+  ]);
+  assertEquals(savedStep(saved, "implement"), {
+    ...SEALED,
+    uses: "harness.other",
+  });
+});
+
+Deno.test("a new step carries only what the editor knows", () => {
+  const saved = definitionOf(null, [step("brief")]);
+  assertEquals(saved, { steps: [{ id: "brief", uses: "task.brief" }] });
 });
