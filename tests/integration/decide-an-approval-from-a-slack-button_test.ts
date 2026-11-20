@@ -300,56 +300,77 @@ Deno.test("a linked member who may not answer this approval is refused, not reco
     // A second member of the same organization, linked properly, who is not the
     // approver: the approval is addressed to named people and does not exist for
     // anybody else, so the store refuses and the thread says so.
+    //
+    // The rows are removed again in the `finally`: the installation bootstrap
+    // refuses to run while a second user, principal or organization exists, so a
+    // leftover here would break every fixture that runs after this file in the same
+    // database -- which is how CI runs it.
     const outsider = crypto.randomUUID();
     const providerUser = crypto.randomUUID();
-    const now = new Date();
-    await fixture.pgDatabase.query(
-      `insert into public."user"
-         (id, name, email, "emailVerified", "createdAt", "updatedAt")
-       values ($1, 'Someone Else', $2, true, $3, $3)`,
-      [providerUser, `outsider-${outsider}@example.test`, now],
-    );
-    await fixture.pgDatabase.query(
-      `insert into bakery.principals
-         (id, provider_user_id, display_name, principal_type)
-       values ($1, $2, 'Someone Else', 'human')`,
-      [outsider, providerUser],
-    );
-    const membership = await fixture.pgDatabase.query<{ id: string }>(
-      `insert into bakery.organization_memberships
-         (id, organization_id, principal_id, role, status, joined_at,
-          created_at, updated_at)
-       values (gen_random_uuid(), $1, $2, 'member', 'active', now(),
-               now(), now())
-       on conflict do nothing
-       returning id`,
-      [fixture.organizationId, outsider],
-    );
-    if (membership.rows.length === 0) return;
-    const slack = identity();
-    await link(fixture, outsider, slack);
-    const postId = await seedWaitingPost(fixture, {
-      runId: seeded.job.runId,
-      teamId: slack.teamId,
-    });
-    const before = await counts(fixture);
+    try {
+      const now = new Date();
+      await fixture.pgDatabase.query(
+        `insert into public."user"
+           (id, name, email, "emailVerified", "createdAt", "updatedAt")
+         values ($1, 'Someone Else', $2, true, $3, $3)`,
+        [providerUser, `outsider-${outsider}@example.test`, now],
+      );
+      await fixture.pgDatabase.query(
+        `insert into bakery.principals
+           (id, provider_user_id, display_name, principal_type)
+         values ($1, $2, 'Someone Else', 'human')`,
+        [outsider, providerUser],
+      );
+      await fixture.pgDatabase.query(
+        `insert into bakery.organization_memberships
+           (id, organization_id, principal_id, role, status, joined_at,
+            created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, 'member', 'active', now(),
+                 now(), now())`,
+        [fixture.organizationId, outsider],
+      );
+      const slack = identity();
+      await link(fixture, outsider, slack);
+      const postId = await seedWaitingPost(fixture, {
+        runId: seeded.job.runId,
+        teamId: slack.teamId,
+      });
+      const before = await counts(fixture);
 
-    const result = await decideSlackApproval(fixture.pgDatabase, {
-      receiptId: crypto.randomUUID(),
-      decisionId: postId,
-      choice: "approve",
-      teamId: slack.teamId,
-      userId: slack.userId,
-      appId: slack.appId,
-      traceId: crypto.randomUUID(),
-    });
+      const result = await decideSlackApproval(fixture.pgDatabase, {
+        receiptId: crypto.randomUUID(),
+        decisionId: postId,
+        choice: "approve",
+        teamId: slack.teamId,
+        userId: slack.userId,
+        appId: slack.appId,
+        traceId: crypto.randomUUID(),
+      });
 
-    assertEquals(result, { kind: "refused", reason: "no_permission" });
-    assertEquals(await counts(fixture), before);
-    assertEquals(await approvalState(fixture, seeded.approvalId), {
-      status: "open",
-      decision: null,
-    });
-    assertEquals(await postState(fixture, postId), "open");
+      assertEquals(result, { kind: "refused", reason: "no_permission" });
+      assertEquals(await counts(fixture), before);
+      assertEquals(await approvalState(fixture, seeded.approvalId), {
+        status: "open",
+        decision: null,
+      });
+      assertEquals(await postState(fixture, postId), "open");
+    } finally {
+      await fixture.pgDatabase.query(
+        "delete from bakery.organization_memberships where principal_id = $1",
+        [outsider],
+      );
+      await fixture.pgDatabase.query(
+        "delete from bakery.external_identity_links where principal_id = $1",
+        [outsider],
+      );
+      await fixture.pgDatabase.query(
+        "delete from bakery.principals where id = $1",
+        [outsider],
+      );
+      await fixture.pgDatabase.query(
+        'delete from public."user" where id = $1',
+        [providerUser],
+      );
+    }
   });
 });
