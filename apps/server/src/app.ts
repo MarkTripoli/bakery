@@ -113,6 +113,7 @@ import {
 import {
   createGroupRoutes,
   createNotificationRoutes,
+  createRunRequestRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
   registerNotificationProjection,
@@ -856,6 +857,13 @@ export function createApp(options: {
           },
         },
       }),
+    }),
+  );
+  app.route(
+    "/",
+    createRunRequestRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
     }),
   );
   app.route(
