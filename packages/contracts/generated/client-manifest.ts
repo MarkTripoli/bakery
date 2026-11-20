@@ -6053,6 +6053,27 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/files/facts",
+      "action": "files.facts",
+      "access": "Developer",
+      "permission": "artifact:read",
+      "input": "FileFactQuery",
+      "output": "Page<FileFact>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Library",
       "method": "GET",
       "path": "/v1/files/library",
@@ -7818,6 +7839,150 @@ export const clientManifest = {
         "AUTH_FACTOR_REQUIRED",
         "AUTH_FORBIDDEN",
         "SESSION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/telemetry-destinations",
+      "action": "telemetryDestinations.list",
+      "access": "Installation administrator",
+      "permission": "installationSetting:read",
+      "input": "Empty",
+      "output": "TelemetryDestinationList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/telemetry-destinations",
+      "action": "telemetryDestinations.create",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "TelemetryDestinationCreate",
+      "output": "TelemetryDestination",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PATCH",
+      "path": "/v1/installation/telemetry-destinations/{id}",
+      "action": "telemetryDestinations.update",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "TelemetryDestinationUpdate",
+      "output": "TelemetryDestination",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "DELETE",
+      "path": "/v1/installation/telemetry-destinations/{id}",
+      "action": "telemetryDestinations.delete",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/telemetry-destination-tests",
+      "action": "telemetryDestinations.test",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "TelemetryDestinationTest",
+      "output": "TelemetryDestinationTestResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
         "INTERNAL"
@@ -16336,6 +16501,7 @@ export const clientManifest = {
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
+            "files.facts",
             "files.library",
             "artifacts.get",
             "artifacts.create",
@@ -16431,6 +16597,11 @@ export const clientManifest = {
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
+            "telemetryDestinations.list",
+            "telemetryDestinations.create",
+            "telemetryDestinations.update",
+            "telemetryDestinations.delete",
+            "telemetryDestinations.test",
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
@@ -24763,6 +24934,557 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Saves the R2 account, bucket and credentials that hold skill bundle objects for this installation. Credentials are write-only and never appear in a response, error, log, trace, event or audit record."
     },
+    "TelemetryDestinationCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Which kind of destination this is, as listed by telemetryDestinations.list (for example otlp for OpenTelemetry); it decides which values the destination needs and which measurements it can receive. TelemetryDestinationCreate.kind must contain at most 64 characters."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Name people see in the list and in alerts, unique across destinations ignoring case. TelemetryDestinationCreate.name must contain at most 100 characters."
+        },
+        "enabled": {
+          "description": "Whether the destination receives measurements now; defaults to true. Turning it off keeps its settings and queues nothing for it.",
+          "type": "boolean"
+        },
+        "measurements": {
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The kinds of measurement to send: any of cost, durations, results, skills, health and errors that the destination's kind can take; at least one. Each array item follows this format."
+          },
+          "description": "The kinds of measurement to send: any of cost, durations, results, skills, health and errors that the destination's kind can take; at least one. TelemetryDestinationCreate.measurements must contain at most 6 items."
+        },
+        "values": {
+          "description": "The destination's settings by field name, as the kind lists them: a string for each. Fields the kind marks secret are write-only and stored encrypted; they are never returned. TelemetryDestinationCreate.values must contain at most 8000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 8000
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "measurements"
+      ],
+      "additionalProperties": false,
+      "description": "Adds a telemetry destination: a place Bakery sends the measurements it takes, with its own queue, its own settings and encrypted credentials.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
+    "TelemetryDestinationUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the destination to change; supplied via the request's {id} path segment."
+        },
+        "name": {
+          "description": "New name, unique across destinations ignoring case; omit to keep the current one. TelemetryDestinationUpdate.name must contain at most 100 characters.",
+          "type": "string",
+          "maxLength": 100
+        },
+        "enabled": {
+          "description": "Turns the destination on or off without losing its settings; omit to keep the current state.",
+          "type": "boolean"
+        },
+        "measurements": {
+          "description": "Replaces the kinds of measurement the destination receives; omit to keep them. TelemetryDestinationUpdate.measurements must contain at most 6 items.",
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Replaces the kinds of measurement the destination receives; omit to keep them. Each array item follows this format."
+          }
+        },
+        "values": {
+          "description": "Only the settings to change, by field name. A secret field supplied here replaces the stored value; one left out keeps it. An empty string clears an optional field. TelemetryDestinationUpdate.values must contain at most 8000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 8000
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Changes a telemetry destination's name, on or off state, measurements or settings; the stored secret is replaced only when a new one is supplied.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
+    "TelemetryDestinationTest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "A saved destination whose stored settings and secrets are used for any value not supplied; omit to test values that are not saved.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "kind": {
+          "description": "The kind of destination to test when no saved destination is named. TelemetryDestinationTest.kind must contain at most 64 characters.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "values": {
+          "description": "Unsaved settings to test, by field name; they win over the saved ones. Nothing here is stored or returned. TelemetryDestinationTest.values must contain at most 8000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 8000
+        }
+      },
+      "additionalProperties": false,
+      "description": "Sends one harmless test message to a destination, using unsaved values or a saved destination's own, and reports the destination's real answer.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
     "TicketSourcePersonPath": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -26560,6 +27282,20 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Searches the organization's file tree and its read-only library mirror by name, path, kind, media type, producer and a metadata fact, newest first. Only files and library items the caller may read are returned, and nothing of another organization is ever counted or listed."
+    },
+    "FileFactQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "Restricts the list to one kind: the artifact type of the files whose facts are listed. Omit it to list the facts of every kind the caller can read. FileFactQuery.kind must contain at least 1 characters. FileFactQuery.kind must contain at most 64 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists the facts files carry, by kind: each fact key with each string value it holds on the current version of a file the caller may read, and how many files hold it. It is the source for the file search's fact filter (files.search factKey and factValue). Until kind validators publish typed facts, a version's metadata is where its facts live."
     },
     "LibraryFolderQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40710,6 +41446,7 @@ export const clientManifest = {
                   "worker.invokeTool",
                   "artifacts.list",
                   "files.search",
+                  "files.facts",
                   "files.library",
                   "artifacts.get",
                   "artifacts.create",
@@ -40805,6 +41542,11 @@ export const clientManifest = {
                   "skillStorageSettings.get",
                   "skillStorageSettings.put",
                   "skillStorageSettings.verify",
+                  "telemetryDestinations.list",
+                  "telemetryDestinations.create",
+                  "telemetryDestinations.update",
+                  "telemetryDestinations.delete",
+                  "telemetryDestinations.test",
                   "blobUploads.start",
                   "blobUploads.part",
                   "blobUploads.complete",
@@ -60362,6 +61104,7 @@ export const clientManifest = {
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
+            "files.facts",
             "files.library",
             "artifacts.get",
             "artifacts.create",
@@ -60457,6 +61200,11 @@ export const clientManifest = {
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
+            "telemetryDestinations.list",
+            "telemetryDestinations.create",
+            "telemetryDestinations.update",
+            "telemetryDestinations.delete",
+            "telemetryDestinations.test",
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
@@ -82560,6 +83308,891 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Result of the bounded probe that puts, reads back and deletes one sentinel object in the saved bucket with the stored credentials. A failed probe still answers 200 with a fixed outcome code; provider messages, endpoints and credentials are never returned."
     },
+    "TelemetryDestination": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the destination."
+        },
+        "kind": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Which kind of destination this is, for example otlp."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Name shown in the list and in alerts."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the destination receives measurements now."
+        },
+        "measurements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The kinds of measurement it receives: cost, durations, results, skills, health, errors. Each array item follows this format."
+          },
+          "description": "The kinds of measurement it receives: cost, durations, results, skills, health, errors."
+        },
+        "settings": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "The non-secret values saved for it, by field name."
+        },
+        "secretFieldsSet": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Names of the secret fields that hold a stored value; the values are never returned. Each array item follows this format."
+          },
+          "description": "Names of the secret fields that hold a stored value; the values are never returned."
+        },
+        "credentialUpdatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When its secret values were last replaced, or null when it has none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.credentialUpdatedAt may be null in this transport value."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "working",
+            "not_tested_yet",
+            "failing",
+            "dropping_data",
+            "off"
+          ],
+          "description": "working, not_tested_yet (on, nothing sent yet), failing (the last sends were refused or timed out), dropping_data (its queue overflowed recently) or off."
+        },
+        "lastAcceptedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it last accepted a batch, or null when it never has since the server started."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.lastAcceptedAt may be null in this transport value."
+        },
+        "lastAnswerAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it last answered a send, accepted or not, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.lastAnswerAt may be null in this transport value."
+        },
+        "lastAnswerOk": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Whether that last answer was an acceptance, or null before any."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.lastAnswerOk may be null in this transport value."
+        },
+        "lastAnswerReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "A short plain reason when the last answer was a refusal, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.lastAnswerReason may be null in this transport value."
+        },
+        "dropped": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Records dropped for this destination since the server started."
+        },
+        "droppedSince": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the first of those was dropped, or null when none were."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestination.droppedSince may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the destination was added."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time it last changed."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision; submit it as If-Match when changing or removing the destination."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "enabled",
+        "measurements",
+        "settings",
+        "secretFieldsSet",
+        "credentialUpdatedAt",
+        "state",
+        "lastAcceptedAt",
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason",
+        "dropped",
+        "droppedSince",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One telemetry destination as an installation administrator may see it, with how it is doing. Secret values are reported only as the names of the fields that are set and when they were last replaced; no value, ciphertext or key identifier is ever returned.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "TelemetryDestinationList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "Each kind of destination: its identifier, label, fields (name, label, help, secret, required), the measurements it can take and why any it cannot take is unavailable. Each array item follows this format."
+          },
+          "description": "Each kind of destination: its identifier, label, fields (name, label, help, secret, required), the measurements it can take and why any it cannot take is unavailable."
+        },
+        "measurements": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema1"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema1"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "The six kinds of measurement, each with its identifier, label and one line of help. Each array item follows this format."
+          },
+          "description": "The six kinds of measurement, each with its identifier, label and one line of help."
+        },
+        "destinations": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "The destinations, oldest first, each shaped as a TelemetryDestination. Each array item follows this format."
+          },
+          "description": "The destinations, oldest first, each shaped as a TelemetryDestination."
+        }
+      },
+      "required": [
+        "kinds",
+        "measurements",
+        "destinations"
+      ],
+      "additionalProperties": false,
+      "description": "Everything the Monitoring page needs about destinations in one read: the kinds the server can deliver to with their fields, the six kinds of measurement, and the destinations that exist (at most 20) with their state.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema2": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "TelemetryDestinationTestResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True only when the destination accepted the test message."
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The destination's HTTP status, or null when it never answered."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestinationTestResult.status may be null in this transport value."
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "A short plain reason when it did not accept, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestinationTestResult.reason may be null in this transport value."
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "At most 300 characters of what it answered, or null; never a credential."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestinationTestResult.answer may be null in this transport value."
+        },
+        "tookMs": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Milliseconds the test took."
+        }
+      },
+      "required": [
+        "ok",
+        "status",
+        "reason",
+        "answer",
+        "tookMs"
+      ],
+      "additionalProperties": false,
+      "description": "The destination's real answer to one test message: whether it accepted it, its HTTP status, a short plain reason when it did not, a bounded piece of what it said and how long it took."
+    },
     "IntegrationAppManifestStart": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -90640,6 +92273,101 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of FileSearchHit."
+    },
+    "Page<FileFact>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The artifact type of the files that hold the fact."
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The metadata key, at most 100 characters."
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "One value the key holds on the current version of at least one such file, at most 500 characters; an empty value is not listed."
+              },
+              "files": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many files of this kind the caller may read hold this key with this value on their current version."
+              }
+            },
+            "required": [
+              "kind",
+              "key",
+              "value",
+              "files"
+            ],
+            "additionalProperties": false,
+            "description": "One fact a kind of file carries: a metadata key and one string value it holds on the current version of some files the caller may read, with the number of those files. Pass key and value to files.search as factKey and factValue, and kind as kind, to list the files."
+          },
+          "description": "FileFact items in this cursor page. Page<FileFact>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<FileFact>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<FileFact>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<FileFact>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<FileFact>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of FileFact."
     },
     "Page<LibraryEntry>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

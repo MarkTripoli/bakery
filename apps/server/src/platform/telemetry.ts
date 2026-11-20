@@ -9,6 +9,7 @@
  * whatever that sink does, because the exporter's queue is bounded and the
  * routes only ever call `event` after their transaction has committed.
  */
+import type { ExportSink } from "@bakery/config/telemetry-export";
 import {
   createTelemetry,
   type Telemetry,
@@ -23,7 +24,6 @@ import {
 import { mkdir, open, rename, rm, stat } from "node:fs/promises";
 import { OPERATIONAL_METRIC_SPECS } from "./operational-metrics.ts";
 import {
-  createOtlpSink,
   createRotatingLogSink,
   createTelemetrySink,
   type RotatingLogFileSystem,
@@ -93,27 +93,31 @@ export function createServerTelemetry(
  */
 export function createServerTelemetryFromConfig(
   config: TelemetrySinkConfig | undefined,
-  options: { readonly fetch?: typeof fetch } = {},
+  options: {
+    /**
+     * Delivers each batch to the destinations saved in the app. It only enqueues
+     * (see `createDestinationFanout`), so it is handed to the sink as a
+     * destination of its own and never waits for one of them.
+     */
+    readonly destinations?: ExportSink<TelemetryRecord>;
+  } = {},
 ): ServerTelemetry {
-  if (config === undefined) return createServerTelemetry();
-  const log = config.logDir === undefined ? undefined : createRotatingLogSink({
+  if (config === undefined && options.destinations === undefined) {
+    return createServerTelemetry();
+  }
+  const log = config?.logDir === undefined ? undefined : createRotatingLogSink({
     directory: config.logDir,
     maxBytes: config.logMaxBytes ?? TELEMETRY_LOG_MAX_BYTES,
     maxFiles: config.logMaxFiles ?? TELEMETRY_LOG_MAX_FILES,
     fileSystem: nodeRotatingLogFileSystem,
   });
-  const otlp = config.otlpEndpoint === undefined ? undefined : createOtlpSink({
-    endpoint: config.otlpEndpoint,
-    fetch: options.fetch ?? fetch,
-    // Collector tokens live here. They are configuration, never a log field, and
-    // the sink does not put request headers in a record.
-    headers: config.otlpHeaders,
-  });
   // The sink carries per-destination counters, and slice 2 publishes them from
   // the metric sampler. They cannot be recorded here: a metric write from inside
   // the sink's own call tree is refused as reentrant, so the honest place to
   // export them is outside it. The sink is handed out for that reader alone.
-  const sink = createTelemetrySink({ log, otlp });
+  // The "otlp" slot of the sink is the fan-out of the destinations saved in the
+  // app; each of those keeps its own state, which the Monitoring page shows.
+  const sink = createTelemetrySink({ log, otlp: options.destinations });
   const telemetry = createServerTelemetry({ send: sink });
   return Object.assign(telemetry, { sink }) as ServerTelemetry;
 }
