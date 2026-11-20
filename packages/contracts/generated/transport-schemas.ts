@@ -10481,6 +10481,15 @@ const transportSchemas = {
           "description": "Which kind of destination this is, as listed by telemetryDestinations.list (for example otlp for OpenTelemetry); it decides which values the destination needs and which measurements it can receive."
         },
         {
+          "name": "provider",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "The provider the person chose in the Add destination chooser: a key from the list's providers whose kind is this destination's kind. Omitted means the kind's default provider. It is a label and cannot be changed later."
+        },
+        {
           "name": "name",
           "type": "string",
           "required": true,
@@ -10516,7 +10525,7 @@ const transportSchemas = {
       ],
       "rules": [
         "Installation administrator with a browser session; access tokens are refused. Idempotency-Key is required.",
-        "An unknown kind, a missing required value or a value the kind refuses answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 20 destinations exist; one more answers 409 STATE_CONFLICT. Storing a secret value with no secrets key configured answers 409 STATE_CONFLICT and stores nothing."
+        "An unknown kind, a missing required value or a value the kind refuses answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 200 destinations exist; one more answers 409 STATE_CONFLICT. A provider that is unknown, or belongs to another kind, answers 422 UNPROCESSABLE naming the provider field. Storing a secret value with no secrets key configured answers 409 STATE_CONFLICT and stores nothing."
       ],
       "description": "Adds a telemetry destination: a place Bakery sends the measurements it takes, with its own queue, its own settings and encrypted credentials."
     },
@@ -10620,6 +10629,15 @@ const transportSchemas = {
             "maxLength": 63
           },
           "description": "Only destinations of this kind, named by an identifier from the list's kinds; omitted means every kind."
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Only destinations added for this provider, named by a key from the list's providers; omitted means every provider."
         }
       ],
       "pagination": "pagination",
@@ -30080,6 +30098,7 @@ const transportSchemas = {
       "fields": [
         "id",
         "kind",
+        "provider",
         "name",
         "enabled",
         "measurements",
@@ -30100,6 +30119,7 @@ const transportSchemas = {
       "fieldTypes": {
         "id": "uuid",
         "kind": "string",
+        "provider": "string",
         "name": "string",
         "enabled": "boolean",
         "measurements": "string[]",
@@ -30129,6 +30149,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "id": "Stable UUID of the destination.",
         "kind": "Which kind of destination this is, for example otlp.",
+        "provider": "Which provider the destination was added for, one of the keys in the list's providers (opentelemetry, grafana, datadog, honeycomb or sentry). It is a label chosen when the destination is added, never worked out from its name or address; destinations saved before it existed read as the default provider of their kind.",
         "name": "Name shown in the list and in alerts.",
         "enabled": "Whether the destination receives measurements now.",
         "measurements": "The kinds of measurement it receives: cost, durations, results, skills, health, errors.",
@@ -30155,7 +30176,8 @@ const transportSchemas = {
         "destinationLimit",
         "nextCursor",
         "total",
-        "stateCounts"
+        "stateCounts",
+        "providers"
       ],
       "fieldTypes": {
         "kinds": "json[]",
@@ -30164,7 +30186,8 @@ const transportSchemas = {
         "destinationLimit": "integer",
         "nextCursor": "string|null",
         "total": "integer",
-        "stateCounts": "json"
+        "stateCounts": "json",
+        "providers": "json[]"
       },
       "nullableFields": [
         "nextCursor"
@@ -30177,27 +30200,32 @@ const transportSchemas = {
         "destinationLimit": "The most destinations an installation can have; creating one past it is refused with destination_limit.",
         "nextCursor": "Opaque token for the next page with the same filters, or null on the last page.",
         "total": "How many destinations match the search and filters, across every page.",
-        "stateCounts": "How many destinations are in each state with no search or filter applied: an object with all, working, not_tested_yet, failing, dropping_data and off."
+        "stateCounts": "How many destinations are in each state with no search or filter applied: an object with all, working, not_tested_yet, failing, dropping_data and off.",
+        "providers": "The providers a destination can be added for, for the Add destination chooser: key, name, one plain sentence (description), the kind it uses and the values filled in when it is chosen (prefill, by field name)."
       }
     },
     "TelemetryDestinationDetail": {
       "fields": [
         "destination",
         "kind",
+        "provider",
         "measurements"
       ],
       "fieldTypes": {
         "destination": "json",
         "kind": "json|null",
+        "provider": "json|null",
         "measurements": "json[]"
       },
       "nullableFields": [
-        "kind"
+        "kind",
+        "provider"
       ],
       "description": "One destination with what its page needs to show and edit it: the destination, the description of its kind and the measurement list.",
       "fieldDescriptions": {
         "destination": "The destination shaped as a TelemetryDestination, with its live state.",
         "kind": "The description of the destination's kind (identifier, label, fields, measurements it can take), or null when the server no longer has that kind installed.",
+        "provider": "The destination's provider as the list's providers describe it (key, name, description, kind, prefill), or null when the server no longer knows that provider.",
         "measurements": "The six kinds of measurement, each with its identifier, label and one line of help."
       }
     },

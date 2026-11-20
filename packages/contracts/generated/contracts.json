@@ -37609,6 +37609,16 @@
                 "type": "string",
                 "maxLength": 63
               }
+            },
+            {
+              "name": "provider",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Only destinations added for this provider, named by a key from the list's providers; omitted means every provider. TelemetryDestinationListQuery.provider must contain at most 64 characters.",
+                "type": "string",
+                "maxLength": 64
+              }
             }
           ],
           "responses": {
@@ -72967,6 +72977,11 @@
               "maxLength": 64,
               "description": "Which kind of destination this is, as listed by telemetryDestinations.list (for example otlp for OpenTelemetry); it decides which values the destination needs and which measurements it can receive. TelemetryDestinationCreate.kind must contain at most 64 characters."
             },
+            "provider": {
+              "description": "The provider the person chose in the Add destination chooser: a key from the list's providers whose kind is this destination's kind. Omitted means the kind's default provider. It is a label and cannot be changed later. TelemetryDestinationCreate.provider must contain at most 64 characters.",
+              "type": "string",
+              "maxLength": 64
+            },
             "name": {
               "type": "string",
               "maxLength": 100,
@@ -73369,6 +73384,11 @@
               "description": "Only destinations of this kind, named by an identifier from the list's kinds; omitted means every kind. TelemetryDestinationListQuery.kind must contain at most 63 characters.",
               "type": "string",
               "maxLength": 63
+            },
+            "provider": {
+              "description": "Only destinations added for this provider, named by a key from the list's providers; omitted means every provider. TelemetryDestinationListQuery.provider must contain at most 64 characters.",
+              "type": "string",
+              "maxLength": 64
             }
           },
           "additionalProperties": false,
@@ -237479,6 +237499,11 @@
               "maxLength": 65536,
               "description": "Which kind of destination this is, for example otlp."
             },
+            "provider": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Which provider the destination was added for, one of the keys in the list's providers (opentelemetry, grafana, datadog, honeycomb or sentry). It is a label chosen when the destination is added, never worked out from its name or address; destinations saved before it existed read as the default provider of their kind."
+            },
             "name": {
               "type": "string",
               "maxLength": 65536,
@@ -237671,6 +237696,7 @@
           "required": [
             "id",
             "kind",
+            "provider",
             "name",
             "enabled",
             "measurements",
@@ -237999,6 +238025,49 @@
                 }
               ],
               "description": "How many destinations are in each state with no search or filter applied: an object with all, working, not_tested_yet, failing, dropping_data and off."
+            },
+            "providers": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TelemetryDestinationList____schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/TelemetryDestinationList____schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "The providers a destination can be added for, for the Add destination chooser: key, name, one plain sentence (description), the kind it uses and the values filled in when it is chosen (prefill, by field name). Each array item follows this format."
+              },
+              "description": "The providers a destination can be added for, for the Add destination chooser: key, name, one plain sentence (description), the kind it uses and the values filled in when it is chosen (prefill, by field name)."
             }
           },
           "required": [
@@ -238008,7 +238077,8 @@
             "destinationLimit",
             "nextCursor",
             "total",
-            "stateCounts"
+            "stateCounts",
+            "providers"
           ],
           "additionalProperties": false,
           "description": "Everything the Monitoring list needs in one read: the kinds the server can deliver to with their fields, the six kinds of measurement, one page of the destinations that match the search and filters, and the counts the page's notice and filters show."
@@ -238457,6 +238527,117 @@
           ],
           "description": "JSON value node."
         },
+        "TelemetryDestinationList____schema4": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TelemetryDestinationList____schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/TelemetryDestinationList____schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TelemetryDestinationList____schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/TelemetryDestinationList____schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
         "TelemetryDestinationDetail": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -238548,6 +238729,54 @@
               ],
               "description": "TelemetryDestinationDetail.kind may be null in this transport value."
             },
+            "provider": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TelemetryDestinationDetail____schema2"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/TelemetryDestinationDetail____schema2"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "description": "The destination's provider as the list's providers describe it (key, name, description, kind, prefill), or null when the server no longer knows that provider."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "TelemetryDestinationDetail.provider may be null in this transport value."
+            },
             "measurements": {
               "type": "array",
               "items": {
@@ -238571,7 +238800,7 @@
                   {
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/TelemetryDestinationDetail____schema2"
+                      "$ref": "#/components/schemas/TelemetryDestinationDetail____schema3"
                     },
                     "description": "JSON array value."
                   },
@@ -238582,7 +238811,7 @@
                       "description": "JSON object key."
                     },
                     "additionalProperties": {
-                      "$ref": "#/components/schemas/TelemetryDestinationDetail____schema2"
+                      "$ref": "#/components/schemas/TelemetryDestinationDetail____schema3"
                     },
                     "description": "JSON object value."
                   }
@@ -238595,6 +238824,7 @@
           "required": [
             "destination",
             "kind",
+            "provider",
             "measurements"
           ],
           "additionalProperties": false,
@@ -238922,6 +239152,117 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/components/schemas/TelemetryDestinationDetail____schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "TelemetryDestinationDetail____schema3": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TelemetryDestinationDetail____schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/TelemetryDestinationDetail____schema3"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TelemetryDestinationDetail____schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/TelemetryDestinationDetail____schema3"
                     },
                     "description": "JSON object value."
                   }
@@ -261513,7 +261854,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:a2990005fe2611b63e5122a6bea9699a1d73c4030c7f11b2c4e1cfe541674f77",
+  "compatibilityDigest": "sha256:9230397950a1b7553d5c10c88f39f061390448a3aca9f086a1f375c1c83044b8",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -287616,6 +287957,11 @@
           "maxLength": 64,
           "description": "Which kind of destination this is, as listed by telemetryDestinations.list (for example otlp for OpenTelemetry); it decides which values the destination needs and which measurements it can receive. TelemetryDestinationCreate.kind must contain at most 64 characters."
         },
+        "provider": {
+          "description": "The provider the person chose in the Add destination chooser: a key from the list's providers whose kind is this destination's kind. Omitted means the kind's default provider. It is a label and cannot be changed later. TelemetryDestinationCreate.provider must contain at most 64 characters.",
+          "type": "string",
+          "maxLength": 64
+        },
         "name": {
           "type": "string",
           "maxLength": 100,
@@ -288022,6 +288368,11 @@
           "description": "Only destinations of this kind, named by an identifier from the list's kinds; omitted means every kind. TelemetryDestinationListQuery.kind must contain at most 63 characters.",
           "type": "string",
           "maxLength": 63
+        },
+        "provider": {
+          "description": "Only destinations added for this provider, named by a key from the list's providers; omitted means every provider. TelemetryDestinationListQuery.provider must contain at most 64 characters.",
+          "type": "string",
+          "maxLength": 64
         }
       },
       "additionalProperties": false,
@@ -452508,6 +452859,11 @@
           "maxLength": 65536,
           "description": "Which kind of destination this is, for example otlp."
         },
+        "provider": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Which provider the destination was added for, one of the keys in the list's providers (opentelemetry, grafana, datadog, honeycomb or sentry). It is a label chosen when the destination is added, never worked out from its name or address; destinations saved before it existed read as the default provider of their kind."
+        },
         "name": {
           "type": "string",
           "maxLength": 65536,
@@ -452700,6 +453056,7 @@
       "required": [
         "id",
         "kind",
+        "provider",
         "name",
         "enabled",
         "measurements",
@@ -453030,6 +453387,49 @@
             }
           ],
           "description": "How many destinations are in each state with no search or filter applied: an object with all, working, not_tested_yet, failing, dropping_data and off."
+        },
+        "providers": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema4"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema4"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "The providers a destination can be added for, for the Add destination chooser: key, name, one plain sentence (description), the kind it uses and the values filled in when it is chosen (prefill, by field name). Each array item follows this format."
+          },
+          "description": "The providers a destination can be added for, for the Add destination chooser: key, name, one plain sentence (description), the kind it uses and the values filled in when it is chosen (prefill, by field name)."
         }
       },
       "required": [
@@ -453039,7 +453439,8 @@
         "destinationLimit",
         "nextCursor",
         "total",
-        "stateCounts"
+        "stateCounts",
+        "providers"
       ],
       "additionalProperties": false,
       "description": "Everything the Monitoring list needs in one read: the kinds the server can deliver to with their fields, the six kinds of measurement, one page of the destinations that match the search and filters, and the counts the page's notice and filters show.",
@@ -453487,6 +453888,117 @@
             }
           ],
           "description": "JSON value node."
+        },
+        "__schema4": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema4"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
         }
       }
     },
@@ -453581,6 +454093,54 @@
           ],
           "description": "TelemetryDestinationDetail.kind may be null in this transport value."
         },
+        "provider": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The destination's provider as the list's providers describe it (key, name, description, kind, prefill), or null when the server no longer knows that provider."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TelemetryDestinationDetail.provider may be null in this transport value."
+        },
         "measurements": {
           "type": "array",
           "items": {
@@ -453604,7 +454164,7 @@
               {
                 "type": "array",
                 "items": {
-                  "$ref": "#/$defs/__schema2"
+                  "$ref": "#/$defs/__schema3"
                 },
                 "description": "JSON array value."
               },
@@ -453615,7 +454175,7 @@
                   "description": "JSON object key."
                 },
                 "additionalProperties": {
-                  "$ref": "#/$defs/__schema2"
+                  "$ref": "#/$defs/__schema3"
                 },
                 "description": "JSON object value."
               }
@@ -453628,6 +454188,7 @@
       "required": [
         "destination",
         "kind",
+        "provider",
         "measurements"
       ],
       "additionalProperties": false,
@@ -453955,6 +454516,117 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema3": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema3"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema3"
                     },
                     "description": "JSON object value."
                   }

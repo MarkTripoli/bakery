@@ -40,7 +40,10 @@ import {
   postgresErrorCode,
 } from "../../platform/postgres-errors.ts";
 import {
+  defaultProviderKey,
+  DESTINATION_PROVIDERS,
   type DestinationFanout,
+  destinationProvider,
   type DestinationRuntimeState,
   isMeasurementKind,
   MEASUREMENT_KINDS,
@@ -119,6 +122,8 @@ export type TelemetryDestinationDependencies = Readonly<{
 type Row = {
   id: string;
   kind: string;
+  /** The provider chosen when it was added; null on rows saved before it existed. */
+  provider: string | null;
   name: string;
   enabled: boolean;
   measurements: string[];
@@ -131,7 +136,8 @@ type Row = {
   version: number;
 };
 
-const COLUMNS = `id, kind, name, enabled, measurements, settings, secret_fields,
+const COLUMNS =
+  `id, kind, provider, name, enabled, measurements, settings, secret_fields,
   secret_id,
   to_char(credential_updated_at at time zone 'UTC',
     'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as credential_updated_at,
@@ -153,6 +159,7 @@ export function destinationProjection(
   return contractSchemas.TelemetryDestination.parse({
     id: row.id,
     kind: row.kind,
+    provider: row.provider ?? defaultProviderKey(row.kind),
     name: row.name,
     enabled: row.enabled,
     measurements: row.measurements,
@@ -170,6 +177,31 @@ export function destinationProjection(
     updatedAt: row.updated_at,
     version: row.version,
   });
+}
+
+/**
+ * The provider to save: the one the person chose, which must be a known
+ * provider that delivers through this kind, or the kind's default when none was
+ * chosen.
+ */
+function checkProvider(chosen: string | undefined, kind: string): string {
+  if (chosen === undefined) return defaultProviderKey(kind);
+  const known = destinationProvider(chosen);
+  if (known === undefined || known.kind !== kind) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: {
+        issues: [{
+          path: ["provider"],
+          code: "invalid",
+          message: known === undefined
+            ? "Choose one of the providers the list offers."
+            : "That provider does not use this kind of destination.",
+        }],
+      },
+    });
+  }
+  return known.key;
 }
 
 function problems(
@@ -373,6 +405,12 @@ function compareDestinations(a: Destination, b: Destination): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
+/** The providers whose kind this server can deliver to, for the chooser. */
+const availableProviders = (dependencies: TelemetryDestinationDependencies) =>
+  DESTINATION_PROVIDERS.filter((entry) =>
+    dependencies.registry.get(entry.kind) !== undefined
+  ).map((entry) => ({ ...entry, prefill: { ...entry.prefill } }));
+
 const measurementList = () =>
   MEASUREMENT_KINDS.map((kind) => ({ kind, ...MEASUREMENT_HELP[kind] }));
 
@@ -401,14 +439,20 @@ export async function listTelemetryDestinations(
   const matching = all.filter((d) =>
     (needle === "" || d.name.toLowerCase().includes(needle)) &&
     (query.state === undefined || d.state === query.state) &&
-    (query.kind === undefined || d.kind === query.kind)
+    (query.kind === undefined || d.kind === query.kind) &&
+    (query.provider === undefined || d.provider === query.provider)
   ).sort(compareDestinations);
   const cursorBinding = {
     action: Action.TelemetryDestinationsList,
     principalId: actor.subject.principalId,
     ordering: "stateRank:asc,nameFolded:asc,id:asc",
     filters: await sha256Hex(
-      JSON.stringify([needle, query.state ?? null, query.kind ?? null]),
+      JSON.stringify([
+        needle,
+        query.state ?? null,
+        query.kind ?? null,
+        query.provider ?? null,
+      ]),
     ),
     schemaVersion: 1,
   };
@@ -446,6 +490,7 @@ export async function listTelemetryDestinations(
       : null,
     total: matching.length,
     stateCounts,
+    providers: availableProviders(dependencies),
   });
 }
 
@@ -460,12 +505,18 @@ export async function getTelemetryDestination(
   const row = await readRow(value.transaction, id);
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   const provider = dependencies.registry.get(row.kind);
+  const providerOfRow = destinationProvider(
+    row.provider ?? defaultProviderKey(row.kind),
+  );
   return contractSchemas.TelemetryDestinationDetail.parse({
     destination: destinationProjection(
       row,
       dependencies.fanout.states().get(row.id),
     ),
     kind: provider === undefined ? null : { ...provider.descriptor },
+    provider: providerOfRow
+      ? { ...providerOfRow, prefill: { ...providerOfRow.prefill } }
+      : null,
     measurements: measurementList(),
   });
 }
@@ -530,6 +581,7 @@ export async function createTelemetryDestination(
   const principalId = actor.subject.principalId;
   const transaction = value.transaction;
   const provider = providerOf(dependencies.registry, input.kind);
+  const providerKey = checkProvider(input.provider, provider.descriptor.kind);
   const name = checkName(input.name);
   const measurements = checkMeasurements(provider, input.measurements);
   const { settings, secrets } = splitValues(provider, input.values);
@@ -571,9 +623,9 @@ export async function createTelemetryDestination(
   try {
     row = (await transaction.query<Row>(
       `insert into bakery.telemetry_destinations (
-         id, kind, name, enabled, measurements, settings, secret_fields,
+         id, kind, provider, name, enabled, measurements, settings, secret_fields,
          secret_id, credential_updated_at, created_by, updated_by
-       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8,
+       ) values ($1, $2, $10, $3, $4, $5, $6::jsonb, $7, $8,
          case when $8::uuid is null then null else now() end, $9, $9)
        returning ${COLUMNS}`,
       [
@@ -586,6 +638,7 @@ export async function createTelemetryDestination(
         Object.keys(filled),
         sealed?.secretId ?? null,
         principalId,
+        providerKey,
       ],
     )).rows[0];
   } catch (error) {
@@ -606,6 +659,7 @@ export async function createTelemetryDestination(
     resourceId: id,
     details: {
       kind: row.kind,
+      provider: providerKey,
       enabled: row.enabled,
       measurements,
       secretFieldsSet: row.secret_fields,

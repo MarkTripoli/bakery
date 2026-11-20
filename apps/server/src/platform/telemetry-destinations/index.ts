@@ -23,6 +23,12 @@ export {
   DROP_REPORTS_KEPT,
 } from "./fanout.ts";
 export {
+  defaultProviderKey,
+  DESTINATION_PROVIDERS,
+  type DestinationProvider,
+  destinationProvider,
+} from "./destination-providers.ts";
+export {
   isMeasurementKind,
   MEASUREMENT_KINDS,
   type MeasurementKind,
