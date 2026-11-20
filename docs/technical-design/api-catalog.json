@@ -8212,6 +8212,57 @@
       ]
     },
     {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/agent-file-grants",
+      "action": "agentFileGrants.create",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "organizationContext": "required_authenticated_context",
+      "input": "AgentFileGrantCreate",
+      "output": "AgentFileGrant",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/agent-file-grants/{id}/revoke",
+      "action": "agentFileGrants.revoke",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "organizationContext": "required_authenticated_context",
+      "input": "IdPath",
+      "output": "AgentFileGrant",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/integration-auth/github/manifest-callback",
