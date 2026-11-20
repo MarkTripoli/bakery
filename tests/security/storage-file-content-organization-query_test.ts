@@ -65,14 +65,13 @@ async function status(response: Response, expected: number): Promise<string> {
   return text;
 }
 
-/** A refusal: a problem body naming the code, never the file's bytes. */
-async function refused(response: Response, code: string) {
+/** A refusal: 404 with the named code, and never the file's bytes. */
+async function refused(response: Response, code: string, bytes: string) {
   const text = await response.text();
-  assert(
-    response.status === 403 || response.status === 404,
-    response.status + " " + text,
-  );
+  assertEquals(response.status, 404, text);
   assertEquals((JSON.parse(text) as Json).code, code, text);
+  assert(!text.includes(bytes), text);
+  assertEquals(response.headers.get("Content-Range"), null);
 }
 
 const own = (fixture: Fixture) =>
@@ -133,69 +132,96 @@ Deno.test("the query organization is membership-checked and must agree with the 
     );
     const path = "/v1/storage/files/" + id + "/content";
 
-    // An organization I am not a member of, in the query.
-    const stranger = crypto.randomUUID();
-    const nonMember = await media(
-      fixture,
-      path + "?organizationId=" + stranger,
-    );
-    assert(
-      nonMember.status === 403 || nonMember.status === 404,
-      String(nonMember.status),
-    );
-    assert(!(await nonMember.text()).includes("mine"));
-
-    const foreign = await createWorkerScope(fixture, "storage-445-q", fixture);
+    // A real second organization with its own file. I start as its member.
+    const other = await createWorkerScope(fixture, "storage-445-q", fixture);
     try {
-      // Another organization's file id, with my own organization in the query:
-      // not found, exactly as with the header.
       const theirs = await putFile(
         fixture,
-        foreign.organizationId,
+        other.organizationId,
         "/users/" + fixture.principalId + "/uploads/theirs.txt",
+        "theirs",
+      );
+      const theirsPath = "/v1/storage/files/" + theirs + "/content";
+
+      // The other organization's file id with my own organization in the
+      // query: not found, exactly as with the header.
+      await refused(
+        await media(
+          fixture,
+          theirsPath + "?organizationId=" + fixture.organizationId,
+        ),
+        "RESOURCE_NOT_FOUND",
+        "theirs",
+      );
+      // My own file id with a real other organization in the query.
+      await refused(
+        await media(fixture, path + "?organizationId=" + other.organizationId),
+        "RESOURCE_NOT_FOUND",
+        "mine",
+      );
+      // Header and query differ: refused, though each alone names an
+      // organization I belong to.
+      await refused(
+        await media(
+          fixture,
+          theirsPath + "?organizationId=" + other.organizationId,
+          {
+            "Bakery-Organization-Id": fixture.organizationId,
+          },
+        ),
+        "RESOURCE_NOT_FOUND",
+        "theirs",
+      );
+      // Header and query agree: served.
+      assertEquals(
+        await status(
+          await media(
+            fixture,
+            theirsPath + "?organizationId=" + other.organizationId,
+            {
+              "Bakery-Organization-Id": other.organizationId,
+            },
+          ),
+          200,
+        ),
+        "theirs",
+      );
+
+      // Now I am not a member of the other organization. The authority
+      // answers a human with no membership RESOURCE_NOT_FOUND
+      // (resolveOrganizationActorForSubject); the query gets the same.
+      await fixture.pgDatabase.query(
+        "delete from bakery.organization_memberships where organization_id = $1 and principal_id = $2",
+        [other.organizationId, fixture.principalId],
+      );
+      await refused(
+        await media(fixture, theirsPath, {
+          "Bakery-Organization-Id": other.organizationId,
+        }),
+        "RESOURCE_NOT_FOUND",
         "theirs",
       );
       await refused(
         await media(
           fixture,
-          "/v1/storage/files/" + theirs + "/content?organizationId=" +
-            fixture.organizationId,
+          theirsPath + "?organizationId=" + other.organizationId,
         ),
         "RESOURCE_NOT_FOUND",
+        "theirs",
       );
-      // My file id with the other organization in the query: not found.
       await refused(
         await media(
           fixture,
-          path + "?organizationId=" + foreign.organizationId,
-        ),
-        "RESOURCE_NOT_FOUND",
-      );
-      // Header and query differ: refused, even though each alone names an
-      // organization I belong to.
-      await refused(
-        await media(
-          fixture,
-          path + "?organizationId=" + foreign.organizationId,
+          theirsPath + "?organizationId=" + other.organizationId,
           {
-            "Bakery-Organization-Id": fixture.organizationId,
+            Range: "bytes=0-2",
           },
         ),
         "RESOURCE_NOT_FOUND",
-      );
-      // Header and query agree: served.
-      await status(
-        await media(
-          fixture,
-          path + "?organizationId=" + fixture.organizationId,
-          {
-            "Bakery-Organization-Id": fixture.organizationId,
-          },
-        ),
-        200,
+        "theirs",
       );
     } finally {
-      await closeWorkerOrganization(fixture.pgDatabase, foreign.organizationId);
+      await closeWorkerOrganization(fixture.pgDatabase, other.organizationId);
     }
   }));
 
