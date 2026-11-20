@@ -5008,5 +5008,6 @@
   "files.search.fact.chooseKind": "⟦Çĥôôšë à ķïñð ƒïŕšŧ ŧëšŧ⟧",
   "files.search.fact.is": "⟦{name} ïš {value} ŧëš⟧",
   "files.search.fact.helpLabel": "⟦Àƀôûŧ ƒàçŧš ŧ⟧",
-  "files.search.fact.help": "⟦Ƒàçŧš àŕë ṽàļûëš à ķïñð ŕëçôŕðš, šûçĥ àš à þļàñ'š ŕïšķ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "files.search.fact.help": "⟦Ƒàçŧš àŕë ṽàļûëš à ķïñð ŕëçôŕðš, šûçĥ àš à þļàñ'š ŕïšķ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "files.preview.player": "⟦Þļàÿëŕ: {name} ŧë⟧"
 }

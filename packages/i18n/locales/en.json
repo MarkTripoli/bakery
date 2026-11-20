@@ -4752,6 +4752,7 @@
   "files.preview.unsupported": "No preview for this kind of file.",
   "files.preview.tooLarge": "This file is too large to preview ({size}).",
   "files.preview.image": "Image: {name}",
+  "files.preview.player": "Player: {name}",
   "files.action.download": "Download",
   "files.action.downloadFailed": "The download did not start. Try again.",
   "files.action.copyPath": "Copy path",

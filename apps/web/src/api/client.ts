@@ -623,6 +623,16 @@ export type BakeryApiClient = {
       input: FileSearchInput,
       signal?: AbortSignal,
     ) => Promise<ApiResult<FileSearchPage>>;
+    /**
+     * The address a video or audio element plays a file from. A media element
+     * cannot send the organization header, so the organization is in the query,
+     * which the server checks against the caller's membership.
+     */
+    readonly mediaUrl: (
+      organizationId: string,
+      fileId: string,
+      revision?: number,
+    ) => string;
     /** The facts the files of one kind record, for the Fact filter. */
     readonly facts: (
       organizationId: string,
@@ -3110,6 +3120,13 @@ export function createBakeryApiClient({
         } catch (error) {
           return failed(error);
         }
+      },
+      mediaUrl(org, fileId, revision) {
+        const query = new URLSearchParams({ organizationId: org });
+        if (revision !== undefined) query.set("revision", String(revision));
+        return `${baseUrl.replace(/\/$/, "")}/v1/storage/files/${
+          encodeURIComponent(fileId)
+        }/content?${query.toString()}`;
       },
       async facts(org, kind, signal) {
         const scoped = createBakeryClient({

@@ -51,6 +51,12 @@ export function FilePreview(
     .split(";", 1)[0]!.trim().toLowerCase();
   const textMode = textModes[mediaType];
   const image = imageTypes.has(mediaType);
+  // A video or audio file is played from its address, never read into the page.
+  const media = mediaType.startsWith("video/")
+    ? "video"
+    : mediaType.startsWith("audio/")
+    ? "audio"
+    : null;
   const supported = image || textMode !== undefined;
   const limit = image ? MAX_IMAGE_PREVIEW_BYTES : MAX_TEXT_PREVIEW_BYTES;
   const tooLarge = (sizeBytes ?? 0) > limit;
@@ -97,6 +103,24 @@ export function FilePreview(
   }, [content.data, image, mediaType]);
 
   if (contentRemoved) return null;
+  if (media !== null && scope.organizationId !== null) {
+    return (
+      <ArtifactPreviewView
+        state="content"
+        label={translate("files.preview.title")}
+        content={{
+          kind: media,
+          src: api.files.mediaUrl(
+            scope.organizationId,
+            file.id,
+            version?.revision,
+          ),
+          label: translate("files.preview.player", { name: file.name }),
+          unavailableLabel: translate("files.preview.error"),
+        }}
+      />
+    );
+  }
   if (!supported) {
     return (
       <UI.Text variant="muted">

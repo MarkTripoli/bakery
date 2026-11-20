@@ -215,6 +215,27 @@
   block-size: 100%;
   object-fit: contain;
 }
+/* A video or audio player: the browser's own controls, the width of the panel,
+   and a target tall enough to touch on a phone. */
+.ui-artifact-viewer__media {
+  display: grid;
+  place-items: center;
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-control);
+}
+.ui-artifact-viewer__media video {
+  max-block-size: calc(var(--space-12) * 5);
+  inline-size: 100%;
+}
+.ui-artifact-viewer__media audio {
+  inline-size: 100%;
+  min-block-size: var(--target-min);
+}
+@media (pointer: coarse) {
+  .ui-artifact-viewer__media audio {
+    min-block-size: var(--target-coarse);
+  }
+}
 .ui-version-picker {
   display: flex;
   flex-wrap: wrap;

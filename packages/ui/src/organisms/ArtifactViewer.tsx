@@ -12,6 +12,18 @@ export type ArtifactViewerContent =
     readonly alt: string;
     readonly unavailableLabel: string;
   }
+  | {
+    /**
+     * A player that loads only what it plays: `preload="none"`, never
+     * autoplayed, the browser's own controls. `src` is a path on this origin or
+     * an http(s) URL; anything else is refused rather than handed to the element.
+     */
+    readonly kind: "video" | "audio";
+    readonly src: string;
+    /** Names the player for assistive technology, such as the file name. */
+    readonly label: string;
+    readonly unavailableLabel: string;
+  }
   | { readonly kind: "unsupported"; readonly message: ReactNode };
 export type ArtifactViewerProps = {
   readonly label: ReactNode;
@@ -121,6 +133,33 @@ function preview(content: ArtifactViewerContent): ReactNode {
           </div>
         )
         : <p role="alert">{content.unavailableLabel}</p>;
+    case "video":
+    case "audio": {
+      // A src the player must not be given: a script URL or any other scheme.
+      const allowed = /^(\/(?!\/)|https?:\/\/)/.test(content.src);
+      if (!allowed) return <p role="alert">{content.unavailableLabel}</p>;
+      return content.kind === "video"
+        ? (
+          <div className="ui-artifact-viewer__media">
+            <video
+              aria-label={content.label}
+              controls
+              preload="none"
+              src={content.src}
+            />
+          </div>
+        )
+        : (
+          <div className="ui-artifact-viewer__media">
+            <audio
+              aria-label={content.label}
+              controls
+              preload="none"
+              src={content.src}
+            />
+          </div>
+        );
+    }
     case "unsupported":
       return (
         <div className="ui-artifact-viewer__unavailable">{content.message}</div>

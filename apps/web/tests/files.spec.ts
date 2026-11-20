@@ -592,7 +592,15 @@ for (
     });
 
     test("each kind of preview has its state", async ({ page }) => {
-      await filesFixture(page);
+      // A zip is a kind the page has no preview for; the shared tree has none.
+      const zip = {
+        ...TREE.find((entry) => entry.id === 43)!,
+        id: 46,
+        name: "bundle.zip",
+        path: "/projects/web-app/media/bundle.zip",
+        mediaType: "application/zip",
+      };
+      await filesFixture(page, { tree: [...TREE, zip] });
       const open = async (id: number) => {
         await page.goto(`/files/projects/web-app/media?file=${uuid(id)}`);
         await expect(page.getByTestId("file-details")).toBeVisible();
@@ -608,6 +616,10 @@ for (
       await page.mouse.move(700, 700);
       await still(page, "files-preview-too-large");
       await page.goto(`/files/projects/web-app?file=${uuid(41)}`);
+      await expect(page.locator("video")).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-preview-video");
+      await open(46);
       await expect(page.getByText("No preview for this kind of file."))
         .toBeVisible();
       await page.mouse.move(700, 700);
@@ -618,6 +630,26 @@ for (
         .toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "files-preview-failed");
+    });
+
+    test("a video shows a player that is not autoplayed and loads nothing until it is played", async ({ page }) => {
+      const seen = await filesFixture(page);
+      await page.goto(`/files/projects/web-app?file=${uuid(41)}`);
+      const player = page.locator("video");
+      await expect(player).toBeVisible();
+      await expect(player).toHaveAttribute("controls", "");
+      await expect(player).toHaveAttribute("preload", "none");
+      await expect(player).not.toHaveAttribute("autoplay", /.*/);
+      // The browser plays from the address, which names the organization in its
+      // query because a media element cannot send the header.
+      await expect(player).toHaveAttribute(
+        "src",
+        new RegExp(
+          `/v1/storage/files/${uuid(41)}/content\\?organizationId=`,
+        ),
+      );
+      // Nothing was read into the page: no bytes until someone presses play.
+      expect(seen.contents).toHaveLength(0);
     });
 
     test("a file whose contents were removed says so and offers no Download", async ({ page }) => {
