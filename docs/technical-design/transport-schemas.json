@@ -12025,6 +12025,24 @@
       ],
       "description": "Searches the organization's file tree and its read-only library mirror by name, path, kind, media type, producer and a metadata fact, newest first. Only files and library items the caller may read are returned, and nothing of another organization is ever counted or listed."
     },
+    "FileFactQuery": {
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "Restricts the list to one kind: the artifact type of the files whose facts are listed. Omit it to list the facts of every kind the caller can read."
+        }
+      ],
+      "rules": [
+        "Returns one bounded list, never continued: at most 50 fact keys per kind, at most 50 values per key and at most 500 rows in all, ordered by kind, key and value. Files the caller may not read are never counted; another organization's are never listed."
+      ],
+      "description": "Lists the facts files carry, by kind: each fact key with each string value it holds on the current version of a file the caller may read, and how many files hold it. It is the source for the file search's fact filter (files.search factKey and factValue). Until kind validators publish typed facts, a version's metadata is where its facts live."
+    },
     "LibraryFolderQuery": {
       "fields": [
         {
@@ -30888,6 +30906,31 @@
     "Page<FileSearchHit>": {
       "pageOf": "FileSearchHit",
       "description": "Cursor page of file search hits, newest first, returned by GET /v1/files/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "FileFact": {
+      "fields": [
+        "kind",
+        "key",
+        "value",
+        "files"
+      ],
+      "fieldTypes": {
+        "kind": "string",
+        "key": "string",
+        "value": "string",
+        "files": "integer"
+      },
+      "description": "One fact a kind of file carries: a metadata key and one string value it holds on the current version of some files the caller may read, with the number of those files. Pass key and value to files.search as factKey and factValue, and kind as kind, to list the files.",
+      "fieldDescriptions": {
+        "kind": "The artifact type of the files that hold the fact.",
+        "key": "The metadata key, at most 100 characters.",
+        "value": "One value the key holds on the current version of at least one such file, at most 500 characters; an empty value is not listed.",
+        "files": "How many files of this kind the caller may read hold this key with this value on their current version."
+      }
+    },
+    "Page<FileFact>": {
+      "pageOf": "FileFact",
+      "description": "The facts of the files the caller may read, by kind, key and value, returned by GET /v1/files/facts. items and nextCursor are always present; the list is one bounded page, so nextCursor is always null and there are no page numbers or offsets."
     },
     "Page<LibraryEntry>": {
       "pageOf": "LibraryEntry",
