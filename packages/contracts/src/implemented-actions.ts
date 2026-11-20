@@ -722,6 +722,19 @@ export const pluginInstallImplementedActions = Object.freeze(
   Object.values(PluginInstallImplementedAction),
 );
 
+export const PreviewImplementedAction = Object.freeze(
+  {
+    PreviewsList: "previews.list",
+    PreviewsAccess: "previews.access",
+    PreviewsStop: "previews.stop",
+    PreviewsRevokeAccess: "previews.revokeAccess",
+    PreviewsAvailability: "previews.availability",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const previewImplementedActions = Object.freeze(
+  Object.values(PreviewImplementedAction),
+);
+
 export const MemoryImplementedAction = Object.freeze(
   {
     MemoriesList: "memories.list",
@@ -791,6 +804,7 @@ export const implementedActions = Object.freeze(
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
     ...memoryImplementedActions,
+    ...previewImplementedActions,
   ] as const,
 );
 

@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "4bd35c217d584662c4550c6a956fee67ec0e4577"
+    "7af7d8692f3c06834a7192c596341ff6d0cf9079"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96",
-  "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 4bd35c217d584662c4550c6a956fee67ec0e4577 (#728 merged): MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes. Main's own approval at sha256:f61c0f4a77facec344684ffb9915710f8ea65201a8c67b62bbef25382a56b7c3 (the #431 skills change) is preserved unchanged first below, and my previous approval at sha256:7d9b85a83e5f5a41393e5e6dcc407866073723de501b560c7518c019ba25c14e follows it.",
+  "targetCompatibilityDigest": "sha256:d71cca2588b078cbe014a9afabf49b91a6bf24e84ab9db7fcfb8ff9d9efe3e6f",
+  "reason": "#19 private previews re-bind by dev-agx3 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 7af7d8692f3c06834a7192c596341ff6d0cf9079: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "4bd35c217d584662c4550c6a956fee67ec0e4577"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96",
+      "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 4bd35c217d584662c4550c6a956fee67ec0e4577 (#728 merged): MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes. Main's own approval at sha256:f61c0f4a77facec344684ffb9915710f8ea65201a8c67b62bbef25382a56b7c3 (the #431 skills change) is preserved unchanged first below, and my previous approval at sha256:7d9b85a83e5f5a41393e5e6dcc407866073723de501b560c7518c019ba25c14e follows it. [Displaced by the #19 private previews re-bind: main's own approval, preserved unchanged.]"
+    },
     {
       "fromBaseRefs": [
         "a001079c230bfd1d039b46b5fb6cc88deb876dd5"
