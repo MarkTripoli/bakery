@@ -1,0 +1,67 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>#73 picker-desktop-light</title><style>:root{--color-border:#E3E6EB;--color-border-strong:#CBD0D8;--color-canvas:#F5F6F8;--color-control-border:#8A939F;--color-destructive:#BE3341;--color-destructive-surface:#FCEEEF;--color-fg:#141A24;--color-fg-muted:#5D6675;--color-fg-disabled:#9AA3B1;--color-focus:#0B63C6;--color-primary:#141A24;--color-primary-foreground:#FFFFFF;--color-selection:#0B63C6;--color-selection-surface:#ECF1F8;--color-status-neutral:#374151;--color-status-neutral-surface:#E5E7EB;--color-status-success:#17784B;--color-status-success-surface:#E8F5EE;--color-status-warning:#8F5A0B;--color-status-warning-surface:#FBF3E4;--color-surface:#FFFFFF;--color-surface-subtle:#EEF0F4;--shadow:0 8px 24px rgba(20,26,36,.16);--scrim:rgba(20,26,36,.36);}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font:400 14px/20px Geist,Inter,system-ui,sans-serif;color:var(--color-fg);background:var(--color-surface)}
+.m73-top{height:56px;display:flex;align-items:center;gap:10px;padding:0 40px;border-bottom:1px solid var(--color-border);color:var(--color-fg-muted)}
+.m73-top b{font-weight:400;color:var(--color-fg)}
+.m73-page{padding:32px 40px;max-width:840px;display:flex;flex-direction:column;gap:20px}
+.m73-msg{display:flex;gap:12px}
+.m73-av{flex:none;width:28px;height:28px;border-radius:50%;background:var(--color-surface-subtle);border:1px solid var(--color-border);font:600 11px/26px Geist,system-ui,sans-serif;text-align:center;color:var(--color-fg)}
+.m73-msg p{margin:2px 0 0}
+.m73-who{font-weight:500}.m73-when{color:var(--color-fg-muted);font-size:12px;margin-left:8px}
+.m73-strong{font-weight:500}
+.m73-wrap{position:relative;display:flex;flex-direction:column;gap:8px}
+.m73-box{border:1px solid var(--color-control-border);border-radius:6px;background:var(--color-surface)}
+.m73-field{padding:12px 14px 10px;font:400 16px/24px Geist,system-ui,sans-serif;min-height:52px}
+.m73-caret{display:inline-block;width:1px;height:20px;background:var(--color-fg);vertical-align:-4px;margin-left:1px}
+.m73-ment{border-top:1px solid var(--color-border);padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+.m73-mrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.m73-lab{color:var(--color-fg-muted);font-size:13px}
+.m73-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--color-border-strong);border-radius:999px;padding:2px 4px 2px 10px;font:500 13px/20px Geist,system-ui,sans-serif;background:var(--color-surface)}
+.m73-chip i{font-style:normal;color:var(--color-fg-muted);width:20px;height:20px;border-radius:50%;text-align:center;line-height:19px}
+.m73-chip.m73-gain{border-color:var(--color-status-warning);background:var(--color-status-warning-surface)}
+.m73-chip.m73-gain em{font-style:normal;font-weight:400;color:var(--color-status-warning)}
+.m73-chip.m73-bad{border-color:var(--color-destructive);background:var(--color-destructive-surface);color:var(--color-destructive)}
+.m73-line{font-size:13px;color:var(--color-fg);display:flex;gap:8px;align-items:flex-start}
+.m73-line svg{flex:none;margin-top:2px}
+.m73-tool{border-top:1px solid var(--color-border);padding:8px 10px 8px 14px;display:flex;align-items:center;gap:12px}
+.m73-seg{display:inline-flex;border:1px solid var(--color-border-strong);border-radius:4px;overflow:hidden;font:500 13px/20px Geist,system-ui,sans-serif}
+.m73-seg span{padding:4px 10px}.m73-seg .on{background:var(--color-surface-subtle)}
+.m73-hint{flex:1;color:var(--color-fg-muted);font-size:13px}
+.m73-btn{font:500 14px/20px Geist,system-ui,sans-serif;height:36px;padding:0 14px;border-radius:4px;border:1px solid var(--color-border-strong);background:var(--color-surface);color:var(--color-fg);display:inline-flex;align-items:center;white-space:nowrap}
+.m73-btn.m73-pri{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-foreground)}
+.m73-btn.m73-del{color:var(--color-destructive);border-color:transparent;padding:0 8px}
+.m73-btn.m73-off{color:var(--color-fg-disabled);background:var(--color-surface-subtle);border-color:var(--color-border)}
+.m73-foot{color:var(--color-fg-muted);font-size:12px;line-height:18px;margin:0}
+.m73-foot a,.m73-a{color:var(--color-selection);text-decoration:underline}
+.m73-pick{position:absolute;left:0;bottom:calc(100% + 6px);width:400px;background:var(--color-surface);border:1px solid var(--color-border-strong);border-radius:8px;box-shadow:var(--shadow);padding:6px}
+.m73-ph{display:flex;justify-content:space-between;align-items:center;padding:6px 8px 8px;color:var(--color-fg-muted);font-size:12px}
+.m73-ph b{color:var(--color-fg);font-weight:500;font-size:13px}
+.m73-opt{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:4px;min-height:40px}
+.m73-opt.on{background:var(--color-selection-surface)}
+.m73-opt .m73-n{flex:1}
+.m73-opt.m73-dis{color:var(--color-fg-disabled)}.m73-opt.m73-dis .m73-av{color:var(--color-fg-disabled)}
+.m73-opt small{font-size:12px;color:var(--color-fg-muted)}
+.m73-badge{font:500 12px/18px Geist,system-ui,sans-serif;padding:1px 8px;border-radius:999px;background:var(--color-status-warning-surface);color:var(--color-status-warning);white-space:nowrap}
+.m73-pf{border-top:1px solid var(--color-border);margin-top:6px;padding:8px 8px 4px;color:var(--color-fg-muted);font-size:12px;line-height:18px}
+.m73-note{border:1px solid var(--color-destructive);background:var(--color-destructive-surface);color:var(--color-destructive);border-radius:6px;padding:8px 12px;display:flex;gap:8px;font-size:13px}
+.m73-scrim{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center}
+.m73-dlg{width:560px;background:var(--color-surface);border-radius:8px;box-shadow:var(--shadow);padding:24px;display:flex;flex-direction:column;gap:16px}
+.m73-dlg h2{font:600 18px/26px Geist,system-ui,sans-serif;margin:0;letter-spacing:-.01em}
+.m73-dlg .m73-sub{color:var(--color-fg-muted);margin:2px 0 0}
+.m73-prow{display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--color-border)}
+.m73-prow .m73-n{flex:1}.m73-prow small{display:block;color:var(--color-fg-muted);font-size:13px}
+.m73-end{display:flex;justify-content:flex-end}
+.m73-doc{border:1px solid var(--color-border);border-radius:6px;padding:16px;color:var(--color-fg-muted)}
+.m73-h{font:600 16px/24px Geist,system-ui,sans-serif;margin:0}
+.m73-ta{border:1px solid var(--color-control-border);border-radius:4px;padding:10px 12px;font:400 16px/24px Geist,system-ui,sans-serif;min-height:72px}
+body.phone .m73-top{padding:0 16px;font:600 17px/24px Geist,system-ui,sans-serif;color:var(--color-fg)}
+body.phone .m73-page{padding:20px 16px}
+body.phone .m73-pick{width:100%}
+body.phone .m73-opt{min-height:48px}
+body.phone .m73-tool{flex-wrap:wrap}body.phone .m73-hint{flex-basis:100%;order:3}
+body.phone .m73-btn{height:44px}
+body.phone .m73-chip{padding:6px 6px 6px 12px}
+</style></head><body class=""><div class="m73-top">Work <span>/</span> <b>Add partial refunds</b></div><div class="m73-page">
+<div class="m73-msg"><div class="m73-av">AR</div><div><span class="m73-who">Ada Rivera</span><span class="m73-when">10:42</span><p>The rounding in the partial refund looks off by a cent on three orders.</p></div></div>
+<div class="m73-msg"><div class="m73-av">B</div><div><span class="m73-who">Bakery agent</span><span class="m73-when">10:44</span><p>I can reproduce it for refunds split across two payment methods.</p></div></div><div class="m73-msg"><div class="m73-av">AR</div><div><span class="m73-who">Ada Rivera</span><span class="m73-when">10:51</span><p>Thanks. Who wrote the original rounding rule?</p></div></div><div class="m73-msg"><div class="m73-av">JO</div><div><span class="m73-who">Jon Okafor</span><span class="m73-when">10:53</span><p>Not me, it predates the payments rewrite.</p></div></div><div class="m73-wrap"><div class="m73-pick"><div class="m73-ph"><b>Mention someone</b><span>Search by name or email</span></div><div class="m73-opt on"><div class="m73-av">SP</div><span class="m73-n">Sam Patel</span><span class="m73-badge">Gets access on send</span></div><div class="m73-opt "><div class="m73-av">SK</div><span class="m73-n">Sara Kim</span></div><div class="m73-opt m73-dis"><div class="m73-av">SO</div><span class="m73-n">Samir Okafor</span><small>You can't add them here</small></div><div class="m73-pf">A person who gets access can read and reply in this conversation only.</div></div><div class="m73-box"><div class="m73-field">Can you check the refund rounding, @sa<span class="m73-caret"></span></div><div class="m73-tool"><span class="m73-seg"><span class="on">Discuss</span><span>Ask agent</span></span><span class="m73-hint">Discuss shares your message with the team. The agent does not act on it.</span><span class="m73-btn m73-pri">Send</span></div></div><p class="m73-foot">Shared conversation. Messages are visible to this task's participants.</p></div></div></body></html>
