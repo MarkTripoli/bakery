@@ -12406,6 +12406,164 @@
         "Refusals the app can tell apart carry a STATE_CONFLICT reason: desktop_sign_in_expired, desktop_sign_in_used, desktop_sign_in_cancelled, desktop_sign_in_pending or desktop_sign_in_mismatch. An unknown request is RESOURCE_NOT_FOUND."
       ],
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+    },
+    "EvaluationDatasetCreate": {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Display name of the dataset revision.",
+          "bounds": {
+            "maxLength": 200
+          }
+        },
+        {
+          "name": "caseIds",
+          "type": "uuid[]",
+          "required": true,
+          "description": "Case revisions in the order they are measured; each case's current revision is pinned at creation and never changes.",
+          "bounds": {
+            "minItems": 1,
+            "maxItems": 1000
+          }
+        }
+      ],
+      "description": "Creates an immutable dataset: an ordered list of case revisions and its digest. A changed list is a new dataset."
+    },
+    "EvaluationBatchCreate": {
+      "fields": [
+        {
+          "name": "datasetId",
+          "type": "uuid",
+          "required": true,
+          "description": "The immutable dataset the batch measures."
+        },
+        {
+          "name": "candidate",
+          "type": "json",
+          "required": true,
+          "description": "What is measured: a pin naming the workflow or agent and its exact version, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}.",
+          "bounds": {
+            "maxBytes": 4000
+          }
+        },
+        {
+          "name": "baseline",
+          "type": "json",
+          "required": false,
+          "description": "Optional pin of what the candidate is compared with, in the same shape.",
+          "bounds": {
+            "maxBytes": 4000
+          }
+        },
+        {
+          "name": "scorerIds",
+          "type": "uuid[]",
+          "required": true,
+          "description": "Scorer revisions applied to every case; deterministic checks run before model scorers.",
+          "bounds": {
+            "minItems": 1,
+            "maxItems": 50
+          }
+        },
+        {
+          "name": "requireAllPassed",
+          "type": "boolean",
+          "required": false,
+          "description": "Gate rule: every required result must pass. Defaults to true."
+        },
+        {
+          "name": "minPassRate",
+          "type": "number",
+          "required": false,
+          "description": "Gate rule: the smallest share of required measured results that must pass, 0 to 1.",
+          "bounds": {
+            "min": 0,
+            "max": 1
+          }
+        },
+        {
+          "name": "repetitions",
+          "type": "integer",
+          "required": false,
+          "description": "Times each case is measured per scorer; every observation is kept. Defaults to 1.",
+          "bounds": {
+            "min": 1,
+            "max": 5
+          }
+        },
+        {
+          "name": "budgetLimitUsd",
+          "type": "decimal",
+          "required": false,
+          "description": "Most this batch may spend, in USD.",
+          "bounds": {
+            "min": 0,
+            "max": 200
+          }
+        }
+      ],
+      "description": "Admits an evaluation batch. Every required case x scorer x side x repetition becomes a result in state missing at once, so a case that never runs is listed, not absent."
+    },
+    "EvaluationBatchCancel": {
+      "fields": [],
+      "description": "Cancels a batch: no new attempts start, completed results are kept and still-missing results become canceled. Requires If-Match with the batch version."
+    },
+    "EvaluationCompareQuery": {
+      "fields": [
+        {
+          "name": "other",
+          "type": "uuid",
+          "required": true,
+          "description": "The batch to compare this one with; the path batch is the left side."
+        }
+      ],
+      "description": "Compares the candidate sides of two batches of the organization."
+    },
+    "EvaluationResultQuery": {
+      "fields": [
+        {
+          "name": "state",
+          "type": "enum",
+          "required": false,
+          "description": "Only results in this state, so 'needs attention' is one request.",
+          "enum": [
+            "passed",
+            "failed",
+            "error",
+            "unscored",
+            "canceled",
+            "skipped",
+            "missing"
+          ]
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Cursor page of a batch's results in case order, optionally one state."
     }
   },
   "projections": {
@@ -22239,7 +22397,7 @@
         "id": "uuid",
         "slug": "string",
         "revision": "integer",
-        "evaluatorType": "enum(code|model)",
+        "evaluatorType": "enum(deterministic|model)",
         "config": "json",
         "digest": "string",
         "enabled": "boolean",
@@ -22253,7 +22411,7 @@
         "id": "Stable UUID identifying the evaluation definition record.",
         "slug": "URL-safe stable name used to address the record.",
         "revision": "Monotonic revision number used to order updates to the record.",
-        "evaluatorType": "Evaluation method used by the definition.",
+        "evaluatorType": "deterministic: a code check (schema, citations, identity, prohibited effects, limits); model: a pinned rubric scored by a model.",
         "config": "Validated configuration associated with the record.",
         "digest": "Content digest used to verify the record.",
         "enabled": "Whether new evaluation runs may be created from this definition. Disabling rejects only new starts; runs already in progress keep their pinned definition.",
@@ -31224,6 +31382,426 @@
       "description": "Every skill the steps of one workflow version name, ordered by step then skill version, with whether each can be used now. The same read serves a draft and a published version.",
       "fieldDescriptions": {
         "items": "One entry per step and skill version the workflow definition names."
+      }
+    },
+    "EvaluationDataset": {
+      "fields": [
+        "id",
+        "name",
+        "cases",
+        "digest",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "name": "string",
+        "cases": "EvaluationCasePin[]",
+        "digest": "string",
+        "createdAt": "timestamp"
+      },
+      "description": "An immutable dataset revision: its ordered case revisions and digest.",
+      "fieldDescriptions": {
+        "id": "Dataset id.",
+        "name": "Display name.",
+        "cases": "The case revisions in measuring order.",
+        "digest": "SHA-256 over the ordered case revisions; two datasets compare only when it matches.",
+        "createdAt": "When it was created."
+      }
+    },
+    "EvaluationCasePin": {
+      "fields": [
+        "caseId",
+        "caseRevision"
+      ],
+      "fieldTypes": {
+        "caseId": "uuid",
+        "caseRevision": "integer"
+      },
+      "description": "One case revision pinned in a dataset.",
+      "fieldDescriptions": {
+        "caseId": "The case.",
+        "caseRevision": "Its revision at pinning."
+      }
+    },
+    "Page<EvaluationDataset>": {
+      "pageOf": "EvaluationDataset",
+      "description": "Cursor page of datasets, newest first. nextCursor=null marks the last page; no page numbers or offsets."
+    },
+    "EvaluationScorerPin": {
+      "fields": [
+        "scorerId",
+        "slug",
+        "scorerRevision",
+        "evaluatorType"
+      ],
+      "fieldTypes": {
+        "scorerId": "uuid",
+        "slug": "string",
+        "scorerRevision": "integer",
+        "evaluatorType": "enum(deterministic|model)"
+      },
+      "description": "One scorer revision a batch pinned.",
+      "fieldDescriptions": {
+        "scorerId": "The scorer definition, for linking to it.",
+        "slug": "Its name.",
+        "scorerRevision": "Its revision.",
+        "evaluatorType": "Deterministic check or model rubric."
+      }
+    },
+    "EvaluationStateCounts": {
+      "fields": [
+        "passed",
+        "failed",
+        "error",
+        "unscored",
+        "canceled",
+        "skipped",
+        "missing"
+      ],
+      "fieldTypes": {
+        "passed": "integer",
+        "failed": "integer",
+        "error": "integer",
+        "unscored": "integer",
+        "canceled": "integer",
+        "skipped": "integer",
+        "missing": "integer"
+      },
+      "description": "How many required candidate results are in each state.",
+      "fieldDescriptions": {
+        "passed": "Measured and passed.",
+        "failed": "Measured and failed.",
+        "error": "A stage failed; no measurement.",
+        "unscored": "The target ran but no scorer produced a valid score.",
+        "canceled": "Stopped before a measurement.",
+        "skipped": "Not run by policy.",
+        "missing": "Not run yet."
+      }
+    },
+    "EvaluationGate": {
+      "fields": [
+        "decision",
+        "rule",
+        "blockers"
+      ],
+      "fieldTypes": {
+        "decision": "enum(met|not_met|cannot_be_judged)",
+        "rule": "string",
+        "blockers": "EvaluationGateBlocker[]"
+      },
+      "description": "The release gate's answer over the candidate's required results.",
+      "fieldDescriptions": {
+        "decision": "met; not_met when a measured result breaks the rule; cannot_be_judged while any required result is unmeasured or the batch is empty, running or canceled.",
+        "rule": "The rule as a sentence.",
+        "blockers": "The cases and scorers that made it not met or not judgeable."
+      }
+    },
+    "EvaluationGateBlocker": {
+      "fields": [
+        "caseId",
+        "scorerId",
+        "state"
+      ],
+      "fieldTypes": {
+        "caseId": "uuid",
+        "scorerId": "uuid",
+        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing)"
+      },
+      "description": "A case and scorer holding the gate back.",
+      "fieldDescriptions": {
+        "caseId": "The case.",
+        "scorerId": "The scorer.",
+        "state": "Its result state."
+      }
+    },
+    "EvaluationBatch": {
+      "fields": [
+        "id",
+        "datasetId",
+        "datasetDigest",
+        "candidate",
+        "baseline",
+        "scorers",
+        "state",
+        "requiredCount",
+        "measuredCount",
+        "counts",
+        "gate",
+        "hiddenCount",
+        "canceledAt",
+        "completedAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "datasetId": "uuid",
+        "datasetDigest": "string",
+        "candidate": "json",
+        "baseline": "json|null",
+        "scorers": "EvaluationScorerPin[]",
+        "state": "enum(queued|running|completed|completed_with_errors|canceled|failed)",
+        "requiredCount": "integer",
+        "measuredCount": "integer",
+        "counts": "EvaluationStateCounts",
+        "gate": "EvaluationGate",
+        "hiddenCount": "integer",
+        "canceledAt": "timestamp|null",
+        "completedAt": "timestamp|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "baseline",
+        "canceledAt",
+        "completedAt"
+      ],
+      "description": "An evaluation batch with what it used, its state, counts and coverage of the candidate's required results, and the gate's answer.",
+      "fieldDescriptions": {
+        "id": "Batch id.",
+        "datasetId": "The dataset measured, for linking to it.",
+        "datasetDigest": "The dataset revision's digest.",
+        "candidate": "What is measured, as pinned at admission.",
+        "baseline": "What it is compared with, as pinned; null without a baseline.",
+        "scorers": "The scorer revisions pinned.",
+        "state": "queued, running, completed, completed_with_errors (some required results unmeasured), canceled or failed.",
+        "requiredCount": "Required candidate results.",
+        "measuredCount": "Of those, how many were measured (passed or failed).",
+        "counts": "Required candidate results per state.",
+        "gate": "The gate's answer.",
+        "hiddenCount": "Results the reader may not open; 0, since readers see the organization's evaluations.",
+        "canceledAt": "When it was canceled.",
+        "completedAt": "When it settled.",
+        "createdAt": "When it was admitted.",
+        "updatedAt": "Last change.",
+        "version": "Optimistic-concurrency version for If-Match."
+      }
+    },
+    "Page<EvaluationBatch>": {
+      "pageOf": "EvaluationBatch",
+      "description": "Cursor page of batches, newest first. nextCursor=null marks the last page; no page numbers or offsets."
+    },
+    "EvaluationBatchResult": {
+      "fields": [
+        "id",
+        "batchId",
+        "role",
+        "caseId",
+        "caseRevision",
+        "scorerId",
+        "scorerRevision",
+        "repetition",
+        "required",
+        "state",
+        "reason",
+        "score",
+        "outputArtifactVersionId",
+        "attemptCount",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "batchId": "uuid",
+        "role": "enum(candidate|baseline)",
+        "caseId": "uuid",
+        "caseRevision": "integer",
+        "scorerId": "uuid",
+        "scorerRevision": "integer",
+        "repetition": "integer",
+        "required": "boolean",
+        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing)",
+        "reason": "string|null",
+        "score": "number|null",
+        "outputArtifactVersionId": "uuid|null",
+        "attemptCount": "integer",
+        "updatedAt": "timestamp"
+      },
+      "nullableFields": [
+        "reason",
+        "score",
+        "outputArtifactVersionId"
+      ],
+      "description": "One case x scorer x side x repetition of a batch. Only passed and failed carry a score; every other state keeps its reason and has none.",
+      "fieldDescriptions": {
+        "id": "Result id.",
+        "batchId": "Its batch.",
+        "role": "candidate or baseline side.",
+        "caseId": "The case, for linking to it.",
+        "caseRevision": "The case revision measured.",
+        "scorerId": "The scorer, for linking to it.",
+        "scorerRevision": "The scorer revision used.",
+        "repetition": "Which repetition, from 1.",
+        "required": "Whether the gate needs it.",
+        "state": "passed, failed, error, unscored, canceled, skipped or missing.",
+        "reason": "A short sentence: which stage failed, the policy that skipped it, who stopped it; null when passed.",
+        "score": "The measurement, 0 to 1; null unless passed or failed.",
+        "outputArtifactVersionId": "The retained target output that was scored; null until the target ran.",
+        "attemptCount": "Attempts so far.",
+        "updatedAt": "Last change."
+      }
+    },
+    "Page<EvaluationBatchResult>": {
+      "pageOf": "EvaluationBatchResult",
+      "description": "Cursor page of a batch's results in case order. nextCursor=null marks the last page; no page numbers or offsets."
+    },
+    "EvaluationAttempt": {
+      "fields": [
+        "id",
+        "resultId",
+        "attemptNo",
+        "state",
+        "reason",
+        "score",
+        "startedAt",
+        "endedAt",
+        "traceRef",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "resultId": "uuid",
+        "attemptNo": "integer",
+        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing)",
+        "reason": "string|null",
+        "score": "number|null",
+        "startedAt": "timestamp|null",
+        "endedAt": "timestamp|null",
+        "traceRef": "string|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "reason",
+        "score",
+        "startedAt",
+        "endedAt",
+        "traceRef"
+      ],
+      "description": "One append-only attempt at a result.",
+      "fieldDescriptions": {
+        "id": "Attempt id.",
+        "resultId": "Its result.",
+        "attemptNo": "Order, from 1.",
+        "state": "The attempt's outcome state.",
+        "reason": "Why, as a sentence; null when passed.",
+        "score": "Its measurement; null unless passed or failed.",
+        "startedAt": "When it started.",
+        "endedAt": "When it ended.",
+        "traceRef": "Link to the trace; null when none.",
+        "createdAt": "When it was recorded."
+      }
+    },
+    "Page<EvaluationAttempt>": {
+      "pageOf": "EvaluationAttempt",
+      "description": "Cursor page of a result's attempts in order. nextCursor=null marks the last page; no page numbers or offsets."
+    },
+    "EvaluationMeasure": {
+      "fields": [
+        "scorerId",
+        "left",
+        "right",
+        "change"
+      ],
+      "fieldTypes": {
+        "scorerId": "uuid",
+        "left": "EvaluationMeasureSide",
+        "right": "EvaluationMeasureSide",
+        "change": "number|null"
+      },
+      "nullableFields": [
+        "change"
+      ],
+      "description": "One scorer's pass rate on both sides of a comparison.",
+      "fieldDescriptions": {
+        "scorerId": "The scorer.",
+        "left": "The path batch's side.",
+        "right": "The other batch's side.",
+        "change": "right minus left pass rate; null when either side measured nothing."
+      }
+    },
+    "EvaluationMeasureSide": {
+      "fields": [
+        "passRate",
+        "cases"
+      ],
+      "fieldTypes": {
+        "passRate": "number|null",
+        "cases": "integer"
+      },
+      "nullableFields": [
+        "passRate"
+      ],
+      "description": "Pass rate over a side's measured results and how many cases it rests on.",
+      "fieldDescriptions": {
+        "passRate": "Passed over measured, 0 to 1; null with nothing measured.",
+        "cases": "Measured results it is based on."
+      }
+    },
+    "EvaluationCaseSides": {
+      "fields": [
+        "caseId",
+        "scorerId",
+        "left",
+        "right"
+      ],
+      "fieldTypes": {
+        "caseId": "uuid",
+        "scorerId": "uuid",
+        "left": "enum(passed|failed|error|unscored|canceled|skipped|missing)",
+        "right": "enum(passed|failed|error|unscored|canceled|skipped|missing)"
+      },
+      "description": "A case and scorer's state on both sides.",
+      "fieldDescriptions": {
+        "caseId": "The case.",
+        "scorerId": "The scorer.",
+        "left": "State in the path batch.",
+        "right": "State in the other batch."
+      }
+    },
+    "EvaluationUnpaired": {
+      "fields": [
+        "caseId",
+        "scorerId"
+      ],
+      "fieldTypes": {
+        "caseId": "uuid",
+        "scorerId": "uuid"
+      },
+      "description": "A case and scorer only one side has.",
+      "fieldDescriptions": {
+        "caseId": "The case.",
+        "scorerId": "The scorer."
+      }
+    },
+    "EvaluationComparison": {
+      "fields": [
+        "compatible",
+        "reason",
+        "measures",
+        "cases",
+        "onlyLeft",
+        "onlyRight"
+      ],
+      "fieldTypes": {
+        "compatible": "boolean",
+        "reason": "enum(different_dataset|different_case_revision|different_scorer_version)|null",
+        "measures": "EvaluationMeasure[]",
+        "cases": "EvaluationCaseSides[]",
+        "onlyLeft": "EvaluationUnpaired[]",
+        "onlyRight": "EvaluationUnpaired[]"
+      },
+      "nullableFields": [
+        "reason"
+      ],
+      "description": "The comparison of two batches. An incompatible pair is refused with one reason and carries no measures; a compatible pair never returns a change where a side has no measurement.",
+      "fieldDescriptions": {
+        "compatible": "Whether the two batches can be compared.",
+        "reason": "Why not, when incompatible; null when compatible.",
+        "measures": "Per scorer, both sides and the change; empty when incompatible.",
+        "cases": "Per case and scorer, both states; empty when incompatible.",
+        "onlyLeft": "Cases only the path batch has.",
+        "onlyRight": "Cases only the other batch has."
       }
     }
   },

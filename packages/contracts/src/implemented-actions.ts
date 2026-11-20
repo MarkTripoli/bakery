@@ -385,6 +385,28 @@ export const deliveryImplementedActions = Object.freeze(
   Object.values(DeliveryImplementedAction),
 );
 
+/** Evaluation batches: scorers, cases, datasets, batches, results (#44). */
+export const EvaluationImplementedAction = Object.freeze(
+  {
+    EvaluationDefinitionsList: "evaluationDefinitions.list",
+    EvaluationDefinitionsCreate: "evaluationDefinitions.create",
+    EvaluationCasesList: "evaluationCases.list",
+    EvaluationCasesCreate: "evaluationCases.create",
+    EvaluationDatasetsCreate: "evaluationDatasets.create",
+    EvaluationDatasetsList: "evaluationDatasets.list",
+    EvaluationBatchesCreate: "evaluationBatches.create",
+    EvaluationBatchesList: "evaluationBatches.list",
+    EvaluationBatchesGet: "evaluationBatches.get",
+    EvaluationBatchesCancel: "evaluationBatches.cancel",
+    EvaluationBatchesCompare: "evaluationBatches.compare",
+    EvaluationBatchResultsList: "evaluationBatchResults.list",
+    EvaluationAttemptsList: "evaluationAttempts.list",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const evaluationImplementedActions = Object.freeze(
+  Object.values(EvaluationImplementedAction),
+);
+
 /**
  * Ticket source, cached ticket, readiness, link and request operations.
  * Remote ticket creation (`externalTickets.create`) is not part of this
@@ -772,6 +794,7 @@ export const implementedActions = Object.freeze(
     ...artifactKindImplementedActions,
     ...integrationsImplementedActions,
     ...deliveryImplementedActions,
+    ...evaluationImplementedActions,
     ...ticketImplementedActions,
     ...notificationImplementedActions,
     ...groupImplementedActions,

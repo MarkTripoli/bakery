@@ -278,3 +278,61 @@ export function compareBatches(
   });
   return { measures, cases, unpaired: { onlyLeft, onlyRight } };
 }
+
+/**
+ * The gate from per-state counts plus the blockers read for them: the same
+ * answer as judgeGate, for a batch read that does not load every result.
+ */
+export function judgeGateCounts(
+  input: Readonly<{
+    required: number;
+    counts: StateCounts;
+    blockers: readonly GateBlocker[];
+  }>,
+  rule: GateRule,
+  batchState: BatchState,
+): GateDecision {
+  const sentence = ruleSentence(rule);
+  const measured = input.counts.passed + input.counts.failed;
+  const unmeasured = input.required - measured;
+  if (
+    input.required === 0 || unmeasured > 0 ||
+    batchState === BatchState.Canceled || batchState === BatchState.Queued ||
+    batchState === BatchState.Running || batchState === BatchState.Failed
+  ) {
+    return {
+      decision: "cannot_be_judged",
+      rule: sentence,
+      blockers: input.blockers.filter((b) => !isMeasured(b.state)),
+    };
+  }
+  const rate = input.counts.passed / input.required;
+  const ok = (!rule.requireAllPassed || input.counts.failed === 0) &&
+    (rule.minPassRate === null || rate >= rule.minPassRate);
+  return {
+    decision: ok ? "met" : "not_met",
+    rule: sentence,
+    blockers: ok
+      ? []
+      : input.blockers.filter((b) => b.state === ResultState.Failed),
+  };
+}
+
+/** A batch's state from its stored flags and its required results' counts. */
+export function batchStateOf(
+  input: Readonly<{
+    canceled: boolean;
+    required: number;
+    counts: StateCounts;
+    attempted: boolean;
+  }>,
+): BatchState {
+  if (input.canceled) return BatchState.Canceled;
+  if (input.required === 0) return BatchState.Failed;
+  if (input.counts.missing > 0) {
+    return input.attempted ? BatchState.Running : BatchState.Queued;
+  }
+  return input.counts.passed + input.counts.failed === input.required
+    ? BatchState.Completed
+    : BatchState.CompletedWithErrors;
+}
