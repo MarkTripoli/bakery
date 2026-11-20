@@ -12,7 +12,7 @@ import { attributeAction } from "../auth/application/action-attribution.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { assertMayAuthorSkill, type SkillScope } from "./skill-scope-guard.ts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_STEP_SKILL_REFS = 256;
 const MAX_WALK_DEPTH = 32;
 
@@ -34,7 +34,12 @@ export function stepPointer(segments: readonly (string | number)[]): string {
  * Every skill version a step of the definition adds. A draft is saved even when
  * it does not compile, so this reads the authored JSON tolerantly instead of
  * compiling it: an object that names an `action` and carries a `skills` array
- * is a step, wherever it sits, and each UUID in the array is one version.
+ * is a step, wherever it sits, and each UUID in the array is one version, in
+ * the lower case the database stores it.
+ *
+ * A definition the walk cannot read to the end is refused, never truncated: a
+ * step past the depth or reference limit would otherwise carry a personal skill
+ * without the owner check.
  */
 export function collectStepSkills(
   definition: unknown,
@@ -45,8 +50,13 @@ export function collectStepSkills(
     path: readonly (string | number)[],
     depth: number,
   ): void => {
-    if (depth > MAX_WALK_DEPTH || value === null || typeof value !== "object") {
-      return;
+    if (value === null || typeof value !== "object") return;
+    if (depth > MAX_WALK_DEPTH) {
+      throw definitionRefused(
+        path,
+        "definition_too_deep_to_check_skills",
+        `A workflow definition nests at most ${MAX_WALK_DEPTH} levels deep so every skill it names can be checked.`,
+      );
     }
     if (Array.isArray(value)) {
       value.forEach((item, index) => walk(item, [...path, index], depth + 1));
@@ -56,10 +66,18 @@ export function collectStepSkills(
     if (typeof record.action === "string" && Array.isArray(record.skills)) {
       for (const id of record.skills) {
         if (typeof id !== "string" || !UUID.test(id)) continue;
-        found.set(`${stepPointer(path)}#${id}`, {
+        const versionId = id.toLowerCase();
+        found.set(`${stepPointer(path)}#${versionId}`, {
           segments: path,
-          versionId: id,
+          versionId,
         });
+        if (found.size > MAX_STEP_SKILL_REFS) {
+          throw definitionRefused(
+            path,
+            "too_many_skill_references",
+            `A workflow definition names at most ${MAX_STEP_SKILL_REFS} skill versions so every one can be checked.`,
+          );
+        }
       }
     }
     for (const [key, child] of Object.entries(record)) {
@@ -67,7 +85,18 @@ export function collectStepSkills(
     }
   };
   walk(definition, [], 0);
-  return [...found.values()].slice(0, MAX_STEP_SKILL_REFS);
+  return [...found.values()];
+}
+
+function definitionRefused(
+  segments: readonly (string | number)[],
+  code: string,
+  message: string,
+): StandardError {
+  return new StandardError({
+    code: "UNPROCESSABLE",
+    params: { issues: [{ path: ["definition", ...segments], code, message }] },
+  });
 }
 
 export type PersonalSkillUseFacts = Readonly<{
@@ -143,7 +172,9 @@ export async function reconcilePersonalSkillUse(
   const live = new Set(
     granted.rows.map((row) => `${row.step_path}#${row.skill_version_id}`),
   );
-  const confirmed = new Set(facts.confirmed ?? []);
+  const confirmed = new Set(
+    (facts.confirmed ?? []).map((id) => id.toLowerCase()),
+  );
   const issues: ReturnType<typeof issue>[] = [];
   const toGrant: { ref: StepSkillRef; row: PersonalVersionRow }[] = [];
   for (const ref of refs) {

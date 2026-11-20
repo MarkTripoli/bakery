@@ -5,7 +5,8 @@
 -- or personal (belongs to one person, shown as Private). Every existing skill
 -- stays an organization skill. The vocabulary and the rule that a personal skill
 -- has exactly one owner are validated in TypeScript at the writer. Scope and
--- owner are immutable after insert, so no update privilege is granted on them.
+-- owner are immutable after insert: bakery_app's update on bakery.skills is
+-- column-scoped (0055) and names neither column, and this migration adds none.
 alter table bakery.skills
   add column scope text not null default 'organization',
   add column owner_principal_id uuid,

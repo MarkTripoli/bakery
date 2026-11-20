@@ -187,6 +187,43 @@ Deno.test("attaching a personal skill to a shared workflow needs its owner's con
     );
     assertEquals(noGrant.rows[0].n, 0);
 
+    // The check cannot be sidestepped by how the version is written or by how
+    // much the definition carries: an upper-case id still needs the owner, and
+    // a definition too large to check is refused whole.
+    const upperCase = await post(
+      ownerCookie,
+      versionsPath,
+      { definition: definition([personalVersion.toUpperCase()]) },
+      "attach-upper-case",
+    );
+    assertEquals(upperCase.status, 422);
+    assertEquals(
+      (await upperCase.text()).includes("personal_skill_confirmation_required"),
+      true,
+    );
+    const overCap = await post(
+      ownerCookie,
+      versionsPath,
+      {
+        definition: definition([
+          ...Array.from({ length: 256 }, () => crypto.randomUUID()),
+          personalVersion,
+        ]),
+      },
+      "attach-over-cap",
+    );
+    assertEquals(overCap.status, 422);
+    assertEquals(
+      (await overCap.text()).includes("too_many_skill_references"),
+      true,
+    );
+    const stillNoGrant = await fixture.pgDatabase.query<{ n: number }>(
+      `select count(*)::int as n from bakery.skill_use_grants
+        where organization_id = $1`,
+      [organizationId],
+    );
+    assertEquals(stillNoGrant.rows[0].n, 0);
+
     // An organization skill needs no confirmation at all.
     const organizationDraft = await post(
       ownerCookie,
