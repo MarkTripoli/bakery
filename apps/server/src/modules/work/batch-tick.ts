@@ -109,9 +109,12 @@ export async function readIssueOutcome(
                  and entry.status in ('queued', 'validating', 'merging')
             ) as merging,
             exists (
-              select 1 from bakery.pull_requests as pr
-               where pr.organization_id = request.organization_id
-                 and pr.task_id = request.task_id
+              select 1 from bakery.ticket_task_links as link
+                join bakery.pull_requests as pr
+                  on pr.organization_id = link.organization_id
+                 and pr.task_id = link.task_id
+               where link.organization_id = request.organization_id
+                 and link.id = request.ticket_task_link_id
                  and pr.status = 'open'
             ) as pr_open
        from bakery.ticket_requests as request

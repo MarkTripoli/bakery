@@ -152,6 +152,9 @@ function admittingPorts(fx: TicketFixture, sourceId: string) {
         deps,
       });
       assert(result.request, "the admission produced a request");
+      // An issue the batch is waiting on has a run in flight. Say so, whatever status the
+      // admission left the run in, because a blocked run counts as over.
+      await setRunStatus(fx, await runOf(fx, result.request.id), "queued");
       return {
         started: true,
         externalTicketId: result.request.externalTicketId,
@@ -658,8 +661,12 @@ Deno.test("batches: every way a run can end is an end, and a run waiting on its 
 
     // Completed, but its pull request is still open: it is waiting on its merge.
     const task = await fx.owner.query<{ task_id: string }>(
-      `select task_id from bakery.ticket_requests
-        where organization_id = $1 and id = $2`,
+      `select link.task_id
+         from bakery.ticket_requests as request
+         join bakery.ticket_task_links as link
+           on link.organization_id = request.organization_id
+          and link.id = request.ticket_task_link_id
+        where request.organization_id = $1 and request.id = $2`,
       [fx.organizationId, requestId],
     );
     await insertWithoutForeignKeys(fx.owner, "pull_requests", {
