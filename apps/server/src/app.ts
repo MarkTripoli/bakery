@@ -5,6 +5,7 @@ import {
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
 import { createBackupRoutes } from "./modules/backups/actions.ts";
+import type { probeBackupDestination } from "./modules/backups/s3.ts";
 import {
   createEmailSettingsRoutes,
   type EmailSettingsDependencies,
@@ -207,6 +208,8 @@ export function createApp(options: {
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
   skillStorageProbe?: typeof probeSkillStorage;
+  /** Destination test runner; tests inject one so no suite reaches a real bucket. */
+  backupDestinationProbe?: typeof probeBackupDestination;
   /** Replaces the SMTP exchange of the installation email test (tests only). */
   emailSend?: EmailSettingsDependencies["send"];
   skillSourceAdapter?: SkillSourceAdapter;
@@ -981,6 +984,11 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       secret: options.config.auth.secret,
+      settings: {
+        secretsKey: options.config.secretsKey,
+        allowLoopbackEndpoint: options.config.environment === "test",
+        probe: options.backupDestinationProbe,
+      },
     }),
   );
   app.route(
