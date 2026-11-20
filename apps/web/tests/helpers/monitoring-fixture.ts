@@ -47,6 +47,49 @@ const KIND = {
   },
 };
 
+const PROVIDERS = [
+  {
+    key: "opentelemetry",
+    name: "OpenTelemetry",
+    description:
+      "Any collector or service that accepts OpenTelemetry over HTTPS.",
+    kind: "otlp",
+    prefill: {},
+  },
+  {
+    key: "grafana",
+    name: "Grafana",
+    description:
+      "Send timings and health to Grafana Cloud or your own Grafana stack.",
+    kind: "otlp",
+    prefill: {},
+  },
+  {
+    key: "datadog",
+    name: "Datadog",
+    description: "Send timings and health to Datadog.",
+    kind: "otlp",
+    prefill: {},
+  },
+  {
+    key: "honeycomb",
+    name: "Honeycomb",
+    description: "Send timings and health to Honeycomb.",
+    kind: "otlp",
+    prefill: {
+      address: "https://api.honeycomb.io",
+      headerName: "x-honeycomb-team",
+    },
+  },
+  {
+    key: "sentry",
+    name: "Sentry",
+    description: "Send timings and health to Sentry.",
+    kind: "otlp",
+    prefill: {},
+  },
+];
+
 const MEASUREMENTS = [
   {
     kind: "cost",
@@ -90,6 +133,7 @@ const destination = (
 ): Destination => ({
   id: uuid(n),
   kind: "otlp",
+  provider: "opentelemetry",
   name: `Destination ${n}`,
   enabled: true,
   measurements: ["results", "health"],
@@ -115,6 +159,10 @@ const destination = (
 export type MonitoringOptions = {
   /** Start with nothing set up. */
   empty?: boolean;
+  /** Add this many working destinations after the usual ones, to fill more than a page. */
+  extra?: number;
+  /** Offer only this many providers, to skip the chooser with one. */
+  providers?: number;
   /** The status the next create answers with, and its problem body. */
   createProblem?: { status: number; body: unknown };
   /** What the next test answers with. */
@@ -150,9 +198,11 @@ export async function monitoringFixture(
       }),
   );
   const items: Destination[] = options.empty ? [] : [
-    destination(1, { name: "Grafana Cloud" }),
+    destination(1, { name: "Grafana Cloud", provider: "grafana" }),
+    destination(4, { name: "Errors, production", provider: "sentry" }),
     destination(2, {
       name: "Honeycomb",
+      provider: "honeycomb",
       state: "failing",
       lastAnswerOk: false,
       lastAnswerReason: "The destination answered 401.",
@@ -161,7 +211,34 @@ export async function monitoringFixture(
       droppedSince: "2026-11-19T10:00:00.000Z",
     }),
     destination(3, { name: "Old collector", enabled: false, state: "off" }),
+    ...Array.from(
+      { length: options.extra ?? 0 },
+      (_, index) =>
+        destination(100 + index, {
+          name: `Collector ${String(index + 1).padStart(2, "0")}`,
+        }),
+    ),
   ];
+  const providers = PROVIDERS.slice(0, options.providers ?? PROVIDERS.length);
+  const rank = (state: unknown) =>
+    state === "failing" ? 0 : state === "dropping_data" ? 1 : 2;
+  const ordered = () =>
+    [...items].sort((a, b) =>
+      rank(a.state) - rank(b.state) ||
+      String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase())
+    );
+  const counts = () => {
+    const by = (state: string) =>
+      items.filter((item) => item.state === state).length;
+    return {
+      all: items.length,
+      working: by("working"),
+      not_tested_yet: by("not_tested_yet"),
+      failing: by("failing"),
+      dropping_data: by("dropping_data"),
+      off: by("off"),
+    };
+  };
   const seen: Seen[] = [];
   let createProblem = options.createProblem;
   const record = (route: import("@playwright/test").Route) => {
@@ -194,6 +271,7 @@ export async function monitoringFixture(
         const made = destination(items.length + 10, {
           name: input.name,
           kind: input.kind,
+          provider: input.provider ?? "opentelemetry",
           measurements: input.measurements,
           settings: input.values,
           secretFieldsSet: [],
@@ -209,13 +287,32 @@ export async function monitoringFixture(
           body: JSON.stringify(made),
         });
       }
+      const query = new URL(request.url()).searchParams;
+      const search = (query.get("search") ?? "").toLowerCase();
+      const matching = ordered().filter((item) =>
+        (query.get("state") === null || item.state === query.get("state")) &&
+        (query.get("provider") === null ||
+          item.provider === query.get("provider")) &&
+        (query.get("kind") === null || item.kind === query.get("kind")) &&
+        (search === "" || String(item.name).toLowerCase().includes(search))
+      );
+      const limit = Number(query.get("limit") ?? 25);
+      const from = Number(query.get("cursor") ?? 0);
+      const page = matching.slice(from, from + limit);
       return route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           kinds: [KIND],
           measurements: MEASUREMENTS,
-          destinations: items,
+          providers,
+          destinations: page,
+          destinationLimit: 200,
+          nextCursor: from + limit < matching.length
+            ? String(from + limit)
+            : null,
+          total: matching.length,
+          stateCounts: counts(),
         }),
       });
     },
@@ -226,6 +323,36 @@ export async function monitoringFixture(
       const request = record(route);
       const id = new URL(request.url()).pathname.split("/").pop();
       const at = items.findIndex((item) => item.id === id);
+      if (request.method() === "GET") {
+        if (at < 0) {
+          return route.fulfill({
+            status: 404,
+            contentType: "application/problem+json",
+            body: JSON.stringify({
+              type: "https://bakery.example/problems/not_found",
+              title: "Not found",
+              status: 404,
+              detail: "Not found",
+              code: "NOT_FOUND",
+              requestId: "00000000-0000-4000-8000-0000000000e1",
+              traceId: "00000000-0000-4000-8000-0000000000e2",
+              retryable: false,
+            }),
+          });
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            destination: items[at],
+            kind: KIND,
+            provider: PROVIDERS.find((entry) =>
+              entry.key === items[at].provider
+            ) ?? null,
+            measurements: MEASUREMENTS,
+          }),
+        });
+      }
       if (request.method() === "DELETE") {
         items.splice(at, 1);
         return route.fulfill({ status: 204 });

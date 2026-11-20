@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import type { TelemetryDestination } from "../api/client.ts";
 import { asyncKindForError } from "../app/async-state.ts";
@@ -10,24 +10,51 @@ import {
   type DestinationFilters,
   isStateFilter,
 } from "../screens/monitoring/monitoring-display.ts";
-import { noticeOf, useMonitoringRead } from "./monitoring-shared.ts";
+import { noticeOf, useMonitoringList } from "./monitoring-shared.ts";
+
+/** A value that follows `value` after it has been still for `delay` milliseconds. */
+function useSettled<T>(value: T, delay: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = globalThis.setTimeout(() => setSettled(value), delay);
+    return () => globalThis.clearTimeout(timer);
+  }, [value, delay]);
+  return settled;
+}
 
 /**
- * `/installation/monitoring`: the destinations as a table. The search and
- * both filters live in the address, so a view can be linked to. Every switch
- * reads the list again; the list also refreshes every 15 seconds.
+ * `/installation/monitoring`: the destinations as a table, a page at a time.
+ * The search and both filters live in the address, so a view can be linked to,
+ * and the server applies them. Every switch reads the list again; the list also
+ * refreshes every 15 seconds.
  */
 export function InstallationMonitoringPage() {
-  const { api, list, kinds, destinations, refresh } = useMonitoringRead();
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as Record<string, unknown>;
   const filters: DestinationFilters = {
     q: typeof search.q === "string" ? search.q : "",
     state: isStateFilter(search.state) ? search.state : "all",
-    kind: typeof search.kind === "string" && search.kind !== ""
-      ? search.kind
+    provider: typeof search.provider === "string" && search.provider !== ""
+      ? search.provider
       : null,
   };
+  // Typing in the search asks the server once the person pauses.
+  const settledQuery = useSettled(filters.q, 250);
+  const {
+    api,
+    list,
+    kinds,
+    providers,
+    destinations,
+    total,
+    stateCounts,
+    destinationLimit,
+    failing,
+    hasMore,
+    loadingMore,
+    loadMore,
+    refresh,
+  } = useMonitoringList({ ...filters, q: settledQuery });
   const [rowNotice, setRowNotice] = useState<SaveNotice | null>(null);
   const [pendingIds, setPendingIds] = useState<readonly string[]>([]);
 
@@ -37,7 +64,7 @@ export function InstallationMonitoringPage() {
       search: {
         ...(next.q.trim() === "" ? {} : { q: next.q }),
         ...(next.state === "all" ? {} : { state: next.state }),
-        ...(next.kind === null ? {} : { kind: next.kind }),
+        ...(next.provider === null ? {} : { provider: next.provider }),
       },
       // Typing in the search must not fill the Back button.
       replace: true,
@@ -71,15 +98,16 @@ export function InstallationMonitoringPage() {
 
   return (
     <InstallationMonitoringScreen
+      destinationLimit={destinationLimit}
       destinations={destinations}
+      failing={failing}
       filters={filters}
+      hasMore={hasMore}
       kinds={kinds}
-      onAdd={(kind) =>
-        void navigate({
-          to: "/installation/monitoring/new",
-          search: { kind },
-        })}
+      loadingMore={loadingMore}
+      onAdd={() => void navigate({ to: "/installation/monitoring/new" })}
       onFiltersChange={writeFilters}
+      onLoadMore={loadMore}
       onOpen={(destination) =>
         void navigate({
           to: "/installation/monitoring/$destinationId",
@@ -88,8 +116,11 @@ export function InstallationMonitoringPage() {
       onRetry={() => void list.refetch()}
       onToggle={(destination, enabled) => void toggle(destination, enabled)}
       pendingIds={pendingIds}
+      providers={providers}
       rowNotice={rowNotice}
       state={state}
+      stateCounts={stateCounts}
+      total={total}
     />
   );
 }

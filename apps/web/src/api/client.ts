@@ -139,6 +139,10 @@ export type IntegrationClientCredentialsPut =
 export type TelemetryDestinationList =
   ClientOutputMap["TelemetryDestinationList"];
 export type TelemetryDestination = ClientOutputMap["TelemetryDestination"];
+export type TelemetryDestinationListQuery =
+  ClientInputMap["TelemetryDestinationListQuery"];
+export type TelemetryDestinationDetail =
+  ClientOutputMap["TelemetryDestinationDetail"];
 export type TelemetryDestinationCreate =
   ClientInputMap["TelemetryDestinationCreate"];
 export type TelemetryDestinationUpdate =
@@ -1242,10 +1246,16 @@ export type BakeryApiClient = {
    * with a browser session only. A result never carries a secret.
    */
   readonly telemetryDestinations: {
-    /** `GET /v1/installation/telemetry-destinations`: the kinds, the measurements and the destinations. */
+    /** `GET /v1/installation/telemetry-destinations`: the kinds, the measurements, the providers and one page of the destinations that match the search and filters. */
     readonly list: (
+      query?: TelemetryDestinationListQuery,
       signal?: AbortSignal,
     ) => Promise<ApiResult<TelemetryDestinationList>>;
+    /** `GET /v1/installation/telemetry-destinations/{id}`: one destination with its kind, provider and the measurements. */
+    readonly get: (
+      id: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<TelemetryDestinationDetail>>;
     /** `POST /v1/installation/telemetry-destinations`: adds one. */
     readonly create: (options: {
       readonly input: TelemetryDestinationCreate;
@@ -3910,13 +3920,27 @@ export function createBakeryApiClient({
     },
 
     telemetryDestinations: {
-      async list(signal) {
+      async list(query, signal) {
         try {
           return {
             ok: true,
-            data: await client.actions["telemetryDestinations.list"]({}, {
-              signal,
-            }),
+            data: await client.actions["telemetryDestinations.list"](
+              query ?? {},
+              { signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async get(id, signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.get"](
+              { id },
+              { signal },
+            ),
           };
         } catch (error) {
           return failed(error);

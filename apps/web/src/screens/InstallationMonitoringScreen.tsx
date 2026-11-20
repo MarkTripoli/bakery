@@ -7,14 +7,13 @@ import { useShellViewport } from "../app/responsive.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
-  atLimit,
   type DestinationFilters,
   type DestinationKind,
-  failingOf,
-  filterDestinations,
   isStateFilter,
-  orderDestinations,
+  providerForDestination,
+  type ProviderInfo,
   STATE_FILTERS,
+  type StateCounts,
   type StateFilter,
   stateWords,
 } from "./monitoring/monitoring-display.ts";
@@ -39,14 +38,27 @@ export const NOTICE_KEYS = {
 
 export type InstallationMonitoringScreenProps = {
   readonly state: "loading" | "error" | "notFound" | "ready";
+  /** This page of the destinations that match the search and filters, in the server's order. */
   readonly destinations: readonly TelemetryDestination[];
   readonly kinds: readonly DestinationKind[];
+  readonly providers: readonly ProviderInfo[];
+  /** How many match the search and filters, across every page. */
+  readonly total: number;
+  /** How many are in each state with no search or filter, or null before the read. */
+  readonly stateCounts: StateCounts | null;
+  /** The most destinations an installation can have. */
+  readonly destinationLimit: number;
+  /** The destination that is failing, when exactly one is. */
+  readonly failing: readonly TelemetryDestination[];
+  readonly hasMore: boolean;
+  readonly loadingMore: boolean;
+  readonly onLoadMore: () => void;
   readonly filters: DestinationFilters;
   readonly rowNotice: SaveNotice | null;
   readonly pendingIds: readonly string[];
   readonly onFiltersChange: (filters: DestinationFilters) => void;
-  /** Add a destination of this kind: opens its own page. */
-  readonly onAdd: (kind: string) => void;
+  /** Add a destination: opens the chooser. */
+  readonly onAdd: () => void;
   /** Open one destination's page. */
   readonly onOpen: (destination: TelemetryDestination) => void;
   readonly onToggle: (
@@ -97,52 +109,36 @@ export function InstallationMonitoringScreen(
     );
   }
 
-  const limit = atLimit(destinations);
-  const failing = failingOf(destinations);
-  const shown = orderDestinations(
-    filterDestinations(destinations, filters, kindLabel),
-  );
+  const counts = props.stateCounts;
+  const limit = props.destinationLimit > 0 && counts !== null &&
+    counts.all >= props.destinationLimit;
+  const failingCount = counts?.failing ?? 0;
+  const failing = props.failing;
+  const shown = destinations;
+  const providerOf = (row: TelemetryDestination) =>
+    providerForDestination(row, props.providers, kindLabel);
   const filtered = filters.q.trim() !== "" || filters.state !== "all" ||
-    filters.kind !== null;
+    filters.provider !== null;
 
-  const addControl = kinds.length === 1
-    ? (
-      <UI.Button
-        disabled={limit}
-        onClick={() => props.onAdd(kinds[0].kind)}
-        type="button"
-        variant="primary"
-      >
-        {translate("installation.monitoring.add")}
-      </UI.Button>
-    )
-    : (
-      <UI.Popover
-        align="end"
-        label={translate("installation.monitoring.add")}
-        trigger={translate("installation.monitoring.add")}
-        triggerAppearance="toolbar"
-        variant="interactive"
-      >
-        <UI.Menu
-          aria-label={translate("installation.monitoring.add")}
-          items={kinds.map((entry) => ({
-            id: entry.kind,
-            label: entry.label,
-            disabled: limit,
-          }))}
-          onSelect={props.onAdd}
-        />
-      </UI.Popover>
-    );
+  const addControl = (
+    <UI.Button
+      disabled={limit}
+      onClick={props.onAdd}
+      type="button"
+      variant="primary"
+    >
+      {translate("installation.monitoring.add")}
+    </UI.Button>
+  );
 
   const stateWord = translate("installation.monitoring.filter.state");
   const stateLabel = `${stateWord}: ${translate(STATE_LABEL[filters.state])}`;
-  const kindWord = translate("installation.monitoring.filter.kind");
-  const kindText = `${kindWord}: ${
-    filters.kind === null
-      ? translate("installation.monitoring.filter.allKinds")
-      : kindLabel(filters.kind)
+  const providerWord = translate("installation.monitoring.filter.provider");
+  const providerText = `${providerWord}: ${
+    filters.provider === null
+      ? translate("installation.monitoring.filter.allProviders")
+      : props.providers.find((entry) => entry.key === filters.provider)?.name ??
+        filters.provider
   }`;
 
   const sendingSwitch = (row: TelemetryDestination) => (
@@ -163,10 +159,10 @@ export function InstallationMonitoringScreen(
   const rowLine = (row: TelemetryDestination) => {
     const line = row.lastAcceptedAt === null
       ? translate("installation.monitoring.row.lineNever", {
-        kind: kindLabel(row.kind),
+        kind: providerOf(row).name,
       })
       : translate("installation.monitoring.row.line", {
-        kind: kindLabel(row.kind),
+        kind: providerOf(row).name,
         time: when(row.lastAcceptedAt),
       });
     return row.dropped > 0
@@ -182,21 +178,27 @@ export function InstallationMonitoringScreen(
       id: "name",
       header: translate("installation.monitoring.column.name"),
       cell: (row) => (
-        <RouterLink
-          data-name="true"
-          params={{ destinationId: row.id }}
-          to="/installation/monitoring/$destinationId"
-          variant="quiet"
-        >
-          {row.name}
-        </RouterLink>
+        <UI.Inline gap="compact">
+          <UI.ProviderMark
+            name={providerOf(row).name}
+            provider={providerOf(row).key}
+          />
+          <RouterLink
+            data-name="true"
+            params={{ destinationId: row.id }}
+            to="/installation/monitoring/$destinationId"
+            variant="quiet"
+          >
+            {row.name}
+          </RouterLink>
+        </UI.Inline>
       ),
     },
     {
-      id: "kind",
-      header: translate("installation.monitoring.column.kind"),
+      id: "provider",
+      header: translate("installation.monitoring.column.provider"),
       width: "140px",
-      cell: (row) => kindLabel(row.kind),
+      cell: (row) => providerOf(row).name,
     },
     {
       id: "state",
@@ -258,11 +260,11 @@ export function InstallationMonitoringScreen(
 
   return (
     <UI.SettingsContent data-page="installation-monitoring" variant="wide">
-      {state === "ready" && destinations.length > 0 && !phone
+      {state === "ready" && (counts?.all ?? 0) > 0 && !phone
         ? <ShellSlot name="actions">{addControl}</ShellSlot>
         : null}
       <UI.PageHeader
-        actions={state === "ready" && destinations.length > 0 && phone
+        actions={state === "ready" && (counts?.all ?? 0) > 0 && phone
           ? addControl
           : undefined}
         description={translate("installation.monitoring.description")}
@@ -293,7 +295,7 @@ export function InstallationMonitoringScreen(
       {state === "ready"
         ? (
           <>
-            {failing.length === 1
+            {failingCount === 1 && failing.length === 1
               ? (
                 <UI.AlertBanner
                   action={
@@ -326,7 +328,7 @@ export function InstallationMonitoringScreen(
                   {translate("installation.monitoring.failing.notAffected")}
                 </UI.AlertBanner>
               )
-              : failing.length > 1
+              : failingCount > 1
               ? (
                 <UI.AlertBanner
                   action={
@@ -344,7 +346,7 @@ export function InstallationMonitoringScreen(
                   tone="error"
                 >
                   {translate("installation.monitoring.failing.several", {
-                    count: failing.length,
+                    count: failingCount,
                   })}
                 </UI.AlertBanner>
               )
@@ -356,23 +358,13 @@ export function InstallationMonitoringScreen(
                 </UI.InlineNotice>
               )
               : null}
-            {destinations.length === 0
+            {counts !== null && counts.all === 0
               ? (
                 <UI.EmptyState
                   action={
-                    <UI.Inline gap="standard">
-                      {kinds.map((entry) => (
-                        <UI.Button
-                          key={entry.kind}
-                          onClick={() => props.onAdd(entry.kind)}
-                          type="button"
-                        >
-                          {translate("installation.monitoring.addKind", {
-                            kind: entry.label,
-                          })}
-                        </UI.Button>
-                      ))}
-                    </UI.Inline>
+                    <UI.Button onClick={props.onAdd} type="button">
+                      {translate("installation.monitoring.add")}
+                    </UI.Button>
                   }
                   description={translate("installation.monitoring.empty.body")}
                   title={translate("installation.monitoring.empty.title")}
@@ -425,41 +417,41 @@ export function InstallationMonitoringScreen(
                         variant="selection"
                       />
                     </UI.Popover>
-                    {kinds.length >= 2
+                    {props.providers.length >= 2
                       ? (
                         <UI.Popover
                           align="start"
-                          label={kindWord}
+                          label={providerWord}
                           trigger={
                             <>
-                              {kindText}
+                              {providerText}
                               <UI.IconGlyph name="chevron-down" size="small" />
                             </>
                           }
                           triggerAppearance="toolbar"
-                          triggerLabel={kindText}
+                          triggerLabel={providerText}
                           variant="interactive"
                         >
                           <UI.Menu
-                            aria-label={kindWord}
+                            aria-label={providerWord}
                             items={[
                               {
                                 id: "all",
                                 label: translate(
-                                  "installation.monitoring.filter.allKinds",
+                                  "installation.monitoring.filter.allProviders",
                                 ),
-                                selected: filters.kind === null,
+                                selected: filters.provider === null,
                               },
-                              ...kinds.map((entry) => ({
-                                id: entry.kind,
-                                label: entry.label,
-                                selected: entry.kind === filters.kind,
+                              ...props.providers.map((entry) => ({
+                                id: entry.key,
+                                label: entry.name,
+                                selected: entry.key === filters.provider,
                               })),
                             ]}
                             onSelect={(id) =>
                               props.onFiltersChange({
                                 ...filters,
-                                kind: id === "all" ? null : id,
+                                provider: id === "all" ? null : id,
                               })}
                             variant="selection"
                           />
@@ -468,7 +460,7 @@ export function InstallationMonitoringScreen(
                       : null}
                     <UI.Text variant="muted">
                       {translate("installation.monitoring.count", {
-                        count: shown.length,
+                        count: props.total,
                       })}
                     </UI.Text>
                   </UI.Inline>
@@ -482,7 +474,7 @@ export function InstallationMonitoringScreen(
                                 props.onFiltersChange({
                                   q: "",
                                   state: "all",
-                                  kind: null,
+                                  provider: null,
                                 })}
                               type="button"
                               variant="secondary"
@@ -522,14 +514,20 @@ export function InstallationMonitoringScreen(
                                   </UI.Badge>
                                 }
                                 title={
-                                  <RouterLink
-                                    data-name="true"
-                                    params={{ destinationId: row.id }}
-                                    to="/installation/monitoring/$destinationId"
-                                    variant="quiet"
-                                  >
-                                    {row.name}
-                                  </RouterLink>
+                                  <UI.Inline gap="compact">
+                                    <UI.ProviderMark
+                                      name={providerOf(row).name}
+                                      provider={providerOf(row).key}
+                                    />
+                                    <RouterLink
+                                      data-name="true"
+                                      params={{ destinationId: row.id }}
+                                      to="/installation/monitoring/$destinationId"
+                                      variant="quiet"
+                                    >
+                                      {row.name}
+                                    </RouterLink>
+                                  </UI.Inline>
                                 }
                               >
                                 <UI.Inline gap="standard">
@@ -553,10 +551,34 @@ export function InstallationMonitoringScreen(
                           "data-destination": row.id,
                         })}
                         getRowKey={(row) => row.id}
-                        rows={shown}
+                        rows={[...shown]}
                         variant="ruled"
                       />
                     )}
+                  {props.hasMore || shown.length < props.total
+                    ? (
+                      <UI.Inline gap="standard" variant="between">
+                        <UI.Text variant="muted">
+                          {translate("installation.monitoring.showing", {
+                            shown: shown.length,
+                            total: props.total,
+                          })}
+                        </UI.Text>
+                        {props.hasMore
+                          ? (
+                            <UI.Button
+                              loading={props.loadingMore}
+                              onClick={props.onLoadMore}
+                              type="button"
+                              variant="secondary"
+                            >
+                              {translate("installation.monitoring.loadMore")}
+                            </UI.Button>
+                          )
+                          : null}
+                      </UI.Inline>
+                    )
+                    : null}
                   {limit
                     ? (
                       <UI.Text variant="muted">

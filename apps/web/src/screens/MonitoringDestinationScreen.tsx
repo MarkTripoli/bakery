@@ -18,6 +18,7 @@ import {
   formProblem,
   type KindField,
   type MeasurementInfo,
+  type ProviderInfo,
   reenterNeeded,
   secretIsSaved,
   stateWords,
@@ -37,6 +38,8 @@ export type MonitoringDestinationScreenProps = {
   readonly state: "loading" | "error" | "notFound" | "ready";
   /** The kind of this destination, or the one being added. */
   readonly kind: DestinationKind | null;
+  /** Who runs the backend it sends to, or null when the server no longer knows it. */
+  readonly provider: ProviderInfo | null;
   /** The destination being edited; `null` while adding a new one. */
   readonly editing: TelemetryDestination | null;
   readonly measurements: readonly MeasurementInfo[];
@@ -122,6 +125,8 @@ export function MonitoringDestinationScreen(
   // Below the two-column width a new destination is filled, tested, then
   // saved: its Test card sits above the save row, not before an empty form.
   const testBelowForm = editing === null && viewport !== "desktop";
+  const providerName = props.provider?.name ?? kind.label;
+  const providerKey = props.provider?.key ?? kind.kind;
   const missingValues = editing === null &&
     kind.fields.some((field) =>
       field.required && (draft.values[field.name] ?? "").trim() === ""
@@ -284,7 +289,7 @@ export function MonitoringDestinationScreen(
               : <UI.Badge tone={words.tone}>{translate(words.key)}</UI.Badge>}
             <span>
               {translate("installation.monitoring.kindLine", {
-                kind: kind.label,
+                kind: providerName,
               })}
             </span>
           </>
@@ -299,11 +304,20 @@ export function MonitoringDestinationScreen(
             {translate("installation.monitoring.sendingLabel")}
           </UI.Switch>
         )}
-        title={editing === null
-          ? translate("installation.monitoring.form.addTitle", {
-            kind: kind.label,
-          })
-          : editing.name}
+        title={
+          <>
+            <UI.ProviderMark
+              name={providerName}
+              provider={providerKey}
+              size="header"
+            />
+            {editing === null
+              ? translate("installation.monitoring.form.addTitle", {
+                kind: providerName,
+              })
+              : editing.name}
+          </>
+        }
         variant="split"
       />
       {editing?.state === "failing"

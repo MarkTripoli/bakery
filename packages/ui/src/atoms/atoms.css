@@ -333,3 +333,8 @@
   block-size: 100%;
   inline-size: 100%;
 }
+/* In a heading the mark leads the name, on the name's own line. */
+.ui-heading .ui-provider-mark {
+  margin-inline-end: var(--space-3);
+  vertical-align: middle;
+}

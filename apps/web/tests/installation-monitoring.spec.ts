@@ -40,12 +40,24 @@ for (
         .toBeVisible();
       await expect(page.getByText("Grafana Cloud", { exact: true }))
         .toBeVisible();
-      await expect(page.getByText("Working", { exact: true })).toBeVisible();
+      await expect(page.getByText("Working", { exact: true }).first())
+        .toBeVisible();
       await expect(page.getByText("Failing", { exact: true }).first())
         .toBeVisible();
       await expect(page.getByText("Off", { exact: true }).first())
         .toBeVisible();
-      await expect(page.getByText("3 destinations")).toBeVisible();
+      await expect(page.getByText("4 destinations")).toBeVisible();
+      // Each row leads with its provider's mark: a vendor's own file where
+      // Bakery may show it, a letter tile where not, never a guess.
+      await expect(page.locator('[data-provider="sentry"] img').first())
+        .toBeVisible();
+      await expect(
+        page.locator('[data-provider="grafana"] .ui-provider-mark__tile')
+          .first(),
+      ).toHaveText("G");
+      // The provider is named in plain text beside its mark: a column on a
+      // wide screen, the start of the detail line on a phone.
+      await expect(page.getByText(/^Sentry(?: ·|$)/).first()).toBeVisible();
       // The failing banner quotes the server's reason and what was lost.
       await expect(page.getByText("Honeycomb is not accepting measurements."))
         .toBeVisible();
@@ -73,7 +85,12 @@ for (
       );
       await expect(page.getByText("No destinations match.")).toBeVisible();
       await page.getByRole("button", { name: "Clear filters" }).click();
-      await expect(page.getByText("3 destinations")).toBeVisible();
+      await expect(page.getByText("4 destinations")).toBeVisible();
+      await page.goto(`${LIST}?provider=sentry`);
+      await expect(page.getByText("1 destination", { exact: true }))
+        .toBeVisible();
+      await expect(page.getByText("Errors, production", { exact: true }))
+        .toBeVisible();
       await page.goto(`${LIST}?state=off`);
       await expect(page.getByText("1 destination", { exact: true }))
         .toBeVisible();
@@ -81,10 +98,34 @@ for (
         .toBeVisible();
     });
 
-    test("with nothing set up, the one kind is offered by name and opens its own page", async ({ page }) => {
+    test("with nothing set up, Add destination opens a chooser of providers", async ({ page }) => {
       await monitoringFixture(page, { empty: true });
       await page.goto(LIST);
       await expect(page.getByText("No destinations yet")).toBeVisible();
+      await page.getByRole("button", { name: "Add destination" }).click();
+      await expect(page).toHaveURL(/\/installation\/monitoring\/new$/);
+      await expect(
+        page.getByRole("heading", { name: "Add destination", level: 1 }),
+      ).toBeVisible();
+      for (
+        const name of [
+          "OpenTelemetry",
+          "Grafana",
+          "Datadog",
+          "Honeycomb",
+          "Sentry",
+        ]
+      ) {
+        await expect(page.getByRole("button", { name: `Add ${name}` }))
+          .toBeVisible();
+      }
+      await expect(
+        page.getByText(
+          "Names and marks belong to their owners. Bakery is not affiliated with them or endorsed by them.",
+        ),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "monitoring-chooser");
       await page.getByRole("button", { name: "Add OpenTelemetry" }).click();
       await expect(page).toHaveURL(/\/installation\/monitoring\/new/);
       await expect(
@@ -113,6 +154,7 @@ for (
     test("adding sends the form's values and lists the new destination", async ({ page }) => {
       const seen = await monitoringFixture(page, { empty: true });
       await page.goto(LIST);
+      await page.getByRole("button", { name: "Add destination" }).click();
       await page.getByRole("button", { name: "Add OpenTelemetry" }).click();
       // Nothing to test until the required settings are in.
       await expect(page.getByRole("button", { name: "Send a test" }))
@@ -150,6 +192,7 @@ for (
       );
       expect(create?.body).toMatchObject({
         kind: "otlp",
+        provider: "opentelemetry",
         name: "Grafana",
         measurements: ["results", "health"],
         values: {
@@ -161,6 +204,47 @@ for (
       });
       await expect(page.getByText("Nothing sent yet", { exact: true }))
         .toBeVisible();
+    });
+
+    test("a provider's own values are filled in, and one provider skips the chooser", async ({ page }) => {
+      await monitoringFixture(page);
+      await page.goto(LIST);
+      await page.getByRole("button", { name: "Add destination" }).click();
+      await page.getByRole("button", { name: "Add Honeycomb" }).click();
+      await expect(page).toHaveURL(/new\?provider=honeycomb/);
+      await expect(
+        page.getByRole("heading", {
+          name: "Add Honeycomb destination",
+          level: 1,
+        }),
+      ).toBeVisible();
+      await expect(page.getByLabel("Address", { exact: true })).toHaveValue(
+        "https://api.honeycomb.io",
+      );
+      await expect(page.getByLabel("Sign-in header name")).toHaveValue(
+        "x-honeycomb-team",
+      );
+      // Where the server offers one provider there is nothing to choose.
+      await monitoringFixture(page, { providers: 1 });
+      await page.goto(`${LIST}/new`);
+      await expect(
+        page.getByRole("heading", {
+          name: "Add OpenTelemetry destination",
+          level: 1,
+        }),
+      ).toBeVisible();
+    });
+
+    test("a long list shows a page and loads more", async ({ page }) => {
+      await monitoringFixture(page, { extra: 30 });
+      await page.goto(LIST);
+      await expect(page.getByText("34 destinations")).toBeVisible();
+      await expect(page.getByText("Showing 25 of 34")).toBeVisible();
+      await page.getByRole("button", { name: "Load more" }).click();
+      await expect(page.getByText("Collector 30", { exact: true }))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: "Load more" }))
+        .toHaveCount(0);
     });
 
     test("a saved secret is never shown, and a new address asks for it again", async ({ page }) => {
@@ -227,6 +311,7 @@ for (
         },
       });
       await page.goto(LIST);
+      await page.getByRole("button", { name: "Add destination" }).click();
       await page.getByRole("button", { name: "Add OpenTelemetry" }).click();
       await page.getByLabel("Name", { exact: true }).fill("Grafana");
       await page.getByLabel("Address", { exact: true }).fill(

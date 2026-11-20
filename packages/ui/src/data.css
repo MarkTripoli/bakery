@@ -2352,6 +2352,15 @@
     inline-size: 100%;
   }
 }
+/* The chooser: a provider's mark, its name and its sentence stay on one line, and
+   the sentence wraps inside its own column, never under the mark. */
+.ui-settings-content[data-page="installation-monitoring-chooser"] .ui-object-row__identity .ui-inline {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.ui-settings-content[data-page="installation-monitoring-chooser"] .ui-object-row__identity .ui-stack {
+  min-inline-size: 0;
+}
 /* A phone row: the detail line takes the width and the switch sits at the end
    of it, on the same line. */
 .ui-settings-content[data-page="installation-monitoring"] .ui-stacked-row .ui-inline {

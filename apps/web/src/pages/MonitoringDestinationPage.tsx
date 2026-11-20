@@ -1,51 +1,64 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import type { TelemetryDestinationTestResult } from "../api/client.ts";
+import type {
+  BakeryApiClient,
+  TelemetryDestination,
+  TelemetryDestinationTestResult,
+} from "../api/client.ts";
 import { asyncKindForError } from "../app/async-state.ts";
 import type { SaveNotice } from "../screens/InstallationMonitoringScreen.tsx";
 import {
   MonitoringDestinationScreen,
   type MonitoringDestinationScreenProps,
 } from "../screens/MonitoringDestinationScreen.tsx";
+import { MonitoringProviderChooserScreen } from "../screens/MonitoringProviderChooserScreen.tsx";
 import {
   blankDraft,
   type DestinationDraft,
+  type DestinationKind,
   draftOfDestination,
   type FieldIssues,
   formProblem,
+  type MeasurementInfo,
+  type ProviderInfo,
   valuesToSend,
   valuesToTest,
 } from "../screens/monitoring/monitoring-display.ts";
 import { LeaveGuard } from "./repository-rules/leave-guard.tsx";
-import { issuesOf, noticeOf, useMonitoringRead } from "./monitoring-shared.ts";
+import {
+  issuesOf,
+  noticeOf,
+  useMonitoringChoices,
+  useMonitoringDestination,
+} from "./monitoring-shared.ts";
 
 const LIST = "/installation/monitoring";
 
 type Test = MonitoringDestinationScreenProps["test"];
 
-/**
- * `/installation/monitoring/new` and `/installation/monitoring/{id}`: one
- * destination. Leaving with edits asks first; a save or removal that works
- * returns to the list.
- */
-export function MonitoringDestinationPage() {
-  const { api, list, kinds, measurements, destinations, refresh } =
-    useMonitoringRead();
-  const navigate = useNavigate();
-  const { destinationId } = useParams({ strict: false }) as {
-    destinationId?: string;
-  };
-  const search = useSearch({ strict: false }) as Record<string, unknown>;
-  const editing = destinationId === undefined
-    ? null
-    : destinations.find((item) => item.id === destinationId) ?? null;
-  const kindId = editing !== null
-    ? editing.kind
-    : typeof search.kind === "string"
-    ? search.kind
-    : kinds[0]?.kind;
-  const kind = kinds.find((entry) => entry.kind === kindId) ?? null;
+type EditorProps = {
+  /** The destination being edited, or null when adding one. */
+  readonly editing: TelemetryDestination | null;
+  readonly kind: DestinationKind | null;
+  readonly provider: ProviderInfo | null;
+  readonly measurements: readonly MeasurementInfo[];
+  readonly state: "loading" | "error" | "notFound" | "ready";
+  readonly api: BakeryApiClient;
+  readonly refresh: () => Promise<unknown>;
+  readonly onRetry: () => void;
+};
 
+/**
+ * One destination: the form, its status and its test. Leaving with edits asks
+ * first; a save or removal that works returns to the list.
+ */
+function DestinationEditor(
+  { editing, kind, provider, measurements, state, api, refresh, onRetry }:
+    EditorProps,
+) {
+  const navigate = useNavigate();
+  const destinationId = editing?.id;
+  const kindId = kind?.kind;
   const [draft, setDraft] = useState<DestinationDraft | null>(null);
   const [baseline, setBaseline] = useState<string | null>(null);
   const [issues, setIssues] = useState<FieldIssues | null>(null);
@@ -59,11 +72,9 @@ export function MonitoringDestinationPage() {
 
   // The draft is read from the server once per destination, and again on Reload.
   const loadDraft = () => {
-    if (kind === null || (destinationId !== undefined && editing === null)) {
-      return;
-    }
+    if (kind === null) return;
     const next = editing === null
-      ? blankDraft(kind, measurements)
+      ? blankDraft(kind, measurements, provider?.prefill)
       : draftOfDestination(editing, kind);
     setDraft(next);
     setBaseline(JSON.stringify(next));
@@ -71,10 +82,9 @@ export function MonitoringDestinationPage() {
     setNotice(null);
     setTest(null);
   };
-  const key = destinationId ?? `new:${kindId ?? ""}`;
+  const key = destinationId ?? `new:${provider?.key ?? kindId ?? ""}`;
   useEffect(() => {
     if (loadedFor.current === key || kind === null) return;
-    if (destinationId !== undefined && editing === null) return;
     loadedFor.current = key;
     loadDraft();
   });
@@ -103,6 +113,7 @@ export function MonitoringDestinationPage() {
       ? await api.telemetryDestinations.create({
         input: {
           kind: kind.kind,
+          ...(provider === null ? {} : { provider: provider.key }),
           name: draft.name.trim(),
           measurements: [...draft.measurements],
           values: sent,
@@ -189,16 +200,6 @@ export function MonitoringDestinationPage() {
     } else setNotice(noticeOf(result.error));
   };
 
-  const state = list.isPending
-    ? "loading"
-    : list.isError
-    ? asyncKindForError(list.error) === "forbidden" ? "notFound" : "error"
-    : destinationId !== undefined && editing === null
-    ? "notFound"
-    : kind === null
-    ? "error"
-    : "ready";
-
   return (
     <>
       <MonitoringDestinationScreen
@@ -207,6 +208,7 @@ export function MonitoringDestinationPage() {
         issues={issues}
         kind={kind}
         measurements={measurements}
+        provider={provider}
         notice={notice}
         onCancel={() => void navigate({ to: LIST })}
         onChange={change}
@@ -217,7 +219,7 @@ export function MonitoringDestinationPage() {
         }}
         onRemove={() => void remove()}
         onRemoveAsk={setRemoving}
-        onRetry={() => void list.refetch()}
+        onRetry={onRetry}
         onSave={() => void save()}
         onTest={() => void sendTest()}
         onToggle={(enabled) => void toggle(enabled)}
@@ -240,4 +242,95 @@ export function MonitoringDestinationPage() {
       />
     </>
   );
+}
+
+function ExistingDestination({ id }: { readonly id: string }) {
+  const { api, read, destination, kind, provider, measurements, refresh } =
+    useMonitoringDestination(id);
+  const state = read.isPending
+    ? "loading"
+    : read.isError
+    ? ["forbidden", "notFound"].includes(asyncKindForError(read.error))
+      ? "notFound"
+      : "error"
+    : destination === null
+    ? "notFound"
+    : kind === null
+    ? "error"
+    : "ready";
+  return (
+    <DestinationEditor
+      api={api}
+      editing={destination}
+      kind={kind}
+      measurements={measurements}
+      onRetry={() => void read.refetch()}
+      provider={provider}
+      refresh={refresh}
+      state={state}
+    />
+  );
+}
+
+function NewDestination(
+  { providerKey }: { readonly providerKey: string | null },
+) {
+  const navigate = useNavigate();
+  const { api, list, kinds, providers, measurements, refresh } =
+    useMonitoringChoices();
+  // With one provider there is nothing to choose, so the chooser is skipped.
+  const chosen = providers.find((entry) => entry.key === providerKey) ??
+    (providers.length === 1 ? providers[0] : null);
+  const kind = chosen === null
+    ? null
+    : kinds.find((entry) => entry.kind === chosen.kind) ?? null;
+  if (chosen === null) {
+    return (
+      <MonitoringProviderChooserScreen
+        onCancel={() => void navigate({ to: LIST })}
+        onChoose={(key) =>
+          void navigate({
+            to: "/installation/monitoring/new",
+            search: { provider: key },
+          })}
+        onRetry={() => void list.refetch()}
+        providers={providers}
+        state={list.isPending ? "loading" : list.isError ? "error" : "ready"}
+      />
+    );
+  }
+  const state = kind === null ? "error" : "ready";
+  return (
+    <DestinationEditor
+      api={api}
+      editing={null}
+      kind={kind}
+      measurements={measurements}
+      onRetry={() => void list.refetch()}
+      provider={chosen}
+      refresh={refresh}
+      state={state}
+    />
+  );
+}
+
+/**
+ * `/installation/monitoring/new` and `/installation/monitoring/{id}`: a new
+ * destination starts at the chooser of providers, then its form; a saved one
+ * opens its own page.
+ */
+export function MonitoringDestinationPage() {
+  const { destinationId } = useParams({ strict: false }) as {
+    destinationId?: string;
+  };
+  const search = useSearch({ strict: false }) as Record<string, unknown>;
+  return destinationId === undefined
+    ? (
+      <NewDestination
+        providerKey={typeof search.provider === "string"
+          ? search.provider
+          : null}
+      />
+    )
+    : <ExistingDestination id={destinationId} />;
 }

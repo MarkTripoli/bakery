@@ -1,5 +1,6 @@
 import type {
   TelemetryDestination,
+  TelemetryDestinationDetail,
   TelemetryDestinationList,
 } from "../../api/client.ts";
 
@@ -38,40 +39,141 @@ const text = (value: unknown): string => typeof value === "string" ? value : "";
  * left out, never half drawn. The form is built from this, so a new kind on
  * the server needs no change here.
  */
+export function kindOf(entry: unknown): DestinationKind | null {
+  if (!isRecord(entry) || text(entry.kind) === "") return null;
+  const fields = Array.isArray(entry.fields)
+    ? entry.fields.flatMap((field): KindField[] =>
+      isRecord(field) && text(field.name) !== ""
+        ? [{
+          name: text(field.name),
+          label: text(field.label),
+          help: text(field.help),
+          secret: field.secret === true,
+          required: field.required === true,
+        }]
+        : []
+    )
+    : [];
+  const reasons = isRecord(entry.unavailableReasons)
+    ? Object.fromEntries(
+      Object.entries(entry.unavailableReasons).filter((pair): pair is [
+        string,
+        string,
+      ] => typeof pair[1] === "string"),
+    )
+    : {};
+  return {
+    kind: text(entry.kind),
+    label: text(entry.label),
+    fields,
+    measurements: Array.isArray(entry.measurements)
+      ? entry.measurements.filter((item): item is string =>
+        typeof item === "string"
+      )
+      : [],
+    unavailableReasons: reasons,
+  };
+}
+
 export function kindsOf(list: TelemetryDestinationList): DestinationKind[] {
-  return list.kinds.flatMap((entry): DestinationKind[] => {
-    if (!isRecord(entry) || text(entry.kind) === "") return [];
-    const fields = Array.isArray(entry.fields)
-      ? entry.fields.flatMap((field): KindField[] =>
-        isRecord(field) && text(field.name) !== ""
-          ? [{
-            name: text(field.name),
-            label: text(field.label),
-            help: text(field.help),
-            secret: field.secret === true,
-            required: field.required === true,
-          }]
-          : []
-      )
-      : [];
-    const reasons = isRecord(entry.unavailableReasons)
-      ? Object.fromEntries(
-        Object.entries(entry.unavailableReasons).filter((pair): pair is [
-          string,
-          string,
-        ] => typeof pair[1] === "string"),
-      )
-      : {};
-    return [{
-      kind: text(entry.kind),
-      label: text(entry.label),
-      fields,
-      measurements: Array.isArray(entry.measurements)
-        ? entry.measurements.filter((m): m is string => typeof m === "string")
-        : [],
-      unavailableReasons: reasons,
-    }];
+  return list.kinds.flatMap((entry) => {
+    const kind = kindOf(entry);
+    return kind === null ? [] : [kind];
   });
+}
+
+/** A provider a destination can be added for, as the server lists it. */
+export type ProviderInfo = {
+  readonly key: string;
+  readonly name: string;
+  readonly description: string;
+  /** The kind of destination it delivers through. */
+  readonly kind: string;
+  /** Values the form starts with, by the kind's field name. */
+  readonly prefill: Readonly<Record<string, string>>;
+};
+
+export function providerOf(entry: unknown): ProviderInfo | null {
+  if (!isRecord(entry) || text(entry.key) === "" || text(entry.name) === "") {
+    return null;
+  }
+  return {
+    key: text(entry.key),
+    name: text(entry.name),
+    description: text(entry.description),
+    kind: text(entry.kind),
+    prefill: isRecord(entry.prefill)
+      ? Object.fromEntries(
+        Object.entries(entry.prefill).filter((pair): pair is [string, string] =>
+          typeof pair[1] === "string"
+        ),
+      )
+      : {},
+  };
+}
+
+/** The providers the server lists, in its order. */
+export function providersOf(list: TelemetryDestinationList): ProviderInfo[] {
+  return list.providers.flatMap((entry) => {
+    const provider = providerOf(entry);
+    return provider === null ? [] : [provider];
+  });
+}
+
+/**
+ * The provider a destination shows: the one saved with it, else the first the
+ * server lists for its kind (what the server reads a null as), else a stand-in
+ * named after the kind, so a mark is never guessed from a name or an address.
+ */
+export function providerForDestination(
+  destination: Pick<TelemetryDestination, "kind"> & { provider?: unknown },
+  providers: readonly ProviderInfo[],
+  kindLabel: (kind: string) => string,
+): { readonly key: string; readonly name: string } {
+  const saved = typeof destination.provider === "string"
+    ? providers.find((entry) => entry.key === destination.provider)
+    : undefined;
+  const fallback = saved ??
+    providers.find((entry) => entry.kind === destination.kind);
+  return fallback === undefined
+    ? { key: destination.kind, name: kindLabel(destination.kind) }
+    : { key: fallback.key, name: fallback.name };
+}
+
+/** How many destinations are in each state, with no search or filter applied. */
+export type StateCounts = Readonly<Record<StateFilter, number>>;
+
+export function stateCountsOf(list: TelemetryDestinationList): StateCounts {
+  const raw = isRecord(list.stateCounts) ? list.stateCounts : {};
+  const count = (key: string) => typeof raw[key] === "number" ? raw[key] : 0;
+  return {
+    all: count("all"),
+    working: count("working"),
+    not_tested_yet: count("not_tested_yet"),
+    failing: count("failing"),
+    dropping_data: count("dropping_data"),
+    off: count("off"),
+  };
+}
+
+/** One destination's page: the destination, its kind, its provider and the measurements. */
+export function detailOf(detail: TelemetryDestinationDetail): {
+  readonly destination: TelemetryDestination | null;
+  readonly kind: DestinationKind | null;
+  readonly provider: ProviderInfo | null;
+  readonly measurements: MeasurementInfo[];
+} {
+  const [destination] = destinationsOf({
+    destinations: [detail.destination],
+  } as unknown as TelemetryDestinationList);
+  return {
+    destination: destination ?? null,
+    kind: kindOf(detail.kind),
+    provider: providerOf(detail.provider),
+    measurements: measurementsOf({
+      measurements: detail.measurements,
+    } as unknown as TelemetryDestinationList),
+  };
 }
 
 const STATES = new Set([
@@ -113,9 +215,6 @@ export function measurementsOf(
       : []
   );
 }
-
-/** At most this many destinations exist. */
-export const DESTINATION_LIMIT = 20;
 
 /** The badge a state shows, and how it reads. */
 export type StateWords = {
@@ -160,17 +259,20 @@ export type DestinationDraft = {
   readonly touchedSecrets: readonly string[];
 };
 
-/** A blank draft for a kind: every field empty, the kind's measurements ticked. */
+/** A blank draft for a kind: the provider's values filled in, the kind's measurements ticked. */
 export function blankDraft(
   kind: DestinationKind,
   measurements: readonly MeasurementInfo[],
+  prefill: Readonly<Record<string, string>> = {},
 ): DestinationDraft {
   return {
     name: "",
     measurements: measurements
       .filter((info) => kind.measurements.includes(info.kind))
       .map((info) => info.kind),
-    values: Object.fromEntries(kind.fields.map((field) => [field.name, ""])),
+    values: Object.fromEntries(
+      kind.fields.map((field) => [field.name, prefill[field.name] ?? ""]),
+    ),
     touchedSecrets: [],
   };
 }
@@ -316,11 +418,6 @@ export function unavailableFor(
     : kind.unavailableReasons[measurement.kind] ?? "";
 }
 
-/** A new destination's name is free when no other one has it. */
-export function atLimit(destinations: readonly unknown[]): boolean {
-  return destinations.length >= DESTINATION_LIMIT;
-}
-
 /** The choices of the State filter: every state, or one. */
 export const STATE_FILTERS = [
   "all",
@@ -337,44 +434,10 @@ export function isStateFilter(value: unknown): value is StateFilter {
     (STATE_FILTERS as readonly string[]).includes(value);
 }
 
-/** What the list's toolbar narrows it to; all three live in the address. */
+/** What the list's toolbar narrows it to; all three live in the address and go to the server. */
 export type DestinationFilters = {
   readonly q: string;
   readonly state: StateFilter;
-  /** The kind id, or null for every kind. */
-  readonly kind: string | null;
+  /** The provider key, or null for every provider. */
+  readonly provider: string | null;
 };
-
-const STATE_RANK: Readonly<Record<TelemetryDestination["state"], number>> = {
-  failing: 0,
-  dropping_data: 1,
-  working: 2,
-  not_tested_yet: 2,
-  off: 2,
-};
-
-/** Failing first, then dropping data, then by name: what needs attention is on top. */
-export function orderDestinations(
-  destinations: readonly TelemetryDestination[],
-): TelemetryDestination[] {
-  return [...destinations].sort((a, b) =>
-    STATE_RANK[a.state] - STATE_RANK[b.state] ||
-    a.name.localeCompare(b.name)
-  );
-}
-
-/** The destinations whose name or kind holds the search and that match the filters. */
-export function filterDestinations(
-  destinations: readonly TelemetryDestination[],
-  filters: DestinationFilters,
-  kindLabel: (kind: string) => string,
-): TelemetryDestination[] {
-  const query = filters.q.trim().toLocaleLowerCase();
-  return destinations.filter((destination) =>
-    (filters.state === "all" || destination.state === filters.state) &&
-    (filters.kind === null || destination.kind === filters.kind) &&
-    (query === "" ||
-      destination.name.toLocaleLowerCase().includes(query) ||
-      kindLabel(destination.kind).toLocaleLowerCase().includes(query))
-  );
-}

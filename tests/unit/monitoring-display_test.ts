@@ -4,17 +4,16 @@ import type {
   TelemetryDestinationList,
 } from "../../apps/web/src/api/client.ts";
 import {
-  atLimit,
   blankDraft,
   draftOfDestination,
-  failingOf,
-  filterDestinations,
   formProblem,
   issuesByField,
   kindsOf,
   measurementsOf,
-  orderDestinations,
+  providerForDestination,
+  providersOf,
   reenterNeeded,
+  stateCountsOf,
   unavailableFor,
   valuesToSend,
 } from "../../apps/web/src/screens/monitoring/monitoring-display.ts";
@@ -175,63 +174,85 @@ Deno.test("a 422's issues are read into messages by field", () => {
   );
 });
 
-const row = (name: string, state: string, kind = "otlp") =>
-  ({
-    ...SAVED,
-    id: name,
-    name,
-    state,
-    kind,
-  }) as unknown as TelemetryDestination;
-
-Deno.test("the list puts failing and dropping first, then every other state by name", () => {
-  const ordered = orderDestinations([
-    row("Zed", "working"),
-    row("Old", "off"),
-    row("Beta", "dropping_data"),
-    row("Alpha", "working"),
-    row("Honey", "failing"),
-  ]);
-  assertEquals(ordered.map((entry) => entry.name), [
-    "Honey",
-    "Beta",
-    "Alpha",
-    "Old",
-    "Zed",
-  ]);
+Deno.test("providers are read from the list, and a malformed one is left out", () => {
+  const providers = providersOf({
+    providers: [
+      {
+        key: "honeycomb",
+        name: "Honeycomb",
+        description: "Send timings and health to Honeycomb.",
+        kind: "otlp",
+        prefill: { address: "https://api.honeycomb.io", ignored: 3 },
+      },
+      { name: "no key" },
+      "nonsense",
+    ],
+  } as unknown as TelemetryDestinationList);
+  assertEquals(providers.map((provider) => provider.key), ["honeycomb"]);
+  assertEquals(providers[0].prefill, { address: "https://api.honeycomb.io" });
 });
 
-Deno.test("the search matches a name or a kind's label, and the filters narrow it", () => {
-  const all = [
-    row("Grafana Cloud", "working"),
-    row("Honeycomb", "failing"),
-    row("Old collector", "off", "other"),
-  ];
-  const label = (kind: string) => kind === "otlp" ? "OpenTelemetry" : "Other";
-  const none = { q: "", state: "all", kind: null } as const;
-  assertEquals(filterDestinations(all, none, label).length, 3);
+Deno.test("a new draft starts with the provider's own values", () => {
+  const [kind] = kindsOf(LIST);
+  const draft = blankDraft(kind, measurementsOf(LIST), {
+    address: "https://api.honeycomb.io",
+  });
+  assertEquals(draft.values.address, "https://api.honeycomb.io");
+  assertEquals(draft.values.headerName, "");
+});
+
+Deno.test("a destination shows its saved provider, else its kind's first, never a guess", () => {
+  const providers = providersOf({
+    providers: [
+      {
+        key: "opentelemetry",
+        name: "OpenTelemetry",
+        description: "",
+        kind: "otlp",
+        prefill: {},
+      },
+      {
+        key: "grafana",
+        name: "Grafana",
+        description: "",
+        kind: "otlp",
+        prefill: {},
+      },
+    ],
+  } as unknown as TelemetryDestinationList);
+  const label = (kind: string) => `kind ${kind}`;
   assertEquals(
-    filterDestinations(all, { ...none, q: " GRAFANA " }, label).map((entry) =>
-      entry.name
+    providerForDestination(
+      { kind: "otlp", provider: "grafana" },
+      providers,
+      label,
     ),
-    ["Grafana Cloud"],
+    { key: "grafana", name: "Grafana" },
   );
   assertEquals(
-    filterDestinations(all, { ...none, q: "opentelemetry" }, label).length,
-    2,
+    providerForDestination({ kind: "otlp", provider: null }, providers, label),
+    { key: "opentelemetry", name: "OpenTelemetry" },
   );
   assertEquals(
-    filterDestinations(all, { ...none, state: "failing" }, label).map((entry) =>
-      entry.name
+    providerForDestination({ kind: "other", provider: null }, providers, label),
+    { key: "other", name: "kind other" },
+  );
+});
+
+Deno.test("the state counts read as numbers and a missing one is zero", () => {
+  assertEquals(
+    stateCountsOf(
+      {
+        stateCounts: { all: 4, failing: 1, off: "x" },
+      } as unknown as TelemetryDestinationList,
     ),
-    ["Honeycomb"],
+    {
+      all: 4,
+      working: 0,
+      not_tested_yet: 0,
+      failing: 1,
+      dropping_data: 0,
+      off: 0,
+    },
   );
-  assertEquals(
-    filterDestinations(all, { ...none, kind: "other" }, label).map((entry) =>
-      entry.name
-    ),
-    ["Old collector"],
-  );
-  assertEquals(failingOf(all).map((entry) => entry.name), ["Honeycomb"]);
-  assertEquals(atLimit(all), false);
 });
