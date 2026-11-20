@@ -1,4 +1,4 @@
-import type { MemoryEntryResponse } from "../../api/client.ts";
+import type { ApiFailure, MemoryEntryResponse } from "../../api/client.ts";
 
 /** The one badge a remembered fact wears in the list (design-ux, #72). */
 export type MemoryBadge =
@@ -90,4 +90,98 @@ export function correctionCount(
 ): number {
   const revision = entry.currentRevision?.revision ?? 1;
   return Math.max(0, revision - 1);
+}
+
+/** The changes a person may make to a fact, from where it stands. */
+export type MemoryActions = Readonly<{
+  /** A suggested fact: put it in use as it is worded. */
+  approve: boolean;
+  /** A suggested fact: change the wording first; saving it puts it in use. */
+  correctThenApprove: boolean;
+  /** A fact in use: a new wording with a reason and a source. */
+  correct: boolean;
+  /** A suggested fact: do not use it (nothing was using it, so nothing to confirm). */
+  dontUse: boolean;
+  /** A fact in use: stop using it, after a confirmation. */
+  stopUsing: boolean;
+  /** A fact no longer used: put it back in use. */
+  useAgain: boolean;
+}>;
+
+/** A retired fact cannot be corrected (the server refuses), so it offers only Use again. */
+export function memoryActions(
+  entry: Pick<MemoryEntryResponse, "status">,
+): MemoryActions {
+  const proposed = entry.status === "proposed";
+  const active = entry.status === "active";
+  return {
+    approve: proposed,
+    correctThenApprove: proposed,
+    correct: active,
+    dontUse: proposed,
+    stopUsing: active,
+    useAgain: entry.status === "retired",
+  };
+}
+
+/** Why a change did not go through, in the few ways the page has words for. */
+export type MemoryRefusal =
+  | "offline"
+  | "forbidden"
+  | "stale"
+  | "notFound"
+  | "retired"
+  | "conflict"
+  | "unscanned"
+  | "weak"
+  | "scope"
+  | "source"
+  | "other";
+
+const REFUSAL_BY_REASON: Readonly<Record<string, MemoryRefusal>> = {
+  memory_version_stale: "stale",
+  memory_not_found: "notFound",
+  memory_retired: "retired",
+  conflict_detected: "conflict",
+  conflict_unscanned: "unscanned",
+  evidence_weak: "weak",
+  repository_out_of_scope: "scope",
+  source_artifact_unknown: "source",
+};
+
+/**
+ * Reads a failed change by the rule slug the server sent, never by its text.
+ * A 409 or 412 with no known slug still means someone else got there first.
+ */
+export function memoryRefusal(error: unknown): MemoryRefusal {
+  const failure = error as Partial<ApiFailure> | null;
+  if (failure === null || typeof failure !== "object") return "other";
+  if (failure.kind === "network") return "offline";
+  if (failure.kind !== "problem" || failure.problem === undefined) {
+    return "other";
+  }
+  const { reason, status } = failure.problem;
+  const known = reason === undefined ? undefined : REFUSAL_BY_REASON[reason];
+  if (known !== undefined) return known;
+  if (status === 403) return "forbidden";
+  return status === 409 || status === 412 ? "stale" : "other";
+}
+
+/** What a correction is made of. */
+export type CorrectionDraft = Readonly<{
+  content: string;
+  reason: string;
+  /** The document version chosen as the source; empty until one is chosen. */
+  sourceArtifactVersionId: string;
+}>;
+
+/** Which fields of a correction are missing (a blank wording or reason counts as missing). */
+export function correctionMissing(
+  draft: CorrectionDraft,
+): { content: boolean; reason: boolean; source: boolean } {
+  return {
+    content: draft.content.trim() === "",
+    reason: draft.reason.trim() === "",
+    source: draft.sourceArtifactVersionId === "",
+  };
 }

@@ -5,6 +5,7 @@ import { useBakeryApi } from "../../api/context.tsx";
 import { memoryRevisionsQueryOptions } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { MemoryFactActions } from "./MemoryFactActions.tsx";
 import {
   confidenceBand,
   type MemoryBadge,
@@ -30,7 +31,8 @@ export function memoryBadgeTone(
  * history is read here.
  */
 export function MemoryFactSheet(
-  { entry, onClose, phone, repositoryName }: {
+  { canManage, entry, onClose, phone, repositoryName }: {
+    readonly canManage: boolean;
     readonly entry: MemoryEntryResponse;
     readonly onClose: () => void;
     readonly phone: boolean;
@@ -151,6 +153,7 @@ export function MemoryFactSheet(
             </UI.Text>
           </UI.Stack>
         )}
+        <MemoryFactActions canManage={canManage} entry={entry} phone={phone} />
         <UI.Heading level="section">
           {translate("library.memory.fact.history" as never)}
         </UI.Heading>

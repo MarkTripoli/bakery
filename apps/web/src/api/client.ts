@@ -230,6 +230,7 @@ export type AgentDefinitionResponse = ClientOutputMap["AgentDefinition"];
 export type MemoryEntryResponse = ClientOutputMap["MemoryEntry"];
 export type MemoryEntryListResponse = ClientOutputMap["Page<MemoryEntry>"];
 export type MemoryRevisionResponse = ClientOutputMap["MemoryRevision"];
+export type MemoryRevisionCreateInput = ClientInputMap["MemoryRevisionCreate"];
 export type MemoryRevisionListResponse =
   ClientOutputMap["Page<MemoryRevision>"];
 export type AgentDefinitionListResponse =
@@ -1400,6 +1401,27 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<MemoryRevisionListResponse>>;
+  /**
+   * Puts a fact in use (approving a suggestion, or using it again) or stops
+   * using it. `version` is the fact's own, sent as If-Match; the server may
+   * refuse with a reason (a source it cannot hold, a conflicting fact).
+   */
+  readonly updateMemory: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly status: "active" | "retired";
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryResponse>>;
+  /** Corrects a fact: a new wording with the reason and the source version that says so. */
+  readonly createMemoryRevision: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: MemoryRevisionCreateInput;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryRevisionResponse>>;
   /** The organization's agent definitions, one page of a cursor list. */
   readonly listAgents: (options: {
     readonly organizationId: string;
@@ -4867,6 +4889,49 @@ export function createBakeryApiClient({
           },
           { signal: options.signal },
         );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateMemory(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.update"](
+          { id: options.id, status: options.status },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createMemoryRevision(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memoryRevisions.create"](
+          { id: options.id, ...options.input },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.memoryId !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
         return { ok: true, data };
       } catch (error) {
         return failed(error);

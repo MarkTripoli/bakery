@@ -475,6 +475,8 @@ export function LibraryPage() {
       </UI.SettingsContent>
       {openFact === undefined ? null : (
         <MemoryFactSheet
+          key={openFact.id}
+          canManage={canManage}
           entry={openFact}
           phone={phone}
           repositoryName={repositoryNames.get(openFact.repositoryId) ?? null}
