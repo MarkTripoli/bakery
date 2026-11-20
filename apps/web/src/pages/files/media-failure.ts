@@ -15,3 +15,15 @@ import { isArtifactContentMismatch } from "../artifact-mismatch.ts";
 export function mediaFailureIsMismatch(error: unknown): boolean {
   return isArtifactContentMismatch(error);
 }
+
+/**
+ * A download the server refused: is the file wrong, or did the download fail?
+ *
+ * Pressing Download on a damaged video is the same question the player asks, and
+ * it must get the same answer: the panel says the file does not match its record
+ * and stops offering to save it, rather than reporting a download that failed and
+ * leaving the button there to be pressed again.
+ */
+export function refusedDownload(error: unknown): "mismatch" | "failed" {
+  return mediaFailureIsMismatch(error) ? "mismatch" : "failed";
+}

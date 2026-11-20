@@ -16,6 +16,7 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { sizeParts } from "./files-state.ts";
 import { FilePreview, previewKind } from "./FilePreview.tsx";
+import { refusedDownload } from "./media-failure.ts";
 import { offersDownload } from "../preview-actions.ts";
 import { type ReactNode, useState } from "react";
 
@@ -87,9 +88,18 @@ export function FileDetails(
       file.id,
       shown?.revision,
     );
-    if (
-      !result.ok || result.data.status !== 200 || result.data.content === null
-    ) {
+    if (!result.ok) {
+      // A refused read is not a download that failed: the bytes and the record
+      // disagree, and that is the same refusal the preview shows. Keeping it here
+      // means the panel says one thing, and stops offering to save the bytes.
+      if (refusedDownload(result.error) === "mismatch") {
+        setBytesMismatch(true);
+        return;
+      }
+      setDownloadFailed(true);
+      return;
+    }
+    if (result.data.status !== 200 || result.data.content === null) {
       setDownloadFailed(true);
       return;
     }
