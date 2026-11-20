@@ -96,6 +96,91 @@ export function FileSearchControls(
     );
     return () => globalThis.clearTimeout(timer);
   }, [text, state, onChange]);
+  const phone = useShellViewport() === "phone";
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const active =
+    [state.type, state.kind, state.by].filter((value) => value !== undefined)
+      .length + (state.everywhere && !atTop ? 1 : 0);
+  const filterItems = (
+    <>
+      {atTop ? null : (
+        <UI.Combobox
+          label={translate("files.search.where")}
+          value={state.everywhere ? "all" : "folder"}
+          onChange={(event) =>
+            onChange({
+              ...state,
+              everywhere: event.currentTarget.value === "all",
+            })}
+          options={[
+            {
+              value: "folder",
+              label: translate("files.search.where.folder"),
+            },
+            { value: "all", label: translate("files.search.where.all") },
+          ]}
+        />
+      )}
+      <UI.Combobox
+        label={translate("files.search.type")}
+        value={state.type ?? ""}
+        onChange={(event) => {
+          const value = event.currentTarget.value;
+          onChange({
+            ...state,
+            type: (MEDIA_GROUPS as readonly string[]).includes(value)
+              ? value as MediaGroup
+              : undefined,
+          });
+        }}
+        options={[
+          { value: "", label: translate("files.search.type.any") },
+          ...MEDIA_GROUPS.map((group) => ({
+            value: group,
+            label: translate(`files.search.type.${group}` as never),
+          })),
+        ]}
+      />
+      <UI.Combobox
+        label={translate("files.search.kind")}
+        value={state.kind ?? ""}
+        onChange={(event) => {
+          const value = event.currentTarget.value;
+          onChange({ ...state, kind: value === "" ? undefined : value });
+        }}
+        options={kindOptions}
+      />
+      <UI.Combobox
+        label={translate("files.search.by")}
+        value={state.by ?? ""}
+        onChange={(event) => {
+          const value = event.currentTarget.value;
+          onChange({ ...state, by: value === "" ? undefined : value });
+        }}
+        options={byOptions}
+      />
+      {state.q !== "" || state.type !== undefined ||
+          state.kind !== undefined || state.by !== undefined
+        ? (
+          <UI.Button
+            variant="secondary"
+            onClick={() => {
+              setText("");
+              onChange({
+                ...state,
+                q: "",
+                type: undefined,
+                kind: undefined,
+                by: undefined,
+              });
+            }}
+          >
+            {translate("files.search.clear")}
+          </UI.Button>
+        )
+        : null}
+    </>
+  );
   return (
     <UI.Stack gap="compact" data-testid="files-search">
       <UI.SearchField
@@ -110,84 +195,43 @@ export function FileSearchControls(
           }
         }}
       />
-      <UI.Inline gap="compact" data-controls="filters">
-        {atTop ? null : (
-          <UI.Combobox
-            label={translate("files.search.where")}
-            value={state.everywhere ? "all" : "folder"}
-            onChange={(event) =>
-              onChange({
-                ...state,
-                everywhere: event.currentTarget.value === "all",
-              })}
-            options={[
-              {
-                value: "folder",
-                label: translate("files.search.where.folder"),
-              },
-              { value: "all", label: translate("files.search.where.all") },
-            ]}
-          />
-        )}
-        <UI.Combobox
-          label={translate("files.search.type")}
-          value={state.type ?? ""}
-          onChange={(event) => {
-            const value = event.currentTarget.value;
-            onChange({
-              ...state,
-              type: (MEDIA_GROUPS as readonly string[]).includes(value)
-                ? value as MediaGroup
-                : undefined,
-            });
-          }}
-          options={[
-            { value: "", label: translate("files.search.type.any") },
-            ...MEDIA_GROUPS.map((group) => ({
-              value: group,
-              label: translate(`files.search.type.${group}` as never),
-            })),
-          ]}
-        />
-        <UI.Combobox
-          label={translate("files.search.kind")}
-          value={state.kind ?? ""}
-          onChange={(event) => {
-            const value = event.currentTarget.value;
-            onChange({ ...state, kind: value === "" ? undefined : value });
-          }}
-          options={kindOptions}
-        />
-        <UI.Combobox
-          label={translate("files.search.by")}
-          value={state.by ?? ""}
-          onChange={(event) => {
-            const value = event.currentTarget.value;
-            onChange({ ...state, by: value === "" ? undefined : value });
-          }}
-          options={byOptions}
-        />
-        {state.q !== "" || state.type !== undefined ||
-            state.kind !== undefined || state.by !== undefined
-          ? (
-            <UI.Button
-              variant="secondary"
-              onClick={() => {
-                setText("");
-                onChange({
-                  ...state,
-                  q: "",
-                  type: undefined,
-                  kind: undefined,
-                  by: undefined,
-                });
-              }}
+      {phone
+        ? (
+          <>
+            <UI.Inline gap="compact">
+              <UI.Button
+                variant="secondary"
+                aria-haspopup="dialog"
+                onClick={() => setSheetOpen(true)}
+              >
+                {active > 0
+                  ? translate("files.filters.buttonCount", { count: active })
+                  : translate("files.filters.button")}
+              </UI.Button>
+            </UI.Inline>
+            <UI.Sheet
+              open={sheetOpen}
+              onOpenChange={setSheetOpen}
+              title={translate("files.filters.title")}
+              dismissLabel={translate("files.filters.close")}
             >
-              {translate("files.search.clear")}
-            </UI.Button>
-          )
-          : null}
-      </UI.Inline>
+              <UI.Stack gap="standard" data-controls="filters">
+                {filterItems}
+                <UI.Button
+                  variant="primary"
+                  onClick={() => setSheetOpen(false)}
+                >
+                  {translate("files.filters.show")}
+                </UI.Button>
+              </UI.Stack>
+            </UI.Sheet>
+          </>
+        )
+        : (
+          <UI.Inline gap="compact" data-controls="filters">
+            {filterItems}
+          </UI.Inline>
+        )}
     </UI.Stack>
   );
 }

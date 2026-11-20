@@ -4909,5 +4909,10 @@
   "files.search.kind": "⟪Kind⟫",
   "files.search.kind.any": "⟪Any⟫",
   "files.search.by": "⟪Made by⟫",
-  "files.search.by.any": "⟪Anyone⟫"
+  "files.search.by.any": "⟪Anyone⟫",
+  "files.filters.button": "⟪Filters⟫",
+  "files.filters.buttonCount": "⟪Filters · {count}⟫",
+  "files.filters.title": "⟪Filters⟫",
+  "files.filters.close": "⟪Close filters⟫",
+  "files.filters.show": "⟪Show results⟫"
 }

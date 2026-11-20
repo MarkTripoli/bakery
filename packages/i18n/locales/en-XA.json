@@ -4909,5 +4909,10 @@
   "files.search.kind": "⟦Ķïñð⟧",
   "files.search.kind.any": "⟦Àñÿ⟧",
   "files.search.by": "⟦Ṁàðë ƀÿ…⟧",
-  "files.search.by.any": "⟦Àñÿôñë…⟧"
+  "files.search.by.any": "⟦Àñÿôñë…⟧",
+  "files.filters.button": "⟦Ƒïļŧëŕš…⟧",
+  "files.filters.buttonCount": "⟦Ƒïļŧëŕš · {count} ŧëš⟧",
+  "files.filters.title": "⟦Ƒïļŧëŕš…⟧",
+  "files.filters.close": "⟦Çļôšë ƒïļŧëŕš ŧë⟧",
+  "files.filters.show": "⟦Šĥôŵ ŕëšûļŧš ŧë⟧"
 }

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { filesFixture, TREE } from "./helpers/files-fixture.ts";
 import { uuid } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
@@ -15,6 +15,23 @@ for (
 ) {
   test.describe(`${viewport.name}: files`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    /** The filters: beside the search on desktop, in one bottom sheet on a phone. */
+    const withFilters = async (
+      page: Page,
+      use: (filters: Page | Locator) => Promise<unknown>,
+    ) => {
+      if (viewport.name !== "phone") {
+        await use(page);
+        return;
+      }
+      await page.getByRole("button", { name: /^Filters/ }).click();
+      const sheet = page.getByRole("dialog", { name: "Filters" });
+      await expect(sheet).toBeVisible();
+      await use(sheet);
+      await sheet.getByRole("button", { name: "Show results" }).click();
+      await expect(sheet).toBeHidden();
+    };
 
     test("the top of the tree lists the folders with what each holds", async ({ page }) => {
       await filesFixture(page);
@@ -267,13 +284,22 @@ for (
     test("the Kind and Made by filters narrow a search and live in the address", async ({ page }) => {
       const { seen } = await filesFixture(page);
       await page.goto("/files/projects/web-app");
-      await page.getByRole("combobox", { name: "Kind" }).selectOption("plan");
+      await withFilters(
+        page,
+        (filters) =>
+          filters.getByRole("combobox", { name: "Kind" }).selectOption("plan"),
+      );
       await expect(page).toHaveURL(/kind=plan/);
       await expect(page.getByRole("link", { name: "plan.md" })).toBeVisible();
       await expect(page.getByRole("link", { name: "demo.mp4" })).toHaveCount(0);
       expect(seen.searches.some((search) => search.includes("kind=plan")))
         .toBe(true);
-      await page.getByLabel("Made by").selectOption({ label: "Ana Reyes" });
+      await withFilters(page, async (filters) => {
+        await filters.getByLabel("Made by").selectOption({
+          label: "Ana Reyes",
+        });
+        if (viewport.name === "phone") await still(page, "files-filters-sheet");
+      });
       await expect(page).toHaveURL(new RegExp(`by=${uuid(8800)}`));
       await page.mouse.move(700, 700);
       await still(page, "files-filters");
@@ -282,9 +308,17 @@ for (
           search.includes(`producerId=${uuid(8800)}`)
         ),
       ).toBe(true);
-      await page.getByLabel("Made by").selectOption({ label: "Build worker" });
+      await withFilters(
+        page,
+        (filters) =>
+          filters.getByLabel("Made by").selectOption({ label: "Build worker" }),
+      );
       await expect(page.getByText("Nothing matches")).toBeVisible();
-      await page.getByRole("button", { name: "Clear search" }).click();
+      await withFilters(
+        page,
+        (filters) =>
+          filters.getByRole("button", { name: "Clear search" }).click(),
+      );
       await expect(page).not.toHaveURL(/kind=|by=/);
       await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
     });
@@ -292,13 +326,20 @@ for (
     test("the file type filter narrows a search, and Clear search goes back to the folder", async ({ page }) => {
       await filesFixture(page);
       await page.goto("/files/projects/web-app");
-      await page.getByLabel("File type").selectOption("video");
+      await withFilters(
+        page,
+        (filters) => filters.getByLabel("File type").selectOption("video"),
+      );
       const results = page.getByTestId("files-results");
       await expect(results.getByRole("link", { name: "demo.mp4" }))
         .toBeVisible();
       await expect(results.getByRole("link", { name: "plan.md" }))
         .toHaveCount(0);
-      await page.getByRole("button", { name: "Clear search" }).click();
+      await withFilters(
+        page,
+        (filters) =>
+          filters.getByRole("button", { name: "Clear search" }).click(),
+      );
       await expect(page.getByTestId("files-results")).toHaveCount(0);
       await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
     });
@@ -306,7 +347,10 @@ for (
     test("All files searches beyond the folder, and no match says so", async ({ page }) => {
       const { seen } = await filesFixture(page);
       await page.goto("/files/projects/api");
-      await page.getByLabel("Where").selectOption("all");
+      await withFilters(
+        page,
+        (filters) => filters.getByLabel("Where").selectOption("all"),
+      );
       await page.getByRole("searchbox", { name: "Search files by name" })
         .fill("plan");
       await expect(
