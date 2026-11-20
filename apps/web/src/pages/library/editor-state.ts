@@ -30,6 +30,51 @@ export type EditorAction =
   | { readonly kind: "undo" }
   | { readonly kind: "redo" };
 
+/**
+ * The definition the editor saves: the version's own definition with its
+ * `steps` replaced by the editor's list. A step the editor did not change is
+ * the authored node itself, every key kept (`if`, `retry`, `limits`, …),
+ * so an edit of one step never rewrites another. A changed step keeps the keys
+ * the editor does not hold; a new step has only what the editor knows.
+ */
+export function definitionOf(
+  spec: Readonly<Record<string, unknown>> | null,
+  steps: readonly EditorStep[],
+): Record<string, unknown> {
+  const held = Array.isArray(spec?.steps) ? spec.steps : [];
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const raw of held) {
+    if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
+      const node = raw as Record<string, unknown>;
+      if (typeof node.id === "string") byId.set(node.id, node);
+    }
+  }
+  return {
+    ...(spec ?? {}),
+    steps: steps.map((step) => {
+      const node = byId.get(step.id);
+      const agent = typeof node?.agentVersionId === "string"
+        ? node.agentVersionId
+        : null;
+      if (
+        node !== undefined && node.uses === step.uses &&
+        agent === step.agentVersionId
+      ) {
+        return node;
+      }
+      const { agentVersionId: _dropped, ...rest } = node ?? {};
+      return {
+        ...rest,
+        id: step.id,
+        uses: step.uses,
+        ...(step.agentVersionId === null
+          ? {}
+          : { agentVersionId: step.agentVersionId }),
+      };
+    }),
+  };
+}
+
 /** The editor's state for a version's steps: nothing to undo yet. */
 export function editorStateOf(
   steps: readonly EditorStep[],

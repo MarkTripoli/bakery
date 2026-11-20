@@ -1,13 +1,31 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "2dcf890407e62d5cf83f528eb59479696280688e"
+    "7b27af0ec5771c8deab67b80326829d0ddc2dbcd"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:33503ffbdf4b0c5daacbd6ab9b99bac1519a1e80c5e32e9d7c800e3b0d93a8d6",
-  "reason": "#44 evaluation batches re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2dcf890407e62d5cf83f528eb59479696280688e: the breaking drift is unchanged (evaluation actions joining the worker action and result unions).",
+  "targetCompatibilityDigest": "sha256:befefdae38beff74724b2b400d5864d2f6af70c87331e4b987c6b4b102a3bf25",
+  "reason": "#44 evaluation batches re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 7b27af0ec5771c8deab67b80326829d0ddc2dbcd: the breaking drift is unchanged.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "2dcf890407e62d5cf83f528eb59479696280688e"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:f204f40485b2c391f018f947955664f5e1d9315c7dd5838cd8785bd12ead618d",
+      "reason": "#46 development metrics re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2dcf890407e62d5cf83f528eb59479696280688e: the breaking drift is unchanged."
+    },
+    {
+      "fromBaseRefs": [
+        "2dcf890407e62d5cf83f528eb59479696280688e"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:33503ffbdf4b0c5daacbd6ab9b99bac1519a1e80c5e32e9d7c800e3b0d93a8d6",
+      "reason": "#44 evaluation batches re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2dcf890407e62d5cf83f528eb59479696280688e: the breaking drift is unchanged (evaluation actions joining the worker action and result unions)."
+    },
     {
       "fromBaseRefs": [
         "0aceacbe938b7d2b3bacc9073849fd32552a3e4e"
@@ -23,8 +41,8 @@
       ],
       "status": "displaced",
       "allowBreaking": true,
-      "targetCompatibilityDigest": "sha256:e3940506178e23e55599e1a67c9f59d0939e2ba913b15ec2b21125caaec059f3",
-      "reason": "#44 evaluation batches re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main b6307002a2978e10e83d7b28d2a676866b90080c: the evaluation.check and evaluation.score worker actions publish EvaluationCheckOutput and EvaluationScoreOutput, so the WorkerResult success union gains a second opaque JSON field (judgeOutput) and the generator numbers its shared JSON-value definitions one higher (WorkerResult fault.refineScope now references __schema3 instead of __schema2; the referenced JSON-value shape is unchanged). The approval it displaced at sha256:5f21fc22924aa26340da277a3d286d70b5517b8bde6fb02c1e53b453a917491e is preserved unchanged first below."
+      "targetCompatibilityDigest": "sha256:69c0243b9bd49da8b9278b63702507e0bdaac7fd701731cd4ec39ed1372ab67a",
+      "reason": "#46 development metrics re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main b6307002a2978e10e83d7b28d2a676866b90080c: the breaking drift is unchanged (MetricsQuery and the metrics read contracts from #746)."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
