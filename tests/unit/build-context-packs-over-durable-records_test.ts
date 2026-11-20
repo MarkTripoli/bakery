@@ -383,24 +383,6 @@ Deno.test("a non-text version becomes a reference with no text, never a blob", a
   );
 });
 
-Deno.test("an unknown, unbounded count in the envelope blocks the pack instead of counting as zero", async () => {
-  const pack = await build({
-    envelope: {
-      ...ENVELOPE,
-      counts: {
-        conversation: { state: "unknown", tokens: null, boundTokens: null },
-      },
-    },
-    candidates: [textCandidate("note", "small", { required: true })],
-  }) as Awaited<ReturnType<typeof buildContextPack>>;
-
-  // Treating the unknown as 0 would admit the note as if there were room.
-  assertEquals(pack.decision, "bound-more-before-dispatch");
-  assertEquals(pack.items, []);
-  assertEquals(pack.packDigest, null);
-});
-
-Deno.test("every admitted item says how its count was obtained, and none is unknown", async () => {
 Deno.test("a PDF is a reference that says it has no text extractor, an unknown binary says it is binary", async () => {
   for (
     const [mediaType, kind, limits] of [
@@ -482,7 +464,24 @@ Deno.test("a pack digest moves when an item's limit moves", async () => {
   );
 });
 
-Deno.test("an unknown count is never counted as zero", async () => {
+Deno.test("an unknown, unbounded count in the envelope blocks the pack instead of counting as zero", async () => {
+  const pack = await build({
+    envelope: {
+      ...ENVELOPE,
+      counts: {
+        conversation: { state: "unknown", tokens: null, boundTokens: null },
+      },
+    },
+    candidates: [textCandidate("note", "small", { required: true })],
+  }) as Awaited<ReturnType<typeof buildContextPack>>;
+
+  // Treating the unknown as 0 would admit the note as if there were room.
+  assertEquals(pack.decision, "bound-more-before-dispatch");
+  assertEquals(pack.items, []);
+  assertEquals(pack.packDigest, null);
+});
+
+Deno.test("every admitted item says how its count was obtained, and none is unknown", async () => {
   const pack = await build({
     envelope: ENVELOPE,
     candidates: [textCandidate("known", "text")],
