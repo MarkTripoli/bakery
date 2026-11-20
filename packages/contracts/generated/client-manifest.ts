@@ -40840,6 +40840,20 @@ export const clientManifest = {
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                         "description": "Principal who created the record."
                       },
+                      "createdByName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MemoryRevision.createdByName may be null in this transport value."
+                      },
                       "createdAt": {
                         "type": "string",
                         "format": "date-time",
@@ -40872,6 +40886,7 @@ export const clientManifest = {
                       "confidence",
                       "expiresAt",
                       "createdBy",
+                      "createdByName",
                       "createdAt",
                       "updatedAt",
                       "version"
@@ -41249,6 +41264,20 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Principal who created the record."
               },
+              "createdByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryRevision.createdByName may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -41281,6 +41310,7 @@ export const clientManifest = {
               "confidence",
               "expiresAt",
               "createdBy",
+              "createdByName",
               "createdAt",
               "updatedAt",
               "version"
@@ -60043,6 +60073,20 @@ export const clientManifest = {
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                   "description": "Principal who created the record."
                 },
+                "createdByName": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MemoryRevision.createdByName may be null in this transport value."
+                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time",
@@ -60075,6 +60119,7 @@ export const clientManifest = {
                 "confidence",
                 "expiresAt",
                 "createdBy",
+                "createdByName",
                 "createdAt",
                 "updatedAt",
                 "version"
@@ -60392,6 +60437,20 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Principal who created the record."
         },
+        "createdByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryRevision.createdByName may be null in this transport value."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -60424,6 +60483,7 @@ export const clientManifest = {
         "confidence",
         "expiresAt",
         "createdBy",
+        "createdByName",
         "createdAt",
         "updatedAt",
         "version"

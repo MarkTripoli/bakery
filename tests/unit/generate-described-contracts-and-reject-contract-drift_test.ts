@@ -887,11 +887,13 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "82208cd19ee685a73f12fe8c8d7d4f97d9138ce2",
   ];
   const approvedDigest =
-    "sha256:52694c6c5c85601fc23bab0a2989c1d8cb4d422e0d44a7a73af72447e6c1ee70";
+    "sha256:fb10887d4b159377b43b00903e72e8942c1804bb621ee75e18d5a3d40487193e";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced by the #72 re-bind that adds createdByName to MemoryRevision.
+    "sha256:52694c6c5c85601fc23bab0a2989c1d8cb4d422e0d44a7a73af72447e6c1ee70",
     // Displaced when main moved again (#734 merged): the digest follows the tree.
     "sha256:28b92c05eb6628790f55b608b89bda867f863b3476c3acf0e11e6aa5c9793eb2",
     // Displaced when main moved again (#738 merged): the digest follows the tree.

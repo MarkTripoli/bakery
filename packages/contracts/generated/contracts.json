@@ -100671,6 +100671,20 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Principal who created the record."
             },
+            "createdByName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "MemoryRevision.createdByName may be null in this transport value."
+            },
             "createdAt": {
               "type": "string",
               "format": "date-time",
@@ -100703,6 +100717,7 @@
             "confidence",
             "expiresAt",
             "createdBy",
+            "createdByName",
             "createdAt",
             "updatedAt",
             "version"
@@ -142380,6 +142395,20 @@
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                             "description": "Principal who created the record."
                           },
+                          "createdByName": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 65536,
+                                "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "MemoryRevision.createdByName may be null in this transport value."
+                          },
                           "createdAt": {
                             "type": "string",
                             "format": "date-time",
@@ -142412,6 +142441,7 @@
                           "confidence",
                           "expiresAt",
                           "createdBy",
+                          "createdByName",
                           "createdAt",
                           "updatedAt",
                           "version"
@@ -142787,6 +142817,20 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "Principal who created the record."
                   },
+                  "createdByName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "MemoryRevision.createdByName may be null in this transport value."
+                  },
                   "createdAt": {
                     "type": "string",
                     "format": "date-time",
@@ -142819,6 +142863,7 @@
                   "confidence",
                   "expiresAt",
                   "createdBy",
+                  "createdByName",
                   "createdAt",
                   "updatedAt",
                   "version"
@@ -159702,6 +159747,20 @@
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                       "description": "Principal who created the record."
                     },
+                    "createdByName": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "MemoryRevision.createdByName may be null in this transport value."
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time",
@@ -159734,6 +159793,7 @@
                     "confidence",
                     "expiresAt",
                     "createdBy",
+                    "createdByName",
                     "createdAt",
                     "updatedAt",
                     "version"
@@ -236188,7 +236248,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:52694c6c5c85601fc23bab0a2989c1d8cb4d422e0d44a7a73af72447e6c1ee70",
+  "compatibilityDigest": "sha256:fb10887d4b159377b43b00903e72e8942c1804bb621ee75e18d5a3d40487193e",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -295506,6 +295566,20 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Principal who created the record."
         },
+        "createdByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryRevision.createdByName may be null in this transport value."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -295538,6 +295612,7 @@
         "confidence",
         "expiresAt",
         "createdBy",
+        "createdByName",
         "createdAt",
         "updatedAt",
         "version"
@@ -337353,6 +337428,20 @@
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                         "description": "Principal who created the record."
                       },
+                      "createdByName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MemoryRevision.createdByName may be null in this transport value."
+                      },
                       "createdAt": {
                         "type": "string",
                         "format": "date-time",
@@ -337385,6 +337474,7 @@
                       "confidence",
                       "expiresAt",
                       "createdBy",
+                      "createdByName",
                       "createdAt",
                       "updatedAt",
                       "version"
@@ -337762,6 +337852,20 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Principal who created the record."
               },
+              "createdByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryRevision.createdByName may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -337794,6 +337898,7 @@
               "confidence",
               "expiresAt",
               "createdBy",
+              "createdByName",
               "createdAt",
               "updatedAt",
               "version"
@@ -354703,6 +354808,20 @@
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                   "description": "Principal who created the record."
                 },
+                "createdByName": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MemoryRevision.createdByName may be null in this transport value."
+                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time",
@@ -354735,6 +354854,7 @@
                 "confidence",
                 "expiresAt",
                 "createdBy",
+                "createdByName",
                 "createdAt",
                 "updatedAt",
                 "version"

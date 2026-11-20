@@ -5,9 +5,18 @@
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:52694c6c5c85601fc23bab0a2989c1d8cb4d422e0d44a7a73af72447e6c1ee70",
-  "reason": "#72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 82208cd19ee685a73f12fe8c8d7d4f97d9138ce2 (#730, #736, #738 and #734 merged): the events subscribe contract gains a memory scope kind (Scope.type and SyncQuery.scopeType accept `memory`, whose id is the organization and which only a caller who may read memory can subscribe to), on top of main's own approval for the #72 memory current-revision projection at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96, which is preserved unchanged first below. The drift is one added enum value on request inputs.",
+  "targetCompatibilityDigest": "sha256:fb10887d4b159377b43b00903e72e8942c1804bb621ee75e18d5a3d40487193e",
+  "reason": "#72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 82208cd19ee685a73f12fe8c8d7d4f97d9138ce2 (#730, #736, #738 and #734 merged): the events subscribe contract gains a memory scope kind (Scope.type and SyncQuery.scopeType accept `memory`, whose id is the organization and which only a caller who may read memory can subscribe to), on top of main's own approval for the #72 memory current-revision projection at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96, which is preserved unchanged first below. The drift is one added enum value on request inputs, and MemoryRevision gains a required nullable createdByName (the display name of the principal in createdBy), so the history names who made each wording without a second read.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "82208cd19ee685a73f12fe8c8d7d4f97d9138ce2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:52694c6c5c85601fc23bab0a2989c1d8cb4d422e0d44a7a73af72447e6c1ee70",
+      "reason": "#72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 82208cd19ee685a73f12fe8c8d7d4f97d9138ce2 (#730, #736, #738 and #734 merged): the events subscribe contract gains a memory scope kind (Scope.type and SyncQuery.scopeType accept `memory`, whose id is the organization and which only a caller who may read memory can subscribe to), on top of main's own approval for the #72 memory current-revision projection at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96, which is preserved unchanged first below. The drift is one added enum value on request inputs. [Displaced by the #72 re-bind that adds createdByName to MemoryRevision (History names who made each wording).]"
+    },
     {
       "fromBaseRefs": [
         "04c3fa8ffeccac98872c7cb9af1a7f35d43707d7"

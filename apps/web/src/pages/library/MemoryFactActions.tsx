@@ -104,6 +104,8 @@ export function MemoryFactActions(
   const change = async (status: "active" | "retired", done: Notice) => {
     setBusy(true);
     setFailure(null);
+    // Starting a change ends the "corrected while open" notice.
+    setChangedByOther(false);
     try {
       const result = await api.updateMemory({
         organizationId,

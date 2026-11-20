@@ -21831,6 +21831,7 @@
         "confidence",
         "expiresAt",
         "createdBy",
+        "createdByName",
         "createdAt",
         "updatedAt",
         "version"
@@ -21851,7 +21852,8 @@
         "version": "integer",
         "reason": "string|null",
         "sourceName": "string|null",
-        "sourceRevision": "integer|null"
+        "sourceRevision": "integer|null",
+        "createdByName": "string|null"
       },
       "nullableFields": [
         "supersedesId",
@@ -21859,7 +21861,8 @@
         "reason",
         "sourceArtifactVersionId",
         "sourceName",
-        "sourceRevision"
+        "sourceRevision",
+        "createdByName"
       ],
       "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
@@ -21878,7 +21881,8 @@
         "version": "Optimistic-concurrency version used when updating the record.",
         "reason": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking.",
         "sourceName": "Name of the artifact whose version this revision cites, so a reader sees which document it came from without a second read. Null unless sourceState is available or deleted: a reader who cannot read artifact versions, or a version that cannot be found, is never given a name.",
-        "sourceRevision": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null."
+        "sourceRevision": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null.",
+        "createdByName": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
       },
       "optionalFields": [
         "reason"

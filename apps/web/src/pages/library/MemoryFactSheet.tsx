@@ -87,24 +87,32 @@ export function MemoryFactSheet(
     : "";
   const sourceBox = source.kind === "available"
     ? (
-      <UI.Text data-testid="memory-source">
-        {sourceHref === null ? sourceText : (
-          <UI.Link
-            href={sourceHref}
-            onClick={(event) => {
-              // Let a modified click (new tab) go to the browser.
-              if (
-                event.metaKey || event.ctrlKey || event.shiftKey ||
-                event.button !== 0
-              ) return;
-              event.preventDefault();
-              onOpenSource(sourceHref);
-            }}
-          >
-            {sourceText}
-          </UI.Link>
+      <UI.Stack gap="tight" data-testid="memory-source">
+        {sourceHref === null ? <UI.Text>{sourceText}</UI.Text> : (
+          <>
+            <UI.Text>
+              <UI.Link
+                variant="sentence"
+                href={sourceHref}
+                onClick={(event) => {
+                  // Let a modified click (new tab) go to the browser.
+                  if (
+                    event.metaKey || event.ctrlKey || event.shiftKey ||
+                    event.button !== 0
+                  ) return;
+                  event.preventDefault();
+                  onOpenSource(sourceHref);
+                }}
+              >
+                {sourceText}
+              </UI.Link>
+            </UI.Text>
+            <UI.Text variant="muted">
+              {translate("library.memory.source.exactVersion" as never)}
+            </UI.Text>
+          </>
         )}
-      </UI.Text>
+      </UI.Stack>
     )
     : (
       <UI.InlineNotice
@@ -225,6 +233,12 @@ export function MemoryFactSheet(
                         `library.memory.badge.${stateBadge}` as never,
                       )
                       : translate("library.memory.fact.earlier" as never),
+                    revision.createdByName === null ||
+                      revision.createdByName === undefined
+                      ? null
+                      : translate("library.memory.fact.by" as never, {
+                        name: revision.createdByName,
+                      }),
                     date(revision.createdAt),
                     revision.reason === null ||
                       revision.reason === undefined
