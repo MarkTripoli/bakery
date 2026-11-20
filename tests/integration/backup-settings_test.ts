@@ -814,13 +814,16 @@ Deno.test("the runner is not given the credentials once the saved name is re-poi
 
     // Re-pointed at private addresses: the pair is withheld, the destination
     // still reads as configured, the refusal is named, and each read is one row.
-    const withheld = async (answer: readonly string[] | "unresolvable") => {
+    const withheld = async (
+      answer: readonly string[] | "unresolvable",
+      endpoint = named,
+    ) => {
       o.setHost(namedHost, answer);
       const body = await read();
       assertEquals(body.offsiteConfigured, true);
       assertEquals(body.offsiteAccessKeyId, null);
       assertEquals(body.offsiteSecretAccessKey, null);
-      assertEquals(body.offsiteEndpoint, named);
+      assertEquals(body.offsiteEndpoint, endpoint);
       assertEquals(body.offsiteBucket, "bakery-backups");
       return body.offsiteRefusal;
     };
@@ -862,7 +865,10 @@ Deno.test("the runner is not given the credentials once the saved name is re-poi
     await o.f.pgDatabase.query(
       "update bakery.backup_offsite_settings set endpoint = 'ftp://nowhere'",
     );
-    assertEquals(await withheld([publicAddress]), "destination_invalid");
+    assertEquals(
+      await withheld([publicAddress], "ftp://nowhere"),
+      "destination_invalid",
+    );
     assertEquals((await mine()).length, 7);
 
     // No row and no log line of any read holds a key.
