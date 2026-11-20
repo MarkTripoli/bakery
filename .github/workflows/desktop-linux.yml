@@ -1,0 +1,83 @@
+name: Desktop Linux
+
+# The desktop app's Linux build (#77): one job, on the hosted runner the other workflows use, that runs
+# only when the app or the files it copies in change. It is not part of the required aggregate in
+# ci.yml, which routes heavy lanes by event; a path-filtered workflow cannot be a required check
+# without hanging on pull requests that never touch the app.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "packages/ui/src/foundations/**"
+      - "docs/technical-design/enterprise-mocks/fonts/**"
+      - ".github/workflows/desktop-linux.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "packages/ui/src/foundations/**"
+      - "docs/technical-design/enterprise-mocks/fonts/**"
+      - ".github/workflows/desktop-linux.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: desktop-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned: the version the build was proven with. The package uses it to bundle, nothing else.
+  TAURI_CLI_VERSION: "2.12.6"
+  CARGO_TERM_COLOR: never
+
+jobs:
+  linux:
+    name: desktop / linux bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - name: Install the system libraries the app and its window test need
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libssl-dev libsecret-1-dev \
+            xvfb dbus libgl1-mesa-dri
+      - name: Rust toolchain
+        # The hosted runner ships rustup; this adds the two tools the build checks with.
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup default stable
+      - name: Copy the web's tokens and typeface into the window page
+        run: deno run --allow-read --allow-write apps/desktop/scripts/sync-foundations.ts
+      - name: Format and lint the Rust
+        working-directory: apps/desktop
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Test the core
+        working-directory: apps/desktop
+        run: cargo test -p bakery-desktop-core --locked
+      - name: Build the app
+        working-directory: apps/desktop
+        run: cargo build -p bakery-desktop --locked
+      - name: Content security policy, tried in the real window
+        working-directory: apps/desktop
+        env:
+          BAKERY_DESKTOP_BIN: ${{ github.workspace }}/apps/desktop/target/debug/bakery-desktop
+        run: bash e2e/policy.sh "$RUNNER_TEMP/policy"
+      - name: Install the Tauri CLI
+        run: cargo install tauri-cli --version "$TAURI_CLI_VERSION" --locked
+      - name: Build the Linux package
+        working-directory: apps/desktop
+        run: cargo tauri build --bundles deb
+      - name: Check the package registers bakery:// and passes the address to the app
+        working-directory: apps/desktop
+        run: python3 e2e/check_bundle.py target/release/bundle/deb/*.deb

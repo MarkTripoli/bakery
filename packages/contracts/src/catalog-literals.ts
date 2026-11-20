@@ -1604,6 +1604,7 @@ export type ContractOutputName =
   | "RouteContinuationOffer"
   | "RouteContinuationOffers"
   | "RouteContinuationPin"
+  | "RouteContinuationSource"
   | "RouteContinuationTarget"
   | "RouteHealth"
   | "RuleLockConflict"
