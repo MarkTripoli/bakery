@@ -18,7 +18,6 @@ import {
 } from "../helpers/ticket-admission/operations-http.ts";
 
 const TICKETS = "/v1/external-tickets";
-const SOURCES = "/v1/ticket-sources";
 
 type Page<T> = { items: T[]; nextCursor: string | null };
 
@@ -51,9 +50,11 @@ async function ticketOf(
   return found;
 }
 
-async function previewAll(fx: TicketFixture, sourceId: string) {
-  // A preview stores nothing; a sync reads every open issue and caches it.
-  await read(await post(fx, `${SOURCES}/${sourceId}/syncs`), 201);
+/** Caches the seeded issues the way a poll does. A preview stores nothing. */
+async function previewAll(fx: TicketFixture, sourceId: string, count = 3) {
+  for (let number = 1; number <= count; number++) {
+    await fx.admit(sourceId, { number, origin: "poll" });
+  }
 }
 
 Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one task, and only those", async () => {

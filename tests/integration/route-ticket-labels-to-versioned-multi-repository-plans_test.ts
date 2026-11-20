@@ -422,12 +422,8 @@ Deno.test("#31 AC2: a deleted (archived) target blocks the preview with a reason
       [frontend],
     );
     fx.reader.setIssue({ number: 8, ...issueLabels("backend", "frontend") });
-    await read(
-      await ticketCall(fx, "POST", `${SOURCES}/${sourceId}/syncs`, {
-        body: {},
-      }),
-      201,
-    );
+    // A preview stores nothing; a poll caches the ticket and its readiness.
+    await fx.admit(sourceId, { number: 8, origin: "poll" });
     const ticket = await fx.owner.query<{ id: string }>(
       "select id from bakery.external_tickets where ticket_source_id = $1",
       [sourceId],
@@ -785,12 +781,7 @@ Deno.test("#31 rules: replace is CAS (428 and 412), validates targets and bindin
     );
     assertEquals(unboundRole.issues?.[0]?.code, "routing_role_unbound");
     fx.reader.setIssue({ number: 20, labels: [EXECUTE_LABEL] });
-    await read(
-      await ticketCall(fx, "POST", `${SOURCES}/${sourceId}/syncs`, {
-        body: {},
-      }),
-      201,
-    );
+    await fx.admit(sourceId, { number: 20, origin: "poll" });
     const ticket = await fx.owner.query<
       { id: string; requirements_digest: string }
     >(
