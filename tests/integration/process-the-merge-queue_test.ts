@@ -160,132 +160,190 @@ Deno.test("the merge queue works each entry once and says why it stopped (#57)",
         dispatch as never,
       );
 
-    // A merge that went through: merged, no reason, and never worked twice.
-    const first = await admit();
-    const merged = scripted({ kind: "attempt", attempt: attemptOf("merged") });
-    assertEquals((await process(first.id, merged.dispatch)).kind, "processed");
-    assertEquals(await stateOf(first.id), { status: "merged", reason: null });
-    assertEquals((await process(first.id, merged.dispatch)).kind, "skipped");
-    assertEquals(merged.calls.count, 1);
-
-    // A refusal before anything was sent blocks with its reason.
-    const moved = await admit();
-    const refusing = scripted({ kind: "refused", reason: "head_moved" });
-    await process(moved.id, refusing.dispatch);
-    assertEquals(await stateOf(moved.id), {
-      status: "blocked",
-      reason: "head_moved",
-    });
-
-    // A merge GitHub refused blocks too, with its own reason.
-    const declined = await admit();
-    await process(
-      declined.id,
-      scripted({ kind: "attempt", attempt: attemptOf("refused") }).dispatch,
-    );
-    assertEquals(await stateOf(declined.id), {
-      status: "blocked",
-      reason: "github_refused",
-    });
-
-    // An unknown outcome stays merging: not worked again, not abandoned, and it
-    // holds the target so no second merge can be admitted behind it.
-    const unknown = await admit();
-    const unsure = scripted({ kind: "attempt", attempt: attemptOf("unknown") });
-    await process(unknown.id, unsure.dispatch);
-    assertEquals(await stateOf(unknown.id), {
-      status: "merging",
-      reason: null,
-    });
-    assertEquals((await process(unknown.id, unsure.dispatch)).kind, "skipped");
-    assertEquals(unsure.calls.count, 1);
-    await blockExhaustedEntry(database, {
-      organizationId,
-      mergeEntryId: unknown.id,
-    });
-    assertEquals(await stateOf(unknown.id), {
-      status: "merging",
-      reason: null,
-    });
-    const behind = await assertRejects(admit, StandardError);
-    assertEquals((behind as StandardError).code, "STATE_CONFLICT");
-    // The settling read that decides it finishes the entry; nothing is sent.
-    await withPgTransaction(
-      database,
-      (transaction) =>
-        settleEntriesOfPullRequest(
-          transaction,
-          organizationId,
-          pullRequestId,
-          "refused",
-        ),
-    );
-    assertEquals(await stateOf(unknown.id), {
-      status: "blocked",
-      reason: "not_merged",
-    });
-
-    // GitHub unreachable: the entry stays validating, and the retry resumes it.
-    const flaky = await admit();
-    const outage = scripted(
-      new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
-      { kind: "attempt", attempt: attemptOf("merged") },
-    );
-    await assertRejects(
-      () => process(flaky.id, outage.dispatch),
-      StandardError,
-    );
-    assertEquals(await stateOf(flaky.id), {
-      status: "validating",
-      reason: null,
-    });
-    assertEquals((await process(flaky.id, outage.dispatch)).kind, "processed");
-    assertEquals(await stateOf(flaky.id), { status: "merged", reason: null });
-
-    // Retries that ran out block the entry so it stops holding the target.
-    const stuck = await admit();
-    await assertRejects(
-      () =>
-        process(
-          stuck.id,
-          scripted(new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }))
-            .dispatch,
-        ),
-      StandardError,
-    );
-    await blockExhaustedEntry(database, {
-      organizationId,
-      mergeEntryId: stuck.id,
-    });
-    assertEquals(await stateOf(stuck.id), {
-      status: "blocked",
-      reason: "unavailable",
-    });
-
-    // Evidence that no longer says the same candidate blocks before GitHub is
-    // asked anything.
-    const changed = await admit();
-    await database.query(
-      `update bakery.pull_requests set head_sha = $3
-        where organization_id = $1 and id = $2`,
-      [organizationId, pullRequestId, "c".repeat(40)],
-    );
-    const untouched = scripted({
-      kind: "attempt",
-      attempt: attemptOf("merged"),
-    });
-    await process(changed.id, untouched.dispatch);
-    assertEquals(await stateOf(changed.id), {
-      status: "blocked",
-      reason: "evidence_changed",
-    });
-    assertEquals(untouched.calls.count, 0);
-
     // The fixture deletes the organization's tasks; the pull request this test
-    // added would block that, so it goes first (its entries cascade).
-    await database.query(
-      "delete from bakery.pull_requests where organization_id = $1",
-      [organizationId],
-    );
+    // added would block that, so it goes first (its entries cascade), whether
+    // or not an assertion above failed: a failure here must not hide behind a
+    // teardown error.
+    try {
+      // A merge that went through: merged, no reason, and never worked twice.
+      const first = await admit();
+      const merged = scripted({
+        kind: "attempt",
+        attempt: attemptOf("merged"),
+      });
+      assertEquals(
+        (await process(first.id, merged.dispatch)).kind,
+        "processed",
+      );
+      assertEquals(await stateOf(first.id), { status: "merged", reason: null });
+      assertEquals((await process(first.id, merged.dispatch)).kind, "skipped");
+      assertEquals(merged.calls.count, 1);
+
+      // A refusal before anything was sent blocks with its reason.
+      const moved = await admit();
+      const refusing = scripted({ kind: "refused", reason: "head_moved" });
+      await process(moved.id, refusing.dispatch);
+      assertEquals(await stateOf(moved.id), {
+        status: "blocked",
+        reason: "head_moved",
+      });
+
+      // A merge GitHub refused blocks too, with its own reason.
+      const declined = await admit();
+      await process(
+        declined.id,
+        scripted({ kind: "attempt", attempt: attemptOf("refused") }).dispatch,
+      );
+      assertEquals(await stateOf(declined.id), {
+        status: "blocked",
+        reason: "github_refused",
+      });
+
+      // An unknown outcome stays merging: not worked again, not abandoned, and it
+      // holds the target so no second merge can be admitted behind it.
+      const unknown = await admit();
+      const unsure = scripted({
+        kind: "attempt",
+        attempt: attemptOf("unknown"),
+      });
+      await process(unknown.id, unsure.dispatch);
+      assertEquals(await stateOf(unknown.id), {
+        status: "merging",
+        reason: null,
+      });
+      assertEquals(
+        (await process(unknown.id, unsure.dispatch)).kind,
+        "skipped",
+      );
+      assertEquals(unsure.calls.count, 1);
+      await blockExhaustedEntry(database, {
+        organizationId,
+        mergeEntryId: unknown.id,
+      });
+      assertEquals(await stateOf(unknown.id), {
+        status: "merging",
+        reason: null,
+      });
+      // The same candidate admitted again is the entry that already holds the
+      // target, not a second one.
+      const again = await admit();
+      assertEquals(again.id, unknown.id);
+      assertEquals(again.status, "merging");
+      // A different candidate for the same target waits behind it: refused.
+      const otherPullRequestId = crypto.randomUUID();
+      await database.query(
+        `insert into bakery.pull_requests (
+           id,organization_id,task_id,repository_id,provider_number,url,
+           head_sha,base_sha,status,version
+         ) values ($1,$2,$3,$4,92,'https://github.com/acme/widgets/pull/92',
+           $5,$6,'open',1)`,
+        [
+          otherPullRequestId,
+          organizationId,
+          world.taskId,
+          repositoryId,
+          evidence.headSha,
+          evidence.baseSha,
+        ],
+      );
+      const behind = await assertRejects(
+        () =>
+          withPgTransaction(
+            database,
+            (transaction) =>
+              createMergeEntry(transaction, organizationId, principal, {
+                requestId: `request-${crypto.randomUUID()}`,
+                traceId:
+                  "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                create: { ...input, pullRequestId: otherPullRequestId },
+              }),
+          ),
+        StandardError,
+      );
+      assertEquals((behind as StandardError).code, "STATE_CONFLICT");
+      assertEquals(
+        (behind as StandardError).params?.reason,
+        "target_merge_in_progress",
+      );
+      // The settling read that decides it finishes the entry; nothing is sent.
+      await withPgTransaction(
+        database,
+        (transaction) =>
+          settleEntriesOfPullRequest(
+            transaction,
+            organizationId,
+            pullRequestId,
+            "refused",
+          ),
+      );
+      assertEquals(await stateOf(unknown.id), {
+        status: "blocked",
+        reason: "not_merged",
+      });
+
+      // GitHub unreachable: the entry stays validating, and the retry resumes it.
+      const flaky = await admit();
+      const outage = scripted(
+        new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
+        { kind: "attempt", attempt: attemptOf("merged") },
+      );
+      await assertRejects(
+        () => process(flaky.id, outage.dispatch),
+        StandardError,
+      );
+      assertEquals(await stateOf(flaky.id), {
+        status: "validating",
+        reason: null,
+      });
+      assertEquals(
+        (await process(flaky.id, outage.dispatch)).kind,
+        "processed",
+      );
+      assertEquals(await stateOf(flaky.id), { status: "merged", reason: null });
+
+      // Retries that ran out block the entry so it stops holding the target.
+      const stuck = await admit();
+      await assertRejects(
+        () =>
+          process(
+            stuck.id,
+            scripted(new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }))
+              .dispatch,
+          ),
+        StandardError,
+      );
+      await blockExhaustedEntry(database, {
+        organizationId,
+        mergeEntryId: stuck.id,
+      });
+      assertEquals(await stateOf(stuck.id), {
+        status: "blocked",
+        reason: "unavailable",
+      });
+
+      // Evidence that no longer says the same candidate blocks before GitHub is
+      // asked anything.
+      const changed = await admit();
+      await database.query(
+        `update bakery.pull_requests set head_sha = $3
+          where organization_id = $1 and id = $2`,
+        [organizationId, pullRequestId, "c".repeat(40)],
+      );
+      const untouched = scripted({
+        kind: "attempt",
+        attempt: attemptOf("merged"),
+      });
+      await process(changed.id, untouched.dispatch);
+      assertEquals(await stateOf(changed.id), {
+        status: "blocked",
+        reason: "evidence_changed",
+      });
+      assertEquals(untouched.calls.count, 0);
+    } finally {
+      await database.query(
+        "delete from bakery.pull_requests where organization_id = $1",
+        [organizationId],
+      );
+    }
   });
 });
