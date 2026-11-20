@@ -5002,5 +5002,11 @@
   "files.filters.show": "⟦Šĥôŵ ŕëšûļŧš ŧë⟧",
   "files.filters.clear": "⟦Çļëàŕ ƒïļŧëŕš ŧë⟧",
   "files.search.by": "⟦Ṁàðë ƀÿ…⟧",
-  "files.search.by.any": "⟦Àñÿôñë…⟧"
+  "files.search.by.any": "⟦Àñÿôñë…⟧",
+  "files.search.fact": "⟦Ƒàçŧ⟧",
+  "files.search.fact.any": "⟦Àñÿ⟧",
+  "files.search.fact.chooseKind": "⟦Çĥôôšë à ķïñð ƒïŕšŧ ŧëšŧ⟧",
+  "files.search.fact.is": "⟦{name} ïš {value} ŧëš⟧",
+  "files.search.fact.helpLabel": "⟦Àƀôûŧ ƒàçŧš ŧ⟧",
+  "files.search.fact.help": "⟦Ƒàçŧš àŕë ṽàļûëš à ķïñð ŕëçôŕðš, šûçĥ àš à þļàñ'š ŕïšķ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

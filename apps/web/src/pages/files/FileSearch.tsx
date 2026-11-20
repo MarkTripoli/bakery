@@ -5,6 +5,7 @@ import * as UI from "@bakery/ui";
 import type { FileSearchHit } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
 import {
+  fileFactsQueryOptions,
   fileKindsQueryOptions,
   filePeopleQueryOptions,
   fileSearchQueryOptions,
@@ -33,13 +34,26 @@ export type SearchState = {
   readonly kind: string | undefined;
   /** The principal who made the file, or anyone. */
   readonly by: string | undefined;
+  /** One fact of the chosen kind, as `key:value`; only meaningful with a kind. */
+  readonly fact: string | undefined;
   readonly everywhere: boolean;
 };
 
 /** A search runs from two letters, or as soon as a filter is set. */
 export function isSearching(state: SearchState): boolean {
   return state.q.trim().length >= 2 || state.type !== undefined ||
-    state.kind !== undefined || state.by !== undefined;
+    state.kind !== undefined || state.by !== undefined ||
+    state.fact !== undefined;
+}
+
+/** A `key:value` fact split at its first colon, so a value may hold one. */
+export function splitFact(
+  fact: string | undefined,
+): { factKey: string; factValue: string } | null {
+  if (fact === undefined) return null;
+  const at = fact.indexOf(":");
+  if (at <= 0) return null;
+  return { factKey: fact.slice(0, at), factValue: fact.slice(at + 1) };
 }
 
 /** The search field and its filters, one row; typing is settled for 250 ms. */
@@ -55,6 +69,11 @@ export function FileSearchControls(
   const scope = useProtectedScope();
   const kinds = useQuery(fileKindsQueryOptions(api, scope));
   const people = useQuery(filePeopleQueryOptions(api, scope));
+  // Facts belong to a kind, so they are only read once a kind is chosen.
+  const facts = useQuery({
+    ...fileFactsQueryOptions(api, scope, state.kind ?? ""),
+    enabled: state.kind !== undefined,
+  });
   const kindOptions = [
     { value: "", label: translate("files.search.kind.any") },
     ...(kinds.data?.items ?? [])
@@ -69,6 +88,27 @@ export function FileSearchControls(
     !kindOptions.some((option) => option.value === state.kind)
   ) {
     kindOptions.push({ value: state.kind, label: state.kind });
+  }
+  const factName = (key: string) => key.charAt(0).toUpperCase() + key.slice(1);
+  const factOptions: { value: string; label: string }[] = [
+    { value: "", label: translate("files.search.fact.any") },
+  ];
+  for (const fact of facts.data?.items ?? []) {
+    const value = `${fact.key}:${fact.value}`;
+    if (factOptions.some((option) => option.value === value)) continue;
+    factOptions.push({
+      value,
+      label: translate("files.search.fact.is", {
+        name: factName(fact.key),
+        value: fact.value,
+      }),
+    });
+  }
+  if (
+    state.fact !== undefined &&
+    !factOptions.some((option) => option.value === state.fact)
+  ) {
+    factOptions.push({ value: state.fact, label: state.fact });
   }
   const principals = (people.data?.items ?? []).filter((item) =>
     item.disabledAt === null
@@ -116,17 +156,26 @@ export function FileSearchControls(
   const phone = useShellViewport() === "phone";
   const [sheetOpen, setSheetOpen] = useState(false);
   const active =
-    [state.type, state.kind, state.by].filter((value) => value !== undefined)
+    [state.type, state.kind, state.by, state.fact].filter((value) =>
+      value !== undefined
+    )
       .length + (state.everywhere && !atTop ? 1 : 0);
   const anySet = state.q !== "" || state.type !== undefined ||
-    state.kind !== undefined || state.by !== undefined;
+    state.kind !== undefined || state.by !== undefined ||
+    state.fact !== undefined;
   const clearSearch = anySet
     ? (
       <UI.Button
         variant="secondary"
         onClick={() => {
           setText("");
-          change({ q: "", type: undefined, kind: undefined, by: undefined });
+          change({
+            q: "",
+            type: undefined,
+            kind: undefined,
+            by: undefined,
+            fact: undefined,
+          });
         }}
       >
         {translate("files.search.clear")}
@@ -134,7 +183,8 @@ export function FileSearchControls(
     )
     : null;
   const filtersSet = state.type !== undefined || state.kind !== undefined ||
-    state.by !== undefined || (state.everywhere && !atTop);
+    state.by !== undefined || state.fact !== undefined ||
+    (state.everywhere && !atTop);
   const filterItems = (
     <>
       {atTop ? null : (
@@ -176,10 +226,31 @@ export function FileSearchControls(
         value={state.kind ?? ""}
         onChange={(event) => {
           const value = event.currentTarget.value;
-          change({ kind: value === "" ? undefined : value });
+          // A fact belongs to a kind, so changing the kind drops it.
+          change({ kind: value === "" ? undefined : value, fact: undefined });
         }}
         options={kindOptions}
       />
+      <UI.Inline gap="compact">
+        <UI.Combobox
+          label={translate("files.search.fact")}
+          value={state.kind === undefined ? "" : state.fact ?? ""}
+          disabled={state.kind === undefined}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            change({ fact: value === "" ? undefined : value });
+          }}
+          options={state.kind === undefined
+            ? [{
+              value: "",
+              label: translate("files.search.fact.chooseKind"),
+            }]
+            : factOptions}
+        />
+        <UI.HelpTip label={translate("files.search.fact.helpLabel")}>
+          {translate("files.search.fact.help")}
+        </UI.HelpTip>
+      </UI.Inline>
       <UI.Combobox
         label={translate("files.search.by")}
         value={state.by ?? ""}
@@ -236,6 +307,7 @@ export function FileSearchControls(
                       type: undefined,
                       kind: undefined,
                       by: undefined,
+                      fact: undefined,
                       everywhere: false,
                     })}
                 >
@@ -329,6 +401,7 @@ export function FileSearchResults(
       ...(state.type !== undefined ? { mediaGroup: state.type } : {}),
       ...(state.kind !== undefined ? { kind: state.kind } : {}),
       ...(state.by !== undefined ? { producerId: state.by } : {}),
+      ...(splitFact(state.fact) ?? {}),
       ...(!state.everywhere && folderPath !== "" ? { path: folderPath } : {}),
     }),
     enabled: scope.organizationId !== null,

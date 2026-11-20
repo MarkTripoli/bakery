@@ -257,6 +257,8 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
     contents: [] as (string | null)[],
     /** The query string of each search read. */
     searches: [] as string[],
+    /** The query string of each facts read. */
+    facts: [] as string[],
   };
   const json = (route: import("@playwright/test").Route, body: string) =>
     route.fulfill({ status: 200, contentType: "application/json", body });
@@ -451,6 +453,25 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
         }))),
       ),
   );
+  // What the plan files record, as the facts list answers it: each key with
+  // each value it holds and how many files hold it. plan.md holds risk:high.
+  const FACTS = [
+    { kind: "plan", key: "risk", value: "high", files: 1 },
+    { kind: "plan", key: "risk", value: "low", files: 2 },
+    { kind: "plan", key: "team", value: "web", files: 1 },
+  ];
+  await page.route(
+    (url) => url.pathname === "/v1/files/facts",
+    (route) => {
+      const url = new URL(route.request().url());
+      seen.facts.push(url.search);
+      const kind = url.searchParams.get("kind");
+      return json(
+        route,
+        page_(FACTS.filter((fact) => kind === null || fact.kind === kind)),
+      );
+    },
+  );
   await page.route(
     (url) => url.pathname === "/v1/files/search",
     (route) => {
@@ -458,6 +479,8 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
       seen.searches.push(url.search);
       const kindFilter = url.searchParams.get("kind");
       const producerFilter = url.searchParams.get("producerId");
+      const factKey = url.searchParams.get("factKey");
+      const factValue = url.searchParams.get("factValue");
       const query = (url.searchParams.get("query") ?? "").toLowerCase();
       const under = url.searchParams.get("path");
       const group = url.searchParams.get("mediaGroup");
@@ -515,6 +538,12 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           kindFilter === null || entry.kindName?.toLowerCase() === kindFilter
         )
         .filter(() => producerFilter === null || producerFilter === uuid(8800))
+        // Only plan.md records a fact in this tree: risk is high.
+        .filter((entry) =>
+          factKey === null ||
+          (entry.name === "plan.md" && factKey === "risk" &&
+            factValue === "high")
+        )
         .map((entry) => ({
           source: "files",
           entryId: uuid(entry.id),

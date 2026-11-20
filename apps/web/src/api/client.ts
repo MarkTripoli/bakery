@@ -569,8 +569,18 @@ export type FileSearchPage = ClientOutputMap["Page<FileSearchHit>"];
 export type FileSearchHit = FileSearchPage["items"][number];
 export type FileSearchInput = Pick<
   ClientInputMap["FileSearchQuery"],
-  "query" | "path" | "kind" | "mediaGroup" | "producerId" | "cursor"
+  | "query"
+  | "path"
+  | "kind"
+  | "mediaGroup"
+  | "producerId"
+  | "factKey"
+  | "factValue"
+  | "cursor"
 >;
+/** What the files of one kind record: each key with each value it holds and how many files hold it. */
+export type FileFactPage = ClientOutputMap["Page<FileFact>"];
+export type FileFact = FileFactPage["items"][number];
 export type LibraryPage = ClientOutputMap["Page<LibraryEntry>"];
 export type LibraryEntry = LibraryPage["items"][number];
 
@@ -613,6 +623,12 @@ export type BakeryApiClient = {
       input: FileSearchInput,
       signal?: AbortSignal,
     ) => Promise<ApiResult<FileSearchPage>>;
+    /** The facts the files of one kind record, for the Fact filter. */
+    readonly facts: (
+      organizationId: string,
+      kind: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<FileFactPage>>;
     /** One folder of the read-only library mirror (`/library`, `/library/kinds`). */
     readonly library: (
       organizationId: string,
@@ -3090,6 +3106,21 @@ export function createBakeryApiClient({
               ...input,
               limit: 25,
             }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async facts(org, kind, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["files.facts"]({ kind }, { signal }),
           };
         } catch (error) {
           return failed(error);

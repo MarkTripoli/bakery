@@ -494,6 +494,39 @@ for (
       await expect(page).not.toHaveURL(/kind=|q=/);
     });
 
+    test("the Fact filter waits for a kind, lists that kind's facts, lives in the address, and goes when the kind changes", async ({ page }) => {
+      const seen = await filesFixture(page);
+      await page.goto("/files/projects/web-app");
+      await withFilters(page, async (filters) => {
+        const fact = filters.getByRole("combobox", { name: "Fact" });
+        // Facts belong to a kind: nothing to choose until one is set.
+        await expect(fact).toBeDisabled();
+        await expect(fact.locator("option")).toHaveText([
+          "Choose a kind first",
+        ]);
+        await filters.getByRole("combobox", { name: "Kind" })
+          .selectOption("plan");
+        await expect(fact).toBeEnabled();
+        await fact.selectOption({ label: "Risk is high" });
+      });
+      await expect(page).toHaveURL(/fact=risk(%3A|:)high/);
+      await expect(page.getByRole("link", { name: "plan.md" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "demo.mp4" })).toHaveCount(0);
+      expect(
+        seen.searches.some((search) =>
+          search.includes("factKey=risk") && search.includes("factValue=high")
+        ),
+      ).toBe(true);
+      expect(seen.facts.every((read) => read.includes("kind=plan"))).toBe(true);
+      // Changing the kind drops the fact, which belonged to the old one.
+      await withFilters(
+        page,
+        (filters) =>
+          filters.getByRole("combobox", { name: "Kind" }).selectOption(""),
+      );
+      await expect(page).not.toHaveURL(/fact=|kind=/);
+    });
+
     test("the file type filter narrows a search, and Clear search goes back to the folder", async ({ page }) => {
       await filesFixture(page);
       await page.goto("/files/projects/web-app");

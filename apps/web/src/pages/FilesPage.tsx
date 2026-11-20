@@ -70,12 +70,14 @@ function StorageFilesPage({ path }: { readonly path: string }) {
     type?: MediaGroup;
     kind?: string;
     by?: string;
+    fact?: string;
     in?: "all";
   };
   const searchState: SearchState = {
     q: search.q ?? "",
     kind: search.kind,
     by: search.by,
+    fact: search.fact,
     type: search.type !== undefined &&
         (MEDIA_GROUPS as readonly string[]).includes(search.type)
       ? search.type
@@ -95,6 +97,7 @@ function StorageFilesPage({ path }: { readonly path: string }) {
       type?: MediaGroup | undefined;
       kind?: string | undefined;
       by?: string | undefined;
+      fact?: string | undefined;
       in?: "all" | undefined;
     },
   ) => {
@@ -106,6 +109,7 @@ function StorageFilesPage({ path }: { readonly path: string }) {
       type: search.type,
       kind: search.kind,
       by: search.by,
+      fact: search.fact,
       in: search.in,
       ...next,
     };
@@ -117,12 +121,14 @@ function StorageFilesPage({ path }: { readonly path: string }) {
       type?: MediaGroup;
       kind?: string;
       by?: string;
+      fact?: string;
       in?: "all";
     } = {};
     if (merged.q !== undefined && merged.q !== "") query.q = merged.q;
     if (merged.type !== undefined) query.type = merged.type;
     if (merged.kind !== undefined) query.kind = merged.kind;
     if (merged.by !== undefined) query.by = merged.by;
+    if (merged.fact !== undefined) query.fact = merged.fact;
     if (merged.in !== undefined) query.in = merged.in;
     if (merged.file !== undefined) query.file = merged.file;
     if (merged.tab !== undefined) query.tab = merged.tab;
@@ -316,6 +322,7 @@ function StorageFilesPage({ path }: { readonly path: string }) {
                 type: next.type,
                 kind: next.kind,
                 by: next.by,
+                fact: next.fact,
                 in: next.everywhere && !atTop ? "all" : undefined,
                 file: undefined,
                 tab: undefined,

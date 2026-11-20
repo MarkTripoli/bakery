@@ -1223,6 +1223,7 @@ function validateFilesSearch(
   type?: "text" | "image" | "video" | "audio" | "data" | "archive" | "other";
   kind?: string;
   by?: string;
+  fact?: string;
   in?: "all";
 } {
   return {
@@ -1243,6 +1244,9 @@ function validateFilesSearch(
       : {}),
     ...(typeof search.by === "string" && search.by !== ""
       ? { by: search.by.slice(0, 64) }
+      : {}),
+    ...(typeof search.fact === "string" && search.fact.includes(":")
+      ? { fact: search.fact.slice(0, 700) }
       : {}),
     ...(search.in === "all" ? { in: "all" as const } : {}),
     ...(Number.isInteger(Number(search.version)) && Number(search.version) > 0
