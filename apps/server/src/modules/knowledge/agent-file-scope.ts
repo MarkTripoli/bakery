@@ -94,7 +94,7 @@ export const AgentFileRefusal = Object.freeze(
     GrantRequiresPerson: "agent_file_grant_requires_person",
     /**
      * The area is outside the step's files section and no person granted the
-     * workflow a folder there: a sealed step, a step that narrowed its reads,
+     * workflow a folder there: an inputs-only step, a step that narrowed its reads,
      * or another project's tree.
      */
     AreaNotDeclared: "agent_file_area_not_declared",
@@ -500,7 +500,7 @@ export function fileAreaScope(
  * The session scopes a step's resolved files section mints at claim: the
  * read tools when it reads any tree area, the write tools when it writes
  * one, and one area scope per declared tree area so the guard judges every
- * call against the section the session was claimed under. A sealed step
+ * call against the section the session was claimed under. An inputs-only step
  * (read: [inputs]) gets no read tool at all.
  */
 export function stepFileScopes(

@@ -6,7 +6,7 @@
  * area resolves against the run's own work item and project.
  *
  * Absent means the defaults O44 (read) and O45 (write). A definition may only
- * narrow them: `read: [inputs]` is a sealed step, `write: [outputs]` stops
+ * narrow them: `read: [inputs]` is an inputs-only step, `write: [outputs]` stops
  * side-writes. Widening is a person's grant (#729), never a definition's, so
  * an area outside the write defaults is refused by name at compile time.
  */
@@ -71,7 +71,7 @@ export const WorkflowStepFilesSchema = z.object({
   read: z.array(WorkflowFileReadAreaSchema).max(
     WORKFLOW_FILE_READ_AREAS.length,
   ).describe(
-    "Areas the step may read, in canonical order and without repeats; [inputs] alone makes a sealed step that sees only its pinned inputs.",
+    "Areas the step may read, in canonical order and without repeats; [inputs] alone makes an inputs-only step that sees only its pinned inputs.",
   ),
   write: z.array(WorkflowFileWriteAreaSchema).max(
     WORKFLOW_FILE_WRITE_AREAS.length,
@@ -104,7 +104,7 @@ export function resolveStepFiles(
 }
 
 /** Whether a step reads only its pinned inputs (O53). */
-export function isSealedStep(files: WorkflowStepFiles | undefined): boolean {
+export function readsOnlyInputs(files: WorkflowStepFiles | undefined): boolean {
   const resolved = resolveStepFiles(files);
   return resolved.read.length === 1 && resolved.read[0] === "inputs";
 }

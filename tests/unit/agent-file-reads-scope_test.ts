@@ -14,7 +14,7 @@ import { StandardError } from "../../packages/contracts/src/http.ts";
 import {
   compileWorkflowDocument,
   DEFAULT_STEP_FILES,
-  isSealedStep,
+  readsOnlyInputs,
   resolveStepFiles,
   WORKFLOW_FILE_READ_AREAS,
   WORKFLOW_FILE_WRITE_AREAS,
@@ -45,7 +45,7 @@ import {
 } from "../../apps/server/src/modules/execution/session-tools.ts";
 import { readScopesForSession } from "../../apps/server/src/modules/execution/session-claim-credential.ts";
 import {
-  SEALED_STEP_FILES,
+  INPUTS_ONLY_STEP_FILES,
   stepFilesFromSnapshot,
 } from "../../apps/server/src/modules/execution/step-files.ts";
 
@@ -110,8 +110,8 @@ Deno.test("contract: O44 and O45 are the defaults when the section is absent", (
   // O45: outputs, workspace, the run folder, attachments, assets, workspaces.
   // /shared is not among them: it needs a grant.
   assert(!(DEFAULT_STEP_FILES.write as readonly string[]).includes("shared"));
-  assertEquals(isSealedStep(undefined), false);
-  assertEquals(isSealedStep({ read: ["inputs"], write: ["outputs"] }), true);
+  assertEquals(readsOnlyInputs(undefined), false);
+  assertEquals(readsOnlyInputs({ read: ["inputs"], write: ["outputs"] }), true);
 });
 
 Deno.test("contract: an unknown area or an extra key is refused, never dropped", () => {
@@ -217,15 +217,18 @@ Deno.test("claim: a run before plans takes the defaults; a plan step its own sec
     write: ["outputs"],
   });
   assertEquals(stepFilesFromSnapshot(snapshot, "bb"), DEFAULT_STEP_FILES);
-  // A step the plan does not name gets the sealed section, never the defaults.
-  assertEquals(stepFilesFromSnapshot(snapshot, "zz"), SEALED_STEP_FILES);
-  assertEquals(stepFilesFromSnapshot(snapshot, "Not A Key"), SEALED_STEP_FILES);
+  // A step the plan does not name gets the inputs-only section, never the defaults.
+  assertEquals(stepFilesFromSnapshot(snapshot, "zz"), INPUTS_ONLY_STEP_FILES);
+  assertEquals(
+    stepFilesFromSnapshot(snapshot, "Not A Key"),
+    INPUTS_ONLY_STEP_FILES,
+  );
   assertEquals(
     stepFilesFromSnapshot(
       { runtime: { pin: {}, document: { nope: 1 } } },
       "aa",
     ),
-    SEALED_STEP_FILES,
+    INPUTS_ONLY_STEP_FILES,
   );
 });
 
@@ -245,7 +248,7 @@ Deno.test("scopes: the defaults mint the read and write tools and one scope per 
   assertEquals([...scopes].sort(), [...scopes]);
 });
 
-Deno.test("scopes: a sealed step gets no storage tool at all", () => {
+Deno.test("scopes: an inputs-only step gets no storage tool at all", () => {
   assertEquals(stepFileScopes({ read: ["inputs"], write: ["outputs"] }), []);
   assertEquals(
     stepFileScopes({ read: ["inputs", "shared"], write: ["outputs"] }),
@@ -590,11 +593,11 @@ Deno.test("read guard: each closed area refuses by name while the other layers h
   );
 });
 
-Deno.test("read guard: a sealed or narrowed step reaches nothing it did not declare", async () => {
-  const sealed = stepFileScopes({ read: ["inputs"], write: ["outputs"] });
+Deno.test("read guard: a inputs-only or narrowed step reaches nothing it did not declare", async () => {
+  const inputsOnly = stepFileScopes({ read: ["inputs"], write: ["outputs"] });
   for (const chain of [shared, library, workItem]) {
     assertEquals(
-      await readReason(chain, [], sealed),
+      await readReason(chain, [], inputsOnly),
       AgentFileRefusal.AreaNotDeclared,
     );
   }
@@ -610,11 +613,11 @@ Deno.test("read guard: a sealed or narrowed step reaches nothing it did not decl
 });
 
 Deno.test("read guard: a live grant widens scope, never authority", async () => {
-  const sealed = stepFileScopes({ read: ["inputs"], write: ["outputs"] });
-  // An Admin's read grant on /shared opens it to a sealed step.
+  const inputsOnly = stepFileScopes({ read: ["inputs"], write: ["outputs"] });
+  // An Admin's read grant on /shared opens it to an inputs-only step.
   await assertAgentFileRead(
     fakeTx(shared, [grantRow(shared[0]!.id)]),
-    readScope(shared, sealed),
+    readScope(shared, inputsOnly),
   );
   // The owner's own grant opens the starter's folder.
   await assertAgentFileRead(
@@ -734,7 +737,7 @@ Deno.test("write defaults: a default never widens beyond the person", async () =
   assertEquals(await writeReason(theirFolder), AgentFileRefusal.GrantMissing);
 });
 
-Deno.test("claim: a person's file grant never reopens storage for a sealed step", () => {
+Deno.test("claim: a person's file grant never reopens storage for an inputs-only step", () => {
   const granted = [
     FILES_READ_SCOPE,
     FILES_WRITE_SCOPE,

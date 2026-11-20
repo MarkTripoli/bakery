@@ -117,7 +117,7 @@ export {
 export type { PlanStep, WorkflowPlan } from "./plan.ts";
 export {
   DEFAULT_STEP_FILES,
-  isSealedStep,
+  readsOnlyInputs,
   resolveStepFiles,
   WORKFLOW_FILE_READ_AREAS,
   WORKFLOW_FILE_TREE_READ_AREAS,
