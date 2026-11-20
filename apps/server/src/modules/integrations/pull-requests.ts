@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { recordPullRequestLifecycle } from "./pull-request-lifecycle.ts";
 import type { FactWriteResult } from "./remote-facts.ts";
 
 /**
@@ -321,6 +322,23 @@ export const PullRequestObservationSchema = z.object({
   observedStartedAt: z.date().describe(
     "Time Bakery began the read, taken before the request was sent.",
   ),
+  openedAt: z.date().nullable().default(null).describe(
+    "Provider created_at of the pull request; null when the read did not carry it.",
+  ),
+  closedAt: z.date().nullable().default(null).describe(
+    "Provider closed_at of the pull request; null while open or when unread.",
+  ),
+  mergedAt: z.date().nullable().default(null).describe(
+    "Provider merged_at; null unless the read reports the pull request merged.",
+  ),
+  additions: z.number().int().nonnegative().nullable().default(null).describe(
+    "Provider total of added lines in the diff; null is unknown.",
+  ),
+  deletions: z.number().int().nonnegative().nullable().default(null).describe(
+    "Provider total of deleted lines in the diff; null is unknown.",
+  ),
+  changedFiles: z.number().int().nonnegative().nullable().default(null)
+    .describe("Provider count of changed files; null is unknown."),
 }).strict().refine(
   (observation) => !observation.merged || observation.state === "closed",
   { message: "a merged pull request must read closed" },
@@ -406,7 +424,15 @@ export async function observePullRequest(
       observation.observedStartedAt,
     ],
   );
-  if (written.rowCount === 1) return "written";
+  if (written.rowCount === 1) {
+    await recordPullRequestLifecycle(transaction, {
+      organizationId: observation.organizationId,
+      pullRequestId: stored.id,
+      previousStatus: stored.status,
+      read: observation,
+    });
+    return "written";
+  }
   // Not written: the same state is stored, or a newer one is. A read of the
   // stored state that began later confirms it; only the read clock moves.
   const confirmed = await transaction.query(
@@ -432,7 +458,15 @@ export async function observePullRequest(
       observation.observedStartedAt,
     ],
   );
-  if (confirmed.rowCount === 1) return "unchanged";
+  if (confirmed.rowCount === 1) {
+    await recordPullRequestLifecycle(transaction, {
+      organizationId: observation.organizationId,
+      pullRequestId: stored.id,
+      previousStatus: stored.status,
+      read: observation,
+    });
+    return "unchanged";
+  }
   // Neither statement matched, and the lock held since the first select means
   // the stored row is still the one that select returned.
   const same = stored.providerUpdatedAt?.getTime() ===
