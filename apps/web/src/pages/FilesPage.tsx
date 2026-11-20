@@ -208,7 +208,8 @@ export function FilesPage({ path }: { readonly path: string }) {
   const fileMissing = search.file !== undefined && selected === null &&
     !searching && !loading &&
     (atTop || (entries.isSuccess && !entries.hasNextPage));
-  const fileFinding = wanted && !fileMissing && !searching && !loading;
+  const fileFinding = wanted && !fileMissing && !searching && !loading &&
+    !entries.isError;
   const filePage = selected !== null && phone && !searching;
   const detailsPanel = selected === null ? null : (
     <FileDetails

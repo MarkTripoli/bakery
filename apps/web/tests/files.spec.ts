@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { filesFixture } from "./helpers/files-fixture.ts";
+import { filesFixture, TREE } from "./helpers/files-fixture.ts";
 import { uuid } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
@@ -138,6 +138,35 @@ for (
         .toBeVisible();
       await expect(page.getByText(/This folder was not found|not found/i))
         .toHaveCount(0);
+    });
+
+    test("a folder is found past twenty pages of its parent's list", async ({ page }) => {
+      // Twenty-five folders sort ahead of web-app, one entry per page: the walk
+      // must read more than twenty pages of /projects to reach it.
+      const tree = [
+        ...TREE,
+        ...Array.from({ length: 25 }, (_, index) => ({
+          id: 2000 + index,
+          parent: 10,
+          path: `/projects/a-${String(index).padStart(3, "0")}`,
+          name: `a-${String(index).padStart(3, "0")}`,
+          kind: "folder" as const,
+        })),
+      ];
+      const { seen } = await filesFixture(page, { tree, pageSize: 1 });
+      await page.goto("/files/projects/web-app/media");
+      await expect(page.getByRole("link", { name: "broken.md" }))
+        .toBeVisible();
+      await expect(page.getByText("This folder was not found")).toHaveCount(0);
+      expect(seen.entries.filter((id) => id === uuid(10)).length)
+        .toBeGreaterThan(20);
+    });
+
+    test("a file link whose next page fails shows the error, not a search that never ends", async ({ page }) => {
+      await filesFixture(page, { pageSize: 2, failAfterFirstPage: true });
+      await page.goto(`/files/projects/web-app?file=${uuid(40)}`);
+      await expect(page.getByText("This folder did not load.")).toBeVisible();
+      await expect(page.getByText("Finding that file…")).toHaveCount(0);
     });
 
     test("selecting a file opens its details, then Versions and Used by", async ({ page }) => {

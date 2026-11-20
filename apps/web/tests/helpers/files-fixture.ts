@@ -220,6 +220,8 @@ export type FilesOptions = {
   pageSize?: number;
   /** A folder read that fails. */
   entriesFail?: boolean;
+  /** Every folder read after the first page fails. */
+  failAfterFirstPage?: boolean;
 };
 
 const page_ = (items: unknown[], nextCursor: string | null = null) =>
@@ -273,7 +275,10 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
       const url = new URL(route.request().url());
       const id = url.pathname.split("/")[4]!;
       seen.entries.push(id);
-      if (options.entriesFail) {
+      if (
+        options.entriesFail ||
+        (options.failAfterFirstPage && url.searchParams.has("cursor"))
+      ) {
         return route.fulfill({
           status: 500,
           contentType: "application/json",
