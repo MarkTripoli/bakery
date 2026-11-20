@@ -8623,6 +8623,30 @@
     {
       "group": "Storage",
       "method": "PUT",
+      "path": "/v1/storage/files/{id}/pin",
+      "action": "storageFiles.pin",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "organizationContext": "required_authenticated_context",
+      "input": "StorageFilePin",
+      "output": "ArtifactPinResult",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "PUT",
       "path": "/v1/storage/files",
       "action": "storageFiles.put",
       "access": "Developer",
