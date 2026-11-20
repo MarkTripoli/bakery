@@ -37,6 +37,12 @@ export type AuditEntry = {
   /** Null for installation-level and user-level mutations with no organization. */
   organizationId: string | null;
   principalId: string | null;
+  /**
+   * The agent session that made the call, for an agent's action through a
+   * session credential (O50: the audit names both the principal and the
+   * session). Null or absent for a person's own action and everything else.
+   */
+  agentSessionId?: string | null;
   operation: string;
   resourceType: string;
   resourceId: string;
@@ -170,8 +176,8 @@ export async function appendAudit(
   const result = await transaction.query(
     `insert into bakery.audit_events (
        organization_id, principal_id, operation, resource_type, resource_id,
-       outcome, request_id, trace_id, details
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+       outcome, request_id, trace_id, details, agent_session_id
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)`,
     [
       entry.organizationId,
       entry.principalId,
@@ -182,6 +188,7 @@ export async function appendAudit(
       entry.requestId,
       entry.traceId,
       JSON.stringify(entry.details ?? {}),
+      entry.agentSessionId ?? null,
     ],
   );
   return result.rowCount ?? 0;
