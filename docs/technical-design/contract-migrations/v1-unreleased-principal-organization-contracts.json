@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "940cd150fffa086e8c4f2cb68d1f5f1f2118e41c"
+    "a3a5a3400dc79a9ad646fc8631cf184dc8642d05"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:2bf1ae2f3be8ae4fb94976ae62b50dcb06d9959ba611b7631432f3706a5785c8",
-  "reason": "#19 private previews re-bind by dev-agx3 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 940cd150fffa086e8c4f2cb68d1f5f1f2118e41c: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:fc17149c0fe66b9edd3bce0e0e874009fcc4febff5c6e3a8348713e760f8be74",
+  "reason": "#19 private previews re-bind by dev-agx3 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a3a5a3400dc79a9ad646fc8631cf184dc8642d05: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; Preview also gains stoppedByName, the stopper's display name (design review of the web card); previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
