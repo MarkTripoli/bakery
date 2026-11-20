@@ -3170,6 +3170,37 @@
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/draft/publish",
+      "action": "skillDrafts.publish",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "SkillVersion",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "SKILL_CONTENT_INTEGRITY_FAILED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft/files",
       "action": "skillDraftFiles.save",
       "access": "Owner for personal; Admin for organization",
@@ -13680,6 +13711,7 @@
     "skillDrafts.update",
     "skillDrafts.discard",
     "skillDrafts.check",
+    "skillDrafts.publish",
     "skillDraftFiles.save",
     "skillDraftFiles.get",
     "skillDraftFiles.delete",
@@ -21912,6 +21944,70 @@
                 "application/json": {
                   "schema": {
                     "$ref": "#/components/schemas/SkillDraftCheck"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdPath"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/skills/{id}/draft/publish": {
+        "post": {
+          "operationId": "skillDrafts.publish",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SkillVersion"
                   }
                 }
               }
@@ -54343,6 +54439,7 @@
                 "skillDrafts.update",
                 "skillDrafts.discard",
                 "skillDrafts.check",
+                "skillDrafts.publish",
                 "skillDraftFiles.save",
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
@@ -104024,6 +104121,7 @@
                 "skillDrafts.update",
                 "skillDrafts.discard",
                 "skillDrafts.check",
+                "skillDrafts.publish",
                 "skillDraftFiles.save",
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
@@ -104662,6 +104760,7 @@
                 "skillDrafts.update",
                 "skillDrafts.discard",
                 "skillDrafts.check",
+                "skillDrafts.publish",
                 "skillDraftFiles.save",
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
@@ -105300,6 +105399,7 @@
                 "skillDrafts.update",
                 "skillDrafts.discard",
                 "skillDrafts.check",
+                "skillDrafts.publish",
                 "skillDraftFiles.save",
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
@@ -150749,6 +150849,7 @@
                       "skillDrafts.update",
                       "skillDrafts.discard",
                       "skillDrafts.check",
+                      "skillDrafts.publish",
                       "skillDraftFiles.save",
                       "skillDraftFiles.get",
                       "skillDraftFiles.delete",
@@ -261143,7 +261244,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:751d7616e59c376cd5e6fc30528a47f2d1430a635134e2a8576458b406de1c24",
+  "compatibilityDigest": "sha256:19d22bb54d043d3b9d8190507caeb7d85879d7928edec2c83a048f4b69f7558b",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -268538,6 +268639,7 @@
             "skillDrafts.update",
             "skillDrafts.discard",
             "skillDrafts.check",
+            "skillDrafts.publish",
             "skillDraftFiles.save",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
@@ -318393,6 +318495,7 @@
             "skillDrafts.update",
             "skillDrafts.discard",
             "skillDrafts.check",
+            "skillDrafts.publish",
             "skillDraftFiles.save",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
@@ -319031,6 +319134,7 @@
             "skillDrafts.update",
             "skillDrafts.discard",
             "skillDrafts.check",
+            "skillDrafts.publish",
             "skillDraftFiles.save",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
@@ -319669,6 +319773,7 @@
             "skillDrafts.update",
             "skillDrafts.discard",
             "skillDrafts.check",
+            "skillDrafts.publish",
             "skillDraftFiles.save",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
@@ -365268,6 +365373,7 @@
                   "skillDrafts.update",
                   "skillDrafts.discard",
                   "skillDrafts.check",
+                  "skillDrafts.publish",
                   "skillDraftFiles.save",
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
