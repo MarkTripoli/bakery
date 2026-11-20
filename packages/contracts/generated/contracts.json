@@ -872,6 +872,28 @@
     {
       "group": "Work",
       "method": "GET",
+      "path": "/v1/handoff-manifests/{id}",
+      "action": "handoffManifests.get",
+      "access": "Developer",
+      "permission": "run:read",
+      "input": "IdPath",
+      "output": "HandoffManifestRecord",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "GET",
       "path": "/v1/runs/{id}/steps",
       "action": "runSteps.list",
       "access": "Developer",
@@ -6523,6 +6545,32 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "LEASE_EXPIRED",
         "LEASE_FENCED"
+      ],
+      "organizationContext": "none",
+      "implemented": false
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/attempts/{id}/handoff-manifests",
+      "action": "worker.handoffManifests",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "WorkerHandoffManifest",
+      "output": "HandoffManifestRecord",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED",
+        "BODY_TOO_LARGE"
       ],
       "organizationContext": "none",
       "implemented": false
@@ -12588,6 +12636,7 @@
     "sessions.steer",
     "runSteps.note",
     "runSteps.takeOver",
+    "handoffManifests.get",
     "outputStreams.transcript",
     "workers.list",
     "workers.get",
@@ -15020,6 +15069,60 @@
                 "application/json": {
                   "schema": {
                     "$ref": "#/components/schemas/Run"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/handoff-manifests/{id}": {
+        "get": {
+          "operationId": "handoffManifests.get",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HandoffManifestRecord"
                   }
                 }
               }
@@ -29025,6 +29128,58 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkerPreview"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/worker/attempts/{id}/handoff-manifests": {
+        "post": {
+          "operationId": "worker.handoffManifests",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HandoffManifestRecord"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerHandoffManifest"
                 }
               }
             }
@@ -51870,6 +52025,7 @@
                 "workflowPresets.list",
                 "runs.list",
                 "runs.get",
+                "handoffManifests.get",
                 "runSteps.list",
                 "output.streams.list",
                 "output.streams.read",
@@ -52096,6 +52252,7 @@
                 "worker.result",
                 "worker.artifacts",
                 "worker.previews",
+                "worker.handoffManifests",
                 "worker.invokeTool",
                 "artifacts.list",
                 "files.search",
@@ -56846,6 +57003,193 @@
           ],
           "additionalProperties": false,
           "description": "Registers a running preview upstream for an attempt so Bakery can proxy client traffic to it; the record tracks its route, port and expiry until the preview stops."
+        },
+        "WorkerHandoffManifest": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "leaseToken": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "Proof of the attempt's current lease backing this manifest; the manifest is refused once a newer attempt has advanced the job's fence. WorkerHandoffManifest.leaseToken must contain at most 500 characters."
+            },
+            "fence": {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "WorkerHandoffManifest.fence is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            "manifest": {
+              "description": "The bounded handoff manifest the source session writes before it stops: repository state as immutable artifact references, accepted decisions, the exact context selection, recent checks, effects still to reconcile, a durable checkpoint and a grant comparison digest. The server verifies every identifier and artifact digest, ignores the source's own safe-boundary and pending-effect claims and stores its own; it never holds a transcript, a secret or a lease token. WorkerHandoffManifest.manifest must contain at most 32768 UTF-8 bytes.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerHandoffManifest____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/WorkerHandoffManifest____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "x-utf8-max-bytes": 32768
+            },
+            "workerSessionId": {
+              "description": "Worker session that holds the attempt; required for protocol v2 hosts.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "workerSessionGeneration": {
+              "description": "Generation of that worker session; required with workerSessionId.",
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$"
+            }
+          },
+          "required": [
+            "leaseToken",
+            "fence",
+            "manifest"
+          ],
+          "additionalProperties": false,
+          "description": "Persists the handoff manifest of an attempt before the source session stops, so a continuation can resume from a verified record or start fresh without replaying uncertain effects."
+        },
+        "WorkerHandoffManifest____schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkerHandoffManifest____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/WorkerHandoffManifest____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkerHandoffManifest____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/WorkerHandoffManifest____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
         },
         "WorkerEnrollmentInspect": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -100684,6 +101028,7 @@
                 "workflowPresets.list",
                 "runs.list",
                 "runs.get",
+                "handoffManifests.get",
                 "runSteps.list",
                 "output.streams.list",
                 "output.streams.read",
@@ -100910,6 +101255,7 @@
                 "worker.result",
                 "worker.artifacts",
                 "worker.previews",
+                "worker.handoffManifests",
                 "worker.invokeTool",
                 "artifacts.list",
                 "files.search",
@@ -101291,6 +101637,7 @@
                 "workflowPresets.list",
                 "runs.list",
                 "runs.get",
+                "handoffManifests.get",
                 "runSteps.list",
                 "output.streams.list",
                 "output.streams.read",
@@ -101517,6 +101864,7 @@
                 "worker.result",
                 "worker.artifacts",
                 "worker.previews",
+                "worker.handoffManifests",
                 "worker.invokeTool",
                 "artifacts.list",
                 "files.search",
@@ -101898,6 +102246,7 @@
                 "workflowPresets.list",
                 "runs.list",
                 "runs.get",
+                "handoffManifests.get",
                 "runSteps.list",
                 "output.streams.list",
                 "output.streams.read",
@@ -102124,6 +102473,7 @@
                 "worker.result",
                 "worker.artifacts",
                 "worker.previews",
+                "worker.handoffManifests",
                 "worker.invokeTool",
                 "artifacts.list",
                 "files.search",
@@ -147316,6 +147666,7 @@
                       "workflowPresets.list",
                       "runs.list",
                       "runs.get",
+                      "handoffManifests.get",
                       "runSteps.list",
                       "output.streams.list",
                       "output.streams.read",
@@ -147542,6 +147893,7 @@
                       "worker.result",
                       "worker.artifacts",
                       "worker.previews",
+                      "worker.handoffManifests",
                       "worker.invokeTool",
                       "artifacts.list",
                       "files.search",
@@ -166119,6 +166471,245 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/components/schemas/MemoryEntry____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "HandoffManifestRecord": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID identifying the stored manifest."
+            },
+            "taskId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Task the manifest continues."
+            },
+            "runId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Workflow run the manifest continues."
+            },
+            "runStepId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Workflow step whose attempt wrote the manifest."
+            },
+            "sourceAttemptId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Attempt that wrote the manifest; there is at most one manifest per attempt."
+            },
+            "sourceFence": {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Fence of the source attempt when the manifest was written; decimal string."
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "fresh_session",
+                "exact_harness_resume"
+              ],
+              "description": "Whether the source asked for a fresh session or an exact harness resume; the receiving side decides eligibility again."
+            },
+            "digest": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "SHA-256 of the canonical stored manifest, so a reader can tell two manifests apart and a continuation can pin exactly one."
+            },
+            "safeBoundary": {
+              "type": "boolean",
+              "description": "Whether resuming here cannot repeat a non-replay-safe operation, computed by the server from the event journal and the effect ledger; the source's own claim is ignored."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "continued",
+                "blocked"
+              ],
+              "description": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused)."
+            },
+            "manifest": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HandoffManifestRecord____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/HandoffManifestRecord____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The stored manifest with the server's pending-effect list and safe boundary in place of the source's claims."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the manifest was stored."
+            }
+          },
+          "required": [
+            "id",
+            "taskId",
+            "runId",
+            "runStepId",
+            "sourceAttemptId",
+            "sourceFence",
+            "mode",
+            "digest",
+            "safeBoundary",
+            "status",
+            "manifest",
+            "createdAt"
+          ],
+          "additionalProperties": false,
+          "description": "A stored handoff manifest: where one source attempt stopped, with the server's own safe-boundary computation and the digest a continuation pins. It is a record to be re-verified, never the authority for run state."
+        },
+        "HandoffManifestRecord____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/HandoffManifestRecord____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/HandoffManifestRecord____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/HandoffManifestRecord____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/HandoffManifestRecord____schema0"
                     },
                     "description": "JSON object value."
                   }
@@ -254650,7 +255241,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:66193c7fd584bce79e64476500b166981ab69ff55dabdaab4c9d0b7cc9d0429c",
+  "compatibilityDigest": "sha256:c5823fe16f5e71773de092d3b1618c24d56646f1a94ec84c4a76771b7bb6ae12",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -261952,6 +262543,7 @@
             "workflowPresets.list",
             "runs.list",
             "runs.get",
+            "handoffManifests.get",
             "runSteps.list",
             "output.streams.list",
             "output.streams.read",
@@ -262178,6 +262770,7 @@
             "worker.result",
             "worker.artifacts",
             "worker.previews",
+            "worker.handoffManifests",
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
@@ -266942,6 +267535,195 @@
       ],
       "additionalProperties": false,
       "description": "Registers a running preview upstream for an attempt so Bakery can proxy client traffic to it; the record tracks its route, port and expiry until the preview stops."
+    },
+    "WorkerHandoffManifest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "leaseToken": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Proof of the attempt's current lease backing this manifest; the manifest is refused once a newer attempt has advanced the job's fence. WorkerHandoffManifest.leaseToken must contain at most 500 characters."
+        },
+        "fence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "WorkerHandoffManifest.fence is a bounded decimal string.",
+          "x-bigint-minimum": "0"
+        },
+        "manifest": {
+          "description": "The bounded handoff manifest the source session writes before it stops: repository state as immutable artifact references, accepted decisions, the exact context selection, recent checks, effects still to reconcile, a durable checkpoint and a grant comparison digest. The server verifies every identifier and artifact digest, ignores the source's own safe-boundary and pending-effect claims and stores its own; it never holds a transcript, a secret or a lease token. WorkerHandoffManifest.manifest must contain at most 32768 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 32768
+        },
+        "workerSessionId": {
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "workerSessionGeneration": {
+          "description": "Generation of that worker session; required with workerSessionId.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
+        }
+      },
+      "required": [
+        "leaseToken",
+        "fence",
+        "manifest"
+      ],
+      "additionalProperties": false,
+      "description": "Persists the handoff manifest of an attempt before the source session stops, so a continuation can resume from a verified record or start fresh without replaying uncertain effects.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
     },
     "WorkerEnrollmentInspect": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -310934,6 +311716,7 @@
             "workflowPresets.list",
             "runs.list",
             "runs.get",
+            "handoffManifests.get",
             "runSteps.list",
             "output.streams.list",
             "output.streams.read",
@@ -311160,6 +311943,7 @@
             "worker.result",
             "worker.artifacts",
             "worker.previews",
+            "worker.handoffManifests",
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
@@ -311541,6 +312325,7 @@
             "workflowPresets.list",
             "runs.list",
             "runs.get",
+            "handoffManifests.get",
             "runSteps.list",
             "output.streams.list",
             "output.streams.read",
@@ -311767,6 +312552,7 @@
             "worker.result",
             "worker.artifacts",
             "worker.previews",
+            "worker.handoffManifests",
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
@@ -312148,6 +312934,7 @@
             "workflowPresets.list",
             "runs.list",
             "runs.get",
+            "handoffManifests.get",
             "runSteps.list",
             "output.streams.list",
             "output.streams.read",
@@ -312374,6 +313161,7 @@
             "worker.result",
             "worker.artifacts",
             "worker.previews",
+            "worker.handoffManifests",
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
@@ -357716,6 +358504,7 @@
                   "workflowPresets.list",
                   "runs.list",
                   "runs.get",
+                  "handoffManifests.get",
                   "runSteps.list",
                   "output.streams.list",
                   "output.streams.read",
@@ -357942,6 +358731,7 @@
                   "worker.result",
                   "worker.artifacts",
                   "worker.previews",
+                  "worker.handoffManifests",
                   "worker.invokeTool",
                   "artifacts.list",
                   "files.search",
@@ -376446,6 +377236,247 @@
       ],
       "additionalProperties": false,
       "description": "Stable repository-scoped learning topic; its currentRevisionId points at the latest accepted memory_revisions row and advances only through the normal compare-and-swap update path, never by editing content in place.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "HandoffManifestRecord": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the stored manifest."
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Task the manifest continues."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Workflow run the manifest continues."
+        },
+        "runStepId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Workflow step whose attempt wrote the manifest."
+        },
+        "sourceAttemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Attempt that wrote the manifest; there is at most one manifest per attempt."
+        },
+        "sourceFence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Fence of the source attempt when the manifest was written; decimal string."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "fresh_session",
+            "exact_harness_resume"
+          ],
+          "description": "Whether the source asked for a fresh session or an exact harness resume; the receiving side decides eligibility again."
+        },
+        "digest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 of the canonical stored manifest, so a reader can tell two manifests apart and a continuation can pin exactly one."
+        },
+        "safeBoundary": {
+          "type": "boolean",
+          "description": "Whether resuming here cannot repeat a non-replay-safe operation, computed by the server from the event journal and the effect ledger; the source's own claim is ignored."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "continued",
+            "blocked"
+          ],
+          "description": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused)."
+        },
+        "manifest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "The stored manifest with the server's pending-effect list and safe boundary in place of the source's claims."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the manifest was stored."
+        }
+      },
+      "required": [
+        "id",
+        "taskId",
+        "runId",
+        "runStepId",
+        "sourceAttemptId",
+        "sourceFence",
+        "mode",
+        "digest",
+        "safeBoundary",
+        "status",
+        "manifest",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "A stored handoff manifest: where one source attempt stopped, with the server's own safe-boundary computation and the digest a continuation pins. It is a record to be re-verified, never the authority for run state.",
       "$defs": {
         "__schema0": {
           "anyOf": [
