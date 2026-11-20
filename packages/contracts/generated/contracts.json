@@ -9712,6 +9712,31 @@
     {
       "group": "Storage",
       "method": "PUT",
+      "path": "/v1/storage/files/{id}/pin",
+      "action": "storageFiles.pin",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "input": "StorageFilePin",
+      "output": "ArtifactPinResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "PUT",
       "path": "/v1/storage/files",
       "action": "storageFiles.put",
       "access": "Developer",
@@ -13245,6 +13270,7 @@
     "storageFileUses.list",
     "storageFiles.content",
     "storageFiles.byVersion",
+    "storageFiles.pin",
     "memories.list",
     "memories.get",
     "memories.create",
@@ -37359,6 +37385,70 @@
           }
         }
       },
+      "/v1/storage/files/{id}/pin": {
+        "put": {
+          "operationId": "storageFiles.pin",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ArtifactPinResult"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageFilePin"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/storage/files": {
         "put": {
           "operationId": "storageFiles.put",
@@ -53006,6 +53096,7 @@
                 "blobUploads.start",
                 "blobUploads.part",
                 "blobUploads.complete",
+                "storageFiles.pin",
                 "storageFiles.put",
                 "storageFolders.create",
                 "storageEntries.copy",
@@ -74374,6 +74465,21 @@
           ],
           "additionalProperties": false,
           "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+        },
+        "StorageFilePin": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "pinned": {
+              "type": "boolean",
+              "description": "Whether the file's artifact is pinned against retention collection; true protects its versions from expiry-based purge, false lets normal retention apply again. Asking for the state a file is already in changes nothing."
+            }
+          },
+          "required": [
+            "pinned"
+          ],
+          "additionalProperties": false,
+          "description": "Sets or clears the administrator pin of a record-area file by its storage-tree id, so the command line can pin without knowing the artifact id or its version. It is the same pin as the artifact PATCH."
         },
         "StorageFilePut": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -101991,6 +102097,7 @@
                 "blobUploads.start",
                 "blobUploads.part",
                 "blobUploads.complete",
+                "storageFiles.pin",
                 "storageFiles.put",
                 "storageFolders.create",
                 "storageEntries.copy",
@@ -102610,6 +102717,7 @@
                 "blobUploads.start",
                 "blobUploads.part",
                 "blobUploads.complete",
+                "storageFiles.pin",
                 "storageFiles.put",
                 "storageFolders.create",
                 "storageEntries.copy",
@@ -103229,6 +103337,7 @@
                 "blobUploads.start",
                 "blobUploads.part",
                 "blobUploads.complete",
+                "storageFiles.pin",
                 "storageFiles.put",
                 "storageFolders.create",
                 "storageEntries.copy",
@@ -148659,6 +148768,7 @@
                       "blobUploads.start",
                       "blobUploads.part",
                       "blobUploads.complete",
+                      "storageFiles.pin",
                       "storageFiles.put",
                       "storageFolders.create",
                       "storageEntries.copy",
@@ -248749,6 +248859,10 @@
               ],
               "description": "StorageFolderItem.artifactId may be null in this transport value."
             },
+            "pinned": {
+              "type": "boolean",
+              "description": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin."
+            },
             "contentRemoved": {
               "type": "boolean",
               "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
@@ -248772,6 +248886,7 @@
             "mediaType",
             "sizeBytes",
             "artifactId",
+            "pinned",
             "contentRemoved",
             "updatedAt"
           ],
@@ -248911,6 +249026,10 @@
                     ],
                     "description": "StorageFolderItem.artifactId may be null in this transport value."
                   },
+                  "pinned": {
+                    "type": "boolean",
+                    "description": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin."
+                  },
                   "contentRemoved": {
                     "type": "boolean",
                     "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
@@ -248934,6 +249053,7 @@
                   "mediaType",
                   "sizeBytes",
                   "artifactId",
+                  "pinned",
                   "contentRemoved",
                   "updatedAt"
                 ],
@@ -249586,6 +249706,10 @@
                   ],
                   "description": "StorageFolderItem.artifactId may be null in this transport value."
                 },
+                "pinned": {
+                  "type": "boolean",
+                  "description": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin."
+                },
                 "contentRemoved": {
                   "type": "boolean",
                   "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
@@ -249609,6 +249733,7 @@
                 "mediaType",
                 "sizeBytes",
                 "artifactId",
+                "pinned",
                 "contentRemoved",
                 "updatedAt"
               ],
@@ -256755,7 +256880,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:0f60a4416ed9a01039cafbc3ea65276df948d89091b04d292ab9b9cd00ecd7c2",
+  "compatibilityDigest": "sha256:a1833dc28351ee8bd6c088c26e2fc11bc72d0ca937610c048feccde80469a63f",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -264413,6 +264538,7 @@
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
+            "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
             "storageEntries.copy",
@@ -285847,6 +285973,21 @@
       ],
       "additionalProperties": false,
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+    },
+    "StorageFilePin": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pinned": {
+          "type": "boolean",
+          "description": "Whether the file's artifact is pinned against retention collection; true protects its versions from expiry-based purge, false lets normal retention apply again. Asking for the state a file is already in changes nothing."
+        }
+      },
+      "required": [
+        "pinned"
+      ],
+      "additionalProperties": false,
+      "description": "Sets or clears the administrator pin of a record-area file by its storage-tree id, so the command line can pin without knowing the artifact id or its version. It is the same pin as the artifact PATCH."
     },
     "StorageFilePut": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -313566,6 +313707,7 @@
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
+            "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
             "storageEntries.copy",
@@ -314185,6 +314327,7 @@
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
+            "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
             "storageEntries.copy",
@@ -314804,6 +314947,7 @@
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
+            "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
             "storageEntries.copy",
@@ -360384,6 +360528,7 @@
                   "blobUploads.start",
                   "blobUploads.part",
                   "blobUploads.complete",
+                  "storageFiles.pin",
                   "storageFiles.put",
                   "storageFolders.create",
                   "storageEntries.copy",
@@ -460606,6 +460751,10 @@
           ],
           "description": "StorageFolderItem.artifactId may be null in this transport value."
         },
+        "pinned": {
+          "type": "boolean",
+          "description": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin."
+        },
         "contentRemoved": {
           "type": "boolean",
           "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
@@ -460629,6 +460778,7 @@
         "mediaType",
         "sizeBytes",
         "artifactId",
+        "pinned",
         "contentRemoved",
         "updatedAt"
       ],
@@ -460768,6 +460918,10 @@
                 ],
                 "description": "StorageFolderItem.artifactId may be null in this transport value."
               },
+              "pinned": {
+                "type": "boolean",
+                "description": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin."
+              },
               "contentRemoved": {
                 "type": "boolean",
                 "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
@@ -460791,6 +460945,7 @@
               "mediaType",
               "sizeBytes",
               "artifactId",
+              "pinned",
               "contentRemoved",
               "updatedAt"
             ],
@@ -461443,6 +461598,10 @@
               ],
               "description": "StorageFolderItem.artifactId may be null in this transport value."
             },
+            "pinned": {
+              "type": "boolean",
+              "description": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin."
+            },
             "contentRemoved": {
               "type": "boolean",
               "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
@@ -461466,6 +461625,7 @@
             "mediaType",
             "sizeBytes",
             "artifactId",
+            "pinned",
             "contentRemoved",
             "updatedAt"
           ],
