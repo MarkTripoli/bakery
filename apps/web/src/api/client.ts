@@ -536,7 +536,69 @@ export type OutputStreamPage = ClientOutputMap["OutputStreamPage"];
 export type OutputStream = OutputStreamPage["items"][number];
 export type OutputReadPage = ClientOutputMap["OutputReadPage"];
 
+export type StorageFolderPage = ClientOutputMap["Page<StorageFolderItem>"];
+export type StorageFolderItem = StorageFolderPage["items"][number];
+export type StorageFileVersionPage =
+  ClientOutputMap["Page<StorageFileVersion>"];
+export type StorageFileVersion = StorageFileVersionPage["items"][number];
+export type StorageFileUsePage = ClientOutputMap["Page<StorageFileUse>"];
+export type StorageFileUse = StorageFileUsePage["items"][number];
+
+export type StorageFileAtVersion = ClientOutputMap["StorageFileAtVersion"];
+export type FileSearchPage = ClientOutputMap["Page<FileSearchHit>"];
+export type FileSearchHit = FileSearchPage["items"][number];
+export type FileSearchInput = Pick<
+  ClientInputMap["FileSearchQuery"],
+  "query" | "path" | "kind" | "mediaGroup" | "cursor"
+>;
+
 export type BakeryApiClient = {
+  /** The stored files and their folders: the read-only files browser's reads. */
+  readonly files: {
+    /** The caller's top-level folders, in display order, on one page. */
+    readonly roots: (
+      organizationId: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFolderPage>>;
+    /** One folder's entries, folders first, by name. */
+    readonly entries: (
+      organizationId: string,
+      folderId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFolderPage>>;
+    readonly versions: (
+      organizationId: string,
+      fileId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFileVersionPage>>;
+    readonly uses: (
+      organizationId: string,
+      fileId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFileUsePage>>;
+    /** The file a saved version belongs to, from the version id alone. */
+    readonly atVersion: (
+      organizationId: string,
+      versionId: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFileAtVersion>>;
+    /** Files and library items by name, with the filters of the files page. */
+    readonly search: (
+      organizationId: string,
+      input: FileSearchInput,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<FileSearchPage>>;
+    /** A file's bytes: its current version, or the one at `revision`. */
+    readonly content: (
+      organizationId: string,
+      fileId: string,
+      revision: number | undefined,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<ClientOutputMap["BinaryArtifact"]>>;
+  };
   readonly output: {
     readonly attempts: (
       organizationId: string,
@@ -2861,6 +2923,133 @@ export function createBakeryApiClient({
         url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
         url.searchParams.set("organizationId", org);
         return url.href;
+      },
+    },
+    files: {
+      async roots(org, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageRoots.list"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async entries(org, folderId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFolderEntries.list"]({
+              id: folderId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async versions(org, fileId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFileVersions.list"]({
+              id: fileId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async atVersion(org, versionId, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFiles.byVersion"]({
+              id: versionId,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async search(org, input, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["files.search"]({
+              ...input,
+              limit: 25,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async content(org, fileId, revision, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFiles.content"]({
+              id: fileId,
+              revision,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async uses(org, fileId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFileUses.list"]({
+              id: fileId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
       },
     },
     sessions: {
