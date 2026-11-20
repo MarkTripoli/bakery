@@ -2867,6 +2867,28 @@
     },
     {
       "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skills/{id}/used-by",
+      "action": "skills.usedBy",
+      "access": "Developer",
+      "permission": "skill:read",
+      "input": "CursorQuery",
+      "output": "Page<SkillUsage>",
+      "event": "",
+      "mcp": "bakery_skills_usedBy",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
       "access": "Owner for personal; Admin for organization",
       "permission": "skill:author",
       "mcp": null,
@@ -5687,7 +5709,7 @@
       "action": "previews.list",
       "access": "Developer",
       "permission": "preview:read",
-      "input": "TaskQuery",
+      "input": "PreviewQuery",
       "output": "Page<Preview>",
       "event": "",
       "mcp": "bakery_previews_list",
@@ -5696,9 +5718,11 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Workers",
@@ -5711,16 +5735,86 @@
       "output": "PreviewAccessResult",
       "event": "",
       "mcp": null,
-      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "idempotency": "Not replayed: every call issues a fresh one-use grant, and the grant is never stored in a replayable response",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
+      "access": "Developer",
+      "event": "",
+      "mcp": null,
+      "method": "POST",
+      "path": "/v1/previews/{id}/stop",
+      "action": "previews.stop",
+      "permission": "preview:access",
+      "input": "IdPath",
+      "output": "Preview",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
+      "access": "Developer",
+      "event": "",
+      "mcp": null,
+      "method": "DELETE",
+      "path": "/v1/preview-grants/{id}",
+      "action": "previews.revokeAccess",
+      "permission": "preview:access",
+      "input": "IdPath",
+      "output": "NoContent",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
+      "access": "Developer",
+      "event": "",
+      "mcp": null,
+      "method": "GET",
+      "path": "/v1/preview-availability",
+      "action": "previews.availability",
+      "permission": "preview:read",
+      "input": "Empty",
+      "output": "PreviewAvailability",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Worker protocol",
@@ -6052,6 +6146,26 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/files/facts",
+      "action": "files.facts",
+      "access": "Developer",
+      "permission": "artifact:read",
+      "input": "FileFactQuery",
+      "output": "Page<FileFact>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST"
       ],
