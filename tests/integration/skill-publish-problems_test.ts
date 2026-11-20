@@ -40,7 +40,7 @@ Deno.test("publishing a skill with broken files answers 422 with one plain probl
         })),
       ),
     };
-    const sent = ["# Skill", "the notez", "!!!!"];
+    const sent = ["# Skill", "the notez", "references!!"];
     const response = await f.post(
       f.ownerCookie,
       `/v1/skills/${skill.id}/versions`,
@@ -53,9 +53,9 @@ Deno.test("publishing a skill with broken files answers 422 with one plain probl
           path: file.path,
           mediaType: file.mediaType,
           isExecutable: false,
-          contentBase64: index === 2
-            ? sent[index]
-            : btoa(String.fromCharCode(...encoder.encode(sent[index]))),
+          contentBase64: btoa(
+            String.fromCharCode(...encoder.encode(sent[index])),
+          ),
         })),
       },
       "publish-problems",
@@ -70,7 +70,7 @@ Deno.test("publishing a skill with broken files answers 422 with one plain probl
       problem.issues.map(({ path, code }) => ({ path, code })),
       [
         { path: ["files", 1], code: "file_hash" },
-        { path: ["files", 2], code: "base64" },
+        { path: ["files", 2], code: "file_size" },
       ],
     );
     assert(problem.issues.every((issue) => !issue.message.includes("_")));
