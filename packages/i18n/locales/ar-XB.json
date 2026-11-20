@@ -5035,5 +5035,6 @@
   "files.search.none.both.all": "⟪Try fewer letters or another filter.⟫",
   "files.search.by.unknown": "⟪Unknown account⟫",
   "files.search.by.disabled": "⟪{name} (inactive)⟫",
-  "settings.roles.thing.backup": "⟪backups⟫"
+  "settings.roles.thing.backup": "⟪backups⟫",
+  "settings.roles.thing.batch": "⟪batches of issues⟫"
 }

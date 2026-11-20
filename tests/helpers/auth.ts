@@ -154,6 +154,8 @@ export async function openAuthFixture(options: {
   telemetryDestinations?: Parameters<
     typeof createApp
   >[0]["telemetryDestinations"];
+  /** Alert channel dependencies; tests share a fetch and an address policy. */
+  alertChannels?: Parameters<typeof createApp>[0]["alertChannels"];
   /** Extra runtime environment, such as the server budget policy. */
   env?: Record<string, string>;
 } = {}) {
@@ -268,6 +270,7 @@ export async function openAuthFixture(options: {
       skillStorageProbe: options.skillStorageProbe,
       emailSend: options.emailSend,
       telemetryDestinations: options.telemetryDestinations,
+      alertChannels: options.alertChannels,
     });
     const originalFetch = app.fetch.bind(app);
     app.fetch = (
@@ -497,6 +500,11 @@ export async function cleanupAuthFixture(
     `select id from bakery.principals where provider_user_id = any($1::uuid[])`,
     [userIds],
   );
+  await deleteAlertChannelRows(
+    pgDatabase,
+    `select id from bakery.principals where provider_user_id = any($1::uuid[])`,
+    [userIds],
+  );
   await pgDatabase.query(
     `delete from bakery.principals
      where provider_user_id = any($1::uuid[])`,
@@ -655,6 +663,45 @@ export async function deleteSkillStorageRows(
     ...deleted.rows.flatMap((row) => row.secretId ? [row.secretId] : []),
     ...stray.rows.map((row) => row.id),
   ];
+  if (secretIds.length === 0) return;
+  await pgDatabase.query(
+    "update bakery.secrets set active_version_id = null where id = any($1::uuid[])",
+    [secretIds],
+  );
+  await pgDatabase.query(
+    "delete from bakery.secret_versions where secret_id = any($1::uuid[])",
+    [secretIds],
+  );
+  await pgDatabase.query(
+    "delete from bakery.secrets where id = any($1::uuid[])",
+    [secretIds],
+  );
+}
+
+/**
+ * Removes alert channels and their installation-owned signing secrets that
+ * reference a principal the subquery selects, so those principals can be
+ * deleted. Deleting a channel leaves its sealed secret behind (the application
+ * role cannot delete it), so the secrets go by provider and author.
+ */
+export async function deleteAlertChannelRows(
+  pgDatabase: Awaited<ReturnType<typeof openAuthFixture>>["pgDatabase"],
+  principals: string,
+  values: unknown[],
+): Promise<void> {
+  await pgDatabase.query(
+    `delete from bakery.alert_channels
+      where created_by in (${principals}) or updated_by in (${principals})`,
+    values,
+  );
+  const stray = await pgDatabase.query<{ id: string }>(
+    `select distinct secret_id as id from bakery.secret_versions
+      where created_by in (${principals})
+        and secret_id in (select id from bakery.secrets
+          where organization_id is null and provider = 'alerts')`,
+    values,
+  );
+  const secretIds = stray.rows.map((row) => row.id);
   if (secretIds.length === 0) return;
   await pgDatabase.query(
     "update bakery.secrets set active_version_id = null where id = any($1::uuid[])",
