@@ -649,13 +649,13 @@ async function readFrame(
  */
 export async function probeBlob(
   database: Pick<PgDatabase, "query">,
-  input: {
-    organizationId: string;
-    blobId: string;
-    path: string;
-    sizeBytes: number;
-    force?: boolean;
-  },
+  input:
+    & Readonly<{
+      organizationId: string;
+      blobId: string;
+      force?: boolean;
+    }>
+    & ArtifactProbeInput,
   options: ArtifactProbeOptions = {},
 ): Promise<ArtifactProbeResult> {
   if (input.force !== true) {
