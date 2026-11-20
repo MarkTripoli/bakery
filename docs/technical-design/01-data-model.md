@@ -49,7 +49,7 @@ erDiagram
   jobs ||--o{ job_attempts : leases
   worker_hosts ||--o{ job_attempts : executes
   job_attempts ||--o{ workspaces : isolates
-  workspaces ||--o{ previews : serves
+  job_attempts ||--o{ previews : registers
   tasks ||--o{ artifacts : collects
   artifacts ||--o{ artifact_versions : versions
   artifact_versions ||--o{ memory_revisions : supports
