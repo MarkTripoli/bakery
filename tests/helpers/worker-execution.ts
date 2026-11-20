@@ -830,6 +830,13 @@ export async function seedEligibleJob(
     action?: string;
     input?: Record<string, unknown>;
     legacy?: boolean;
+    /**
+     * Publish a workflow document the plan compiler accepts. The default keeps
+     * the flat-era `workflow: { kind: "fixed" }` marker, which the compiler
+     * rejects as an unknown field, so a run admitted from that version (a spawn)
+     * would be refused as not compilable.
+     */
+    compilable?: boolean;
     skillRefs?: readonly { versionId: string; digest: string }[];
     agentConfig?: AgentVersionCreateConfig;
   } = {},
@@ -905,7 +912,9 @@ export async function seedEligibleJob(
     apiVersion: "bakery.dev/v1",
     kind: "workflow",
     name: `issue39-${suffix}`,
-    ...(options.legacy ? {} : { workflow: { kind: "fixed" } }),
+    ...(options.legacy || options.compilable
+      ? {}
+      : { workflow: { kind: "fixed" } }),
     ...(fixtureAgentConfig === null
       ? {}
       : { agents: { [action]: ids.agentVersionId } }),
