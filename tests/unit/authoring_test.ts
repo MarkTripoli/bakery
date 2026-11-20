@@ -7,12 +7,7 @@ import {
   validateDescription,
   validateReview,
 } from "../../scripts/authoring/validate.ts";
-import {
-  checkLive,
-  reportVerification,
-  VERIFICATION_CONTEXT,
-  verificationStatus,
-} from "../../scripts/authoring/github.ts";
+import { checkLive } from "../../scripts/authoring/github.ts";
 
 const work = [
   [
@@ -730,29 +725,19 @@ Deno.test("an unticked verification line passes the check and is reported as pen
   assertEquals(checked.pending.length, 1);
   assert(checked.pending[0].includes('"ui verified"'));
   assertEquals(f.writes, [], "the check itself writes nothing");
-
-  const status = await reportVerification(f.api, head, checked.pending, false);
-  assertEquals(status.state, "pending");
-  assert(status.description.includes("ui verified"));
-  assertEquals(f.writes.length, 1);
-  assertEquals(f.writes[0].method, "POST");
-  assertEquals(f.writes[0].path, "/statuses/" + head);
-  assertEquals(f.writes[0].body.context, VERIFICATION_CONTEXT);
-  assertEquals(f.writes[0].body.state, "pending");
 });
 
-Deno.test("every line ticked or N/A at the head makes verification a success, and a new head puts it back to pending with the reason", async () => {
+Deno.test("every line ticked or N/A at the head leaves nothing open, and a new head opens the old ticks again", async () => {
   const f = fixture();
   const checked = await checkLive(f.api, "pr", 170);
+  // The workflow runs the `verification` job only when this list is empty.
   assertEquals([checked.ok, checked.pending], [true, []]);
-  const done = await reportVerification(f.api, head, checked.pending, false);
-  assertEquals(done.state, "success");
-  assertEquals(f.writes.at(-1)?.body.state, "success");
+  assertEquals(f.writes, []);
   // A push moves the head: the ticks name an older one, whatever the body says.
-  const moved = await reportVerification(f.api, head, checked.pending, true);
-  assertEquals(moved.state, "pending");
-  assert(moved.description.includes("New commits"));
-  assertEquals(f.writes.at(-1)?.body.state, "pending");
+  f.data.pull.head = { sha: "d".repeat(40) };
+  const moved = await checkLive(f.api, "pr", 170);
+  assertEquals(moved.ok, true, moved.errors.join(" "));
+  assertEquals(moved.pending.length, 3);
 });
 
 Deno.test("a broken body still fails the check with the message the validator prints", async () => {
@@ -825,9 +810,6 @@ Deno.test("a tick at an older head is pending again, so a later edit cannot turn
   const checked = await checkLive(f.api, "pr", 170);
   assertEquals(checked.ok, true, checked.errors.join(" "));
   assertEquals(checked.pending.length, 3);
-  const status = await reportVerification(f.api, moved, checked.pending, false);
-  assertEquals(status.state, "pending");
-  assert(status.description.startsWith("3 verification lines open"));
 });
 
 Deno.test("format errors and pending lines are split by one rule", () => {
@@ -838,25 +820,4 @@ Deno.test("format errors and pending lines are split by one rule", () => {
   ]);
   assertEquals(split.errors, ["The description is too long."]);
   assertEquals(split.pending.length, 2);
-});
-
-Deno.test("the verification status names what is open and stays within a status line", () => {
-  const one = verificationStatus(
-    ['Verification pending: "backend verified" is not ticked.'],
-    false,
-  );
-  assertEquals(one, {
-    state: "pending",
-    description: "1 verification line open: backend verified",
-  });
-  const many = verificationStatus(
-    Array.from(
-      { length: 12 },
-      (_, n) =>
-        `Verification pending: "a very long verification item name number ${n}" is not ticked.`,
-    ),
-    false,
-  );
-  assert(many.description.length <= 140, String(many.description.length));
-  assert(many.description.startsWith("12 verification lines open"));
 });

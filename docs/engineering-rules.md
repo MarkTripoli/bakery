@@ -14,9 +14,9 @@ Create and edit a PR body with `scripts/authoring/pr-body.ts` (`publish` and
 `verify`): it runs the real validator first and sends nothing to GitHub when the
 body has a format error. A format error fails the `pull-request` check. A
 verification line nobody has ticked yet is not an error: it keeps the
-`verification` commit status pending until every line is ticked or marked N/A,
-and a push to the PR puts it back to pending. Merge needs `pull-request` green
-and `verification` success on the exact head.
+`verification` job skipped until every line is ticked or marked N/A at the PR
+head, and a push to the PR opens the old ticks again. Merge needs `pull-request`
+green and `verification` success on the exact head.
 
 ## Section navigation is a shared design standard
 

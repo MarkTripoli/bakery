@@ -2,9 +2,11 @@ import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
   buildPrBody,
   carryVerification,
+  createPrArgs,
   exampleSpec,
   parseArgs,
   type PrBodySpec,
+  prepareRepublish,
   setVerification,
   specErrors,
   type VerifyItem,
@@ -260,52 +262,6 @@ async function publishWithFakeGh(spec: unknown, ...args: string[]) {
   }
 }
 
-Deno.test("publish --pr refuses a live body whose carried line is a format error", async () => {
-  // The fake gh answers `pr view` with a live body whose tick has no claim, so
-  // the merged body has a real error: exit 1, and no `pr edit` is sent.
-  const dir = await Deno.makeTempDir();
-  try {
-    const live = buildPrBody(spec({ notApplicable: {} })).body.replace(
-      /^- \[ \] UI verified.*$/m,
-      "- [x] UI verified (design-ux) @ " + "a".repeat(8) + ":",
-    );
-    await Deno.writeTextFile(
-      dir + "/view.json",
-      JSON.stringify({ body: live, headRefOid: "a".repeat(40) }),
-    );
-    await Deno.writeTextFile(
-      dir + "/gh",
-      '#!/bin/sh\necho "$@" >> ' + dir + '/calls.txt\n[ "$2" = view ] && cat ' +
-        dir +
-        "/view.json\nexit 0\n",
-    );
-    await Deno.chmod(dir + "/gh", 0o755);
-    await Deno.writeTextFile(
-      dir + "/spec.json",
-      JSON.stringify(spec({ notApplicable: {} })),
-    );
-    const out = await new Deno.Command(Deno.execPath(), {
-      args: [
-        "run",
-        "-A",
-        "scripts/authoring/pr-body.ts",
-        "publish",
-        dir + "/spec.json",
-        "--pr",
-        "9",
-      ],
-      env: { PATH: dir + ":" + Deno.env.get("PATH") },
-      stdout: "piped",
-      stderr: "piped",
-    }).output();
-    const calls = await Deno.readTextFile(dir + "/calls.txt");
-    assertEquals(out.code, 1, new TextDecoder().decode(out.stderr));
-    assert(!calls.includes("edit"), calls);
-  } finally {
-    await Deno.remove(dir, { recursive: true });
-  }
-});
-
 const overlongPurpose = Array.from({ length: 45 }, (_, n) => "word" + n)
   .join(" ");
 
@@ -324,50 +280,69 @@ for (const args of [["--pr", "123"], ["--create", "--title", "t"]]) {
   });
 }
 
-Deno.test("publish --create opens a ready PR unless a draft is asked for", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    await Deno.writeTextFile(
-      dir + "/gh",
-      '#!/bin/sh\necho "$@" >> ' + dir +
-        "/calls.txt\necho https://example.test/pull/1\n",
-    );
-    await Deno.chmod(dir + "/gh", 0o755);
-    await Deno.writeTextFile(dir + "/spec.json", JSON.stringify(spec()));
-    const run = async (...tail: string[]) => {
-      await Deno.writeTextFile(dir + "/calls.txt", "");
-      const out = await new Deno.Command(Deno.execPath(), {
-        args: [
-          "run",
-          "-A",
-          "scripts/authoring/pr-body.ts",
-          "publish",
-          dir + "/spec.json",
-          ...tail,
-        ],
-        env: { PATH: dir + ":" + Deno.env.get("PATH") },
-        stdout: "piped",
-        stderr: "piped",
-      }).output();
-      assertEquals(out.code, 0, new TextDecoder().decode(out.stderr));
-      return await Deno.readTextFile(dir + "/calls.txt");
-    };
-    const ready = await run("--create", "--title", "t");
-    assert(ready.includes("pr create"), ready);
-    assert(!ready.includes("--draft"), ready);
-    // --draft is a switch, so it works in any position, not only last.
-    for (
-      const tail of [
-        ["--create", "--title", "t", "--draft"],
-        ["--create", "--draft", "--title", "t"],
-        ["--draft", "--create", "--title", "t"],
-      ]
-    ) {
-      const drafted = await run(...tail);
-      assert(drafted.includes("--draft"), tail.join(" ") + ": " + drafted);
-      assert(drafted.includes("--title t"), tail.join(" ") + ": " + drafted);
-    }
-  } finally {
-    await Deno.remove(dir, { recursive: true });
+Deno.test("createPrArgs opens a ready PR unless a draft is asked for", () => {
+  assertEquals(createPrArgs("t", false), [
+    "pr",
+    "create",
+    "--title",
+    "t",
+    "--body-file",
+    "-",
+  ]);
+  assertEquals(createPrArgs("t", true), [
+    "pr",
+    "create",
+    "--draft",
+    "--title",
+    "t",
+    "--body-file",
+    "-",
+  ]);
+});
+
+Deno.test("--draft is a switch: first, in the middle or last, and --title keeps its value", () => {
+  for (
+    const tail of [
+      ["--create", "--title", "t", "--draft"],
+      ["--create", "--draft", "--title", "t"],
+      ["--draft", "--create", "--title", "t"],
+    ]
+  ) {
+    const parsed = parseArgs(["spec.json", ...tail]);
+    assertEquals(parsed.positional, ["spec.json"], tail.join(" "));
+    assertEquals(parsed.options.get("title"), "t", tail.join(" "));
+    assert(parsed.options.has("draft") && parsed.options.has("create"));
   }
+  assert(
+    !parseArgs(["spec.json", "--create", "--title", "t"]).options.has("draft"),
+  );
+});
+
+Deno.test("re-publishing refuses a carried line that is a format error, and drops a tick the branch has moved past", () => {
+  const rendered = buildPrBody(spec({ notApplicable: {} })).body;
+  const head = "a".repeat(40);
+  const live = rendered.replace(
+    /^- \[ \] UI verified.*$/m,
+    "- [x] UI verified (design-ux) @ aaaaaaaa:",
+  );
+  assert(live !== rendered, "the live body really carries a tick");
+  // A tick with no claim is a format error: nothing is to be sent.
+  const empty = prepareRepublish(rendered, { body: live, headRefOid: head });
+  assert(
+    empty.errors.some((e) => e.includes("ticked with no claim")),
+    empty.errors.join(" | "),
+  );
+  // A real tick at the head carries and is not open.
+  const good = live.replace("@ aaaaaaaa:", "@ aaaaaaaa: looks right");
+  const kept = prepareRepublish(rendered, { body: good, headRefOid: head });
+  assertEquals(kept.errors, []);
+  assert(kept.body.includes("@ aaaaaaaa: looks right"));
+  assert(!kept.pending.some((p) => p.includes('"ui verified"')));
+  // The branch moved on: that tick names code that is gone, so it is open again.
+  const moved = prepareRepublish(rendered, {
+    body: good,
+    headRefOid: "c".repeat(40),
+  });
+  assert(!moved.body.includes("looks right"));
+  assert(moved.pending.some((p) => p.includes('"ui verified"')));
 });

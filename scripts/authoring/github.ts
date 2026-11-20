@@ -149,97 +149,27 @@ export async function checkLive(
     );
   }
   // Only format errors fail the check. A verification line nobody has ticked
-  // yet is pending, and is reported as its own commit status.
+  // yet is pending: the workflow keeps its `verification` job skipped while
+  // any are open.
   return { ...first, fingerprint: digest, ok: first.errors.length === 0 };
 }
 
-/** The commit status context a person or the PM sweep reads for sign-offs. */
-export const VERIFICATION_CONTEXT = "verification";
-
-/** The words after a status: what it is waiting on, in at most 140 characters. */
-const brief = (text: string): string =>
-  text.length <= 140 ? text : text.slice(0, 137) + "...";
-
-/**
- * What the `verification` status says. A push that changes the head resets it
- * to pending whatever the body says, because the ticks name an older head; the
- * next edit of the body re-reads it and can turn it to success.
- */
-export function verificationStatus(
-  pending: readonly string[],
-  headChanged: boolean,
-): { state: "pending" | "success"; description: string } {
-  if (headChanged) {
-    return {
-      state: "pending",
-      description:
-        "New commits: earlier ticks name an older head. Re-confirm each line.",
-    };
-  }
-  if (pending.length > 0) {
-    const names = pending.map((line) => /"([^"]+)"/.exec(line)?.[1] ?? line);
-    return {
-      state: "pending",
-      description: brief(
-        pending.length + " verification line" +
-          (pending.length === 1 ? "" : "s") + " open: " + names.join(", "),
-      ),
-    };
-  }
-  return {
-    state: "success",
-    description: "Every verification line is ticked or marked N/A.",
-  };
-}
-
-/** Puts the `verification` status on the PR head. Needs statuses: write. */
-export async function reportVerification(
-  api: Request,
-  head: string,
-  pending: readonly string[],
-  headChanged: boolean,
-): Promise<{ state: "pending" | "success"; description: string }> {
-  const status = verificationStatus(pending, headChanged);
-  await api("POST", "/statuses/" + head, {
-    state: status.state,
-    context: VERIFICATION_CONTEXT,
-    description: status.description,
-  });
-  return status;
-}
-
 if (import.meta.main) {
-  const flags = Deno.args.filter((arg) => arg.startsWith("--"));
-  const [command, kind, rawId] = Deno.args.filter((arg) =>
-    !arg.startsWith("--")
-  );
-  const report = flags.includes("--report-verification");
+  const [command, kind, rawId] = Deno.args;
   const api = githubRequest(
     Deno.env.get("GITHUB_REPOSITORY") ?? "",
     Deno.env.get("GITHUB_TOKEN") ?? Deno.env.get("GH_TOKEN") ?? "",
   );
   if (
     command !== "check" || (kind !== "issue" && kind !== "pr") ||
-    rawId === undefined || flags.some((flag) =>
-      flag !== "--report-verification"
-    )
+    Deno.args.length !== 3
   ) {
-    throw new Error(
-      "Usage: github.ts check issue|pr <number> [--report-verification]",
-    );
+    throw new Error("Usage: github.ts check issue|pr <number>");
   }
   const result = await checkLive(api, kind, number(rawId));
-  let verification;
-  if (report && kind === "pr" && "head" in result.item) {
-    // The workflow passes the event's action; a push is the only one that moves the head.
-    verification = await reportVerification(
-      api,
-      result.item.head,
-      result.pending,
-      Deno.env.get("EVENT_ACTION") === "synchronize",
-    );
-  }
   // Do not print API-supplied bodies/titles or credentials into Actions logs.
+  // `pending` is the verification lines still open at the PR head: the
+  // workflow reads it to decide whether the `verification` job runs.
   console.log(JSON.stringify(
     {
       ok: result.ok,
@@ -249,7 +179,6 @@ if (import.meta.main) {
       fingerprint: result.fingerprint,
       errors: result.errors,
       pending: result.pending,
-      verification,
     },
     null,
     2,

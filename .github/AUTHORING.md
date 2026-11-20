@@ -142,13 +142,13 @@ code.
 - PRs targeting main: open/edit/reopen/head updates validate the current
   description and linked work item, then re-read both before success. Invalid,
   missing or changed metadata fails the `pull-request` job.
-- Verification lines nobody has ticked yet are pending, not errors. The job
-  reports them as the `verification` commit status on the PR head (it needs
-  `statuses: write`): pending, listing what is open, until every line is ticked
-  or marked N/A, then success. A tick counts only when its `@ <sha>` is the PR
-  head; a tick at an older commit, or with no commit, is pending again, so an
-  edit after a push cannot turn the status green. A push that changes the head
-  puts it back to pending at once. Only format errors fail `pull-request`.
+- Verification lines nobody has ticked yet are pending, not errors. The
+  `verification` job (it writes nothing and needs no extra permission) is
+  skipped while any line is open, and the `pull-request` job's run summary lists
+  what is open; once every line is ticked or marked N/A it succeeds. A tick
+  counts only when its `@ <sha>` is the PR head; a tick at an older commit, or
+  with no commit, is open again, so an edit after a push cannot turn the job
+  green. Only format errors fail `pull-request`.
 - An issue edit does not rerun every PR linking that issue; edit the PR (or push
   to it) to re-run the check.
 - Other labels and native parent/dependency links are preserved.
@@ -169,7 +169,7 @@ fingerprint. It does not prove dependencies, tests, review or approval, and it
 never starts work or merges anything.
 
 Before merge, maintainers confirm that `Description policy / pull-request`, the
-`verification` commit status (success) and
+`Description policy / verification` job (success, not skipped) and
 `Bakery CI / required / full-stack aggregate` passed on the exact PR head, and
 review every change to workflows, CI policy, required jobs and credential
 handling. A green CI run cannot independently certify edits to its own checks.

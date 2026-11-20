@@ -427,6 +427,37 @@ export function carryVerification(
   return result;
 }
 
+/** The `gh pr create` arguments: ready for review unless a draft is asked for, because a draft cannot merge and skips some CI. */
+export function createPrArgs(title: string, draft: boolean): string[] {
+  return [
+    "pr",
+    "create",
+    ...(draft ? ["--draft"] : []),
+    "--title",
+    title,
+    "--body-file",
+    "-",
+  ];
+}
+
+/**
+ * What re-publishing a spec onto a live PR would send: the new body with the
+ * live sign-offs carried over, the format errors that stop it, and the lines
+ * still open at the PR head. A format error means nothing is sent.
+ */
+export function prepareRepublish(
+  rendered: string,
+  live: { body: string; headRefOid: string },
+): { body: string; errors: string[]; pending: string[] } {
+  const body = carryVerification(rendered, live.body, live.headRefOid);
+  const found = splitMessages(validateDescription("pr", body));
+  return {
+    body,
+    errors: found.errors,
+    pending: [...found.pending, ...staleVerification(body, live.headRefOid)],
+  };
+}
+
 function gh(args: string[], input?: string): string {
   return execFileSync("gh", args, {
     encoding: "utf8",
@@ -506,32 +537,21 @@ async function main(): Promise<void> {
     } else if (options.has("pr")) {
       const number = options.get("pr")!;
       const live = livePull(number);
-      const body = carryVerification(built.body, live.body, live.headRefOid);
-      const found = splitMessages(validateDescription("pr", body));
+      const next = prepareRepublish(built.body, live);
       // A format error stops here: nothing is sent, the fix is printed.
-      if (found.errors.length) {
-        report(found.errors, found.pending);
+      if (next.errors.length) {
+        report(next.errors, next.pending);
         process.exit(1);
       }
-      if (options.has("dry-run")) process.stdout.write(body);
-      else gh(["pr", "edit", number, "--body-file", "-"], body);
-      report([], [
-        ...found.pending,
-        ...staleVerification(body, live.headRefOid),
-      ]);
+      if (options.has("dry-run")) process.stdout.write(next.body);
+      else gh(["pr", "edit", number, "--body-file", "-"], next.body);
+      report([], next.pending);
     } else if (options.has("create") && options.has("title")) {
       process.stdout.write(
-        gh([
-          "pr",
-          "create",
-          // Ready for review unless the author asks for a draft: a draft cannot
-          // merge and skips some CI.
-          ...(options.has("draft") ? ["--draft"] : []),
-          "--title",
-          options.get("title")!,
-          "--body-file",
-          "-",
-        ], built.body),
+        gh(
+          createPrArgs(options.get("title")!, options.has("draft")),
+          built.body,
+        ),
       );
       report([], built.pending);
     } else {
