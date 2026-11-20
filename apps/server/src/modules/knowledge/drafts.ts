@@ -42,6 +42,17 @@ export const DRAFT_LIMITS = Object.freeze({
   workerStartupMs: 5_000,
   workerKillMs: 100,
   staleAttempts: 3,
+  /**
+   * How long a committed mutation's receipt answers an exact retry (the same
+   * 24 hours as every other command replay). Compaction removes older ones.
+   */
+  receiptRetrySeconds: 86_400,
+  /** Newest checkpoints compaction keeps, so a recent source id still resolves. */
+  keptCheckpoints: 4,
+  /** Rows one compaction pass removes from each table: bounded, never a loop. */
+  compactionBatchRows: 500,
+  /** Retained state of one epoch above which a commit compacts first. */
+  compactionThresholdBytes: 8_388_608,
 });
 
 const encoder = new TextEncoder();
