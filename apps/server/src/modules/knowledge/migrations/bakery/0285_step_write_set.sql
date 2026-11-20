@@ -14,7 +14,10 @@
 --                        for a new entry or a folder;
 --   new_version_id       its current version after the write, null for a
 --                        folder. A move or trash leaves the version as it was,
---                        so both name the same one.
+--                        so both name the same one;
+--   bytes_written        the size of the bytes the write stored (a put or a
+--                        copy), else 0. Kept on the row so the step's byte
+--                        limit still counts a version retention later deletes.
 -- A version a retention sweep deletes leaves the row with a null version, and
 -- the set null below names only that column, never organization_id.
 create table bakery.step_write_set (
@@ -26,6 +29,7 @@ create table bakery.step_write_set (
   op text not null,
   previous_version_id uuid,
   new_version_id uuid,
+  bytes_written bigint not null default 0,
   created_at timestamptz not null default now(),
   constraint step_write_set_organization_fk
     foreign key (organization_id)
