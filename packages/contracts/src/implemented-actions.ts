@@ -753,6 +753,18 @@ export const alertChannelImplementedActions = Object.freeze(
   Object.values(AlertChannelImplementedAction),
 );
 
+export const AlertRuleImplementedAction = Object.freeze(
+  {
+    AlertRulesList: "alertRules.list",
+    AlertRulesUpdate: "alertRules.update",
+    AlertsList: "alerts.list",
+    AlertsSendTest: "alerts.sendTest",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const alertRuleImplementedActions = Object.freeze(
+  Object.values(AlertRuleImplementedAction),
+);
+
 export const BlobUploadImplementedAction = Object.freeze(
   {
     BlobUploadStart: "blobUploads.start",
@@ -943,6 +955,7 @@ export const implementedActions = Object.freeze(
     ...backupImplementedActions,
     ...telemetryDestinationImplementedActions,
     ...alertChannelImplementedActions,
+    ...alertRuleImplementedActions,
     ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
