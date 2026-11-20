@@ -12,9 +12,11 @@ import {
   withWorkerFixture,
 } from "../helpers/worker-execution/scenarios.ts";
 import {
+  adminRequest,
   closeWorkerOrganization,
   createWorkerScope,
   type WorkerFixture,
+  type WorkerScope,
 } from "../helpers/worker-execution.ts";
 import {
   body,
@@ -38,24 +40,13 @@ function continueManifest(
   fixture: WorkerFixture,
   manifestId: string,
   version: number,
-  organizationId?: string,
+  scope: WorkerScope = fixture,
 ) {
-  return fixture.app.fetch(
-    new Request(
-      fixture.config.publicBaseUrl +
-        "/v1/handoff-manifests/" + manifestId + "/continuations",
-      {
-        method: "POST",
-        headers: {
-          cookie: fixture.adminCookie,
-          "bakery-organization-id": organizationId ?? fixture.organizationId,
-          origin: fixture.config.publicBaseUrl,
-          "content-type": "application/json",
-          "idempotency-key": crypto.randomUUID(),
-        },
-        body: JSON.stringify({ runVersion: version }),
-      },
-    ),
+  return adminRequest(
+    fixture,
+    "/v1/handoff-manifests/" + manifestId + "/continuations",
+    { runVersion: version },
+    { idempotencyKey: crypto.randomUUID(), scope },
   );
 }
 
@@ -294,7 +285,7 @@ Deno.test("another organization cannot continue a manifest", () =>
         fixture,
         String(record.id),
         await runVersion(fixture, live.job.runId),
-        foreign.organizationId,
+        foreign,
       );
       assertEquals(response.status, 404);
       await response.body?.cancel();
