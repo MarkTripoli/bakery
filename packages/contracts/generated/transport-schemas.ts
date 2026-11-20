@@ -353,6 +353,11 @@ const transportSchemas = {
       "status": 422,
       "retryable": false,
       "slug": "storage-file-too-large"
+    },
+    "STEP_WRITE_LIMIT_EXCEEDED": {
+      "status": 409,
+      "retryable": false,
+      "slug": "step-write-limit-exceeded"
     }
   },
   "conventions": {
@@ -12633,7 +12638,7 @@ const transportSchemas = {
       ],
       "rules": [
         "Idempotency-Key is required. Writing a new file needs no If-Match and refuses one (412). Replacing an existing file needs a strong If-Match with the entry's version (428 when missing, 412 when stale).",
-        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal.",
+        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal. An agent's write that would take its step past the step write limits (stepWriteFiles, stepWriteBytes) is 409 STEP_WRITE_LIMIT_EXCEEDED with reason files or bytes and the limit it hit.",
         "A parent in a record area, the library, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with a reason; a missing parent, or another member's personal folder, is 404."
       ],
       "description": "Writes a file at a path in a working area (O42, chapter 25 section 17.4 put and upload): the first write makes the file entry, each later write adds a version. Working areas keep the newest versions up to the organization's setting; scratch keeps only the latest."
@@ -12746,6 +12751,26 @@ const transportSchemas = {
             "max": 1125899906842624
           },
           "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB."
+        },
+        {
+          "name": "stepWriteBytes",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1048576,
+            "max": 1099511627776
+          },
+          "description": "Bytes one agent step (one run step attempt) may write to Bakery Files through its puts and copies before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason bytes (O49). Left out, the organization follows Bakery's default of 2 GiB. A person's own writes are never limited by it."
+        },
+        {
+          "name": "stepWriteFiles",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 1000000
+          },
+          "description": "Distinct files and folders one agent step (one run step attempt) may write, make, copy, move or trash before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason files (O49). Left out, the organization follows Bakery's default of 2,000. A person's own writes are never limited by it."
         }
       ],
       "rules": [
@@ -13594,6 +13619,26 @@ const transportSchemas = {
         "Installation administrator with a browser session. Idempotency-Key and a strong If-Match with the channel version are required (428 when missing, 412 when stale)."
       ],
       "description": "Changes an alert channel's name, on or off state or address; the signing secret is untouched."
+    },
+    "RunStepRevertWrites": {
+      "fields": [
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Why the person reverted the step's writes, recorded verbatim in the audit record of the undo."
+        }
+      ],
+      "rules": [
+        "A person with run control and a browser session or access token; an agent session is refused with AUTH_FORBIDDEN, so no agent undoes a step's writes, its own or another's.",
+        "Only while no attempt of the step's job is live; otherwise STATE_CONFLICT with reason attempt_live. Failed and finished attempts are reverted the same way.",
+        "All or nothing: when any entry was changed after the step wrote it, the answer is STATE_CONFLICT with reason step_writes_conflict and one issue per refused entry (its path, and a code such as changed_since_step, folder_not_empty, previous_version_gone, entry_gone, name_taken or restore_parent_gone), and nothing is reverted.",
+        "A step with nothing left to revert answers 200 with reverted 0; an undone write is never undone twice."
+      ],
+      "description": "Reverts the Bakery Files writes the agent of one workflow step made, across all of the step's attempts, newest first and in one transaction (chapter 25 section 17.6, O48): a file or folder the step created goes to trash, a new version gives way to the version before it, a move is moved back and a trashed entry is restored. Writes that leave Bakery are external effects and are not covered."
     }
   },
   "projections": {
@@ -32611,6 +32656,8 @@ const transportSchemas = {
         "organizationQuotaBytes",
         "projectQuotaBytes",
         "personalQuotaBytes",
+        "stepWriteBytes",
+        "stepWriteFiles",
         "organizationUsedBytes",
         "organizationQuotaState",
         "customized",
@@ -32624,6 +32671,8 @@ const transportSchemas = {
         "organizationQuotaBytes": "integer",
         "projectQuotaBytes": "integer",
         "personalQuotaBytes": "integer",
+        "stepWriteBytes": "integer",
+        "stepWriteFiles": "integer",
         "organizationUsedBytes": "integer",
         "organizationQuotaState": "enum(ok|warning|paused)",
         "customized": "boolean",
@@ -32639,6 +32688,8 @@ const transportSchemas = {
         "organizationQuotaBytes": "Bytes the organization's working-area files may hold.",
         "projectQuotaBytes": "Bytes each project's working-area files may hold.",
         "personalQuotaBytes": "Bytes each member's personal folder may hold.",
+        "stepWriteBytes": "Bytes one agent step may write before its writes are refused (O49); the default 2 GiB unless an Admin saved another value.",
+        "stepWriteFiles": "Distinct files and folders one agent step may write before its writes are refused (O49); the default 2,000 unless an Admin saved another value.",
         "organizationUsedBytes": "Bytes working-area file versions hold now, trash included until it is swept or purged.",
         "organizationQuotaState": "Where usage stands against the organization quota: warning from 75%, paused from 90%, when new writes are refused.",
         "customized": "False while the organization uses Bakery's defaults; true once an Admin saved its own values.",
@@ -33026,7 +33077,8 @@ const transportSchemas = {
         "runId",
         "workItemId",
         "workItemTitle",
-        "sessionId"
+        "sessionId",
+        "agentName"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -33038,7 +33090,7 @@ const transportSchemas = {
         "sha256": "string",
         "contentRemoved": "boolean",
         "removedAt": "timestamp|null",
-        "makerKind": "enum(person|step)",
+        "makerKind": "enum(person|step|agent)",
         "makerPrincipalId": "uuid",
         "makerName": "string|null",
         "stepId": "uuid|null",
@@ -33046,7 +33098,8 @@ const transportSchemas = {
         "runId": "uuid|null",
         "workItemId": "uuid|null",
         "workItemTitle": "string|null",
-        "sessionId": "uuid|null"
+        "sessionId": "uuid|null",
+        "agentName": "string|null"
       },
       "nullableFields": [
         "removedAt",
@@ -33056,7 +33109,8 @@ const transportSchemas = {
         "runId",
         "workItemId",
         "workItemTitle",
-        "sessionId"
+        "sessionId",
+        "agentName"
       ],
       "description": "One version of a storage-tree file: its number, when and by whom or which step it was saved, its size, and whether its contents are still there.",
       "fieldDescriptions": {
@@ -33069,15 +33123,16 @@ const transportSchemas = {
         "sha256": "Lowercase hexadecimal SHA-256 of the version's bytes.",
         "contentRemoved": "True when retention or an Admin purge removed the version's bytes; the version stays listed and cannot be read.",
         "removedAt": "When the bytes were removed; null while they are there.",
-        "makerKind": "Who made the version: step when a run step published it, person when a member or service wrote it.",
-        "makerPrincipalId": "Principal that wrote the version: the member for a person, the run's acting principal for a step.",
+        "makerKind": "Who made the version: step when a run step published it, agent when an agent's session wrote it with a member's access, person when a member or service wrote it.",
+        "makerPrincipalId": "Principal that wrote the version: the member for a person, the run's acting principal for a step, the member whose access the agent used for an agent.",
         "makerName": "Display name of makerPrincipalId.",
         "stepId": "The run step that published the version; null for a person's version.",
         "stepName": "The step's key in its workflow; null for a person's version.",
         "runId": "The run the step belongs to, for Open the run; null for a person's version.",
         "workItemId": "The work item the run worked on; null for a person's version.",
         "workItemTitle": "That work item's title; null for a person's version.",
-        "sessionId": "The step's most recent agent session, for Open the session; null when the step had none or for a person's version."
+        "sessionId": "The agent session behind the version, for Open the session: the step's most recent session for a step, the session that wrote it for an agent; null when there was none or for a person's version.",
+        "agentName": "Name of the agent whose session wrote the version, for an agent's version; null otherwise, or when the agent is not recorded."
       }
     },
     "Page<StorageFileVersion>": {
@@ -34273,6 +34328,27 @@ const transportSchemas = {
         "reason": "A short plain reason when it did not accept, or null.",
         "answer": "At most 300 characters of what it answered, or null; never a credential.",
         "tookMs": "Milliseconds the test took."
+      }
+    },
+    "RunStepWritesReverted": {
+      "fields": [
+        "runId",
+        "stepKey",
+        "reverted",
+        "entries"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "stepKey": "string",
+        "reverted": "nonnegativeInteger",
+        "entries": "nonnegativeInteger"
+      },
+      "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert.",
+      "fieldDescriptions": {
+        "runId": "Stable UUID of the run whose step was reverted.",
+        "stepKey": "Key of the run step whose writes were reverted.",
+        "reverted": "How many of the step's recorded writes this undo reverted; 0 when every write was already reverted or the step wrote nothing.",
+        "entries": "How many distinct files and folders those writes touched."
       }
     }
   },

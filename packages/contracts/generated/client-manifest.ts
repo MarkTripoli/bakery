@@ -1138,6 +1138,32 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Work",
+      "method": "POST",
+      "path": "/v1/runs/{id}/steps/{stepKey}/writes/revert",
+      "action": "runSteps.revertWrites",
+      "access": "Developer",
+      "permission": "run:control",
+      "input": "RunStepRevertWrites",
+      "output": "RunStepWritesReverted",
+      "event": "",
+      "mcp": "bakery_runSteps_revertWrites",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Conversation",
       "method": "GET",
       "path": "/v1/conversations",
@@ -17812,6 +17838,7 @@ export const clientManifest = {
             "sessions.steer",
             "runSteps.note",
             "runSteps.takeOver",
+            "runSteps.revertWrites",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -29704,6 +29731,18 @@ export const clientManifest = {
           "minimum": 1,
           "maximum": 1125899906842624,
           "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB. StorageSettingsPut.personalQuotaBytes must be at least 1. StorageSettingsPut.personalQuotaBytes must be at most 1125899906842624."
+        },
+        "stepWriteBytes": {
+          "description": "Bytes one agent step (one run step attempt) may write to Bakery Files through its puts and copies before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason bytes (O49). Left out, the organization follows Bakery's default of 2 GiB. A person's own writes are never limited by it. StorageSettingsPut.stepWriteBytes must be at least 1048576. StorageSettingsPut.stepWriteBytes must be at most 1099511627776.",
+          "type": "integer",
+          "minimum": 1048576,
+          "maximum": 1099511627776
+        },
+        "stepWriteFiles": {
+          "description": "Distinct files and folders one agent step (one run step attempt) may write, make, copy, move or trash before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason files (O49). Left out, the organization follows Bakery's default of 2,000. A person's own writes are never limited by it. StorageSettingsPut.stepWriteFiles must be at least 1. StorageSettingsPut.stepWriteFiles must be at most 1000000.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
         }
       },
       "required": [
@@ -30958,6 +30997,19 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "RunStepRevertWrites": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reason": {
+          "description": "Why the person reverted the step's writes, recorded verbatim in the audit record of the undo. RunStepRevertWrites.reason must contain at most 2000 characters.",
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false,
+      "description": "Reverts the Bakery Files writes the agent of one workflow step made, across all of the step's attempts, newest first and in one transaction (chapter 25 section 17.6, O48): a file or folder the step created goes to trash, a new version gives way to the version before it, a move is moved back and a trashed entry is restored. Writes that leave Bakery are external effects and are not covered."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -44419,6 +44471,7 @@ export const clientManifest = {
                   "sessions.steer",
                   "runSteps.note",
                   "runSteps.takeOver",
+                  "runSteps.revertWrites",
                   "conversations.list",
                   "conversations.get",
                   "conversations.create",
@@ -64837,6 +64890,7 @@ export const clientManifest = {
             "sessions.steer",
             "runSteps.note",
             "runSteps.takeOver",
+            "runSteps.revertWrites",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -100203,6 +100257,18 @@ export const clientManifest = {
           "maximum": 9007199254740991,
           "description": "Bytes each member's personal folder may hold."
         },
+        "stepWriteBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Bytes one agent step may write before its writes are refused (O49); the default 2 GiB unless an Admin saved another value."
+        },
+        "stepWriteFiles": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Distinct files and folders one agent step may write before its writes are refused (O49); the default 2,000 unless an Admin saved another value."
+        },
         "organizationUsedBytes": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -100237,6 +100303,8 @@ export const clientManifest = {
         "organizationQuotaBytes",
         "projectQuotaBytes",
         "personalQuotaBytes",
+        "stepWriteBytes",
+        "stepWriteFiles",
         "organizationUsedBytes",
         "organizationQuotaState",
         "customized",
@@ -101788,15 +101856,16 @@ export const clientManifest = {
                 "type": "string",
                 "enum": [
                   "person",
-                  "step"
+                  "step",
+                  "agent"
                 ],
-                "description": "Who made the version: step when a run step published it, person when a member or service wrote it."
+                "description": "Who made the version: step when a run step published it, agent when an agent's session wrote it with a member's access, person when a member or service wrote it."
               },
               "makerPrincipalId": {
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Principal that wrote the version: the member for a person, the run's acting principal for a step."
+                "description": "Principal that wrote the version: the member for a person, the run's acting principal for a step, the member whose access the agent used for an agent."
               },
               "makerName": {
                 "anyOf": [
@@ -101891,7 +101960,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "The step's most recent agent session, for Open the session; null when the step had none or for a person's version."
+                    "description": "The agent session behind the version, for Open the session: the step's most recent session for a step, the session that wrote it for an agent; null when there was none or for a person's version."
                   },
                   {
                     "type": "null",
@@ -101899,6 +101968,20 @@ export const clientManifest = {
                   }
                 ],
                 "description": "StorageFileVersion.sessionId may be null in this transport value."
+              },
+              "agentName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Name of the agent whose session wrote the version, for an agent's version; null otherwise, or when the agent is not recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.agentName may be null in this transport value."
               }
             },
             "required": [
@@ -101919,7 +102002,8 @@ export const clientManifest = {
               "runId",
               "workItemId",
               "workItemTitle",
-              "sessionId"
+              "sessionId",
+              "agentName"
             ],
             "additionalProperties": false,
             "description": "One version of a storage-tree file: its number, when and by whom or which step it was saved, its size, and whether its contents are still there."
@@ -106495,6 +106579,43 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The receiver's real answer to one signed test message: whether it accepted it, its HTTP status, a short plain reason when it did not, a bounded piece of what it said and how long it took."
+    },
+    "RunStepWritesReverted": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the run whose step was reverted."
+        },
+        "stepKey": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Key of the run step whose writes were reverted."
+        },
+        "reverted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How many of the step's recorded writes this undo reverted; 0 when every write was already reverted or the step wrote nothing."
+        },
+        "entries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How many distinct files and folders those writes touched."
+        }
+      },
+      "required": [
+        "runId",
+        "stepKey",
+        "reverted",
+        "entries"
+      ],
+      "additionalProperties": false,
+      "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert."
     }
   }
 } as const;

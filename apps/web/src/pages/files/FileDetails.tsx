@@ -156,8 +156,25 @@ export function FileDetails(
         </>
       );
     }
+    if (version.makerKind === "agent") {
+      return (
+        <UI.Stack gap="none">
+          {madeByText(version)}
+          <UI.Text variant="muted">
+            {version.makerName === null
+              ? translate("files.madeBy.agentAccessUnknown")
+              : translate("files.madeBy.agentAccess", {
+                person: version.makerName,
+              })}
+          </UI.Text>
+        </UI.Stack>
+      );
+    }
     return version.makerName ?? translate("files.madeBy.unknown");
   };
+  // A run step or an agent's session wrote it: the Agent badge and row name.
+  const byAgent = (version: StorageFileVersion): boolean =>
+    version.makerKind === "agent" || version.makerKind === "step";
   // The "who or what" line as text, for a row whose description is a string.
   const madeByText = (version: StorageFileVersion | null): string => {
     if (version === null) return translate("files.madeBy.unknown");
@@ -166,6 +183,22 @@ export function FileDetails(
         step: version.stepName,
         item: version.workItemTitle ?? "",
       });
+    }
+    if (version.makerKind === "agent") {
+      // An agent's version never reads as the person's own (#448).
+      // With no person recorded, the sentence never names "Not recorded".
+      const person = version.makerName;
+      if (person === null) {
+        return version.agentName === null
+          ? translate("files.madeBy.agentAlone")
+          : translate("files.madeBy.agentOnly", { agent: version.agentName });
+      }
+      return version.agentName === null
+        ? translate("files.madeBy.agentUnnamed", { person })
+        : translate("files.madeBy.agent", {
+          agent: version.agentName,
+          person,
+        });
     }
     return version.makerName ?? translate("files.madeBy.unknown");
   };
@@ -264,9 +297,12 @@ export function FileDetails(
               key={version.id}
               onSelect={() =>
                 onRevision(version.isCurrent ? undefined : version.revision)}
-              aria-label={translate("files.version.choose", {
-                number: version.revision,
-              })}
+              aria-label={translate(
+                byAgent(version)
+                  ? "files.version.chooseAgent"
+                  : "files.version.choose",
+                { number: version.revision },
+              )}
               title={
                 <UI.Inline gap="compact">
                   {translate("files.version.title", {
@@ -279,6 +315,19 @@ export function FileDetails(
                       </UI.Badge>
                     )
                     : null}
+                  {!byAgent(version) ? null : (
+                    <UI.Inline gap="compact">
+                      <UI.Badge tone="neutral">
+                        {translate("files.version.agentBadge")}
+                      </UI.Badge>
+                      <UI.HelpTip
+                        label={translate("files.version.agentHelpLabel")}
+                        placement="above"
+                      >
+                        {translate("files.version.agentHelp")}
+                      </UI.HelpTip>
+                    </UI.Inline>
+                  )}
                   {shown?.revision === version.revision
                     ? (
                       <UI.Badge tone="neutral">

@@ -53,6 +53,15 @@ export const artifactVersionReferences = [
     protection: "none",
   },
   {
+    // A step's read set records which version a step read (#448). It is a
+    // record of what was read, never a reason to keep the bytes: the FK is on
+    // delete set null, so purging the version leaves the row with no version.
+    kind: "step-read-set",
+    table: "step_read_set",
+    constraint: "step_read_set_artifact_version_fk",
+    protection: "none",
+  },
+  {
     // A check row cites its output as retained evidence. The bytes stay for as
     // long as the row exists: expiry alone never retires check evidence.
     kind: "retained-evidence",
