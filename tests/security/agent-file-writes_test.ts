@@ -124,6 +124,18 @@ async function agentSession(
   };
 }
 
+/**
+ * A session call answers the gateway's envelope, `{ outcome, result }`, with
+ * the operation's own response under `result` (session-gateway.ts
+ * callSessionTool); a refusal is an ordinary problem body.
+ */
+async function sessionResult(response: Response): Promise<Json> {
+  const body = await json(response, 200) as { outcome?: string; result?: Json };
+  assertEquals(body.outcome, "allowed", JSON.stringify(body));
+  assert(body.result, "the session call returned no result");
+  return body.result;
+}
+
 async function grantFolder(
   fixture: Fixture,
   workflowId: string,
@@ -189,9 +201,8 @@ Deno.test("an agent writes only under a granted folder, and each closed area ref
     );
 
     // Granted: the write lands.
-    const made = await json(
+    const made = await sessionResult(
       await agent.call("storageFiles.put", file("/shared/agent-448/notes.md")),
-      200,
     );
     assertEquals(made.path, "/shared/agent-448/notes.md");
 
@@ -306,12 +317,11 @@ Deno.test("a grant that expires or is revoked mid-step stops the very next write
         );
       },
     );
-    await json(
+    await sessionResult(
       await agent.call(
         "storageFiles.put",
         file("/shared/agent-448-lapse/1.md"),
       ),
-      200,
     );
     // Expire it between two writes of the same step: no escalation is held.
     await fixture.pgDatabase.query(

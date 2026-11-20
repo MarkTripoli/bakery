@@ -119,6 +119,18 @@ async function agentSession(
   };
 }
 
+/**
+ * A session call answers the gateway's envelope, `{ outcome, result }`, with
+ * the operation's own response under `result` (session-gateway.ts
+ * callSessionTool); a refusal is an ordinary problem body.
+ */
+async function sessionResult(response: Response): Promise<Json> {
+  const body = await json(response, 200) as { outcome?: string; result?: Json };
+  assertEquals(body.outcome, "allowed", JSON.stringify(body));
+  assert(body.result, "the session call returned no result");
+  return body.result;
+}
+
 async function grantFolder(
   fixture: Fixture,
   workflowId: string,
@@ -162,12 +174,11 @@ Deno.test("an agent's write is audited with the person and the session, in the p
         );
       },
     );
-    const byAgent = await json(
+    const byAgent = await sessionResult(
       await agent.call(
         "storageFiles.put",
         file("/shared/agent-448-audit/a.md"),
       ),
-      200,
     );
     const byPerson = await json(
       await asPerson(
