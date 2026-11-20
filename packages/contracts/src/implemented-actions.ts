@@ -650,6 +650,7 @@ export const DraftImplementedAction = Object.freeze(
     CheckpointGet: "draftCheckpoints.get",
     Slice: "draftSlices.get",
     Edit: "drafts.edit",
+    Rollover: "drafts.rollover",
     PublicationCreate: "draftPublications.create",
     PublicationGet: "draftPublications.get",
     SuggestionCreate: "draftSuggestions.create",

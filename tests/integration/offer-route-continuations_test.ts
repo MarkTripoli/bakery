@@ -1,4 +1,6 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import { readRunsWaitingOnModel } from "../../apps/server/src/modules/execution/route-continuations.ts";
 import { openApprovalFixture } from "../helpers/scoped-approvals.ts";
 
 /**
@@ -23,6 +25,16 @@ type Offers = {
     incidentId: string;
     incidentGeneration: number;
     sourceRouteId: string;
+    source: {
+      provider: string;
+      model: string;
+      harness: string;
+      billingRoute: string;
+      health: string;
+    };
+    reason: string;
+    since: string;
+    nextCheckAt: string | null;
     runVersion: number;
     estimatedIncrementalCost: string | null;
     targets: {
@@ -40,7 +52,34 @@ const PIN = {
   model: "claude-x",
   harness: "pi",
   billingRoute: "api",
+  billingAccountId: "acct-continuation-a",
 };
+
+/** Provider accounts already seeded, by fixture then organization and identity. */
+const accounts = new WeakMap<Fixture, Map<string, string>>();
+
+/** The organization's provider account for a billing identity, created once. */
+async function seedAccount(
+  fixture: Fixture,
+  organizationId: string,
+  billingIdentity: string,
+): Promise<string> {
+  const known = accounts.get(fixture) ?? new Map<string, string>();
+  accounts.set(fixture, known);
+  const key = `${organizationId}/${billingIdentity}`;
+  const existing = known.get(key);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  await fixture.fx.ownerPg.query(
+    `insert into bakery.model_provider_accounts (
+       id, organization_id, provider, billing_identity, identity_hash,
+       billing_route, display_identity
+     ) values ($1, $2, $3, $4, $5, 'api', 'continuation')`,
+    [id, organizationId, PIN.provider, billingIdentity, `h-${id}`],
+  );
+  known.set(key, id);
+  return id;
+}
 
 async function seedRun(
   fixture: Fixture,
@@ -124,12 +163,13 @@ async function seedRun(
       ids.job,
       organizationId,
       ids.step,
-      options.jobStatus ?? "running",
+      options.jobStatus ?? "queued",
       JSON.stringify({ harness: pin.harness }),
       JSON.stringify({
         provider: pin.provider,
         model: pin.model,
         billingRoute: pin.billingRoute,
+        billingAccountId: pin.billingAccountId,
       }),
     ],
   );
@@ -146,24 +186,32 @@ async function seedRoute(
     status?: string;
     health?: string;
     organizationId?: string;
+    billingAccountId?: string;
   } = {},
 ): Promise<string> {
   const id = crypto.randomUUID();
+  const organizationId = values.organizationId ?? fixture.fx.organizationId;
+  const accountId = await seedAccount(
+    fixture,
+    organizationId,
+    values.billingAccountId ?? PIN.billingAccountId,
+  );
   await fixture.fx.ownerPg.query(
     `insert into bakery.provider_routes (
        id, organization_id, provider, endpoint, model, harness, billing_route,
-       credential_location, status, health
+       credential_location, status, health, provider_account_id
      ) values ($1, $2, $3, 'https://api.provider.example/v1', $4, $5, $6,
-       'harness_host', $7, $8)`,
+       'harness_host', $7, $8, $9)`,
     [
       id,
-      values.organizationId ?? fixture.fx.organizationId,
+      organizationId,
       values.provider ?? PIN.provider,
       values.model ?? PIN.model,
       values.harness ?? PIN.harness,
       values.billingRoute ?? "api_metered",
       values.status ?? "active",
       values.health ?? "healthy",
+      accountId,
     ],
   );
   return id;
@@ -233,6 +281,17 @@ Deno.test("route continuations: a step pinned to a route with an open incident i
     assertEquals(offer.sourceRouteId, source);
     assertEquals(offer.runVersion, 1);
     assertEquals(offer.estimatedIncrementalCost, null);
+    // What the card names without a second read (#70).
+    assertEquals(offer.source, {
+      provider: PIN.provider,
+      model: PIN.model,
+      harness: PIN.harness,
+      billingRoute: "api_metered",
+      health: "open",
+    });
+    assertEquals(offer.reason, "timeout");
+    assert(!Number.isNaN(Date.parse(offer.since)));
+    assertEquals(offer.nextCheckAt, null);
     const reason = (id: string) =>
       offer.targets.find((target) => target.routeId === id);
     assertEquals(offer.targets.some((t) => t.routeId === source), false);
@@ -294,7 +353,7 @@ Deno.test("route continuations: a step with two matching routes, or two live job
       `insert into bakery.jobs (id, organization_id, run_step_id, action, input,
          requirements, status, current_fence, agent_config, billing)
        select gen_random_uuid(), organization_id, run_step_id, 'harness.review',
-         '{}', '{}', 'running', 1, agent_config, billing
+         '{}', '{}', 'queued', 1, agent_config, billing
        from bakery.jobs where id = $1`,
       [run.jobId],
     );
@@ -344,6 +403,41 @@ Deno.test("route continuations: a closed incident still linked to the route offe
   }
 });
 
+Deno.test("route continuations: an incident on one account's route does not stall a run billing another account", async () => {
+  const fixture = await openApprovalFixture();
+  try {
+    const onA = await seedRun(fixture, {
+      pin: { billingAccountId: "acct-continuation-a" },
+    });
+    const onB = await seedRun(fixture, {
+      pin: { billingAccountId: "acct-continuation-b" },
+    });
+    // Two routes share the pin; only account A's is down.
+    const routeA = await seedRoute(fixture, {
+      billingAccountId: "acct-continuation-a",
+    });
+    await seedRoute(fixture, { billingAccountId: "acct-continuation-b" });
+    await openIncident(fixture, routeA);
+
+    const offeredA = await offersOk(fixture, onA.runId);
+    assertEquals(offeredA.offers.length, 1);
+    assertEquals(offeredA.offers[0]!.sourceRouteId, routeA);
+    assertEquals((await offersOk(fixture, onB.runId)).offers, []);
+
+    const runs = await withPgTransaction(
+      fixture.fx.ownerPg,
+      (transaction) =>
+        readRunsWaitingOnModel(transaction, fixture.fx.organizationId, [
+          onA.runId,
+          onB.runId,
+        ]),
+    );
+    assertEquals([...runs], [onA.runId]);
+  } finally {
+    await fixture.close();
+  }
+});
+
 Deno.test("route continuations: the job's billing spelling maps, and local never matches", async () => {
   const fixture = await openApprovalFixture();
   try {
@@ -377,14 +471,32 @@ Deno.test("route continuations: a finished job or a finished run offers nothing"
       const run = await seedRun(fixture, { runStatus });
       assertEquals((await offersOk(fixture, run.runId)).offers, [], runStatus);
     }
-    // And a queued or running one does.
-    for (const jobStatus of ["queued", "leased", "running"]) {
+    // And a queued one does.
+    const queued = await seedRun(fixture, { jobStatus: "queued" });
+    assertEquals((await offersOk(fixture, queued.runId)).offers.length, 1);
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("route continuations: a leased or running job behind an open incident is not offered, and is once it is queued again", async () => {
+  const fixture = await openApprovalFixture();
+  try {
+    const route = await seedRoute(fixture);
+    await openIncident(fixture, route);
+    for (const jobStatus of ["leased", "running"]) {
+      // An attempt in flight is still working: one probe failure on its route
+      // does not make the step wait on a model.
       const run = await seedRun(fixture, { jobStatus });
-      assertEquals(
-        (await offersOk(fixture, run.runId)).offers.length,
-        1,
-        jobStatus,
+      assertEquals((await offersOk(fixture, run.runId)).offers, [], jobStatus);
+      // The attempt ends and the job is requeued behind the same incident.
+      await fixture.fx.ownerPg.query(
+        "update bakery.jobs set status = 'queued' where id = $1",
+        [run.jobId],
       );
+      const offered = await offersOk(fixture, run.runId);
+      assertEquals(offered.offers.length, 1, jobStatus);
+      assertEquals(offered.offers[0]!.runStepId, run.stepId);
     }
   } finally {
     await fixture.close();
