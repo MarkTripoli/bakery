@@ -137,7 +137,11 @@ Deno.test("a handoff fences the source, queues the job again on the same input, 
     // A new attempt claims the same job at the new fence, with the same input.
     const claimed = await claimAssignment(fixture, live.worker);
     assertEquals(claimed.jobId, live.job.jobId);
-    assertEquals(claimed.fence, continuation.newFence);
+    // A claim always takes the next fence, so the new lease holds newFence + 1.
+    assertEquals(
+      claimed.fence,
+      String(BigInt(String(continuation.newFence)) + 1n),
+    );
     assert(claimed.attemptId !== live.assignment.attemptId);
     assertEquals(claimed.input, live.assignment.input);
   }));
