@@ -11,7 +11,7 @@ import {
   MaintenanceState,
 } from "../../platform/maintenance.ts";
 import { recordAuthAudit } from "../auth/application/audit.ts";
-import { BACKUP_LEASE_SECONDS, BackupRunStatus } from "./state.ts";
+import { BackupRunStatus } from "./state.ts";
 
 /**
  * The host runner's side of the installation maintenance switch (issue #64
@@ -187,7 +187,8 @@ export async function maintainRun(
     const entered = await transaction.query<SwitchRow>(
       `insert into bakery.installation_maintenance
          (id, state, reason, owner_run_id, entered_at, lease_expires_at)
-       values (true, 'draining', $1, $2, clock_timestamp(), $3)
+       values (true, 'draining', $1, $2, clock_timestamp(),
+               (select lease_expires_at from bakery.backup_runs where id = $2))
        on conflict (id) do update
          set state = 'draining', reason = excluded.reason,
              owner_run_id = excluded.owner_run_id,
@@ -195,7 +196,7 @@ export async function maintainRun(
              lease_expires_at = excluded.lease_expires_at,
              version = bakery.installation_maintenance.version + 1
        returning ${SWITCH_COLUMNS}`,
-      [MAINTENANCE_REASON_BACKUP, runId, run.leaseExpiresAt],
+      [MAINTENANCE_REASON_BACKUP, runId],
     );
     row = entered.rows[0];
     await audit(transaction, actor, MAINTENANCE_ENTER_OPERATION, runId, {
@@ -205,9 +206,11 @@ export async function maintainRun(
     // The hold's lease follows the run's.
     const extended = await transaction.query<SwitchRow>(
       `update bakery.installation_maintenance
-          set lease_expires_at = $1, version = version + 1
+          set lease_expires_at = (select lease_expires_at
+                                    from bakery.backup_runs where id = $1),
+              version = version + 1
         where id = true returning ${SWITCH_COLUMNS}`,
-      [run.leaseExpiresAt],
+      [runId],
     );
     row = extended.rows[0];
   }
@@ -255,11 +258,12 @@ export async function extendMaintenance(
 ): Promise<void> {
   await transaction.query(
     `update bakery.installation_maintenance
-        set lease_expires_at = clock_timestamp() + make_interval(secs => $2),
+        set lease_expires_at = (select lease_expires_at
+                                  from bakery.backup_runs where id = $1),
             version = version + 1
       where id = true and owner_run_id = $1 and state <> 'off'
         and lease_expires_at > clock_timestamp()`,
-    [runId, BACKUP_LEASE_SECONDS],
+    [runId],
   );
 }
 
