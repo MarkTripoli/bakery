@@ -3951,9 +3951,15 @@ const transportSchemas = {
             "maxLength": 200
           },
           "description": "Organization-facing display name for the skill created with its private local-bundle source."
+        },
+        {
+          "name": "scope",
+          "type": "enum(global|organization|personal)",
+          "required": false,
+          "description": "Who the skill belongs to: global (shown as Shared by Bakery, comes with Bakery and is never created through this action), organization (the default, visible to the whole organization) or personal (shown as Private, belongs to the calling person alone, and only that person can list, open, change or publish it). A personal skill reaches other people only through a workflow it is attached to, with its owner confirming the attachment."
         }
       ],
-      "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published."
+      "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published, as an organization skill or as a personal skill that belongs to the calling person."
     },
     "SkillImport": {
       "fields": [
@@ -5696,6 +5702,15 @@ const transportSchemas = {
             "maxLength": 100000
           },
           "description": "Optional author-written source text for the draft; when omitted the server stores the canonical JSON text of `definition`, which is valid YAML 1.2."
+        },
+        {
+          "name": "confirmPersonalSkillUse",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 32
+          },
+          "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation."
         }
       ],
       "description": "Creates the definition's single shared mutable draft; publication is the separate publish action."
@@ -5736,6 +5751,15 @@ const transportSchemas = {
             "maxLength": 100000
           },
           "description": "Optional author-written source text; when omitted the server stores the canonical JSON text of `definition`."
+        },
+        {
+          "name": "confirmPersonalSkillUse",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 32
+          },
+          "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation."
         }
       ],
       "description": "Replaces the content of the definition's shared draft under the draft's optimistic-concurrency version; published versions are immutable and cannot be updated."
@@ -13861,6 +13885,8 @@ const transportSchemas = {
         "name",
         "activeVersionId",
         "enabled",
+        "scope",
+        "ownerPrincipalId",
         "createdAt",
         "updatedAt",
         "version"
@@ -13874,11 +13900,14 @@ const transportSchemas = {
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "scope": "enum(global|organization|personal)",
+        "ownerPrincipalId": "uuid|null"
       },
       "nullableFields": [
         "sourceId",
-        "activeVersionId"
+        "activeVersionId",
+        "ownerPrincipalId"
       ],
       "sourceColumns": {
         "id": "id",
@@ -13889,7 +13918,9 @@ const transportSchemas = {
         "enabled": "enabled",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
-        "version": "version"
+        "version": "version",
+        "scope": "scope",
+        "ownerPrincipalId": "owner_principal_id"
       },
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
@@ -13899,6 +13930,8 @@ const transportSchemas = {
         "name": "Human-readable name displayed for the skill record.",
         "activeVersionId": "Stable UUID linking this skill record to the related active version entity.",
         "enabled": "Whether the skill record is enabled.",
+        "scope": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person.",
+        "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill.",
         "createdAt": "UTC timestamp when the skill record was created.",
         "updatedAt": "UTC timestamp when the skill record was last updated.",
         "version": "Optimistic-concurrency version used when updating the skill record."
@@ -21132,6 +21165,8 @@ const transportSchemas = {
         "name",
         "activeVersionId",
         "enabled",
+        "scope",
+        "ownerPrincipalId",
         "createdAt",
         "updatedAt",
         "version"
@@ -21145,13 +21180,16 @@ const transportSchemas = {
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "scope": "enum(global|organization|personal)",
+        "ownerPrincipalId": "uuid|null"
       },
       "nullableFields": [
         "sourceId",
-        "activeVersionId"
+        "activeVersionId",
+        "ownerPrincipalId"
       ],
-      "description": "Stable identity for one organization skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use.",
+      "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the skill record.",
         "sourceId": "Stable UUID linking this record to the related source entity.",
@@ -21161,7 +21199,9 @@ const transportSchemas = {
         "enabled": "Whether the record is enabled.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "scope": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person.",
+        "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill."
       }
     },
     "SkillVersion": {
@@ -30744,6 +30784,47 @@ const transportSchemas = {
         "bytesRemoved": "Bytes of working-area versions deleted. Zero when the purge is queued."
       }
     },
+    "SkillUseGrant": {
+      "fields": [
+        "id",
+        "skillId",
+        "skillVersionId",
+        "workflowId",
+        "workflowName",
+        "stepPath",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "skillId": "uuid",
+        "skillVersionId": "uuid",
+        "workflowId": "uuid",
+        "workflowName": "string",
+        "stepPath": "string",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [],
+      "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "skillId": "Stable UUID of the personal skill the grant is for.",
+        "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
+        "workflowId": "Stable UUID of the workflow the skill was attached to.",
+        "workflowName": "Display name of that workflow, so the owner can recognise it.",
+        "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
+        "grantedBy": "Person who confirmed the grant, always the skill owner.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a stop must name in If-Match."
+      }
+    },
+    "Page<SkillUseGrant>": {
+      "pageOf": "SkillUseGrant",
+      "description": "Cursor page of SkillUseGrant rows in the collection's stable sort order. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
+    },
     "RunRequestPerson": {
       "fields": [
         "principalId",
@@ -32493,6 +32574,24 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation that one person's direct access to a conversation was granted by a mention or revoked; clients re-read conversationAccess.list. It carries no message content."
+    },
+    "skillUseGrant.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification for a skill use grant recorded when an author confirms attaching a personal skill to a workflow step; consumers fetch the authoritative grants through the skill use grants list."
+    },
+    "skillUseGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification for a skill use grant its owner revoked; consumers re-read the skill use grants list."
     }
   },
   "workerActions": {
