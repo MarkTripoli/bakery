@@ -98,6 +98,15 @@ function fakeApi(
     identity,
     installationStatus: rejecting,
     listOrganizations: rejecting,
+    files: {
+      roots: rejecting,
+      entries: rejecting,
+      versions: rejecting,
+      uses: rejecting,
+      atVersion: rejecting,
+      search: rejecting,
+      content: rejecting,
+    },
     invitations: {
       preview: rejecting,
       recipientGet: rejecting,

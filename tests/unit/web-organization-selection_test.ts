@@ -64,6 +64,15 @@ function fakeApi(
       const page: OrganizationAccessPage = { items: [...items], nextCursor };
       return Promise.resolve({ ok: true, data: page });
     },
+    files: {
+      roots: rejecting,
+      entries: rejecting,
+      versions: rejecting,
+      uses: rejecting,
+      atVersion: rejecting,
+      search: rejecting,
+      content: rejecting,
+    },
     invitations: {
       preview: rejecting,
       recipientGet: rejecting,
