@@ -2948,6 +2948,29 @@
     {
       "group": "Skills",
       "method": "GET",
+      "path": "/v1/skills/{id}/used-by",
+      "action": "skills.usedBy",
+      "access": "Developer",
+      "permission": "skill:read",
+      "input": "CursorQuery",
+      "output": "Page<SkillUsage>",
+      "event": "",
+      "mcp": "bakery_skills_usedBy",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
       "path": "/v1/skills/{id}/use-grants",
       "action": "skills.useGrants.list",
       "access": "Owner for personal; Admin for organization",
@@ -12181,6 +12204,7 @@
     "skills.create",
     "skills.copy",
     "skills.update",
+    "skills.usedBy",
     "skillVersions.create",
     "skills.useGrants.list",
     "skills.useGrants.delete",
@@ -19838,6 +19862,82 @@
                   "$ref": "#/components/schemas/DefinitionUpdate"
                 }
               }
+            }
+          }
+        }
+      },
+      "/v1/skills/{id}/used-by": {
+        "get": {
+          "operationId": "skills.usedBy",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. CursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 512
+              }
+            },
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. CursorQuery.limit must be at least 1. CursorQuery.limit must be at most 100.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Page<SkillUsage>"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
             }
           }
         }
@@ -49587,6 +49687,7 @@
                 "library.search",
                 "skills.get",
                 "skills.update",
+                "skills.usedBy",
                 "skills.useGrants.list",
                 "skills.useGrants.delete",
                 "skillVersions.list",
@@ -95945,6 +96046,7 @@
                 "library.search",
                 "skills.get",
                 "skills.update",
+                "skills.usedBy",
                 "skills.useGrants.list",
                 "skills.useGrants.delete",
                 "skillVersions.list",
@@ -96526,6 +96628,7 @@
                 "library.search",
                 "skills.get",
                 "skills.update",
+                "skills.usedBy",
                 "skills.useGrants.list",
                 "skills.useGrants.delete",
                 "skillVersions.list",
@@ -97107,6 +97210,7 @@
                 "library.search",
                 "skills.get",
                 "skills.update",
+                "skills.usedBy",
                 "skills.useGrants.list",
                 "skills.useGrants.delete",
                 "skillVersions.list",
@@ -142499,6 +142603,7 @@
                       "library.search",
                       "skills.get",
                       "skills.update",
+                      "skills.usedBy",
                       "skills.useGrants.list",
                       "skills.useGrants.delete",
                       "skillVersions.list",
@@ -233695,6 +233800,194 @@
           "additionalProperties": false,
           "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both."
         },
+        "SkillUsage": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "workflow",
+                "agent"
+              ],
+              "description": "workflow for a published workflow version, agent for an agent version."
+            },
+            "definitionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the workflow or agent the version belongs to."
+            },
+            "definitionName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Name of that workflow or agent, as shown in the Library."
+            },
+            "versionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Immutable UUID of the workflow version or agent version that names the skill."
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of that workflow or agent version."
+            },
+            "skillVersionIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one. Each array item follows this format."
+              },
+              "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC time that workflow or agent version was created, which orders the list newest first."
+            }
+          },
+          "required": [
+            "kind",
+            "definitionId",
+            "definitionName",
+            "versionId",
+            "revision",
+            "skillVersionIds",
+            "createdAt"
+          ],
+          "additionalProperties": false,
+          "description": "One workflow version or agent version that pins a version of a skill: what it is, which version of it, and which versions of the skill it names. A workflow version uses a skill when one of its steps lists the version; an agent version uses it when its skill bindings name the version."
+        },
+        "Page<SkillUsage>": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "items": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "workflow",
+                      "agent"
+                    ],
+                    "description": "workflow for a published workflow version, agent for an agent version."
+                  },
+                  "definitionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID of the workflow or agent the version belongs to."
+                  },
+                  "definitionName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Name of that workflow or agent, as shown in the Library."
+                  },
+                  "versionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Immutable UUID of the workflow version or agent version that names the skill."
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Revision number of that workflow or agent version."
+                  },
+                  "skillVersionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one. Each array item follows this format."
+                    },
+                    "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one."
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC time that workflow or agent version was created, which orders the list newest first."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "definitionId",
+                  "definitionName",
+                  "versionId",
+                  "revision",
+                  "skillVersionIds",
+                  "createdAt"
+                ],
+                "additionalProperties": false,
+                "description": "One workflow version or agent version that pins a version of a skill: what it is, which version of it, and which versions of the skill it names. A workflow version uses a skill when one of its steps lists the version; an agent version uses it when its skill bindings name the version."
+              },
+              "description": "SkillUsage items in this cursor page. Page<SkillUsage>.items must contain at most 100 items."
+            },
+            "nextCursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Opaque continuation cursor value."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that no continuation page remains."
+                }
+              ],
+              "description": "Opaque continuation cursor, or null at the end."
+            },
+            "prevCursor": {
+              "description": "Page<SkillUsage>.prevCursor may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillUsage>.prevCursor must contain at most 512 UTF-8 bytes.",
+                  "x-utf8-max-bytes": 512
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "highwater": {
+              "description": "Page<SkillUsage>.highwater may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9][0-9]*)$",
+                  "description": "Page<SkillUsage>.highwater is a bounded decimal string.",
+                  "x-bigint-minimum": "0"
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "items",
+            "nextCursor"
+          ],
+          "additionalProperties": false,
+          "description": "Cursor page of SkillUsage."
+        },
         "Page<SkillUseGrant>": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -237982,7 +238275,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:438ac5e4e1641c9c9150c59387fdf6214453b4b3cc394112a6d3d8bc1a829827",
+  "compatibilityDigest": "sha256:7173fd9bec99984de1ef3b84f3b010c1fd28eb98a6776b08fbc4e19bc22908a3",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -245353,6 +245646,7 @@
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.usedBy",
             "skills.useGrants.list",
             "skills.useGrants.delete",
             "skillVersions.list",
@@ -291863,6 +292157,7 @@
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.usedBy",
             "skills.useGrants.list",
             "skills.useGrants.delete",
             "skillVersions.list",
@@ -292444,6 +292739,7 @@
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.usedBy",
             "skills.useGrants.list",
             "skills.useGrants.delete",
             "skillVersions.list",
@@ -293025,6 +293321,7 @@
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.usedBy",
             "skills.useGrants.list",
             "skills.useGrants.delete",
             "skillVersions.list",
@@ -338567,6 +338864,7 @@
                   "library.search",
                   "skills.get",
                   "skills.update",
+                  "skills.usedBy",
                   "skills.useGrants.list",
                   "skills.useGrants.delete",
                   "skillVersions.list",
@@ -429882,6 +430180,194 @@
       ],
       "additionalProperties": false,
       "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both."
+    },
+    "SkillUsage": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "workflow",
+            "agent"
+          ],
+          "description": "workflow for a published workflow version, agent for an agent version."
+        },
+        "definitionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the workflow or agent the version belongs to."
+        },
+        "definitionName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Name of that workflow or agent, as shown in the Library."
+        },
+        "versionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Immutable UUID of the workflow version or agent version that names the skill."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Revision number of that workflow or agent version."
+        },
+        "skillVersionIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one. Each array item follows this format."
+          },
+          "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time that workflow or agent version was created, which orders the list newest first."
+        }
+      },
+      "required": [
+        "kind",
+        "definitionId",
+        "definitionName",
+        "versionId",
+        "revision",
+        "skillVersionIds",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "One workflow version or agent version that pins a version of a skill: what it is, which version of it, and which versions of the skill it names. A workflow version uses a skill when one of its steps lists the version; an agent version uses it when its skill bindings name the version."
+    },
+    "Page<SkillUsage>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "workflow",
+                  "agent"
+                ],
+                "description": "workflow for a published workflow version, agent for an agent version."
+              },
+              "definitionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the workflow or agent the version belongs to."
+              },
+              "definitionName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Name of that workflow or agent, as shown in the Library."
+              },
+              "versionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Immutable UUID of the workflow version or agent version that names the skill."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Revision number of that workflow or agent version."
+              },
+              "skillVersionIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one. Each array item follows this format."
+                },
+                "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time that workflow or agent version was created, which orders the list newest first."
+              }
+            },
+            "required": [
+              "kind",
+              "definitionId",
+              "definitionName",
+              "versionId",
+              "revision",
+              "skillVersionIds",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One workflow version or agent version that pins a version of a skill: what it is, which version of it, and which versions of the skill it names. A workflow version uses a skill when one of its steps lists the version; an agent version uses it when its skill bindings name the version."
+          },
+          "description": "SkillUsage items in this cursor page. Page<SkillUsage>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<SkillUsage>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillUsage>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<SkillUsage>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<SkillUsage>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of SkillUsage."
     },
     "Page<SkillUseGrant>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
