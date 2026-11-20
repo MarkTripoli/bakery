@@ -4492,6 +4492,7 @@
   "issues.settings.workflow.standard": "⟦Ëṽëŕÿ ŕëþôšïŧôŕÿ ŕûñš ŧĥë šŧàñðàŕð çôðïñĝ ŵôŕķƒļôŵ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "issues.settings.routing.removeShort": "⟦Ŕëɱôṽë ŕûļë ŧ⟧",
   "settings.roles.thing.runRequest": "⟦ŕëǫûëšŧš…⟧",
+  "settings.roles.thing.batch": "⟦ƀàŧçĥëš…⟧",
   "settings.sso.provider.delete.body": "⟦Þëôþļë àŧ {domain} ŵïļļ ñô ļôñĝëŕ ƀë àƀļë ŧô šïĝñ ïñ ŧĥŕôûĝĥ ŧĥïš þŕôṽïðëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "settings.sso.provider.delete.titleStopRequiring": "⟦Ŕëɱôṽë {name} àñð šŧôþ ŕëǫûïŕïñĝ ŠŠÔ? ŧëšŧ çôþÿŧ⟧",
   "settings.sso.provider.delete.confirmStopRequiring": "⟦Ŕëɱôṽë àñð šŧôþ ŕëǫûïŕïñĝ ŠŠÔ ŧëšŧ çôþ⟧",
