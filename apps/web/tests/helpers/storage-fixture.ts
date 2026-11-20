@@ -45,6 +45,21 @@ const problem = (status: number, code: string) => ({
 /** Stubs the session, the role and the settings read and write; returns what it saw. */
 export async function storageFixture(page: Page, options: StorageOptions = {}) {
   await mockAuthenticatedSession(page);
+  // The shell asks what this person may do to decide which links to draw; an
+  // unstubbed read reaches no server here, answers 401 and signs the page out.
+  await page.route(
+    `**/v1/organizations/${MOCK_ORGANIZATION_ID}/effective-access`,
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          organizationId: MOCK_ORGANIZATION_ID,
+          role: options.role ?? "admin",
+          capabilities: [],
+        }),
+      }),
+  );
   const state = {
     workingVersionsKept: 20,
     trashRetentionDays: 30,
@@ -53,6 +68,8 @@ export async function storageFixture(page: Page, options: StorageOptions = {}) {
     organizationQuotaBytes: (options.quotaGb ?? 100) * GB,
     projectQuotaBytes: 50 * GB,
     personalQuotaBytes: 10 * GB,
+    stepWriteBytes: 2 * GB,
+    stepWriteFiles: 2000,
     organizationUsedBytes: Math.round((options.usedGb ?? 78.2) * GB),
     version: options.version ?? 3,
   };

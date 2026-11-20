@@ -20,6 +20,8 @@ const SAVED: StorageSettings = {
   organizationQuotaBytes: 100 * GIGABYTE,
   projectQuotaBytes: 50 * GIGABYTE,
   personalQuotaBytes: 10 * GIGABYTE,
+  stepWriteBytes: 2 * GIGABYTE,
+  stepWriteFiles: 2000,
   organizationUsedBytes: 78 * GIGABYTE,
   organizationQuotaState: "warning",
   customized: true,
@@ -71,6 +73,9 @@ Deno.test("a save carries every limit in bytes, and an untouched one as it was s
   // An API client set a project limit that is not whole gigabytes: left alone.
   assertEquals(put.projectQuotaBytes, 12.5 * GIGABYTE);
   assertEquals(put.workingVersionsKept, 20);
+  // The step write limits are not on the page: a save sends them as stored.
+  assertEquals(put.stepWriteBytes, 2 * GIGABYTE);
+  assertEquals(put.stepWriteFiles, 2000);
   assertEquals(fieldProblem("projectQuotaBytes", "12.5", odd), null);
 });
 

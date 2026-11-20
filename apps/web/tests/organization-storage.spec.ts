@@ -92,6 +92,8 @@ for (
         organizationQuotaBytes: 200 * GB,
         projectQuotaBytes: 50 * GB,
         personalQuotaBytes: 10 * GB,
+        stepWriteBytes: 2 * GB,
+        stepWriteFiles: 2000,
       });
       // The meter now reads against the new limit.
       await expect(

@@ -144,6 +144,9 @@ export function putOf(
     organizationQuotaBytes: value("organizationQuotaBytes"),
     projectQuotaBytes: value("projectQuotaBytes"),
     personalQuotaBytes: value("personalQuotaBytes"),
+    // The step write limits have no field here yet; a save keeps what is stored.
+    stepWriteBytes: saved.stepWriteBytes,
+    stepWriteFiles: saved.stepWriteFiles,
   };
 }
 
