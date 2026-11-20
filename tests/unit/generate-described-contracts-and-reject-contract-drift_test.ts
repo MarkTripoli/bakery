@@ -884,24 +884,23 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "1ce09ba92c2007f4837308efdbabfc93baaaff67",
+    "4e1f1fdf68726693d0b8c36cf23a94ac453512c5",
   ];
   const approvedDigest =
-    "sha256:68ac5cc235510ebf89411e981e1797c03b18eb5817a1948fd0d1ac6794122147";
+    "sha256:af74bd29915588674006ef96811da9402432fedb9dcef667c799dd54df482123";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #431 re-bind onto main 1ce09ba92: main's own #69
-    // approval, kept unchanged.
+    // Displaced by the #431 re-bind onto main 4e1f1fdf6: main's own #57 merge from Bakery approval (PullRequest gains required
+    // mayMerge and mergeMethod), kept unchanged.
+    "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1",
+    // The same #57 merge from Bakery change before main moved again (#724): the
+    // digest follows the tree, so the earlier one no longer authorises it.
+    "sha256:468a1fc65fc3b08483d56cf8108a2d8cb76241bab428558a44b78b723a0d8a53",
+    // Displaced by the #57 merge from Bakery re-bind: PullRequest gains required
+    // mayMerge and mergeMethod, on top of the #69 memberships display name.
     "sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926",
-    // Displaced by the #431 re-bind onto main 94e8c0e8c (PR1 opened).
-    "sha256:74939f698da35840e7aba037034e0e3452c6e17c35fd0790a3c9a0e37886e3d4",
-    // Displaced by the #431 re-bind onto main 94e8c0e8c (PR1 opened).
-    "sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa",
-    // Displaced by the #431 private skills re-bind onto main a83b7ec57 (access
-    // and the skill:author permission follow the personal/organization split).
-    "sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc",
     // Displaced by the #69 memberships display name re-bind: the same field on a
     // later main (#715 and #722 changed other contracts).
     "sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc",
@@ -1014,6 +1013,15 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "sha256:23925a33300c5bace9bf0ea5729725c8779c2e6ac70f0a3290aaf2335daff1f2",
     "sha256:6bda73092281a4782bdf22990a05724cb6689eb6521e6002ce90c8a3649b68f8",
     "sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f",
+    // Displaced by the #431 re-bind onto main 4e1f1fdf6 (#57 and #723 landed): the approval in force before it.
+    "sha256:68ac5cc235510ebf89411e981e1797c03b18eb5817a1948fd0d1ac6794122147",
+    // Displaced by the #431 re-bind onto main 94e8c0e8c (PR1 opened).
+    "sha256:74939f698da35840e7aba037034e0e3452c6e17c35fd0790a3c9a0e37886e3d4",
+    // Displaced by the #431 re-bind onto main 94e8c0e8c (PR1 opened).
+    "sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa",
+    // Displaced by the #431 private skills re-bind onto main a83b7ec57 (access
+    // and the skill:author permission follow the personal/organization split).
+    "sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc",
   ];
   const options = {
     baseRef: approvedBases[0],

@@ -375,6 +375,7 @@ export const DeliveryImplementedAction = Object.freeze(
     MergeEntriesList: "mergeEntries.list",
     MergeEntriesCreate: "mergeEntries.create",
     PullRequestsMerge: "pullRequests.merge",
+    MergeAttemptsList: "mergeAttempts.list",
     MergeAttemptsReconcile: "mergeAttempts.reconcile",
   } as const satisfies Record<string, CatalogActionName>,
 );
