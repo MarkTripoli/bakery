@@ -42,6 +42,15 @@ export const BackupFailureCode = Object.freeze(
 );
 
 /**
+ * The only causes a COMPLETED report may carry: the backup was taken on the host
+ * and its off-site copy failed. Every other failure ends the run as `failed`.
+ */
+export const NOT_COPIED_CODES: ReadonlySet<string> = new Set([
+  BackupFailureCode.DestinationRefused,
+  BackupFailureCode.DestinationUnreachable,
+]);
+
+/**
  * How long a claim lasts; every running report extends it by this much.
  *
  * A claim is not idempotent: if the runner's claim answer is lost, the runner
@@ -94,8 +103,6 @@ export function assertReportShape(report: ReportBody): void {
     if (!has.locations || report.locations!.length === 0) {
       throw unprocessable(["locations"], "required");
     }
-    if (has.code) throw unprocessable(["failureCode"], "not_allowed");
-    if (has.detail) throw unprocessable(["failureDetail"], "not_allowed");
     if (
       !/^[0-9]+$/.test(report.sizeBytes!) ||
       BigInt(report.sizeBytes!) > BIGINT_MAX
@@ -108,6 +115,27 @@ export function assertReportShape(report: ReportBody): void {
         throw unprocessable(["locations", index], "invalid_location");
       }
       seen.add(location);
+    }
+    if (has.detail && !has.code) {
+      throw unprocessable(["failureDetail"], "needs_failure_code");
+    }
+    if (has.code) {
+      // "Taken, not copied off-site": the backup exists on the host and only the
+      // off-site copy failed. It names that and nothing else.
+      if (!NOT_COPIED_CODES.has(report.failureCode!)) {
+        throw unprocessable(["failureCode"], "not_allowed_when_completed");
+      }
+      if (seen.has(BackupLocation.OffSite)) {
+        throw unprocessable(
+          ["failureCode"],
+          "not_allowed_when_copied_off_site",
+        );
+      }
+      if (
+        report.locations!.length !== 1 || !seen.has(BackupLocation.ServerHost)
+      ) {
+        throw unprocessable(["locations"], "must_be_server_host_only");
+      }
     }
     return;
   }
@@ -212,17 +240,26 @@ export function decideReport(
   return { kind: "apply" };
 }
 
-export type BackupStateWord = "protected" | "running" | "stale" | "failed";
+export type BackupStateWord =
+  | "protected"
+  | "running"
+  | "not_copied"
+  | "stale"
+  | "failed";
 
 /**
  * The one answer to "am I protected". A held run with a live lease is
  * `running`; a held run whose lease lapsed means the runner stopped reporting,
- * which is `failed`; otherwise the newest finished attempt decides, then age.
+ * which is `failed`; otherwise the newest finished attempt decides: `failed`,
+ * or `not_copied` when it was taken on the host but its off-site copy failed (a
+ * later good full backup is the newest and so replaces it), then age.
  */
 export function backupStateWord(input: {
   readonly now: Date;
   readonly held: { readonly leaseExpiresAt: Date | null } | null;
   readonly newestFinishedStatus: BackupRunStatus | null;
+  /** The newest finished attempt completed on the host but its off-site copy failed. */
+  readonly newestFinishedNotCopied?: boolean;
   readonly lastGoodAt: Date | null;
   /**
    * How old the newest good backup may be: twice the schedule interval when a
@@ -237,6 +274,10 @@ export function backupStateWord(input: {
       : "failed";
   }
   if (input.newestFinishedStatus === BackupRunStatus.Failed) return "failed";
+  if (
+    input.newestFinishedStatus === BackupRunStatus.Completed &&
+    input.newestFinishedNotCopied === true
+  ) return "not_copied";
   if (
     input.lastGoodAt !== null &&
     input.now.getTime() - input.lastGoodAt.getTime() <=

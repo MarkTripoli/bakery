@@ -277,3 +277,196 @@ Deno.test("the report schema is strict and has no field for bytes or keys", () =
     false,
   );
 });
+
+/** The code and the first issue's code of a 422, e.g. `UNPROCESSABLE:needs_failure_code`. */
+function issueCode(fn: () => unknown): string | undefined {
+  try {
+    fn();
+  } catch (error) {
+    if (error instanceof StandardError) {
+      const issues =
+        (error.params as { issues?: { code: string }[] } | undefined)
+          ?.issues;
+      return issues?.[0] ? `${error.code}:${issues[0].code}` : error.code;
+    }
+    throw error;
+  }
+  return undefined;
+}
+
+Deno.test("a completed report may say why the off-site copy failed, and only then", () => {
+  const taken = {
+    sequence: 1,
+    status: "completed",
+    sizeBytes: "1024",
+    locations: ["server-host"],
+  } as const;
+  // Accepted: taken on the host, the off-site copy refused or unreachable, with
+  // or without the destination's own words.
+  for (
+    const failureCode of ["destination_refused", "destination_unreachable"]
+  ) {
+    assertReportShape({ ...taken, failureCode });
+    assertReportShape({
+      ...taken,
+      failureCode,
+      failureDetail: "The destination answered 403. The backup was taken.",
+    });
+  }
+  // A plain completed report (no off-site configured, or a good copy) still passes.
+  assertReportShape(taken);
+  assertReportShape({ ...taken, locations: ["server-host", "off-site"] });
+
+  const rejected: [ReportBody, string][] = [
+    // Copied off-site AND failed to copy: a contradiction.
+    [
+      {
+        ...taken,
+        locations: ["server-host", "off-site"],
+        failureCode: "destination_refused",
+      },
+      "not_allowed_when_copied_off_site",
+    ],
+    // Only the off-site causes qualify; every other cause ends the run as failed.
+    [{ ...taken, failureCode: "disk_full" }, "not_allowed_when_completed"],
+    [{ ...taken, failureCode: "key_missing" }, "not_allowed_when_completed"],
+    [{ ...taken, failureCode: "runner_error" }, "not_allowed_when_completed"],
+    [{ ...taken, failureCode: "runner_lost" }, "not_allowed_when_completed"],
+    // The backup must be on the host, and nowhere else is a failure to copy.
+    [
+      { ...taken, locations: ["off-site"], failureCode: "destination_refused" },
+      "not_allowed_when_copied_off_site",
+    ],
+    // A detail needs a cause to explain.
+    [{ ...taken, failureDetail: "just words" }, "needs_failure_code"],
+  ];
+  for (const [report, reason] of rejected) {
+    assertEquals(
+      issueCode(() => assertReportShape(report)),
+      `UNPROCESSABLE:${reason}`,
+      JSON.stringify(report),
+    );
+  }
+  // `failed` keeps its rules: no size and no locations, even with an off-site cause.
+  assertEquals(
+    issueCode(() =>
+      assertReportShape({
+        sequence: 1,
+        status: "failed",
+        failureCode: "destination_refused",
+        sizeBytes: "1",
+      })
+    ),
+    "UNPROCESSABLE:not_allowed",
+  );
+  assertEquals(
+    issueCode(() =>
+      assertReportShape({
+        sequence: 1,
+        status: "failed",
+        failureCode: "destination_refused",
+        locations: ["server-host"],
+      })
+    ),
+    "UNPROCESSABLE:not_allowed",
+  );
+  // A running report never carries a failure.
+  assertEquals(
+    issueCode(() =>
+      assertReportShape({
+        sequence: 1,
+        status: "running",
+        failureCode: "destination_refused",
+      })
+    ),
+    "UNPROCESSABLE:not_allowed_while_running",
+  );
+});
+
+Deno.test("a completed-with-failure report replays identically and a changed cause is a mismatch", async () => {
+  const report: ReportBody = {
+    sequence: 3,
+    status: "completed",
+    sizeBytes: "1024",
+    locations: ["server-host"],
+    failureCode: "destination_refused",
+    failureDetail: "The destination answered 403.",
+  };
+  const digest = await reportDigest(report);
+  const stored = run({
+    status: BackupRunStatus.Completed,
+    reportSequence: 3,
+    lastReportDigest: digest,
+    leaseExpiresAt: null,
+  });
+  assertEquals(decideReport(stored, report, digest, now), { kind: "replay" });
+  const changed: ReportBody = {
+    ...report,
+    failureCode: "destination_unreachable",
+  };
+  assertEquals(
+    code(() => decideReport(stored, changed, "other", now)),
+    "IDEMPOTENCY_PAYLOAD_MISMATCH",
+  );
+  // The digest covers the cause, so a changed cause never replays.
+  assert(digest !== await reportDigest(changed));
+  assert(digest !== await reportDigest({ ...report, failureDetail: "other" }));
+});
+
+Deno.test("not_copied: the newest finished attempt decides, a later good backup supersedes it, a live run beats it", () => {
+  const held = (leaseExpiresAt: Date | null) => ({ leaseExpiresAt });
+  const recent = new Date(now.getTime() - 1000);
+  const word = (
+    overrides: Partial<Parameters<typeof backupStateWord>[0]> = {},
+  ) =>
+    backupStateWord({
+      now,
+      held: null,
+      newestFinishedStatus: BackupRunStatus.Completed,
+      newestFinishedNotCopied: true,
+      lastGoodAt: recent,
+      ...overrides,
+    });
+  // The newest finished attempt was taken but not copied off-site.
+  assertEquals(word(), "not_copied");
+  // A later good FULL backup is the newest finished attempt and supersedes it.
+  assertEquals(word({ newestFinishedNotCopied: false }), "protected");
+  assertEquals(word({ newestFinishedNotCopied: undefined }), "protected");
+  // A live run is still running; a lapsed claim is still failed.
+  assertEquals(word({ held: held(later) }), "running");
+  assertEquals(word({ held: held(earlier) }), "failed");
+  // A newer failure beats it, and a not-copied flag on a failed run means nothing.
+  assertEquals(
+    word({ newestFinishedStatus: BackupRunStatus.Failed }),
+    "failed",
+  );
+  // The local backup counts as a good one for "when was the last backup".
+  assertEquals(word({ lastGoodAt: recent }), "not_copied");
+  // Nothing finished yet: unchanged.
+  assertEquals(
+    word({
+      newestFinishedStatus: null,
+      newestFinishedNotCopied: undefined,
+      lastGoodAt: null,
+    }),
+    "stale",
+  );
+});
+
+Deno.test("the status schema accepts the not_copied word and still refuses unknown ones", () => {
+  const status = {
+    state: "not_copied",
+    lastGoodBackupAt: "2026-11-20T11:59:59.000Z",
+    lastAttemptAt: "2026-11-20T11:59:59.000Z",
+    runningRunId: null,
+    runningProgressPercent: null,
+    waitingRunId: null,
+    runnerConfigured: true,
+    runnerLastUsedAt: null,
+  };
+  assertEquals(contractSchemas.BackupStatus.parse(status).state, "not_copied");
+  assert(
+    !contractSchemas.BackupStatus.safeParse({ ...status, state: "amber" })
+      .success,
+  );
+});
