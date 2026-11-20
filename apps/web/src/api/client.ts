@@ -1229,11 +1229,13 @@ export type BakeryApiClient = {
   readonly metrics: {
     /** `GET /v1/metrics`: one delivery metric over a window. */
     readonly get: (options: {
+      readonly organizationId: string;
       readonly query: MetricsQuery;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<MetricSeries>>;
     /** `GET /v1/metrics/sources`: the records behind it, keyset paged. */
     readonly sources: (options: {
+      readonly organizationId: string;
       readonly query: MetricSourcesQuery;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<MetricSourcePage>>;
@@ -3833,9 +3835,12 @@ export function createBakeryApiClient({
         try {
           return {
             ok: true,
-            data: await client.actions["metrics.get"](options.query, {
-              signal: options.signal,
-            }),
+            // Bound to the caller's organization: the shared client's context
+            // is set and cleared by other calls and may be empty here.
+            data: await scoped(options.organizationId).actions["metrics.get"](
+              options.query,
+              { signal: options.signal },
+            ),
           };
         } catch (error) {
           return failed(error);
@@ -3845,9 +3850,9 @@ export function createBakeryApiClient({
         try {
           return {
             ok: true,
-            data: await client.actions["metrics.sources"](options.query, {
-              signal: options.signal,
-            }),
+            data: await scoped(options.organizationId).actions[
+              "metrics.sources"
+            ](options.query, { signal: options.signal }),
           };
         } catch (error) {
           return failed(error);

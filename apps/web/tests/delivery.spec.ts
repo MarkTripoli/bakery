@@ -152,16 +152,33 @@ for (
       await expect(records.getByText("Add the metrics read")).toBeVisible();
       await expect(records.getByText(/Not line-counted/).first())
         .toBeVisible();
-      await page.getByRole("button", {
+      const tile = page.getByRole("button", {
         name: /^Tasks delivered, 8\./,
         pressed: false,
-      }).click();
-      await expect(
-        page.getByRole("button", {
-          name: /^Tasks delivered, 8\./,
-          pressed: true,
-        }),
-      ).toBeVisible();
+      });
+      const before = await tile.boundingBox();
+      const heading = await page.getByRole("heading", {
+        name: "Delivery",
+        level: 1,
+      })
+        .boundingBox();
+      await tile.click();
+      const chosen = page.getByRole("button", {
+        name: /^Tasks delivered, 8\./,
+        pressed: true,
+      });
+      await expect(chosen).toBeVisible();
+      // The task records load: rows, not "could not be loaded".
+      await expect(records.getByText("Tidy the settings page")).toBeVisible();
+      await expect(records.getByText("The records could not be loaded."))
+        .toHaveCount(0);
+      // Choosing a figure marks it without moving it or anything below it.
+      const after = await chosen.boundingBox();
+      expect(after).toEqual(before);
+      expect(
+        await page.getByRole("heading", { name: "Delivery", level: 1 })
+          .boundingBox(),
+      ).toEqual(heading);
       await page.mouse.move(700, 700);
       await still(page, "delivery-pull-requests");
     });

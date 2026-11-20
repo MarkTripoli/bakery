@@ -1861,7 +1861,7 @@
   "delivery.fresh.asOfUnknown": "Up to date as of the last read.",
   "delivery.fresh.lines": "{unmeasured} of {merged, plural, one {# merged pull request} other {# merged pull requests}} could not be line-counted.",
   "delivery.fresh.tasks": "{tasks, plural, one {# task has} other {# tasks have}} a missing time.",
-  "delivery.fresh.neverZero": "They are listed, never counted as zero.",
+  "delivery.fresh.neverZero": "{count, plural, one {It is listed} other {They are listed}}, never counted as zero.",
   "delivery.fresh.missing.action": "What is missing",
   "delivery.fresh.disconnected.title": "GitHub is disconnected for {repository}.",
   "delivery.fresh.disconnected.body": "Nothing after {date} is counted for that repository. Its figures below are not zero; they are unknown.",

@@ -71,49 +71,101 @@ export async function deliveryFixture(
   await projectsFixture(page, { repositories: [REPO], role: "admin" });
   const merged = options.merged ?? 6;
   const runs = options.runs ?? 2;
-  const hours = options.hours ?? {
-    agentWorking: 14,
-    queue: 5,
-    review: 3,
-    person: 6,
-    unaccounted: 8,
+  // Every task adds up: the four waits and what no record covers sum to its
+  // Total, which is Delivered minus Requested; the bar is the column sums, and
+  // Typical is the middle row.
+  const totalsHours = [10, 14, 18, 22, 26, 30, 34, 46, 50, 62];
+  const count = merged + runs;
+  const totals = totalsHours.slice(0, count);
+  const split = (total: number) => {
+    const agentWorking = Math.round(total * 0.5);
+    const queue = Math.round(total * 0.15);
+    const review = Math.round(total * 0.08);
+    const person = Math.round(total * 0.17);
+    return {
+      agentWorking,
+      queue,
+      review,
+      person,
+      unaccounted: total - agentWorking - queue - review - person,
+    };
   };
-  const waits = (extra = 1) => [
-    {
-      category: "agentWorking",
-      hours: hours.agentWorking * extra,
-      unknownReason: null,
-    },
-    { category: "queue", hours: hours.queue * extra, unknownReason: null },
-    { category: "review", hours: hours.review * extra, unknownReason: null },
-    { category: "person", hours: hours.person * extra, unknownReason: null },
-    { category: "blocked", hours: null, unknownReason: "not_recorded" },
-    {
-      category: "unaccounted",
-      hours: hours.unaccounted * extra,
-      unknownReason: null,
-    },
-  ];
-  const task = (n: number, point: "merged_pull_request" | "completed_run") => ({
-    kind: "task",
-    id: uuid(300 + n),
-    repositoryId: REPO.id,
-    taskId: uuid(300 + n),
-    providerNumber: null,
-    url: null,
-    status: "delivered",
-    openedAt: null,
-    mergedAt: null,
-    closedAt: null,
-    countedAt: STAMP,
-    value: 20 + n,
-    missingReason: null,
-    title: `Task ${n}: tidy the settings page`,
-    requestedAt: "2026-11-10T09:00:00.000Z",
-    deliveredAt: "2026-11-11T09:00:00.000Z",
-    deliveryPoint: point,
-    waits: waits(0.2),
+  const rowsWaits = totals.map(split);
+  const sums = rowsWaits.reduce(
+    (sum, row) => ({
+      agentWorking: sum.agentWorking + row.agentWorking,
+      queue: sum.queue + row.queue,
+      review: sum.review + row.review,
+      person: sum.person + row.person,
+      unaccounted: sum.unaccounted + row.unaccounted,
+    }),
+    { agentWorking: 0, queue: 0, review: 0, person: 0, unaccounted: 0 },
+  );
+  if (options.hours !== undefined) Object.assign(sums, options.hours);
+  const sorted = [...totals].sort((a, b) => a - b);
+  const median = sorted[Math.ceil(sorted.length / 2) - 1] ?? null;
+  const p90 = sorted[Math.ceil(sorted.length * 0.9) - 1] ?? null;
+  const share = (
+    category: string,
+    hours: number | null,
+  ) => ({
+    category,
+    hours,
+    unknownReason: hours === null ? "not_recorded" : null,
   });
+  const breakdown = [
+    share("agentWorking", sums.agentWorking),
+    share("queue", sums.queue),
+    share("review", sums.review),
+    share("person", sums.person),
+    share("blocked", null),
+    share("unaccounted", sums.unaccounted),
+  ];
+  const TITLES = [
+    "Tidy the settings page",
+    "Add the delivery metrics read",
+    "Fix the retry window",
+    "Move the usage link",
+    "Show where the time went",
+    "Rename the queue states",
+    "Count changed lines once",
+    "Explain a disconnected source",
+    "Read the records table",
+    "Cache the repository list",
+  ];
+  const task = (n: number, point: "merged_pull_request" | "completed_run") => {
+    const total = totals[n - 1]!;
+    const requested = Date.parse("2026-11-10T09:00:00.000Z") +
+      n * 3_600_000 * 5;
+    const row = rowsWaits[n - 1]!;
+    return {
+      kind: "task",
+      id: uuid(300 + n),
+      repositoryId: REPO.id,
+      taskId: uuid(300 + n),
+      providerNumber: null,
+      url: null,
+      status: "delivered",
+      openedAt: null,
+      mergedAt: null,
+      closedAt: null,
+      countedAt: STAMP,
+      value: total,
+      missingReason: null,
+      title: TITLES[n - 1],
+      requestedAt: new Date(requested).toISOString(),
+      deliveredAt: new Date(requested + total * 3_600_000).toISOString(),
+      deliveryPoint: point,
+      waits: [
+        share("agentWorking", row.agentWorking),
+        share("queue", row.queue),
+        share("review", row.review),
+        share("person", row.person),
+        share("blocked", null),
+        share("unaccounted", row.unaccounted),
+      ],
+    };
+  };
   const pullRequest = (n: number, missing: boolean) => ({
     kind: "pullRequest",
     id: uuid(400 + n),
@@ -165,10 +217,12 @@ export async function deliveryFixture(
             sampleCount: merged + runs,
             missingCount: options.leftOut ?? 0,
             summary: {
-              median: 30,
-              p90: 52,
-              mean: 34,
-              breakdown: waits(),
+              median,
+              p90,
+              mean: totals.length === 0
+                ? null
+                : totals.reduce((a, b) => a + b, 0) / totals.length,
+              breakdown,
               deliveryPoints: [
                 { deliveryPoint: "merged_pull_request", count: merged },
                 { deliveryPoint: "completed_run", count: runs },

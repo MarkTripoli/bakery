@@ -1756,7 +1756,13 @@ export function metricSeriesQueryOptions(
   return queryOptions<MetricSeries, ApiFailure>({
     queryKey: protectedQueryKey(scope, "metrics.get", { ...query }),
     queryFn: async ({ signal }) =>
-      unwrap(await client.metrics.get({ query, signal })),
+      unwrap(
+        await client.metrics.get({
+          organizationId: requireOrganization(scope),
+          query,
+          signal,
+        }),
+      ),
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });
@@ -1781,6 +1787,7 @@ export function metricSourcesQueryOptions(
     queryFn: async ({ signal, pageParam }) =>
       unwrap(
         await client.metrics.sources({
+          organizationId: requireOrganization(scope),
           query: {
             ...query,
             ...(pageParam === null ? {} : { cursor: pageParam }),

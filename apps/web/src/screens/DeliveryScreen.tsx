@@ -142,17 +142,24 @@ export function DeliveryScreen(props: DeliveryScreenProps) {
 
   return (
     <UI.Stack data-testid="delivery-page" gap="spacious">
-      {/* Right of the title on a desktop; the page header carries them on a phone. */}
-      <UI.Inline gap="standard" variant="between">
-        <UI.PageHeader
-          actions={phone ? <Filters {...props} /> : undefined}
-          description={translate("delivery.description")}
-          flush
-          title={translate("delivery.title")}
-          variant="list"
-        />
-        {phone ? null : <Filters {...props} />}
-      </UI.Inline>
+      {phone
+        ? (
+          <UI.PageHeader
+            actions={<Filters {...props} />}
+            description={translate("delivery.description")}
+            flush
+            title={translate("delivery.title")}
+            variant="list"
+          />
+        )
+        : (
+          // On a desktop the controls share the title's row.
+          <UI.PageHeader
+            actions={<Filters {...props} />}
+            meta={translate("delivery.description")}
+            title={translate("delivery.title")}
+          />
+        )}
       {props.periodTooLong
         ? (
           <UI.InlineNotice tone="warning">
@@ -468,12 +475,14 @@ function TimeWent({ lead }: { readonly lead: LeadTime }) {
             {translate("delivery.time.bar.heading")}
           </UI.Heading>
         )}
-      <UI.Text variant="muted">
-        {translate("delivery.time.measure", { count: lead.count })}
-        {lead.leftOut > 0
-          ? ` ${translate("delivery.time.leftOut", { count: lead.leftOut })}`
-          : ""}
-      </UI.Text>
+      {tooFew || parts.length === 0 ? null : (
+        <UI.Text variant="muted">
+          {translate("delivery.time.measure", { count: lead.count })}
+          {lead.leftOut > 0
+            ? ` ${translate("delivery.time.leftOut", { count: lead.leftOut })}`
+            : ""}
+        </UI.Text>
+      )}
       {tooFew || parts.length === 0 ? null : (
         <UI.SegmentedBar
           label={translate("delivery.time.bar.label", {
@@ -624,7 +633,9 @@ function FreshnessNotice(props: DeliveryScreenProps) {
         freshness.tasksMissing > 0
           ? translate("delivery.fresh.tasks", { tasks: freshness.tasksMissing })
           : null,
-        translate("delivery.fresh.neverZero"),
+        translate("delivery.fresh.neverZero", {
+          count: freshness.unmeasured + freshness.tasksMissing,
+        }),
       ].filter((part) => part !== null).join(" ")}
     </UI.InlineNotice>
   );
@@ -704,7 +715,7 @@ function RecordsSection(
       cell: (row) => (
         <UI.Stack gap="none">
           {title(row)}
-          {row.missing !== null && row.value === null
+          {row.kind === "task" && row.missing !== null && row.value === null
             ? <UI.Text variant="muted">{reason(row)}</UI.Text>
             : null}
         </UI.Stack>
@@ -865,11 +876,33 @@ function RecordsSection(
                       {rows.map((row) => (
                         <div key={row.key} role="listitem">
                           <UI.StackedRow title={title(row)}>
-                            {columns.slice(1).map((column) => (
-                              <UI.Text key={column.id} variant="caption">
-                                {column.header}: {column.cell(row)}
-                              </UI.Text>
-                            ))}
+                            {columns.slice(1).map((column) =>
+                              column.id === "delivered"
+                                ? (
+                                  // The time on the label's line, the delivery
+                                  // point under it in the caption style.
+                                  <UI.Stack gap="none" key={column.id}>
+                                    <UI.Text variant="caption">
+                                      {column.header}:{" "}
+                                      {dayAndTime(row.deliveredAt)}
+                                    </UI.Text>
+                                    {row.deliveryPoint === null
+                                      ? null
+                                      : (
+                                        <UI.Text variant="caption">
+                                          {translate(
+                                            `delivery.point.${row.deliveryPoint}` as never,
+                                          )}
+                                        </UI.Text>
+                                      )}
+                                  </UI.Stack>
+                                )
+                                : (
+                                  <UI.Text key={column.id} variant="caption">
+                                    {column.header}: {column.cell(row)}
+                                  </UI.Text>
+                                )
+                            )}
                           </UI.StackedRow>
                         </div>
                       ))}

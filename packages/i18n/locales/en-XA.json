@@ -5097,7 +5097,6 @@
   "delivery.fresh.asOfUnknown": "⟦Ûþ ŧô ðàŧë àš ôƒ ŧĥë ļàšŧ ŕëàð. ŧëšŧ çôþ⟧",
   "delivery.fresh.lines": "⟦{unmeasured} ôƒ {merged, plural, one {# merged pull request} other {# merged pull requests}} çôûļð ñôŧ ƀë ļïñë-çôûñŧëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "delivery.fresh.tasks": "⟦{tasks, plural, one {# task has} other {# tasks have}} à ɱïššïñĝ ŧïɱë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
-  "delivery.fresh.neverZero": "⟦Ŧĥëÿ àŕë ļïšŧëð, ñëṽëŕ çôûñŧëð àš žëŕô. ŧëšŧ çôþÿ ŧ⟧",
   "delivery.fresh.missing.action": "⟦Ŵĥàŧ ïš ɱïššïñĝ ŧëš⟧",
   "delivery.fresh.disconnected.title": "⟦ĜïŧĤûƀ ïš ðïšçôññëçŧëð ƒôŕ {repository}. ŧëšŧ çôþÿ ŧ⟧",
   "delivery.fresh.disconnected.body": "⟦Ñôŧĥïñĝ àƒŧëŕ {date} ïš çôûñŧëð ƒôŕ ŧĥàŧ ŕëþôšïŧôŕÿ. Ïŧš ƒïĝûŕëš ƀëļôŵ àŕë ñôŧ žëŕô; ŧĥëÿ àŕë ûñķñôŵñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
@@ -5194,5 +5193,6 @@
   "delivery.time.unaccounted.name": "⟦Ñôŧ àççôûñŧëð ƒôŕ: ŧëšŧ⟧",
   "delivery.time.unaccounted.text": "⟦ŧïɱë Ɓàķëŕÿ ĥàš ñô ŕëçôŕð ƒôŕ, ïñçļûðïñĝ àñÿ ŧïɱë ƀļôçķëð. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "delivery.time.blockedUnknown.name": "⟦Ɓļôçķëð: Ûñķñôŵñ. ŧëš⟧",
-  "delivery.time.blockedUnknown.text": "⟦Ɓàķëŕÿ ðôëš ñôŧ ŕëçôŕð ŵĥëñ à ŧàšķ ŵàš ƀļôçķëð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "delivery.time.blockedUnknown.text": "⟦Ɓàķëŕÿ ðôëš ñôŧ ŕëçôŕð ŵĥëñ à ŧàšķ ŵàš ƀļôçķëð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "delivery.fresh.neverZero": "⟦{count, plural, one {It is listed} other {They are listed}}, ñëṽëŕ çôûñŧëð àš žëŕô. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }
