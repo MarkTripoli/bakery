@@ -1505,11 +1505,13 @@ function withoutPin(config: unknown): string | null {
  * administrator's admitted choice to finish a step on another route during an
  * incident) re-pins the job's billing while the run's frozen snapshot stays
  * untouched. That is allowed only when everything but the pin still matches the
- * frozen configuration and a continuation recorded for this job's step names a
- * target route with the pin's provider and model. A continuation moves every job
- * of its step and is recorded once, for the step, so the match is by step: a job of
- * another step is not covered by it. Anything else is the mismatch it always was,
- * and the job stays unclaimable.
+ * frozen configuration and a continuation recorded for this very job names a
+ * target route with the pin's provider and model. Anything else is the mismatch it
+ * always was, and the job stays unclaimable.
+ *
+ * One continuation per step is enough: `jobs` is unique on (run_step_id, action), and
+ * `admitRepositoryExecutionJob` refuses any job whose action is not the one the run's
+ * frozen snapshot authorizes for its step, so a step has at most one claimable job.
  */
 async function agentConfigMatchesFrozen(
   transaction: PgTransactionClient,
@@ -1534,11 +1536,7 @@ async function agentConfigMatchesFrozen(
        join bakery.provider_routes target
          on target.organization_id = continuation.organization_id
         and target.id = continuation.target_route_id
-      where continuation.organization_id = $1
-        and continuation.run_step_id = (
-          select run_step_id from bakery.jobs
-           where organization_id = $1 and id = $2
-        )
+      where continuation.organization_id = $1 and continuation.job_id = $2
         and target.provider = $3 and target.model = $4
       limit 1`,
     [input.organizationId, input.jobId, billing.provider, billing.model],

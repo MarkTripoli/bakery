@@ -433,9 +433,10 @@ export async function admitRouteContinuation(
       where organization_id = $1 and id = $2`,
     [organizationId, runId],
   );
-  // One row records the continuation for the whole step, whichever of its jobs moved:
-  // the unique key allows one per step and generation, and the claim matches it by the
-  // job's step. `job_id` names the first job moved, for the record only.
+  // One row records the continuation: the unique key allows one per step and
+  // generation. A step has at most one claimable job (`jobs` is unique on
+  // (run_step_id, action) and the claim check refuses any job whose action is not the
+  // step's frozen one), so the claim matches the row by `job_id`.
   let continuation: { id: string; created_at: Date | string };
   try {
     continuation = (await transaction.query<

@@ -1406,33 +1406,31 @@ async function claimCheck(seeded: Seeded, jobId: string): Promise<string> {
   );
 }
 
-Deno.test("admit: control: a second job cloned onto the step passes the claim check by itself", async () => {
-  // Proves the two-job fixture before it is trusted: if the clone failed the check
-  // with no continuation involved, the two-job case below would prove nothing.
+Deno.test("admit: a second job on a step is refused by the claim check itself, so one continuation per step strands nothing claimable", async () => {
+  // The claim check derives the one action the run's frozen snapshot authorizes for a
+  // step and refuses any job whose action differs, and `jobs` is unique on
+  // (run_step_id, action): a step has at most one claimable job. A continuation
+  // recorded for that job therefore covers every job that could ever claim on the step.
+  // This pins the invariant, so that reading "jobs 2..n are stranded" does not come back.
   const seeded = await seed();
   try {
     const pg = database(seeded.fixture);
     const secondJobId = await cloneFundedJobOntoStep(pg, seeded.job);
-    assertEquals(await claimCheck(seeded, seeded.job.jobId), "accepted");
-    assertEquals(await claimCheck(seeded, secondJobId), "accepted");
-  } finally {
-    await done(seeded);
-  }
-});
+    const refused = `refused: ${
+      JSON.stringify({ reason: "configuration_profile_unavailable" })
+    }`;
 
-Deno.test("admit: a step with two moving jobs moves both, and neither is stuck at the claim check", async () => {
-  const seeded = await seed();
-  try {
-    const pg = database(seeded.fixture);
-    const secondJobId = await cloneFundedJobOntoStep(pg, seeded.job);
+    // Before any admission, with no continuation involved at all.
+    assertEquals(await claimCheck(seeded, seeded.job.jobId), "accepted");
+    assertEquals(await claimCheck(seeded, secondJobId), refused);
 
     await admit(seeded);
 
-    // Both jobs were re-pinned onto the target route, and one continuation was
-    // recorded for the step: the structure allows one per step and generation.
+    // After it: both jobs were moved to the target route, one continuation was
+    // recorded for the step, the real job claims on its new pin, and the extra job is
+    // refused exactly as before.
     const pins = (await pg.query(
-      `select id, billing ->> 'model' as model from bakery.jobs
-        where run_step_id = $1`,
+      `select billing ->> 'model' as model from bakery.jobs where run_step_id = $1`,
       [seeded.job.runStepId],
     )).rows;
     assertEquals(pins.length, 2);
@@ -1445,11 +1443,8 @@ Deno.test("admit: a step with two moving jobs moves both, and neither is stuck a
       )).rows[0].count,
       1,
     );
-
-    // Neither job is stuck: the check that refuses a changed pin accepts both,
-    // because the continuation recorded for the step covers every job of the step.
     assertEquals(await claimCheck(seeded, seeded.job.jobId), "accepted");
-    assertEquals(await claimCheck(seeded, secondJobId), "accepted");
+    assertEquals(await claimCheck(seeded, secondJobId), refused);
   } finally {
     await done(seeded);
   }
