@@ -3,29 +3,6 @@
 export const clientManifest = {
   "actions": [
     {
-      "group": "Artifacts",
-      "method": "POST",
-      "path": "/v1/context-packs",
-      "action": "contextPacks.build",
-      "access": "Developer",
-      "permission": "artifactVersion:read",
-      "input": "ContextPackBuild",
-      "output": "ContextPack",
-      "event": "",
-      "mcp": "bakery_contextPacks_build",
-      "idempotency": "read",
-      "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND",
-        "SCOPE_REQUIRED",
-        "UNPROCESSABLE",
-        "MALFORMED_REQUEST"
-      ],
-      "organizationContext": "required_authenticated_context",
-      "implemented": true
-    },
-    {
       "group": "Authentication",
       "method": "GET",
       "path": "/api/auth/organization/get-invitation",
@@ -6035,6 +6012,29 @@ export const clientManifest = {
         "UNPROCESSABLE",
         "MALFORMED_REQUEST",
         "ARTIFACT_CONTENT_EXPIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Artifacts",
+      "method": "POST",
+      "path": "/v1/context-packs",
+      "action": "contextPacks.build",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "ContextPackBuild",
+      "output": "ContextPack",
+      "event": "",
+      "mcp": "bakery_contextPacks_build",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "UNPROCESSABLE",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -16059,7 +16059,6 @@ export const clientManifest = {
         "capability": {
           "type": "string",
           "enum": [
-            "contextPacks.build",
             "organizationInvitations.recipientGet",
             "organizationInvitations.recipientAccept",
             "organizationInvitations.recipientReject",
@@ -16325,6 +16324,7 @@ export const clientManifest = {
             "artifactVersions.content",
             "artifactVersions.import",
             "artifactVersions.extract",
+            "contextPacks.build",
             "artifactPreviews.create",
             "artifactPreviews.revoke",
             "artifactPreviews.availability",
@@ -41378,7 +41378,6 @@ export const clientManifest = {
               "capability": {
                 "type": "string",
                 "enum": [
-                  "contextPacks.build",
                   "organizationInvitations.recipientGet",
                   "organizationInvitations.recipientAccept",
                   "organizationInvitations.recipientReject",
@@ -41644,6 +41643,7 @@ export const clientManifest = {
                   "artifactVersions.content",
                   "artifactVersions.import",
                   "artifactVersions.extract",
+                  "contextPacks.build",
                   "artifactPreviews.create",
                   "artifactPreviews.revoke",
                   "artifactPreviews.availability",
@@ -61029,7 +61029,6 @@ export const clientManifest = {
         "capability": {
           "type": "string",
           "enum": [
-            "contextPacks.build",
             "organizationInvitations.recipientGet",
             "organizationInvitations.recipientAccept",
             "organizationInvitations.recipientReject",
@@ -61295,6 +61294,7 @@ export const clientManifest = {
             "artifactVersions.content",
             "artifactVersions.import",
             "artifactVersions.extract",
+            "contextPacks.build",
             "artifactPreviews.create",
             "artifactPreviews.revoke",
             "artifactPreviews.availability",
@@ -69647,7 +69647,6 @@ export const clientManifest = {
           "items": {
             "type": "string",
             "enum": [
-              "artifactVersion:read",
               "organizationInvitation:readSelf",
               "organizationInvitation:respond",
               "application:read",
@@ -69766,6 +69765,7 @@ export const clientManifest = {
               "preview:access",
               "artifact:read",
               "artifact:write",
+              "artifactVersion:read",
               "artifactVersion:write",
               "artifactComment:read",
               "artifactComment:write",

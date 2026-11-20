@@ -170,8 +170,8 @@ function extractWindow(
 /**
  * Proves the caller may read the version and returns its metadata, without
  * reading the content column. The joins are the same ones the content read uses,
- * so a caller that reaches the cache hit has already been authorized by exactly
- * the query that would have refused it.
+ * so a caller that gets metadata from it has been authorized by exactly the
+ * query that would have refused the content read.
  */
 export async function readArtifactVersionIdentity(
   transaction: PgTransactionClient,
