@@ -703,6 +703,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsCreate: "skills.create",
     SkillsCopy: "skills.copy",
     SkillsUpdate: "skills.update",
+    SkillsUsedBy: "skills.usedBy",
     SkillVersionsCreate: "skillVersions.create",
     SkillUseGrantsList: "skills.useGrants.list",
     SkillUseGrantsDelete: "skills.useGrants.delete",
@@ -745,6 +746,19 @@ export const PluginInstallImplementedAction = Object.freeze(
 );
 export const pluginInstallImplementedActions = Object.freeze(
   Object.values(PluginInstallImplementedAction),
+);
+
+export const PreviewImplementedAction = Object.freeze(
+  {
+    PreviewsList: "previews.list",
+    PreviewsAccess: "previews.access",
+    PreviewsStop: "previews.stop",
+    PreviewsRevokeAccess: "previews.revokeAccess",
+    PreviewsAvailability: "previews.availability",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const previewImplementedActions = Object.freeze(
+  Object.values(PreviewImplementedAction),
 );
 
 export const MemoryImplementedAction = Object.freeze(
@@ -817,6 +831,7 @@ export const implementedActions = Object.freeze(
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
     ...memoryImplementedActions,
+    ...previewImplementedActions,
   ] as const,
 );
 

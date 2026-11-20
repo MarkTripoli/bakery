@@ -32,6 +32,8 @@ import {
   assertImplementedActionRegistry,
   BlobUploadImplementedAction,
   blobUploadImplementedActions,
+  PreviewImplementedAction,
+  previewImplementedActions,
   StorageImplementedAction,
   storageImplementedActions,
 } from "@bakery/contracts/implemented-actions";
@@ -98,6 +100,13 @@ import {
   previewAvailability,
   revokePreview,
 } from "./previews/actions.ts";
+import {
+  createRunningPreviewAccess,
+  listRunningPreviews,
+  revokeRunningPreviewAccess,
+  runningPreviewAvailability,
+  stopRunningPreview,
+} from "./previews/running.ts";
 
 export type ArtifactResourceRouteOptions = {
   database: PgDatabase;
@@ -602,6 +611,82 @@ export function createArtifactActions(
       policy: { ...readPolicy, type: ActionKind.Command, sessionOnly: true },
       handler: (context) => revokePreview(context),
     })
+    .register({
+      name: PreviewImplementedAction.PreviewsList,
+      method: HttpMethod.Get,
+      path: "/v1/previews",
+      input: contractSchemas.PreviewQuery,
+      output: contractSchemas["Page<Preview>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<Preview>"].parse(
+          await listRunningPreviews(
+            context,
+            input as Parameters<typeof listRunningPreviews>[1],
+            {
+              previewOrigin: options.artifactPreviewOrigin,
+              secret: options.secret,
+            },
+          ),
+        ),
+    })
+    .register({
+      // A query-kind POST on purpose, like artifactPreviews.create: the
+      // response carries the one-use grant.
+      name: PreviewImplementedAction.PreviewsAccess,
+      method: HttpMethod.Post,
+      path: "/v1/previews/:id/access",
+      input: contractSchemas.PreviewAccess,
+      output: contractSchemas.PreviewAccessResult,
+      policy: { ...readPolicy, sessionOnly: true },
+      handler: async (context, input) =>
+        contractSchemas.PreviewAccessResult.parse(
+          await createRunningPreviewAccess(
+            context,
+            input as { sessionSeconds?: number },
+            {
+              previewOrigin: options.artifactPreviewOrigin,
+              secret: options.secret,
+            },
+          ),
+        ),
+    })
+    .register({
+      name: PreviewImplementedAction.PreviewsStop,
+      method: HttpMethod.Post,
+      path: "/v1/previews/:id/stop",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.Preview,
+      explicitIdempotency: "key",
+      policy: { ...readPolicy, type: ActionKind.Command, sessionOnly: true },
+      handler: async (context) =>
+        contractSchemas.Preview.parse(await stopRunningPreview(context)),
+    })
+    .register({
+      name: PreviewImplementedAction.PreviewsRevokeAccess,
+      method: HttpMethod.Delete,
+      path: "/v1/preview-grants/:id",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.NoContent,
+      explicitIdempotency: "key",
+      policy: { ...readPolicy, type: ActionKind.Command, sessionOnly: true },
+      handler: (context) => revokeRunningPreviewAccess(context),
+    })
+    .register({
+      name: PreviewImplementedAction.PreviewsAvailability,
+      method: HttpMethod.Get,
+      path: "/v1/preview-availability",
+      input: contractSchemas.Empty,
+      output: contractSchemas.PreviewAvailability,
+      policy: readPolicy,
+      handler: () =>
+        contractSchemas.PreviewAvailability.parse(
+          runningPreviewAvailability({
+            previewOrigin: options.artifactPreviewOrigin,
+            secret: options.secret,
+          }),
+        ),
+    })
     .register(artifactContentActionDefinition)
     // Blob uploads: the session names what it promises, parts are keyed by
     // ordinal, and completion verifies before recording. The client supplies
@@ -645,6 +730,7 @@ export function createArtifactActions(
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     ...artifactImplementedActions,
+    ...previewImplementedActions,
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
   ]);
@@ -943,6 +1029,11 @@ export function createArtifactResourceRoutes(
   app.use("/v1/artifact-versions", session);
   app.use("/v1/artifact-preview-availability", session);
   app.use("/v1/artifact-preview-grants/*", session);
+  // Running-app previews (#19): the same signed-in session, never a worker's.
+  app.use("/v1/previews", session);
+  app.use("/v1/previews/*", session);
+  app.use("/v1/preview-grants/*", session);
+  app.use("/v1/preview-availability", session);
   app.use("/v1/artifact-versions/*", session);
   // Without this the blob routes run with no resolved principal, and every call
   // is refused as an anonymous one - a 403 that looks like a permission problem
