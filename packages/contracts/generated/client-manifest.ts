@@ -7591,6 +7591,28 @@ export const clientManifest = {
     {
       "group": "Storage",
       "method": "GET",
+      "path": "/v1/storage/file-versions/{id}",
+      "action": "storageFiles.byVersion",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "Empty",
+      "output": "StorageFileAtVersion",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
       "path": "/v1/storage/files/{id}/content",
       "action": "storageFiles.content",
       "access": "Developer",
@@ -15752,6 +15774,7 @@ export const clientManifest = {
             "storageFolderEntries.list",
             "storageFileVersions.list",
             "storageFileUses.list",
+            "storageFiles.byVersion",
             "storageFiles.content",
             "storageTrash.list",
             "storageSettings.get",
@@ -39604,6 +39627,7 @@ export const clientManifest = {
                   "storageFolderEntries.list",
                   "storageFileVersions.list",
                   "storageFileUses.list",
+                  "storageFiles.byVersion",
                   "storageFiles.content",
                   "storageTrash.list",
                   "storageSettings.get",
@@ -58738,6 +58762,7 @@ export const clientManifest = {
             "storageFolderEntries.list",
             "storageFileVersions.list",
             "storageFileUses.list",
+            "storageFiles.byVersion",
             "storageFiles.content",
             "storageTrash.list",
             "storageSettings.get",
@@ -90089,6 +90114,191 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of StorageFileVersion."
+    },
+    "StorageFileAtVersion": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable id of the entry; open a folder with storageFolderEntries.list and a file's history with storageFileVersions.list."
+            },
+            "parentId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Folder that holds the entry; null for a top-level folder."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageFolderItem.parentId may be null in this transport value."
+            },
+            "path": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The entry's path now, for the breadcrumb and Copy path; a label that changes with a rename or move."
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The entry's name in its folder, unique there when compared case-insensitively."
+            },
+            "displayName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The name to show instead of name where Bakery named the folder after something: a work item's folder carries the work item's title. Null when the entry's own name is the one to show."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageFolderItem.displayName may be null in this transport value."
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "folder",
+                "file"
+              ],
+              "description": "Whether this is a folder or a file."
+            },
+            "policy": {
+              "type": "string",
+              "enum": [
+                "record",
+                "working",
+                "scratch",
+                "library",
+                "personal",
+                "system"
+              ],
+              "description": "Folder policy the entry follows, which the badge beside the breadcrumb explains: record, working, scratch, library, personal or system."
+            },
+            "kindName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The artifact kind of a work item's document (its artifact type key); null for folders and for files written into working areas, which have no kind."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageFolderItem.kindName may be null in this transport value."
+            },
+            "mediaType": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Media type of the file's current version; null for folders."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageFolderItem.mediaType may be null in this transport value."
+            },
+            "sizeBytes": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Size of the file's current version in bytes; null for folders."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageFolderItem.sizeBytes may be null in this transport value."
+            },
+            "artifactId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The artifact a work item's document shows; the page opens the artifact page for it instead of the plain file view. Null for working-area files and folders."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageFolderItem.artifactId may be null in this transport value."
+            },
+            "contentRemoved": {
+              "type": "boolean",
+              "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the entry or its current version last changed."
+            }
+          },
+          "required": [
+            "id",
+            "parentId",
+            "path",
+            "name",
+            "displayName",
+            "kind",
+            "policy",
+            "kindName",
+            "mediaType",
+            "sizeBytes",
+            "artifactId",
+            "contentRemoved",
+            "updatedAt"
+          ],
+          "additionalProperties": false,
+          "description": "The file as the files browser lists it, at its current path; open its history with storageFileVersions.list."
+        },
+        "versionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The version that was asked for: a working-area version id or a work item document's artifact version id."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "That version's number, counting from 1; pass it as revision to storageFiles.content to read this version."
+        },
+        "isCurrent": {
+          "type": "boolean",
+          "description": "True when this version is the one the file shows now."
+        }
+      },
+      "required": [
+        "file",
+        "versionId",
+        "revision",
+        "isCurrent"
+      ],
+      "additionalProperties": false,
+      "description": "The storage-tree file a version belongs to, found from the version id alone, with that version's number: what a link to one saved version (for example a memory's source) opens."
     },
     "Page<StorageFileUse>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

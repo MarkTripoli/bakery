@@ -8356,6 +8356,27 @@
     {
       "group": "Storage",
       "method": "GET",
+      "path": "/v1/storage/file-versions/{id}",
+      "action": "storageFiles.byVersion",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "Empty",
+      "output": "StorageFileAtVersion",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
       "path": "/v1/storage/files/{id}/content",
       "action": "storageFiles.content",
       "access": "Developer",

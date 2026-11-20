@@ -54,6 +54,7 @@ import {
   createFolderLister,
   listStorageRoots,
   parseRevision,
+  readStorageFileByVersion,
   type StorageReader,
 } from "./storage-reads.ts";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
@@ -684,6 +685,21 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
             context,
             storageReader(context, A.StorageFileUsesList),
             input,
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageFilesByVersion,
+      method: HttpMethod.Get,
+      path: "/v1/storage/file-versions/:id",
+      input: contractSchemas.Empty,
+      output: contractSchemas.StorageFileAtVersion,
+      policy: readPolicy,
+      handler: async (context) =>
+        contractSchemas.StorageFileAtVersion.parse(
+          await readStorageFileByVersion(
+            context,
+            storageReader(context, A.StorageFilesByVersion),
           ),
         ),
     })

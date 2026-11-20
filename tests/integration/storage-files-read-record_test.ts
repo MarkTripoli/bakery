@@ -870,3 +870,26 @@ Deno.test("tenancy, permission gate, /system descendants, validation", () =>
       await removeMember(fixture, member);
     }
   }));
+
+Deno.test("record-area file: an artifact version id opens its file with that revision", () =>
+  withWorkerFixture(async (fixture) => {
+    const { file } = await world(fixture);
+    const first = await ok(
+      await call(
+        fixture,
+        "GET",
+        "/v1/storage/file-versions/" + file.versionIds[0],
+      ),
+    );
+    assertEquals([first.revision, first.isCurrent], [1, false]);
+    assertEquals((first.file as Json).id, file.entryId);
+    assertEquals((first.file as Json).artifactId, file.artifactId);
+    const last = await ok(
+      await call(
+        fixture,
+        "GET",
+        "/v1/storage/file-versions/" + file.versionIds.at(-1),
+      ),
+    );
+    assertEquals([last.revision, last.isCurrent], [3, true]);
+  }));
