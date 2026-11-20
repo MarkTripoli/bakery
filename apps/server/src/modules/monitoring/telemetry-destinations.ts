@@ -74,16 +74,15 @@ const MEASUREMENT_HELP: Readonly<
 > = Object.freeze({
   cost: {
     label: "Cost and token use",
-    help:
-      "Per task, step, model and route. Confirmed, set aside and unknown are kept apart.",
+    help: "The cost and tokens of each use.",
   },
   durations: {
     label: "How long work takes",
-    help: "Task and step durations, and time spent waiting.",
+    help: "How long each job takes.",
   },
   results: {
     label: "Workflow results",
-    help: "Which workflow ran, its shape, and how it ended.",
+    help: "How each job ended: completed, failed or canceled.",
   },
   skills: {
     label: "Skills used",
@@ -91,7 +90,8 @@ const MEASUREMENT_HELP: Readonly<
   },
   health: {
     label: "System health",
-    help: "Queue age, machines, leases and model routes.",
+    help:
+      "Queue age, leases and retries, and measurements Bakery could not send.",
   },
   errors: {
     label: "Errors",
