@@ -521,11 +521,16 @@ Deno.test("a stray percent sign in a link is a problem the check reports, not a 
     const checked = await owner.call("POST", `${draftPath}/check`);
     assertEquals(checked.status, 200, await checked.clone().text());
     const check = await checked.json() as Check;
+    // The skill has no license yet, which the check also says; the link is the
+    // problem this case is about.
+    const linkProblems = check.problems.filter((problem) =>
+      problem.code === "referenced_file_missing"
+    );
     assertEquals(
-      check.problems.map(({ file, line, code }) => ({ file, line, code })),
+      linkProblems.map(({ file, line, code }) => ({ file, line, code })),
       [{ file: "SKILL.md", line: 3, code: "referenced_file_missing" }],
     );
-    assert(check.problems[0].message.includes("50%off.md"));
+    assert(linkProblems[0].message.includes("50%off.md"));
   } finally {
     await f.close();
     await Deno.remove(root, { recursive: true });
