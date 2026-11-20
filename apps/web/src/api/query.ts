@@ -2140,6 +2140,7 @@ export function workflowPresetsQueryOptions(
 
 /** Pages read, 100 at a time, before the Library says a list was cut short. */
 const LIBRARY_COLLECTION_PAGES = 5;
+const ALL_PAGES_GUARD = 200;
 
 /** Every workflow definition of the organization (a few pages at most), and whether the list was cut short. */
 export function libraryWorkflowsQueryOptions(
@@ -2203,6 +2204,90 @@ export function libraryMemoriesQueryOptions(
       return { items, truncated: true };
     },
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every repository of the organization, page after page: the names the Memory rows show. */
+export function libraryRepositoriesQueryOptions(
+  client: Pick<BakeryApiClient, "listRepositories">,
+  scope: ApiScope,
+) {
+  return queryOptions<RepositoryListResponse["items"], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "library.repositories", {}),
+    queryFn: async ({ signal }) => {
+      const items: RepositoryListResponse["items"] = [];
+      let cursor: string | undefined;
+      // A guard against a cursor that never ends, not a limit anyone reaches.
+      for (let page = 0; page < ALL_PAGES_GUARD; page += 1) {
+        const read = unwrap(
+          await client.listRepositories({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every document of one repository a correction can cite, page after page. */
+export function memorySourcesQueryOptions(
+  client: Pick<BakeryApiClient, "listArtifacts">,
+  scope: ApiScope,
+  repositoryId: string,
+) {
+  return queryOptions<ArtifactListResponse["items"], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "memory.sources", { repositoryId }),
+    queryFn: async ({ signal }) => {
+      const items: ArtifactListResponse["items"] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < ALL_PAGES_GUARD; page += 1) {
+        const read = unwrap(
+          await client.listArtifacts({
+            organizationId: requireOrganization(scope),
+            repositoryId,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One remembered fact by id: for a link to a fact the loaded list does not hold. */
+export function memoryQueryOptions(
+  client: Pick<BakeryApiClient, "getMemory">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<MemoryEntryResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "memory.one", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getMemory({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
     retry: retryNetworkOnce,
   });
 }

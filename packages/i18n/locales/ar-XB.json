@@ -4777,5 +4777,10 @@
   "library.memory.refusal.other": "⟪The change did not go through. Nothing was changed. Try again.⟫",
   "library.memory.refusal.forbidden": "⟪Only an administrator can change remembered facts.⟫",
   "library.memory.correct.savedNotApproved": "⟪The correction was saved, but the fact was not put in use.⟫",
-  "library.memory.action.adminOnly": "⟪Only an administrator can change remembered facts.⟫"
+  "library.memory.action.adminOnly": "⟪Only an administrator can change remembered facts.⟫",
+  "library.memory.source.checking": "⟪Checking…⟫",
+  "library.memory.fact.notFoundTitle": "⟪This fact was not found⟫",
+  "library.memory.fact.notFoundBody": "⟪It may have been removed, or you may not have access to it.⟫",
+  "library.memory.fact.loadErrorTitle": "⟪This fact could not be loaded⟫",
+  "library.memory.fact.loadErrorBody": "⟪Check your connection, then try again.⟫"
 }

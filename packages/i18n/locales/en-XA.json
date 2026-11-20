@@ -4777,5 +4777,10 @@
   "library.memory.refusal.other": "⟦Ŧĥë çĥàñĝë ðïð ñôŧ ĝô ŧĥŕôûĝĥ. Ñôŧĥïñĝ ŵàš çĥàñĝëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "library.memory.refusal.forbidden": "⟦Ôñļÿ àñ àðɱïñïšŧŕàŧôŕ çàñ çĥàñĝë ŕëɱëɱƀëŕëð ƒàçŧš. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.memory.correct.savedNotApproved": "⟦Ŧĥë çôŕŕëçŧïôñ ŵàš šàṽëð, ƀûŧ ŧĥë ƒàçŧ ŵàš ñôŧ þûŧ ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "library.memory.action.adminOnly": "⟦Ôñļÿ àñ àðɱïñïšŧŕàŧôŕ çàñ çĥàñĝë ŕëɱëɱƀëŕëð ƒàçŧš. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "library.memory.action.adminOnly": "⟦Ôñļÿ àñ àðɱïñïšŧŕàŧôŕ çàñ çĥàñĝë ŕëɱëɱƀëŕëð ƒàçŧš. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.memory.source.checking": "⟦Çĥëçķïñĝ… ŧ⟧",
+  "library.memory.fact.notFoundTitle": "⟦Ŧĥïš ƒàçŧ ŵàš ñôŧ ƒôûñð ŧëšŧ ç⟧",
+  "library.memory.fact.notFoundBody": "⟦Ïŧ ɱàÿ ĥàṽë ƀëëñ ŕëɱôṽëð, ôŕ ÿôû ɱàÿ ñôŧ ĥàṽë àççëšš ŧô ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "library.memory.fact.loadErrorTitle": "⟦Ŧĥïš ƒàçŧ çôûļð ñôŧ ƀë ļôàðëð ŧëšŧ çôþ⟧",
+  "library.memory.fact.loadErrorBody": "⟦Çĥëçķ ÿôûŕ çôññëçŧïôñ, ŧĥëñ ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧"
 }

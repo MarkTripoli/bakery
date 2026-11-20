@@ -4,8 +4,8 @@ import * as UI from "@bakery/ui";
 import type { MemoryEntryResponse } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
 import {
-  artifactsListQueryOptions,
   artifactVersionsQueryOptions,
+  memorySourcesQueryOptions,
 } from "../../api/query.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { focusAfterPaint } from "../../app/focus.ts";
@@ -63,16 +63,13 @@ export function MemoryFactActions(
     void queryClient.invalidateQueries({ queryKey: ["protected"] });
 
   const sources = useQuery({
-    ...artifactsListQueryOptions(api, scope, {
-      repositoryId: entry.repositoryId,
-      limit: 100,
-    }),
+    ...memorySourcesQueryOptions(api, scope, entry.repositoryId),
     enabled: correcting !== null && Boolean(scope.organizationId),
   });
 
   // The version number of the chosen document's current version, so the person
   // sees which exact version Bakery will link.
-  const chosenArtifact = (sources.data?.items ?? []).find((artifact) =>
+  const chosenArtifact = (sources.data ?? []).find((artifact) =>
     artifact.currentVersionId !== null &&
     artifact.currentVersionId === draft.source
   );
@@ -224,7 +221,7 @@ export function MemoryFactActions(
     reason: draft.reason,
     sourceArtifactVersionId: draft.source,
   });
-  const documents = [...(sources.data?.items ?? [])]
+  const documents = [...(sources.data ?? [])]
     .filter((artifact) => artifact.currentVersionId !== null)
     .sort((a, b) => a.name.localeCompare(b.name));
   const showMissing = (flag: boolean) => tried && flag;
