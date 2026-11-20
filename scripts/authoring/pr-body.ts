@@ -451,7 +451,7 @@ async function readInput(path: string): Promise<string> {
 }
 
 /** Flags that stand alone; every other --flag takes the next argument. */
-const switches = new Set(["tick", "reset", "create", "dry-run"]);
+const switches = new Set(["tick", "reset", "create", "dry-run", "draft"]);
 
 export function parseArgs(
   args: string[],

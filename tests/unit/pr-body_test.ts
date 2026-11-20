@@ -334,7 +334,7 @@ Deno.test("publish --create opens a ready PR unless a draft is asked for", async
     );
     await Deno.chmod(dir + "/gh", 0o755);
     await Deno.writeTextFile(dir + "/spec.json", JSON.stringify(spec()));
-    const run = async (...extra: string[]) => {
+    const run = async (...tail: string[]) => {
       await Deno.writeTextFile(dir + "/calls.txt", "");
       const out = await new Deno.Command(Deno.execPath(), {
         args: [
@@ -343,10 +343,7 @@ Deno.test("publish --create opens a ready PR unless a draft is asked for", async
           "scripts/authoring/pr-body.ts",
           "publish",
           dir + "/spec.json",
-          "--create",
-          "--title",
-          "t",
-          ...extra,
+          ...tail,
         ],
         env: { PATH: dir + ":" + Deno.env.get("PATH") },
         stdout: "piped",
@@ -355,10 +352,21 @@ Deno.test("publish --create opens a ready PR unless a draft is asked for", async
       assertEquals(out.code, 0, new TextDecoder().decode(out.stderr));
       return await Deno.readTextFile(dir + "/calls.txt");
     };
-    const ready = await run();
+    const ready = await run("--create", "--title", "t");
     assert(ready.includes("pr create"), ready);
     assert(!ready.includes("--draft"), ready);
-    assert((await run("--draft")).includes("--draft"));
+    // --draft is a switch, so it works in any position, not only last.
+    for (
+      const tail of [
+        ["--create", "--title", "t", "--draft"],
+        ["--create", "--draft", "--title", "t"],
+        ["--draft", "--create", "--title", "t"],
+      ]
+    ) {
+      const drafted = await run(...tail);
+      assert(drafted.includes("--draft"), tail.join(" ") + ": " + drafted);
+      assert(drafted.includes("--title t"), tail.join(" ") + ": " + drafted);
+    }
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
