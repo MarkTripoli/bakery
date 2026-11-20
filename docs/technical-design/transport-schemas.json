@@ -5118,7 +5118,7 @@
       ],
       "rules": [
         "Exactly one submission wins however many handoff, cancel and recovery submissions race: the source attempt is fenced, the job's fence advances and the job is queued again in one transaction, or nothing is written.",
-        "A refusal names why and commits nothing: run_not_active, already_continued, manifest_blocked, source_not_live, fence_moved, job_terminal, cancel_requested, awaiting_reconciliation, attempt_budget_exhausted, effects_unresolved or capture_incomplete.",
+        "A refusal names why and commits nothing: run_not_active, already_continued, manifest_blocked, source_not_live, fence_moved, job_terminal, cancel_requested, awaiting_reconciliation, attempt_budget_exhausted or capture_incomplete. An effect that has not settled is not a refusal: it retires the source and parks the job in awaiting_reconciliation.",
         "The job's input, billing and agent configuration are not changed; the continuation reads the stored manifest by its id."
       ],
       "description": "A person's choice to retire a live source attempt that stored a handoff manifest and admit its job again for a continuation, submitted against the run version they saw."
