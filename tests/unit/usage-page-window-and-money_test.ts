@@ -9,9 +9,6 @@ import {
   addDecimalStrings,
   usd,
 } from "../../apps/web/src/screens/usage/usage-money.ts";
-
-/** The page's wording for an amount under a cent, from the catalogue. */
-const less = (smallest: string) => `Less than ${smallest}`;
 import {
   billingKey,
   confirmedFigure,
@@ -22,6 +19,9 @@ import {
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date("2026-11-19T12:00:00.000Z");
+
+/** The page's wording for an amount under a cent, from the catalogue. */
+const less = (smallest: string) => `Less than ${smallest}`;
 
 Deno.test("a period is only a period when the server could have said it", () => {
   for (const period of ["last7", "last30", "thisMonth", "custom"]) {
@@ -134,6 +134,11 @@ Deno.test("money is shown with its unit", () => {
   assertEquals(usd("0.000001", less), "Less than $0.01");
   assertEquals(usd("0.005", less), "$0.01");
   assertEquals(usd("0.000000", less), "$0.00");
+  // A tiny credit reads the same words as a tiny cost: the phrase states the
+  // size, and a minus sign would turn it into its opposite.
+  assertEquals(usd("-0.004", less), "Less than $0.01");
+  assertEquals(usd("-0.005", less), "-$0.01");
+  assertEquals(usd("-3.4", less), "-$3.40");
   assertEquals(usd("-3.4", less), "-$3.40");
 });
 

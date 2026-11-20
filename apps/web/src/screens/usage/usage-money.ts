@@ -56,7 +56,9 @@ export function usd(
       style: "currency",
       currency: "USD",
     }).format(0.01);
-    return lessThan(negative ? `-${smallest}` : smallest);
+    // "Less than $0.01" states the size, so it is as true of a tiny credit as of
+    // a tiny cost; a minus sign would turn it into its opposite.
+    return lessThan(smallest);
   }
   const grouped = (cents / 100n).toString().replace(
     /\B(?=(\d{3})+(?!\d))/g,
