@@ -40,22 +40,44 @@ type InstalledFile = {
 };
 
 /**
- * Looks at the skill's source again and says whether it holds something newer
- * than the installed version, file by file. Nothing is installed: taking the
- * update is a separate step a person chooses after reading this.
- *
- * It follows the requested revision of the skill's latest completed import (a
- * branch or tag moves, a commit does not). A source that cannot be reached is
- * an answer, not an error: the skill still works, only the check failed, and
- * the last good check time is left alone.
+ * What the check learned before any network or object I/O: the skill, its
+ * source and the files of the installed version. Read in a transaction that is
+ * then given up, so the fetch that follows holds no connection.
  */
-export async function checkSkillSourceUpdate(
+export type SkillSourceUpdatePreparation = Readonly<{
+  skillId: string;
+  sourceId: string;
+  sourceType: SkillSourceType;
+  locator: string;
+  sourcePath: string | undefined;
+  requestedRevision: string;
+  installedRevision: string;
+  installedVersionId: string;
+  lastCheckedAt: string | null;
+  installed: readonly InstalledFile[];
+}>;
+
+/** What looking at the source again found, held between the two transactions. */
+export type SkillSourceUpdateReading = Readonly<
+  | { reached: false; problem: string }
+  | {
+    reached: true;
+    latestRevision: string;
+    changes: readonly Change[];
+    changesTruncated: boolean;
+    /** Every file that differs, including those past the list's cap. */
+    changedFiles: number;
+  }
+>;
+
+/**
+ * skills.sourceUpdate, first phase: the skill the caller may author and the
+ * facts the check needs, refused as the check is refused (no remote source, no
+ * completed import). Nothing is fetched here.
+ */
+export async function prepareSkillSourceUpdate(
   context: ActionContext,
-  deps: Readonly<{
-    adapter?: SkillSourceAdapter;
-    store?: SkillFileStoreOperations;
-  }>,
-): Promise<SourceUpdate> {
+): Promise<SkillSourceUpdatePreparation> {
   const facts = await authorableSkill(context);
   const { transaction, organizationId } = facts;
   const found = await transaction.query<{
@@ -109,68 +131,92 @@ export async function checkSkillSourceUpdate(
       params: { reason: "skill_has_no_completed_import" },
     });
   }
-  if (deps.adapter === undefined) {
-    throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
-  }
-
-  const base = {
-    skillId: facts.skillId,
-    sourceId: skill.source_id,
-    requestedRevision: skill.requested_revision,
-    installedRevision: skill.installed_revision,
-  };
-  let proof;
-  try {
-    proof = await deps.adapter.fetchPinnedSource({
-      sourceType: skill.source_type as SkillSourceType,
-      locator: skill.locator,
-      requestedRevision: skill.requested_revision,
-      path: skill.source_path || undefined,
-      signal: AbortSignal.timeout(SKILL_SOURCE_UPDATE_TIMEOUT_MS),
-    });
-  } catch (error) {
-    const problem = error instanceof SkillSourceAdapterError
-      ? error.code
-      : "SOURCE_UNAVAILABLE";
-    return {
-      ...base,
-      status: "unreachable",
-      latestRevision: null,
-      lastCheckedAt: skill.last_checked_at,
-      problem,
-      changes: [],
-      changesTruncated: false,
-    };
-  }
-
   const installed = (await transaction.query<InstalledFile>(
     `select path, size_bytes, sha256, is_executable, object_key
        from bakery.skill_files
       where organization_id = $1 and skill_version_id = $2 order by path`,
     [organizationId, skill.installed_version_id],
   )).rows;
-  const installedByPath = new Map(installed.map((file) => [file.path, file]));
+  return Object.freeze({
+    skillId: facts.skillId,
+    sourceId: skill.source_id,
+    sourceType: skill.source_type,
+    locator: skill.locator,
+    sourcePath: skill.source_path || undefined,
+    requestedRevision: skill.requested_revision,
+    installedRevision: skill.installed_revision,
+    installedVersionId: skill.installed_version_id,
+    lastCheckedAt: skill.last_checked_at,
+    installed,
+  });
+}
+
+/**
+ * skills.sourceUpdate, middle phase, with no transaction open: looks at the
+ * source again and compares it with the installed files, file by file. A source
+ * that cannot be reached is an answer, not an error: the skill still works,
+ * only the check failed.
+ */
+export async function readSkillSourceUpdate(
+  preparation: SkillSourceUpdatePreparation,
+  deps: Readonly<{
+    adapter?: SkillSourceAdapter;
+    store?: SkillFileStoreOperations;
+  }>,
+): Promise<SkillSourceUpdateReading> {
+  if (deps.adapter === undefined) {
+    throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+  }
+  let proof;
+  try {
+    proof = await deps.adapter.fetchPinnedSource({
+      sourceType: preparation.sourceType,
+      locator: preparation.locator,
+      requestedRevision: preparation.requestedRevision,
+      path: preparation.sourcePath,
+      signal: AbortSignal.timeout(SKILL_SOURCE_UPDATE_TIMEOUT_MS),
+    });
+  } catch (error) {
+    return {
+      reached: false,
+      problem: error instanceof SkillSourceAdapterError
+        ? error.code
+        : "SOURCE_UNAVAILABLE",
+    };
+  }
+
+  const installedByPath = new Map(
+    preparation.installed.map((file) => [file.path, file]),
+  );
   const latestByPath = new Map(
     proof.inventory.files.map((file) => [file.path, file]),
   );
   const paths = [
     ...new Set([...installedByPath.keys(), ...latestByPath.keys()]),
-  ]
-    .sort();
+  ].sort();
 
-  const changes: Change[] = [];
-  let changesTruncated = false;
+  // Which files differ is settled first, so the answer can say how many there
+  // are even when it lists only the first of them.
+  const differing: {
+    path: string;
+    before: InstalledFile | undefined;
+    after: (typeof proof.inventory.files)[number] | undefined;
+    afterSha: string | null;
+  }[] = [];
   for (const path of paths) {
     const before = installedByPath.get(path);
     const after = latestByPath.get(path);
     const afterSha = after ? await skillFileSha256(after.content) : null;
-    if (before && after && before.sha256 === afterSha) {
-      if (before.is_executable === after.isExecutable) continue;
-    }
-    if (changes.length >= SKILL_SOURCE_UPDATE_MAX_CHANGES) {
-      changesTruncated = true;
-      break;
-    }
+    if (
+      before && after && before.sha256 === afterSha &&
+      before.is_executable === after.isExecutable
+    ) continue;
+    differing.push({ path, before, after, afterSha });
+  }
+
+  const changes: Change[] = [];
+  for (const { path, before, after, afterSha } of differing) {
+    if (changes.length >= SKILL_SOURCE_UPDATE_MAX_CHANGES) break;
     // The installed bytes are only needed for a text difference: a file that
     // changed or was removed. An added file has none, a mode-only change no diff.
     let beforeBytes: Uint8Array | null = null;
@@ -204,14 +250,66 @@ export async function checkSkillSourceUpdate(
       diffOmitted,
     });
   }
+  return {
+    reached: true,
+    latestRevision: proof.sourceRevision,
+    changes,
+    changesTruncated: differing.length > changes.length,
+    changedFiles: differing.length,
+  };
+}
 
+/**
+ * skills.sourceUpdate, last phase: the caller is checked again, the skill must
+ * still be the one that was read, and a look that reached the source moves the
+ * source's last check time and is audited. An unreachable source writes nothing,
+ * so the last good check time stays.
+ */
+export async function commitSkillSourceUpdate(
+  context: ActionContext,
+  preparation: SkillSourceUpdatePreparation,
+  reading: SkillSourceUpdateReading,
+): Promise<SourceUpdate> {
+  const facts = await authorableSkill(context);
+  const { transaction, organizationId } = facts;
+  const current = await transaction.query<{ source_id: string | null }>(
+    `select source_id from bakery.skills
+      where organization_id = $1 and id = $2`,
+    [organizationId, facts.skillId],
+  );
+  if (
+    facts.activeVersionId !== preparation.installedVersionId ||
+    current.rows[0]?.source_id !== preparation.sourceId
+  ) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "skill_changed_during_source_check" },
+    });
+  }
+  const base = {
+    skillId: preparation.skillId,
+    sourceId: preparation.sourceId,
+    requestedRevision: preparation.requestedRevision,
+    installedRevision: preparation.installedRevision,
+  };
+  if (!reading.reached) {
+    return {
+      ...base,
+      status: "unreachable",
+      latestRevision: null,
+      lastCheckedAt: preparation.lastCheckedAt,
+      problem: reading.problem,
+      changes: [],
+      changesTruncated: false,
+    };
+  }
   const checked = await transaction.query<{ last_checked_at: string }>(
     `update bakery.skill_sources
         set last_checked_at = now(), updated_at = now(), version = version + 1
       where organization_id = $1 and id = $2
       returning to_char(last_checked_at at time zone 'UTC',
         'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as last_checked_at`,
-    [organizationId, skill.source_id],
+    [organizationId, preparation.sourceId],
   );
   await appendAudit(transaction, {
     organizationId,
@@ -222,19 +320,20 @@ export async function checkSkillSourceUpdate(
     requestId: context.requestId,
     traceId: context.traceId,
     details: {
-      sourceId: skill.source_id,
-      installedRevision: skill.installed_revision,
-      latestRevision: proof.sourceRevision,
-      changedFiles: changes.length,
+      sourceId: preparation.sourceId,
+      installedRevision: preparation.installedRevision,
+      latestRevision: reading.latestRevision,
+      changedFiles: reading.changedFiles,
+      changesTruncated: reading.changesTruncated,
     },
   });
   return {
     ...base,
-    status: changes.length > 0 ? "update_available" : "current",
-    latestRevision: proof.sourceRevision,
+    status: reading.changedFiles > 0 ? "update_available" : "current",
+    latestRevision: reading.latestRevision,
     lastCheckedAt: checked.rows[0]?.last_checked_at ?? null,
     problem: null,
-    changes,
-    changesTruncated,
+    changes: [...reading.changes],
+    changesTruncated: reading.changesTruncated,
   };
 }

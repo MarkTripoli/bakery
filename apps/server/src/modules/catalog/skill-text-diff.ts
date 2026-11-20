@@ -133,7 +133,6 @@ export function diffSkillText(
       index++;
       continue;
     }
-    const first = index;
     let beforeCount = 0;
     let afterCount = 0;
     const lines: string[] = [];
@@ -151,7 +150,6 @@ export function diffSkillText(
     );
     beforeLine += beforeCount;
     afterLine += afterCount;
-    void first;
     if (out.length > SKILL_TEXT_DIFF_MAX_OUTPUT_LINES) {
       return { kind: "omitted", reason: "too_large" };
     }

@@ -842,7 +842,8 @@ export const catalogIdentityImplementedActions = Object.freeze(
   Object.values(CatalogImplementedAction).filter((action) =>
     action !== CatalogImplementedAction.SkillVersionsCreate &&
     action !== CatalogImplementedAction.SkillsCopy &&
-    action !== CatalogImplementedAction.SkillDraftsPublish
+    action !== CatalogImplementedAction.SkillDraftsPublish &&
+    action !== CatalogImplementedAction.SkillsSourceUpdate
   ),
 );
 

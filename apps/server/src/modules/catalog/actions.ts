@@ -197,6 +197,24 @@ function skillDraftPublishDefinition(
   } as const;
 }
 
+function skillSourceUpdateDefinition(
+  handler: CatalogActionHandlers["checkSkillSourceUpdate"],
+) {
+  return {
+    name: CatalogImplementedAction.SkillsSourceUpdate,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/source-update",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.SkillSourceUpdateCheck,
+    successStatus: 200,
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
+    },
+    handler,
+  } as const;
+}
+
 export function createCatalogActionRegistry(
   handlers: CatalogActionHandlers,
   options: {
@@ -369,16 +387,6 @@ export function createCatalogActionRegistry(
     handler: handlers.checkSkillDraft,
   });
   registry.register({
-    name: CatalogImplementedAction.SkillsSourceUpdate,
-    method: HttpMethod.Post,
-    path: "/v1/skills/:id/source-update",
-    input: contractSchemas.IdPath,
-    output: contractSchemas.SkillSourceUpdateCheck,
-    successStatus: 200,
-    policy: { ...commandPolicy, access: draftAccess },
-    handler: handlers.checkSkillSourceUpdate,
-  });
-  registry.register({
     name: CatalogImplementedAction.SkillDraftFilesSave,
     method: HttpMethod.Post,
     path: "/v1/skills/:id/draft/files",
@@ -434,6 +442,9 @@ export function createCatalogActionRegistry(
   if (options.includeSkillVersionPublication !== false) {
     registry.register(skillCopyDefinition(handlers.copySkill));
     registry.register(skillDraftPublishDefinition(handlers.publishSkillDraft));
+    registry.register(
+      skillSourceUpdateDefinition(handlers.checkSkillSourceUpdate),
+    );
     registry.register({
       name: CatalogImplementedAction.SkillVersionsCreate,
       method: HttpMethod.Post,
@@ -491,6 +502,32 @@ export function createSkillDraftPublishActionRegistry(
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     CatalogImplementedAction.SkillDraftsPublish,
+  ]);
+  return registry;
+}
+
+/**
+ * skills.sourceUpdate looks at a source over the network, so it runs in stages
+ * (see routes.ts) and has a registry of its own, like a skill copy: the shared
+ * catalog registry does not carry it.
+ */
+export function createSkillSourceUpdateActionRegistry(
+  handlers: Pick<CatalogActionHandlers, "checkSkillSourceUpdate">,
+  options: {
+    authorityRunner?: ActionAuthorityRunner;
+    commandRunner?: CommandRunner;
+  } = {},
+): ActionRegistry {
+  const registry = new ActionRegistry(
+    options.authorityRunner,
+    options.commandRunner,
+  );
+  registry.register(
+    skillSourceUpdateDefinition(handlers.checkSkillSourceUpdate),
+  );
+  assertRegisteredActions(registry);
+  assertImplementedActionRegistry(registry, [
+    CatalogImplementedAction.SkillsSourceUpdate,
   ]);
   return registry;
 }

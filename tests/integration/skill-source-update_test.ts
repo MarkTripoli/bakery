@@ -90,11 +90,15 @@ function fakeSource() {
     down: false,
   };
   const calls: SkillSourceFetchRequest[] = [];
+  /** How many other sessions held an open transaction at each fetch. */
+  const openTransactions: number[] = [];
+  const probe: { read: (() => Promise<number>) | null } = { read: null };
   const adapter: SkillSourceAdapter = {
-    fetchPinnedSource(request) {
+    async fetchPinnedSource(request) {
       calls.push(request);
+      if (probe.read !== null) openTransactions.push(await probe.read());
       if (state.down) throw new SkillSourceAdapterError("SOURCE_UNAVAILABLE");
-      return Promise.resolve({
+      return await Promise.resolve({
         sourceType: request.sourceType,
         normalizedLocator: request.locator,
         requestedRevision: request.requestedRevision,
@@ -113,7 +117,7 @@ function fakeSource() {
       });
     },
   };
-  return { state, calls, adapter };
+  return { state, calls, adapter, openTransactions, probe };
 }
 
 function api(f: Fx, cookie: string) {
@@ -151,6 +155,14 @@ Deno.test("a skill from a source is checked against it file by file, and nothing
   try {
     const owner = api(f, f.ownerCookie);
     const other = api(f, f.adminCookie);
+    // A transaction held open by another session shows in pg_locks as the
+    // virtual transaction id it owns (readable by every role, unlike the
+    // application role's pg_stat_activity rows).
+    source.probe.read = async () =>
+      (await f.fixture.pgDatabase.query<{ n: number }>(
+        `select count(distinct pid)::int as n from pg_locks
+          where locktype = 'virtualxid' and pid <> pg_backend_pid()`,
+      )).rows[0].n;
 
     // A skill published locally, then recorded as imported from a Git source.
     const created = await f.post(f.ownerCookie, "/v1/skills", {
@@ -276,6 +288,17 @@ Deno.test("a skill from a source is checked against it file by file, and nothing
     assertEquals(changed.diffOmitted, null);
     assert(update.lastCheckedAt !== null);
     assert(update.lastCheckedAt >= current.lastCheckedAt!);
+    const audit = async () =>
+      (await f.fixture.pgDatabase.query<{ details: Record<string, unknown> }>(
+        `select details from bakery.audit_events
+          where operation = 'skills.sourceUpdate' and resource_id = $1
+          order by created_at desc, id desc limit 1`,
+        [skill.id],
+      )).rows[0].details;
+    assertEquals(
+      [(await audit()).changedFiles, (await audit()).changesTruncated],
+      [3, false],
+    );
 
     // An unreachable source is an answer: the last good check time stays.
     source.state.down = true;
@@ -292,6 +315,35 @@ Deno.test("a skill from a source is checked against it file by file, and nothing
       ["unreachable", "SOURCE_UNAVAILABLE", null, []],
     );
     assertEquals(unreachable.lastCheckedAt, update.lastCheckedAt);
+
+    // More differing files than one answer lists: the list stops at 200, says
+    // so, and the audit counts every file that differs.
+    source.state.down = false;
+    source.state.files = Object.fromEntries(
+      Array.from(
+        { length: 201 },
+        (
+          _,
+          n,
+        ) => [`references/n-${String(n).padStart(3, "0")}.md`, `File ${n}.\n`],
+      ),
+    );
+    const many = await owner("POST", path);
+    assertEquals(many.status, 200, await many.clone().text());
+    const crowded = await many.json() as Check;
+    assertEquals(
+      [crowded.changes.length, crowded.changesTruncated],
+      [200, true],
+    );
+    // 201 added, plus the three installed files the source no longer has.
+    assertEquals(
+      [(await audit()).changedFiles, (await audit()).changesTruncated],
+      [204, true],
+    );
+
+    // The source was looked at with no transaction held open for it.
+    assert(source.openTransactions.length >= 4, "the source was fetched");
+    assertEquals(source.openTransactions.filter((n) => n !== 0), []);
 
     // Looking installs nothing.
     const versionsAfter = await db.query<{ n: string }>(
