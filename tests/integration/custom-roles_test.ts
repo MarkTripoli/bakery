@@ -152,15 +152,15 @@ Deno.test("an assigned role takes effect on the next request and replaces the sy
   const f = await open();
   try {
     // A denied read answers 404, like a resource the caller cannot see.
-    const before = await asDeveloper(f, "GET", "/v1/principals");
+    const before = await asDeveloper(f, "GET", "/v1/permission-grants");
     assertEquals(before.status, 404);
-    const role = await createRole(f, "directory", ["principal:read"]);
+    const role = await createRole(f, "grant-reader", ["permissionGrant:read"]);
     const assigned = await assign(f, role, f.developerId);
     assertEquals(assigned.status, 201, await assigned.clone().text());
     const held: Role = await assigned.json();
     assertEquals(held.memberCount, 1);
     assertEquals(held.memberIds, [f.developerId]);
-    const granted = await asDeveloper(f, "GET", "/v1/principals");
+    const granted = await asDeveloper(f, "GET", "/v1/permission-grants");
     assertEquals(granted.status, 200, await granted.clone().text());
     // The developer role is gone: only the custom permissions remain.
     const lost = await asDeveloper(f, "GET", "/v1/applications");
@@ -180,7 +180,7 @@ Deno.test("an assigned role takes effect on the next request and replaces the sy
       `/v1/organization-roles/${role.id}/members/${f.developerId}`,
     );
     assertEquals(unassigned.status, 204, await unassigned.clone().text());
-    const revoked = await asDeveloper(f, "GET", "/v1/principals");
+    const revoked = await asDeveloper(f, "GET", "/v1/permission-grants");
     assertEquals(revoked.status, 404);
     const removed = await adminJson(
       f,

@@ -423,7 +423,7 @@ Deno.test("#31 AC2: a deleted (archived) target blocks the preview with a reason
     );
     fx.reader.setIssue({ number: 8, ...issueLabels("backend", "frontend") });
     await read(
-      await ticketCall(fx, "POST", `${SOURCES}/${sourceId}/previews`, {
+      await ticketCall(fx, "POST", `${SOURCES}/${sourceId}/syncs`, {
         body: {},
       }),
       201,
@@ -786,7 +786,7 @@ Deno.test("#31 rules: replace is CAS (428 and 412), validates targets and bindin
     assertEquals(unboundRole.issues?.[0]?.code, "routing_role_unbound");
     fx.reader.setIssue({ number: 20, labels: [EXECUTE_LABEL] });
     await read(
-      await ticketCall(fx, "POST", `${SOURCES}/${sourceId}/previews`, {
+      await ticketCall(fx, "POST", `${SOURCES}/${sourceId}/syncs`, {
         body: {},
       }),
       201,

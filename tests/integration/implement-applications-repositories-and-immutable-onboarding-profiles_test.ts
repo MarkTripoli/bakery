@@ -2528,6 +2528,8 @@ Deno.test(
         workflowDigest: apiSnapshotBefore.workflow.digest,
         repositoryProfile: apiSnapshotBefore.repositoryProfile,
         admission: apiSnapshotBefore.admission,
+        workspaceRequirement: apiSnapshotBefore.workspaceRequirement,
+        scopeProfile: apiSnapshotBefore.scopeProfile,
       }, {
         executionMode: "repository",
         inputs: {
@@ -6689,9 +6691,21 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
       join bakery.workflow_runs run on run.organization_id = step.organization_id and run.id = step.run_id
       where job.id in ${owner(corruptJobIds)} order by job.id`;
     const corruptLegacyProjection = corruptAfter.map(({ run, job }) => {
-      const { kind, skill_source_id: skillSourceId, ...legacyRun } = run;
+      // Columns added after the frozen "before" capture: a run that never
+      // finished or spawned another carries them empty.
+      const {
+        kind,
+        skill_source_id: skillSourceId,
+        outcome,
+        outcome_reason: outcomeReason,
+        spawned_by_run_id: spawnedByRunId,
+        ...legacyRun
+      } = run;
       assertEquals(kind, "workflow");
-      assertEquals(skillSourceId, null);
+      assertEquals(
+        [skillSourceId, outcome, outcomeReason, spawnedByRunId],
+        [null, null, null, null],
+      );
       return { run: legacyRun, job };
     });
     assertEquals(corruptLegacyProjection, corruptBefore);

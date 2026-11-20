@@ -67,7 +67,7 @@ Deno.test("source_policy_changed: a stale revision is refused with nothing writt
       fx.reader.setIssue({ number, labels: [] });
       fx.facts.set(number, `2026-06-01T00:00:0${number}Z`);
     }
-    await read(await post(fx, `${SOURCES}/${sourceId}/previews`, {}), 201);
+    await read(await post(fx, `${SOURCES}/${sourceId}/syncs`, {}), 201);
 
     // A policy edit moves the revision from 1 to 2.
     const source = await read<SourceView>(

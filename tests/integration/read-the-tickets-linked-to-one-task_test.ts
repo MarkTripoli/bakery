@@ -52,7 +52,8 @@ async function ticketOf(
 }
 
 async function previewAll(fx: TicketFixture, sourceId: string) {
-  await read(await post(fx, `${SOURCES}/${sourceId}/previews`), 201);
+  // A preview stores nothing; a sync reads every open issue and caches it.
+  await read(await post(fx, `${SOURCES}/${sourceId}/syncs`), 201);
 }
 
 Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one task, and only those", async () => {

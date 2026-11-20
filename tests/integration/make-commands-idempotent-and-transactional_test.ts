@@ -753,7 +753,11 @@ Deno.test("task commands replay exactly once through one tenant transaction", as
         body: createBody,
       }),
     );
-    assertEquals(serviceCreated.status, 201);
+    assertEquals(
+      serviceCreated.status,
+      201,
+      await serviceCreated.clone().text(),
+    );
     const serviceTask = await serviceCreated.json() as Record<string, unknown>;
     const serviceReplayed = await serviceApp.fetch(
       new Request("http://test/v1/tasks", {
