@@ -47,7 +47,12 @@ async function connect() {
   } catch (e) {
     await report("organizations", { error: String(e) });
   }
-  if (organizationId === null) return;
+  if (organizationId === null) {
+    // The server may be down or restarting: try again with the same backoff as a failed socket.
+    attempt += 1;
+    setTimeout(connect, Math.min(1000 * 2 ** Math.min(attempt - 1, 3), 8000));
+    return;
+  }
   const url = origin.replace(/^http/, "ws") + "/v1/events?organizationId=" +
     encodeURIComponent(organizationId);
   attempt += 1;
