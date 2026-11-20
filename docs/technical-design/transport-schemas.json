@@ -30824,6 +30824,27 @@
       "pageOf": "StorageFileVersion",
       "description": "Cursor page of a storage-tree file's versions, newest first, removed ones included. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
     },
+    "StorageFileAtVersion": {
+      "fields": [
+        "file",
+        "versionId",
+        "revision",
+        "isCurrent"
+      ],
+      "fieldTypes": {
+        "file": "StorageFolderItem",
+        "versionId": "uuid",
+        "revision": "integer",
+        "isCurrent": "boolean"
+      },
+      "description": "The storage-tree file a version belongs to, found from the version id alone, with that version's number: what a link to one saved version (for example a memory's source) opens.",
+      "fieldDescriptions": {
+        "file": "The file as the files browser lists it, at its current path; open its history with storageFileVersions.list.",
+        "versionId": "The version that was asked for: a working-area version id or a work item document's artifact version id.",
+        "revision": "That version's number, counting from 1; pass it as revision to storageFiles.content to read this version.",
+        "isCurrent": "True when this version is the one the file shows now."
+      }
+    },
     "StorageFileUse": {
       "fields": [
         "id",
