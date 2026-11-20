@@ -90,7 +90,7 @@ from `validate.ts`, so they cannot drift.
 P="deno run --allow-read --allow-run=gh --allow-env scripts/authoring/pr-body.ts"
 $P example > spec.json                 # starter spec: edit the fields
 $P render spec.json > body.md          # validated body; exit 1 names the field
-$P publish spec.json --create --title "feat(x): ..."   # draft PR
+$P publish spec.json --create --title "feat(x): ..."   # ready PR; add --draft for a draft
 $P publish spec.json --pr 123          # update; keeps verifiers' ticks
 $P verify ui --tick --sha <head> --claim "desktop and phone, light and dark" --pr 123
 $P verify tests --na "Docs only; no behavior to test." --pr 123

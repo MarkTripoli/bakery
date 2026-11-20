@@ -475,7 +475,7 @@ const usage = `Usage:
   pr-body.ts example
   pr-body.ts render <spec.json|->
   pr-body.ts publish <spec.json|-> --pr <n>
-  pr-body.ts publish <spec.json|-> --create --title <title>
+  pr-body.ts publish <spec.json|-> --create --title <title> [--draft]
   pr-body.ts verify <backend|ui|implementation|tests> --tick --sha <sha> --claim <text> [--pr <n> | <body.md|->]
   pr-body.ts verify <item> --na <reason> | --reset [--pr <n> | <body.md|->]
   Add --dry-run to publish or verify --pr to print the new body without editing the PR.`;
@@ -524,7 +524,9 @@ async function main(): Promise<void> {
         gh([
           "pr",
           "create",
-          "--draft",
+          // Ready for review unless the author asks for a draft: a draft cannot
+          // merge and skips some CI.
+          ...(options.has("draft") ? ["--draft"] : []),
           "--title",
           options.get("title")!,
           "--body-file",

@@ -323,3 +323,43 @@ for (const args of [["--pr", "123"], ["--create", "--title", "t"]]) {
     assertEquals(result.calls, "", "gh must not be called");
   });
 }
+
+Deno.test("publish --create opens a ready PR unless a draft is asked for", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await Deno.writeTextFile(
+      dir + "/gh",
+      '#!/bin/sh\necho "$@" >> ' + dir +
+        "/calls.txt\necho https://example.test/pull/1\n",
+    );
+    await Deno.chmod(dir + "/gh", 0o755);
+    await Deno.writeTextFile(dir + "/spec.json", JSON.stringify(spec()));
+    const run = async (...extra: string[]) => {
+      await Deno.writeTextFile(dir + "/calls.txt", "");
+      const out = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "-A",
+          "scripts/authoring/pr-body.ts",
+          "publish",
+          dir + "/spec.json",
+          "--create",
+          "--title",
+          "t",
+          ...extra,
+        ],
+        env: { PATH: dir + ":" + Deno.env.get("PATH") },
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      assertEquals(out.code, 0, new TextDecoder().decode(out.stderr));
+      return await Deno.readTextFile(dir + "/calls.txt");
+    };
+    const ready = await run();
+    assert(ready.includes("pr create"), ready);
+    assert(!ready.includes("--draft"), ready);
+    assert((await run("--draft")).includes("--draft"));
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
