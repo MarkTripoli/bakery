@@ -5066,5 +5066,7 @@
   "organizationStorage.field.file.help": "⟪A bigger upload is refused before it starts. At most 5 GB.⟫",
   "organizationStorage.field.versions.help": "⟪When a file is saved again, older versions beyond this number are removed. A version a run used is always kept.⟫",
   "organizationStorage.field.trash.help": "⟪How long a deleted file can be restored.⟫",
-  "organizationStorage.field.scratch.help": "⟪A file in a personal scratch folder is removed this long after it was last saved.⟫"
+  "organizationStorage.field.scratch.help": "⟪A file in a personal scratch folder is removed this long after it was last saved.⟫",
+  "organizationStorage.conflict": "⟪Someone else changed these settings. Reload to see them; your changes are not saved.⟫",
+  "organizationStorage.reload": "⟪Reload⟫"
 }

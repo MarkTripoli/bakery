@@ -166,8 +166,6 @@ export function OrganizationStoragePage() {
     ? asyncKindForError(settings.error)
     : saveState === "forbidden"
     ? "forbidden"
-    : saveState === "conflict"
-    ? "conflict"
     : saveState === "offline"
     ? "offline"
     : asyncKindForConnectivity(connectivity);
@@ -179,6 +177,7 @@ export function OrganizationStoragePage() {
         async={async}
         belowStored={current !== null && belowStored(draft, current)}
         canEdit={role === "admin"}
+        conflict={saveState === "conflict"}
         draft={draft}
         onDraftChange={(field, value) => edit({ ...draft, [field]: value })}
         onFieldBlur={(field) => setTouched((now) => new Set([...now, field]))}

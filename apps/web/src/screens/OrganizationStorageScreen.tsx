@@ -61,6 +61,8 @@ export type OrganizationStorageScreenProps = {
   readonly problems: Readonly<Partial<Record<StorageField, FieldProblem>>>;
   /** The organization quota in the draft is below what is stored. */
   readonly belowStored: boolean;
+  /** Someone else saved first: the change was not applied. */
+  readonly conflict: boolean;
   /** A save succeeded and nothing has changed since. */
   readonly saved: boolean;
   /** A save failed for a reason other than a conflict. */
@@ -308,6 +310,20 @@ function EditForm(
   };
   return (
     <UI.FormContent>
+      {props.conflict
+        ? (
+          <UI.InlineNotice tone="error">
+            {translate("organizationStorage.conflict")}{" "}
+            <UI.Button
+              onClick={props.onReload}
+              type="button"
+              variant="secondary"
+            >
+              {translate("organizationStorage.reload")}
+            </UI.Button>
+          </UI.InlineNotice>
+        )
+        : null}
       {props.saved
         ? (
           <UI.InlineNotice tone="success">

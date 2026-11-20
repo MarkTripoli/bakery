@@ -1226,6 +1226,8 @@
   "organizationStorage.reset": "Reset to Bakery's defaults",
   "organizationStorage.appliesNext": "Changes apply to the next file saved.",
   "organizationStorage.saved": "Storage settings saved.",
+  "organizationStorage.conflict": "Someone else changed these settings. Reload to see them; your changes are not saved.",
+  "organizationStorage.reload": "Reload",
   "organizationStorage.saveError": "The settings were not saved. Try again.",
   "organizationStorage.readOnly": "Only an organization Admin can change these.",
   "organizationSettings.title": "Organization settings",
