@@ -206,29 +206,39 @@ type DurableCoreBoundaryProofBase = {
   };
 };
 
-type DurableCoreWorkerBoundaryProof = DurableCoreBoundaryProofBase & {
-  readonly kind: "worker";
-  readonly replacementAttempt: {
-    readonly attemptId: string;
-    readonly fence: string;
-    readonly workerSessionId: string;
-    readonly workerSessionGeneration: string;
-    readonly checkpointEventId: string;
-    readonly checkpointLocalSeq: "3";
-  };
-  readonly secondCheckpoint: {
-    readonly attemptId: string;
-    readonly eventId: string;
-    readonly localSeq: "3";
-    readonly ackedLocalSeq: "3";
-    readonly artifactRef: DurableCoreArtifactRef;
-  };
+/**
+ * What a plan run guarantees when the worker holding an effectful step is
+ * killed: the step has one attempt, so the lost attempt is not redelivered,
+ * the run fails naming the exhausted budget, and what the worker checkpointed
+ * before it died stays durable.
+ */
+type DurableCoreLostAttemptProof = {
+  readonly attemptId: string;
+  readonly attemptStatus: "lost" | "quarantined";
+  readonly attemptCount: 1;
+  readonly taskId: string;
+  readonly jobId: string;
+  readonly jobStatus: "failed";
+  readonly runId: string;
+  readonly runStatus: "failed";
+  readonly runStepId: string;
+  readonly runStepStatus: "failed";
+  readonly stepErrorCode: "ATTEMPT_BUDGET_EXHAUSTED";
 };
+
+type DurableCoreWorkerBoundaryProof =
+  & Omit<DurableCoreBoundaryProofBase, "terminal" | "observations">
+  & {
+    readonly kind: "worker";
+    readonly lost: DurableCoreLostAttemptProof;
+    readonly observations: Pick<
+      DurableCoreBoundaryProofBase["observations"],
+      "journalBefore" | "spoolBefore"
+    >;
+  };
 
 type DurableCoreEngineBoundaryProof = DurableCoreBoundaryProofBase & {
   readonly kind: "engine";
-  readonly replacementAttempt?: never;
-  readonly secondCheckpoint?: never;
 };
 
 export type DurableCoreBoundaryProof =
@@ -1001,6 +1011,7 @@ export function assertDurableCoreBoundaryProof(
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
     throw new Error("DURABLE_CORE_PROOF_INVALID_ROOT");
   }
+  const isWorkerProof = (candidate as { kind?: unknown }).kind === "worker";
   const proof = assertClosedRecord(
     candidate,
     "proof",
@@ -1012,11 +1023,10 @@ export function assertDurableCoreBoundaryProof(
       "effectKey",
       "checkpoint",
       "restart",
-      "terminal",
+      isWorkerProof ? "lost" : "terminal",
       "artifact",
       "observations",
     ],
-    ["replacementAttempt", "secondCheckpoint"],
   );
   if (proof.kind !== "worker" && proof.kind !== "engine") {
     throw new Error("DURABLE_CORE_PROOF_INVALID_KIND");
@@ -1099,7 +1109,7 @@ export function assertDurableCoreBoundaryProof(
     checkpointRecord.workerSessionId as string,
     "checkpoint_worker_session_id",
   );
-  const checkpointGeneration = assertFence(
+  assertFence(
     checkpointRecord.workerSessionGeneration as string,
     "checkpoint_worker_session_generation",
   );
@@ -1111,157 +1121,74 @@ export function assertDurableCoreBoundaryProof(
     throw new Error("DURABLE_CORE_PROOF_CHECKPOINT_SEQUENCE_INVALID");
   }
   assertArtifactRef(checkpointRecord.artifactRef, "checkpoint_artifact_ref");
-  const checkpointFence = assertFence(
+  assertFence(
     checkpointRecord.fence as string,
     "checkpoint_fence",
   );
-  let replacementAttemptRecord: Record<string, unknown> | undefined;
-  let replacementCheckpointRecord: Record<string, unknown> | undefined;
   if (proof.kind === "worker") {
-    const replacement = proof.replacementAttempt;
-    if (
-      !replacement || typeof replacement !== "object" ||
-      Array.isArray(replacement)
-    ) {
-      throw new Error("DURABLE_CORE_PROOF_REPLACEMENT_ATTEMPT_MISSING");
-    }
-    replacementAttemptRecord = assertClosedRecord(
-      replacement,
-      "replacement_attempt",
+    const lost = assertClosedRecord(
+      proof.lost,
+      "lost",
       [
         "attemptId",
-        "fence",
-        "workerSessionId",
-        "workerSessionGeneration",
-        "checkpointEventId",
-        "checkpointLocalSeq",
+        "attemptStatus",
+        "attemptCount",
+        "taskId",
+        "jobId",
+        "jobStatus",
+        "runId",
+        "runStatus",
+        "runStepId",
+        "runStepStatus",
+        "stepErrorCode",
       ],
     );
     for (
       const field of [
         "attemptId",
-        "fence",
-        "workerSessionId",
-        "workerSessionGeneration",
-        "checkpointEventId",
-        "checkpointLocalSeq",
+        "taskId",
+        "jobId",
+        "runId",
+        "runStepId",
       ] as const
     ) {
-      if (typeof replacementAttemptRecord[field] !== "string") {
+      if (typeof lost[field] !== "string") {
         throw new Error(
-          `DURABLE_CORE_PROOF_INVALID_REPLACEMENT_${field.toUpperCase()}`,
+          `DURABLE_CORE_PROOF_INVALID_LOST_${field.toUpperCase()}`,
         );
       }
-      assertRealIdentity(
-        replacementAttemptRecord[field],
-        `replacement_${field}`,
-      );
+      assertUuid(lost[field] as string, `lost_${field}`);
     }
-    if (replacementAttemptRecord.checkpointLocalSeq !== "3") {
-      throw new Error("DURABLE_CORE_PROOF_REPLACEMENT_SEQUENCE_INVALID");
+    if (lost.attemptStatus !== "lost" && lost.attemptStatus !== "quarantined") {
+      throw new Error("DURABLE_CORE_PROOF_LOST_ATTEMPT_STATUS_INVALID");
     }
-    assertUuid(
-      replacementAttemptRecord.attemptId as string,
-      "replacement_attempt_id",
-    );
-    assertUuid(
-      replacementAttemptRecord.workerSessionId as string,
-      "replacement_worker_session_id",
-    );
-    assertUuid(
-      replacementAttemptRecord.checkpointEventId as string,
-      "replacement_checkpoint_event",
-    );
-    const replacementGeneration = assertFence(
-      replacementAttemptRecord.workerSessionGeneration as string,
-      "replacement_worker_session_generation",
-    );
-    const replacementFence = assertFence(
-      replacementAttemptRecord.fence as string,
-      "replacement_fence",
-    );
-    if (replacementFence <= checkpointFence) {
-      throw new Error("DURABLE_CORE_PROOF_REPLACEMENT_FENCE_NOT_INCREASED");
+    if (lost.attemptCount !== 1) {
+      throw new Error("DURABLE_CORE_PROOF_LOST_ATTEMPT_REPLACED");
     }
-    if (replacementAttemptRecord.attemptId === checkpointRecord.attemptId) {
-      throw new Error("DURABLE_CORE_PROOF_REPLACEMENT_ATTEMPT_NOT_NEW");
-    }
-    if (
-      replacementAttemptRecord.workerSessionId ===
-        checkpointRecord.workerSessionId ||
-      replacementGeneration <= checkpointGeneration
+    for (
+      const field of ["jobStatus", "runStatus", "runStepStatus"] as const
     ) {
-      throw new Error("DURABLE_CORE_PROOF_REPLACEMENT_SESSION_NOT_NEW");
-    }
-    if (
-      replacementAttemptRecord.checkpointEventId === checkpointRecord.eventId
-    ) {
-      throw new Error("DURABLE_CORE_PROOF_REPLACEMENT_EVENT_NOT_NEW");
-    }
-
-    replacementCheckpointRecord = assertClosedRecord(
-      proof.secondCheckpoint,
-      "second_checkpoint",
-      [
-        "attemptId",
-        "eventId",
-        "localSeq",
-        "ackedLocalSeq",
-        "artifactRef",
-      ],
-    );
-    for (const field of ["attemptId", "eventId"] as const) {
-      if (typeof replacementCheckpointRecord[field] !== "string") {
+      if (lost[field] !== "failed") {
         throw new Error(
-          `DURABLE_CORE_PROOF_INVALID_SECOND_CHECKPOINT_${field.toUpperCase()}`,
+          `DURABLE_CORE_PROOF_LOST_${field.toUpperCase()}_INVALID`,
         );
       }
-      assertUuid(
-        replacementCheckpointRecord[field] as string,
-        `second_checkpoint_${field}`,
-      );
     }
-    if (
-      replacementCheckpointRecord.localSeq !== "3" ||
-      replacementCheckpointRecord.ackedLocalSeq !== "3"
-    ) {
-      throw new Error(
-        "DURABLE_CORE_PROOF_SECOND_CHECKPOINT_SEQUENCE_INVALID",
-      );
+    if (lost.stepErrorCode !== "ATTEMPT_BUDGET_EXHAUSTED") {
+      throw new Error("DURABLE_CORE_PROOF_LOST_STEP_ERROR_CODE_INVALID");
     }
-    if (
-      replacementCheckpointRecord.attemptId !==
-        replacementAttemptRecord.attemptId
-    ) {
-      throw new Error("DURABLE_CORE_PROOF_SECOND_CHECKPOINT_ATTEMPT_MISMATCH");
+    if (lost.attemptId !== checkpointRecord.attemptId) {
+      throw new Error("DURABLE_CORE_PROOF_LOST_ATTEMPT_ID_MISMATCH");
     }
-    if (
-      replacementCheckpointRecord.eventId !==
-        replacementAttemptRecord.checkpointEventId
-    ) {
-      throw new Error("DURABLE_CORE_PROOF_SECOND_CHECKPOINT_EVENT_MISMATCH");
+    if (lost.runId !== proof.runId || checkpointRecord.runId !== proof.runId) {
+      throw new Error("DURABLE_CORE_PROOF_LOST_RUN_ID_MISMATCH");
     }
-    assertArtifactRef(
-      replacementCheckpointRecord.artifactRef,
-      "second_checkpoint_artifact_ref",
-    );
-    const firstRef = checkpointRecord.artifactRef as DurableCoreArtifactRef;
-    const secondRef = replacementCheckpointRecord
-      .artifactRef as DurableCoreArtifactRef;
-    if (
-      secondRef.artifactId !== firstRef.artifactId ||
-      secondRef.versionId !== firstRef.versionId ||
-      secondRef.sha256 !== firstRef.sha256
-    ) {
-      throw new Error(
-        "DURABLE_CORE_PROOF_SECOND_CHECKPOINT_ARTIFACT_MISMATCH",
-      );
+    if (checkpointRecord.runStepId !== lost.runStepId) {
+      throw new Error("DURABLE_CORE_PROOF_CHECKPOINT_RUN_STEP_ID_MISMATCH");
     }
-  } else if (
-    proof.replacementAttempt !== undefined ||
-    proof.secondCheckpoint !== undefined
-  ) {
-    throw new Error("DURABLE_CORE_PROOF_ENGINE_REPLACEMENT_UNEXPECTED");
+    if (checkpointRecord.jobId !== lost.jobId) {
+      throw new Error("DURABLE_CORE_PROOF_CHECKPOINT_JOB_ID_MISMATCH");
+    }
   }
 
   const restart = proof.restart;
@@ -1289,87 +1216,88 @@ export function assertDurableCoreBoundaryProof(
     throw new Error("DURABLE_CORE_PROOF_PROCESS_IDENTITY_UNCHANGED");
   }
 
-  const terminal = proof.terminal;
-  if (!terminal || typeof terminal !== "object") {
-    throw new Error("DURABLE_CORE_PROOF_INVALID_TERMINAL");
-  }
-  const terminalRecord = assertClosedRecord(
-    proof.terminal,
-    "terminal",
-    [
-      "attemptId",
-      "eventId",
-      "taskId",
-      "jobId",
-      "taskStatus",
-      "runId",
-      "runStatus",
-      "runStepId",
-      "runStepStatus",
-      "terminalTaskCount",
-      "terminalRunCount",
-      "terminalStepCount",
-      "acceptedCount",
-      "effectCount",
-      "artifactCount",
-    ],
-  );
-  for (
-    const field of [
-      "attemptId",
-      "eventId",
-      "taskId",
-      "jobId",
-      "runId",
-      "runStepId",
-    ] as const
-  ) {
-    if (typeof terminalRecord[field] !== "string") {
-      throw new Error(
-        `DURABLE_CORE_PROOF_INVALID_TERMINAL_${field.toUpperCase()}`,
-      );
+  if (proof.kind === "engine") {
+    const terminal = proof.terminal;
+    if (!terminal || typeof terminal !== "object") {
+      throw new Error("DURABLE_CORE_PROOF_INVALID_TERMINAL");
     }
-    assertUuid(terminalRecord[field], `terminal_${field}`);
-  }
-  if (terminalRecord.taskStatus !== "completed") {
-    throw new Error("DURABLE_CORE_PROOF_TERMINAL_TASK_STATUS_INVALID");
-  }
-  if (terminalRecord.runStatus !== "completed") {
-    throw new Error("DURABLE_CORE_PROOF_TERMINAL_RUN_STATUS_INVALID");
-  }
-  if (terminalRecord.runStepStatus !== "completed") {
-    throw new Error("DURABLE_CORE_PROOF_TERMINAL_STEP_STATUS_INVALID");
-  }
-  if (terminalRecord.runId !== proof.runId) {
-    throw new Error("DURABLE_CORE_PROOF_TERMINAL_RUN_ID_MISMATCH");
-  }
-  if (checkpointRecord.runId !== proof.runId) {
-    throw new Error("DURABLE_CORE_PROOF_CHECKPOINT_RUN_ID_MISMATCH");
-  }
-  if (checkpointRecord.runStepId !== terminalRecord.runStepId) {
-    throw new Error("DURABLE_CORE_PROOF_CHECKPOINT_RUN_STEP_ID_MISMATCH");
-  }
-  if (checkpointRecord.jobId !== terminalRecord.jobId) {
-    throw new Error("DURABLE_CORE_PROOF_CHECKPOINT_JOB_ID_MISMATCH");
-  }
-  for (
-    const field of [
-      "terminalTaskCount",
-      "terminalRunCount",
-      "terminalStepCount",
-      "acceptedCount",
-      "effectCount",
-      "artifactCount",
-    ] as const
-  ) {
-    if (terminalRecord[field] !== 1) {
-      throw new Error(`DURABLE_CORE_PROOF_${field.toUpperCase()}_INVALID`);
+    const terminalRecord = assertClosedRecord(
+      proof.terminal,
+      "terminal",
+      [
+        "attemptId",
+        "eventId",
+        "taskId",
+        "jobId",
+        "taskStatus",
+        "runId",
+        "runStatus",
+        "runStepId",
+        "runStepStatus",
+        "terminalTaskCount",
+        "terminalRunCount",
+        "terminalStepCount",
+        "acceptedCount",
+        "effectCount",
+        "artifactCount",
+      ],
+    );
+    for (
+      const field of [
+        "attemptId",
+        "eventId",
+        "taskId",
+        "jobId",
+        "runId",
+        "runStepId",
+      ] as const
+    ) {
+      if (typeof terminalRecord[field] !== "string") {
+        throw new Error(
+          `DURABLE_CORE_PROOF_INVALID_TERMINAL_${field.toUpperCase()}`,
+        );
+      }
+      assertUuid(terminalRecord[field], `terminal_${field}`);
     }
-  }
-  const expectedTerminalAttemptId = replacementAttemptRecord?.attemptId ??
-    checkpointRecord.attemptId;
-  if (terminalRecord.attemptId !== expectedTerminalAttemptId) {
-    throw new Error("DURABLE_CORE_PROOF_ATTEMPT_ID_MISMATCH");
+    if (terminalRecord.taskStatus !== "completed") {
+      throw new Error("DURABLE_CORE_PROOF_TERMINAL_TASK_STATUS_INVALID");
+    }
+    if (terminalRecord.runStatus !== "completed") {
+      throw new Error("DURABLE_CORE_PROOF_TERMINAL_RUN_STATUS_INVALID");
+    }
+    if (terminalRecord.runStepStatus !== "completed") {
+      throw new Error("DURABLE_CORE_PROOF_TERMINAL_STEP_STATUS_INVALID");
+    }
+    if (terminalRecord.runId !== proof.runId) {
+      throw new Error("DURABLE_CORE_PROOF_TERMINAL_RUN_ID_MISMATCH");
+    }
+    if (checkpointRecord.runId !== proof.runId) {
+      throw new Error("DURABLE_CORE_PROOF_CHECKPOINT_RUN_ID_MISMATCH");
+    }
+    if (checkpointRecord.runStepId !== terminalRecord.runStepId) {
+      throw new Error("DURABLE_CORE_PROOF_CHECKPOINT_RUN_STEP_ID_MISMATCH");
+    }
+    if (checkpointRecord.jobId !== terminalRecord.jobId) {
+      throw new Error("DURABLE_CORE_PROOF_CHECKPOINT_JOB_ID_MISMATCH");
+    }
+    for (
+      const field of [
+        "terminalTaskCount",
+        "terminalRunCount",
+        "terminalStepCount",
+        "acceptedCount",
+        "effectCount",
+        "artifactCount",
+      ] as const
+    ) {
+      if (terminalRecord[field] !== 1) {
+        throw new Error(`DURABLE_CORE_PROOF_${field.toUpperCase()}_INVALID`);
+      }
+    }
+    const expectedTerminalAttemptId = checkpointRecord.attemptId;
+    if (terminalRecord.attemptId !== expectedTerminalAttemptId) {
+      throw new Error("DURABLE_CORE_PROOF_ATTEMPT_ID_MISMATCH");
+    }
   }
 
   const artifact = proof.artifact;
@@ -1421,7 +1349,7 @@ export function assertDurableCoreBoundaryProof(
         "engineBefore",
         "engineAfter",
       ]
-      : ["journalBefore", "journalAfter", "spoolBefore", "spoolAfter"],
+      : ["journalBefore", "spoolBefore"],
   );
   const proofIdentity = {
     runId: proof.runId as string,
@@ -1431,27 +1359,18 @@ export function assertDurableCoreBoundaryProof(
     },
   };
 
-  const allowedAttemptIds = new Set(
-    [
-      checkpointRecord.attemptId,
-      replacementAttemptRecord?.attemptId,
-      replacementCheckpointRecord?.attemptId,
-    ].filter((value): value is string => value !== undefined),
-  );
-  const allowedEventIds = new Set(
-    [
-      checkpointRecord.eventId,
-      replacementAttemptRecord?.checkpointEventId,
-      replacementCheckpointRecord?.eventId,
-    ].filter((value): value is string => typeof value === "string"),
-  );
+  const allowedAttemptIds = new Set([checkpointRecord.attemptId as string]);
+  const allowedEventIds = new Set([checkpointRecord.eventId as string]);
   for (
-    const field of [
-      "journalBefore",
-      "journalAfter",
-      "spoolBefore",
-      "spoolAfter",
-    ] as const
+    const field
+      of (proof.kind === "engine"
+        ? ["journalBefore", "journalAfter", "spoolBefore", "spoolAfter"]
+        : ["journalBefore", "spoolBefore"]) as readonly (
+          | "journalBefore"
+          | "journalAfter"
+          | "spoolBefore"
+          | "spoolAfter"
+        )[]
   ) {
     assertObservation(
       observationRecord[field],
@@ -1565,7 +1484,10 @@ export function assertDurableCoreBoundaryProof(
   ) {
     throw new Error("DURABLE_CORE_PROOF_SPOOL_BEFORE_NOT_PERSISTED");
   }
-  if (!spoolAfter || spoolAfter.spoolState !== "absent") {
+  if (
+    proof.kind === "engine" &&
+    (!spoolAfter || spoolAfter.spoolState !== "absent")
+  ) {
     throw new Error("DURABLE_CORE_PROOF_SPOOL_AFTER_NOT_ABSENT");
   }
 }

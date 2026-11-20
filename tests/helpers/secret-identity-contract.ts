@@ -47,7 +47,7 @@ async function digest(value: unknown): Promise<string> {
 }
 
 async function identityAssignment(): Promise<JobAssignment> {
-  const input = { secretRef: crypto.randomUUID() };
+  const input = { identityRef: crypto.randomUUID() };
   const attemptId = crypto.randomUUID();
   const jobId = crypto.randomUUID();
   return contractSchemas.JobAssignment.parse({
@@ -82,19 +82,19 @@ async function identityAssignment(): Promise<JobAssignment> {
 
 export function registerSecretIdentityContractTests(prefix: string): void {
   Deno.test(`${prefix}: identity input and safe output are strict and bounded`, () => {
-    const secretRef = crypto.randomUUID();
-    assertEquals(SecretIdentityReadInputSchema.parse({ secretRef }), {
-      secretRef,
+    const identityRef = crypto.randomUUID();
+    assertEquals(SecretIdentityReadInputSchema.parse({ identityRef }), {
+      identityRef,
     });
     assert(
       !SecretIdentityReadInputSchema.safeParse({
-        secretRef,
+        identityRef,
         provider: "github",
       }).success,
     );
     assert(
       !SecretIdentityReadInputSchema.safeParse({
-        secretRef,
+        identityRef,
         preparedOperationId: crypto.randomUUID(),
       }).success,
     );
@@ -213,7 +213,7 @@ export function registerSecretIdentityContractTests(prefix: string): void {
     });
     assert(
       !wire.includes(
-        (assignment.input as { secretRef: string }).secretRef,
+        (assignment.input as { identityRef: string }).identityRef,
       ),
     );
     assert(!wire.includes("provider"));
@@ -254,7 +254,7 @@ export function registerSecretIdentityContractTests(prefix: string): void {
       () =>
         createPreparedSecretInvoker(client).invoke({
           ...assignment,
-          input: { secretRef: crypto.randomUUID() },
+          input: { identityRef: crypto.randomUUID() },
         }, {
           workerSessionId: assignment.workerSessionId!,
           workerSessionGeneration: assignment.workerSessionGeneration!,
