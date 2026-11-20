@@ -9,7 +9,6 @@ import {
   boundedMutation,
   recordMutation,
   SKILL_COLUMNS,
-  SKILL_VISIBLE_TO,
   SkillCreatePersistenceSchema,
   type SkillRow,
   toSkill,
@@ -24,7 +23,7 @@ import {
   insertLocalSkillIdentity,
   type LocalSkillIdentity,
 } from "./skill-identity.ts";
-import { assertMayAuthorSkill } from "./skill-scope-guard.ts";
+import { assertMayAuthorSkill, SKILL_VISIBLE_TO } from "./skill-scope-guard.ts";
 import type { SkillFileStoreOperations } from "./storage.ts";
 
 type SkillCopyInput = z.output<typeof contractSchemas.SkillCopy>;

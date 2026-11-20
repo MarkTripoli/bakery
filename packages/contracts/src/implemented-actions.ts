@@ -702,6 +702,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsCreate: "skills.create",
     SkillsCopy: "skills.copy",
     SkillsUpdate: "skills.update",
+    SkillsUsedBy: "skills.usedBy",
     SkillVersionsCreate: "skillVersions.create",
     SkillUseGrantsList: "skills.useGrants.list",
     SkillUseGrantsDelete: "skills.useGrants.delete",
