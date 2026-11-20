@@ -8536,7 +8536,7 @@
       "output": "BackupRunnerSettings",
       "event": "",
       "mcp": null,
-      "idempotency": "read; never cached",
+      "idempotency": "read; never cached; every read that releases the credentials or refuses to is audited",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",

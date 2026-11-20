@@ -6,6 +6,13 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import type { BackupS3Credentials } from "./settings.ts";
+import {
+  checkDestinationHost,
+  createPinnedAgents,
+  DestinationRefusedAtConnect,
+  type HostResolver,
+  resolveHostAddresses,
+} from "./dns.ts";
 
 /**
  * The off-site destination: any S3-compatible bucket the installation
@@ -19,6 +26,13 @@ export type BackupDestination = {
   readonly bucket: string;
   /** Folder inside the bucket: no leading slash, a trailing one when set. */
   readonly prefix: string;
+  /** The endpoint's host name or IP literal, without IPv6 brackets. */
+  readonly host: string;
+  /**
+   * True only for an http loopback fixture on a test host in a test
+   * environment: the one case where a loopback address is allowed.
+   */
+  readonly loopbackAllowed: boolean;
 };
 
 export const BUCKET_NAME_PATTERN = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
@@ -39,17 +53,6 @@ export class BackupDestinationInvalid extends Error {
   }
 }
 
-function isPrivateHost(hostname: string): boolean {
-  if (hostname === "localhost" || hostname.endsWith(".localhost")) return true;
-  // Any IPv6 literal: loopback, link-local and unique-local ranges included.
-  if (hostname.startsWith("[")) return true;
-  const quad = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(hostname);
-  if (quad === null) return false;
-  const [a, b] = [Number(quad[1]), Number(quad[2])];
-  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
-}
-
 /** Normalises a folder to `a/b/` (or empty); refuses dot segments. */
 export function normalizePrefix(prefix: string): string {
   if (!PREFIX_PATTERN.test(prefix)) {
@@ -63,12 +66,14 @@ export function normalizePrefix(prefix: string): string {
 }
 
 /**
- * Validates an administrator-supplied destination. The endpoint must be an
- * https origin (no credentials, path, query or fragment) that is not a
- * private, loopback or link-local address; only a test environment may name a
- * loopback http fixture. A DNS name that resolves to a private address is not
- * checked here: the destination is an administrator's choice, and the runner
- * is the one that dials it from the host.
+ * Validates the shape of an administrator-supplied destination: an https origin
+ * (no credentials, path, query or fragment), a bucket, a region and a folder.
+ * Only a test environment may name a loopback http fixture.
+ *
+ * Which ADDRESSES the host may resolve to is not decided here: a name needs a
+ * lookup, so `checkDestinationHost` (dns.ts) applies the address policy for
+ * names and literal IPs alike, at save, at test, at each connection the server
+ * makes and when the runner reads its settings.
  */
 export function resolveBackupDestination(
   source: {
@@ -87,10 +92,9 @@ export function resolveBackupDestination(
   }
   const testEndpoint = options.allowLoopbackEndpoint &&
     url.protocol === "http:" && TEST_ENDPOINT_HOSTS.includes(url.hostname);
-  const publicHttps = url.protocol === "https:" && !isPrivateHost(url.hostname);
   if (
-    !(testEndpoint || publicHttps) || url.username || url.password ||
-    url.search || url.hash || url.pathname !== "/"
+    !(testEndpoint || url.protocol === "https:") || url.username ||
+    url.password || url.search || url.hash || url.pathname !== "/"
   ) throw new BackupDestinationInvalid("endpoint");
   if (!BUCKET_NAME_PATTERN.test(source.bucket)) {
     throw new BackupDestinationInvalid("bucket");
@@ -103,6 +107,8 @@ export function resolveBackupDestination(
     region: source.region,
     bucket: source.bucket,
     prefix: normalizePrefix(source.prefix),
+    host: url.hostname.replace(/^\[|\]$/g, ""),
+    loopbackAllowed: testEndpoint,
   };
 }
 
@@ -121,6 +127,8 @@ export function createBackupS3Client(
     attempts: 1,
     requestMs: 10000,
   },
+  /** Agents whose sockets can only reach validated addresses (dns.ts). */
+  agents?: ReturnType<typeof createPinnedAgents>,
 ): S3Client {
   return new S3Client({
     region: destination.region,
@@ -130,6 +138,7 @@ export function createBackupS3Client(
     requestHandler: {
       connectionTimeout: 5000,
       requestTimeout: timeouts.requestMs,
+      ...(agents ?? {}),
     },
     credentials: {
       accessKeyId: credentials.accessKeyId,
@@ -145,6 +154,8 @@ export const BackupProbeOutcome = Object.freeze(
     NotConfigured: "not_configured",
     DestinationRefused: "destination_refused",
     DestinationUnreachable: "destination_unreachable",
+    /** The host resolves to an address the server may not dial (private, loopback, metadata...). */
+    DestinationPrivateAddress: "destination_private_address",
     IntegrityFailed: "integrity_failed",
   } as const,
 );
@@ -190,8 +201,27 @@ function mapProbeError(
   const e = error as {
     name?: string;
     message?: string;
+    code?: string;
+    cause?: { code?: string; refusal?: string };
     $metadata?: { httpStatusCode?: number };
   };
+  // A pinned lookup refused the address at the moment of connecting: the name
+  // was re-pointed after it was checked, and no socket was opened.
+  const refusedAtConnect = error instanceof DestinationRefusedAtConnect ||
+    e?.code === "BACKUP_DESTINATION_REFUSED" ||
+    e?.cause?.code === "BACKUP_DESTINATION_REFUSED" ||
+    String(e?.message ?? "").includes("BACKUP_DESTINATION_REFUSED");
+  if (refusedAtConnect) {
+    const unresolvable = String(e?.message ?? "").includes("unresolvable");
+    return {
+      outcome: unresolvable
+        ? BackupProbeOutcome.DestinationUnreachable
+        : BackupProbeOutcome.DestinationPrivateAddress,
+      detail: unresolvable
+        ? "The destination's name could not be resolved."
+        : "The destination resolves to an address the server may not connect to.",
+    };
+  }
   const text = `${e?.name ?? "Error"}: ${e?.message ?? ""}`;
   // Any HTTP answer means the destination was reached and said no.
   if (typeof e?.$metadata?.httpStatusCode === "number") {
@@ -217,8 +247,30 @@ export async function probeBackupDestination(
   destination: BackupDestination,
   credentials: BackupS3Credentials,
   signal?: AbortSignal,
+  resolve: HostResolver = resolveHostAddresses,
 ): Promise<BackupProbeResult> {
-  const client = createBackupS3Client(destination, credentials);
+  // Resolve and hold the host to the address policy immediately before
+  // connecting; the pinned agents below then repeat the check at the socket, so
+  // the address dialled is the address validated.
+  const check = await checkDestinationHost(destination, resolve, signal);
+  if (!check.ok) {
+    return check.refusal === "destination_private_address"
+      ? {
+        outcome: BackupProbeOutcome.DestinationPrivateAddress,
+        detail:
+          "The destination resolves to an address the server may not connect to.",
+      }
+      : {
+        outcome: BackupProbeOutcome.DestinationUnreachable,
+        detail: "The destination's name could not be resolved.",
+      };
+  }
+  const client = createBackupS3Client(
+    destination,
+    credentials,
+    undefined,
+    createPinnedAgents(destination, resolve),
+  );
   const abortSignal = signal
     ? AbortSignal.any([signal, AbortSignal.timeout(30000)])
     : AbortSignal.timeout(30000);

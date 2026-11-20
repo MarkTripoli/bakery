@@ -261,17 +261,19 @@ function readBearer(headers: Headers): string {
 export async function authenticateRunner(
   transaction: PgTransactionClient,
   headers: Headers,
-): Promise<void> {
+): Promise<{ readonly generation: number }> {
   const tokenHash = await sha256Hex(readBearer(headers));
-  const result = await transaction.query(
+  const result = await transaction.query<{ generation: number }>(
     `update bakery.backup_runner_credentials
         set last_used_at = now()
-      where id = true and token_hash = $1`,
+      where id = true and token_hash = $1
+      returning generation`,
     [tokenHash],
   );
   if (result.rowCount !== 1) {
     throw new StandardError({ code: "AUTH_FORBIDDEN" });
   }
+  return { generation: result.rows[0].generation };
 }
 
 /**

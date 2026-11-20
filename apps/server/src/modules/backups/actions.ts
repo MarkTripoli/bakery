@@ -40,13 +40,15 @@ import {
 } from "./postgres.ts";
 import {
   type BackupSettingsDependencies,
+  checkRunnerDestination,
   createBackupSettingsAuthorityRunner,
   getOffsite,
   getSchedule,
+  prepareRunnerRead,
   putOffsite,
   putSchedule,
-  readRunnerSettings,
   recordVerification,
+  releaseRunnerSettings,
 } from "./settings-actions.ts";
 
 type Run = z.output<typeof contractSchemas.BackupRun>;
@@ -290,18 +292,44 @@ export function createBackupRunnerRoutes(
     ),
   );
   // The one route that returns the decrypted off-site credentials, and only to
-  // the runner credential; the response is never cached.
+  // the runner credential; the response is never cached. Three steps: read and
+  // form the saved destination, hold its host to the address policy OUTSIDE any
+  // transaction (a slow resolver never holds the runner credential's row), then
+  // release the credentials and write the audit row in a second transaction.
   app.get(
     "/v1/backup-runner/settings",
-    guarded((context) =>
-      withPgTransaction(options.database, async (transaction) => {
-        await authenticateRunner(transaction, context.req.raw.headers);
+    guarded(async (context) => {
+      const headers = context.req.raw.headers;
+      const prepared = await withPgTransaction(
+        options.database,
+        async (transaction) => {
+          await authenticateRunner(transaction, headers);
+          return await prepareRunnerRead(transaction, options.settings);
+        },
+      );
+      const check = await checkRunnerDestination(
+        prepared,
+        options.settings,
+        context.req.raw.signal,
+      );
+      return withPgTransaction(options.database, async (transaction) => {
+        const runner = await authenticateRunner(transaction, headers);
         return noStoreJson(
-          await readRunnerSettings(transaction, options.settings),
+          await releaseRunnerSettings(
+            transaction,
+            prepared,
+            check,
+            options.settings,
+            {
+              generation: runner.generation,
+              requestId: crypto.randomUUID(),
+              traceId: crypto.randomUUID(),
+            },
+          ),
           200,
         );
-      })
-    ),
+      });
+    }),
   );
   app.post(
     "/v1/backup-runner/runs/:id/reports",

@@ -39,6 +39,12 @@ import {
   MIN_DAYS_TO_KEEP,
 } from "./schedule.ts";
 import {
+  checkDestinationHost,
+  type DestinationAddressCheck,
+  type HostResolver,
+  resolveHostAddresses,
+} from "./dns.ts";
+import {
   type BackupDestination,
   BackupDestinationInvalid,
   BackupProbeOutcome,
@@ -61,7 +67,13 @@ export type BackupSettingsDependencies = {
   readonly allowLoopbackEndpoint: boolean;
   /** Probe runner; tests inject one so no suite reaches a real destination. */
   readonly probe?: typeof probeBackupDestination;
+  /** Host resolver; tests inject one so no suite touches real DNS. */
+  readonly resolve?: HostResolver;
 };
+
+const resolverOf = (
+  dependencies: Pick<BackupSettingsDependencies, "resolve">,
+) => dependencies.resolve ?? resolveHostAddresses;
 
 function malformed(path: string, message: string): StandardError {
   return new StandardError({
@@ -319,6 +331,31 @@ type PutStage =
     readonly credentialsSupplied: boolean;
   };
 
+/**
+ * A save whose host the address policy refused: a private, loopback, link-local
+ * or metadata address is `destination_private_address`; a name that cannot be
+ * resolved at all is `destination_unreachable`. Nothing is stored.
+ */
+function addressRefusal(
+  check: Extract<DestinationAddressCheck, { ok: false }>,
+): StandardError {
+  const private_ = check.refusal === "destination_private_address";
+  return new StandardError({
+    code: "UNPROCESSABLE",
+    params: {
+      issues: [{
+        path: ["endpoint"],
+        code: private_
+          ? "destination_private_address"
+          : "destination_unreachable",
+        message: private_
+          ? "The destination resolves to an address the server may not connect to."
+          : "The destination's name could not be resolved.",
+      }],
+    },
+  });
+}
+
 function probeFailure(
   result: BackupProbeResult,
   credentialsSupplied: boolean,
@@ -375,6 +412,14 @@ async function runPut(
         input: parsed,
       });
       if (replay) return { skip: true };
+      // Every save holds the host to the address policy, even one that moves
+      // nothing: a name re-pointed since the last save is caught here.
+      const addresses = await checkDestinationHost(
+        destination,
+        resolverOf(dependencies),
+        authorized.signal,
+      );
+      if (!addresses.ok) throw addressRefusal(addresses);
       const stored = await readBackupOffsite(value.transaction);
       const moved = stored === null ||
         stored.endpoint !== destination.endpoint ||
@@ -403,6 +448,7 @@ async function runPut(
       stage.destination,
       stage.credentials,
       context.signal,
+      resolverOf(dependencies),
     );
     if (result.outcome !== BackupProbeOutcome.Verified) {
       throw probeFailure(result, stage.credentialsSupplied);
@@ -477,6 +523,27 @@ async function runVerify(
         }
         throw error;
       }
+      // The saved host may have been re-pointed since the save: hold it to the
+      // address policy again before anything is dialled.
+      const addresses = await checkDestinationHost(
+        destination,
+        resolverOf(dependencies),
+        authorized.signal,
+      );
+      if (!addresses.ok) {
+        return {
+          result: addresses.refusal === "destination_private_address"
+            ? {
+              outcome: BackupProbeOutcome.DestinationPrivateAddress,
+              detail:
+                "The destination resolves to an address the server may not connect to.",
+            }
+            : {
+              outcome: BackupProbeOutcome.DestinationUnreachable,
+              detail: "The destination's name could not be resolved.",
+            },
+        };
+      }
       // No usable secrets key, or one that cannot open the stored version,
       // answers STATE_CONFLICT.
       const credentials = await openBackupCredentials(
@@ -495,6 +562,7 @@ async function runVerify(
       stage.destination,
       stage.credentials,
       context.signal,
+      resolverOf(dependencies),
     );
   const result: Verification = {
     outcome: probed.outcome,
@@ -554,25 +622,149 @@ export function createBackupSettingsAuthorityRunner(
 /* Runner read                                                         */
 /* ------------------------------------------------------------------ */
 
+/** What a runner read has before the destination's addresses are checked. */
+export type RunnerReadPrepared = {
+  /** The saved destination as read, or null when none is saved. */
+  readonly offsite: StoredBackupOffsite | null;
+  /** The destination's host check, or null when there is nothing to check. */
+  readonly destination: BackupDestination | null;
+  /** Why the saved destination could not even be formed, when it could not. */
+  readonly invalid: boolean;
+};
+
 /**
- * backupRunner.settings: what the host runner needs, including the decrypted
- * credential pair. This is the one deliberate path where the secret leaves
- * the server: only over the runner credential, never to a user session, never
- * cached, never audited, never logged.
+ * Step 1 of backupRunner.settings, inside the first transaction: reads the
+ * saved destination and forms it. No credential is opened yet.
  */
-export async function readRunnerSettings(
+export async function prepareRunnerRead(
   transaction: PgTransactionClient,
+  dependencies: Pick<BackupSettingsDependencies, "allowLoopbackEndpoint">,
+): Promise<RunnerReadPrepared> {
+  const offsite = await readBackupOffsite(transaction);
+  if (offsite === null || offsite.secretId === null) {
+    return { offsite, destination: null, invalid: false };
+  }
+  try {
+    return {
+      offsite,
+      destination: resolveBackupDestination(offsite, {
+        allowLoopbackEndpoint: dependencies.allowLoopbackEndpoint,
+      }),
+      invalid: false,
+    };
+  } catch (error) {
+    if (error instanceof BackupDestinationInvalid) {
+      return { offsite, destination: null, invalid: true };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Step 2, between the transactions: resolves the host and holds every address
+ * to the policy. Done outside any transaction so a slow resolver never holds
+ * the runner credential's row.
+ */
+export function checkRunnerDestination(
+  prepared: RunnerReadPrepared,
+  dependencies: Pick<BackupSettingsDependencies, "resolve">,
+  signal?: AbortSignal,
+): Promise<DestinationAddressCheck | null> {
+  if (prepared.destination === null) return Promise.resolve(null);
+  return checkDestinationHost(
+    prepared.destination,
+    resolverOf(dependencies),
+    signal,
+  );
+}
+
+/** Why the runner was not given the credentials of a saved destination. */
+export type RunnerRefusal =
+  | "destination_private_address"
+  | "destination_unresolvable"
+  | "destination_invalid";
+
+/** Operation name of the audit row each credential release (or refusal) writes. */
+export const RUNNER_SETTINGS_OPERATION = Action.BackupRunnerSettings;
+/** The runner credential has no principal: its audit identity is this one id. */
+const RUNNER_CREDENTIAL_RESOURCE_ID = "backup-runner";
+
+/**
+ * Step 3, in the second transaction: backupRunner.settings. This is the one
+ * deliberate path where the secret leaves the server: only over the runner
+ * credential, never to a user session, never cached, never logged.
+ *
+ * - Nothing saved or no credentials stored: nothing is released and no audit
+ *   row is written (the runner polls; a read that releases nothing is not an
+ *   event worth a row).
+ * - Credentials released: ONE audit row, `backupRunner.settings`, with no
+ *   principal (the runner has none), the runner credential as the resource and
+ *   its generation, the bucket and the endpoint host. Never a key.
+ * - Saved but refused (the host now resolves to a refused address, cannot be
+ *   resolved, or is not a valid destination): the credentials are withheld,
+ *   `offsiteConfigured` stays true, `offsiteRefusal` names why, and ONE audit
+ *   row with `released: false` records the refusal.
+ */
+export async function releaseRunnerSettings(
+  transaction: PgTransactionClient,
+  prepared: RunnerReadPrepared,
+  check: DestinationAddressCheck | null,
   dependencies: Pick<BackupSettingsDependencies, "secretsKey">,
+  runner: {
+    readonly generation: number;
+    readonly requestId: string;
+    readonly traceId: string;
+  },
 ): Promise<RunnerSettings> {
   const schedule = await readBackupSchedule(transaction);
   const offsite = await readBackupOffsite(transaction);
+  // The destination the host check judged must still be the saved one.
+  if (
+    (offsite?.version ?? 0) !== (prepared.offsite?.version ?? 0) ||
+    offsite?.endpoint !== prepared.offsite?.endpoint
+  ) throw new StandardError({ code: "STATE_CONFLICT" });
   const effective = schedule === null
     ? { ...DEFAULT_BACKUP_SCHEDULE, version: 0 }
     : schedule;
   const configured = offsite !== null && offsite.secretId !== null;
-  const credentials = configured
+  let refusal: RunnerRefusal | null = null;
+  if (configured) {
+    if (prepared.invalid) refusal = "destination_invalid";
+    else if (check !== null && !check.ok) refusal = check.refusal;
+  }
+  const credentials = configured && refusal === null
     ? await openBackupCredentials(transaction, dependencies.secretsKey, offsite)
     : null;
+  if (configured) {
+    let endpointHost: string | null = null;
+    try {
+      endpointHost = new URL(offsite.endpoint).hostname;
+    } catch {
+      endpointHost = null;
+    }
+    await recordAuthAudit(
+      transaction,
+      { requestId: runner.requestId, traceId: runner.traceId },
+      {
+        organizationId: null,
+        principalId: null,
+        operation: RUNNER_SETTINGS_OPERATION,
+        resourceType: "backup_runner_credential",
+        resourceId: RUNNER_CREDENTIAL_RESOURCE_ID,
+        // Identifiers and non-secret destination facts only: never an access
+        // key, a secret or any key material.
+        details: {
+          released: credentials !== null,
+          generation: runner.generation,
+          bucket: offsite.bucket,
+          region: offsite.region,
+          endpointHost,
+          credentialRevision: offsite.credentialRevision,
+          ...(refusal === null ? {} : { refusal }),
+        },
+      },
+    );
+  }
   return contractSchemas.BackupRunnerSettings.parse({
     scheduleEnabled: effective.enabled,
     scheduleInterval: effective.interval,
@@ -586,6 +778,7 @@ export async function readRunnerSettings(
     offsitePrefix: offsite?.prefix ?? null,
     offsiteAccessKeyId: credentials?.accessKeyId ?? null,
     offsiteSecretAccessKey: credentials?.secretAccessKey ?? null,
+    offsiteRefusal: refusal,
     offsiteVersion: offsite?.version ?? 0,
   });
 }

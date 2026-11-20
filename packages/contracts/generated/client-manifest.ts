@@ -7781,7 +7781,7 @@ export const clientManifest = {
       "output": "BackupRunnerSettings",
       "event": "",
       "mcp": "",
-      "idempotency": "read; never cached",
+      "idempotency": "read; never cached; every read that releases the credentials or refuses to is audited",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -93945,9 +93945,10 @@ export const clientManifest = {
             "not_configured",
             "destination_refused",
             "destination_unreachable",
+            "destination_private_address",
             "integrity_failed"
           ],
-          "description": "verified when the test object round-tripped; not_configured without a saved destination; destination_refused when the service answered and said no (wrong key, no access, missing bucket); destination_unreachable on a network failure or timeout; integrity_failed when the bytes read back differ."
+          "description": "verified when the test object round-tripped; not_configured without a saved destination; destination_refused when the service answered and said no (wrong key, no access, missing bucket); destination_unreachable on a network failure, a timeout or a name that cannot be resolved; destination_private_address when the host resolves to an address the server may not connect to (private, loopback, link-local, metadata and similar); integrity_failed when the bytes read back differ."
         },
         "detail": {
           "anyOf": [
@@ -94014,7 +94015,7 @@ export const clientManifest = {
         },
         "offsiteConfigured": {
           "type": "boolean",
-          "description": "True when a destination with credentials is saved."
+          "description": "True when a destination with credentials is saved, whether or not the credentials were released."
         },
         "offsiteEndpoint": {
           "anyOf": [
@@ -94078,7 +94079,7 @@ export const clientManifest = {
               "type": "string",
               "minLength": 1,
               "maxLength": 65536,
-              "description": "Access key id, shown only to the runner, or null when none is saved."
+              "description": "Access key id, shown only to the runner, or null when none is saved or the credentials were withheld (see offsiteRefusal)."
             },
             {
               "type": "null",
@@ -94093,7 +94094,7 @@ export const clientManifest = {
               "type": "string",
               "minLength": 1,
               "maxLength": 65536,
-              "description": "Secret access key, shown only to the runner and never stored by it, or null when none is saved."
+              "description": "Secret access key, shown only to the runner and never stored by it, or null when none is saved or the credentials were withheld (see offsiteRefusal)."
             },
             {
               "type": "null",
@@ -94101,6 +94102,24 @@ export const clientManifest = {
             }
           ],
           "description": "BackupRunnerSettings.offsiteSecretAccessKey may be null in this transport value."
+        },
+        "offsiteRefusal": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "destination_private_address",
+                "destination_unresolvable",
+                "destination_invalid"
+              ],
+              "description": "Why the credentials were withheld for a saved destination: destination_private_address when its host now resolves to a private, loopback, link-local, metadata or other refused address, destination_unresolvable when its name cannot be resolved, destination_invalid when the saved destination is not a valid one. Null when the credentials were released or no destination is saved. The runner must not upload while this is set."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteRefusal may be null in this transport value."
         },
         "offsiteVersion": {
           "type": "integer",
@@ -94122,10 +94141,11 @@ export const clientManifest = {
         "offsitePrefix",
         "offsiteAccessKeyId",
         "offsiteSecretAccessKey",
+        "offsiteRefusal",
         "offsiteVersion"
       ],
       "additionalProperties": false,
-      "description": "What the host backup runner needs to do its work: the schedule and the off-site destination including its decrypted credential pair. This is the one route that returns the credentials, and only to the runner credential, never to a user session. It carries no backup key material: the operator keeps the age keys on the host."
+      "description": "What the host backup runner needs to do its work: the schedule and the off-site destination including its decrypted credential pair. This is the one route that returns the credentials, and only to the runner credential, never to a user session. It carries no backup key material: the operator keeps the age keys on the host. Every read that releases the credentials, or refuses to, is audited. The destination's host is resolved again on each read, so a name re-pointed at a private address is not released."
     },
     "Page<PluginStateItem>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
