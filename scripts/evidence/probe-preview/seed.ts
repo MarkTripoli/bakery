@@ -73,6 +73,7 @@ type Answer = {
   lineCount?: number;
   width?: number;
   height?: number;
+  durationMs?: number;
   code?: string;
   limit?: number;
 };
@@ -96,10 +97,11 @@ async function writeAnswer(
     await q(
       `insert into bakery.blob_probes
          (organization_id, entry_id, revision, status, kind, media_type,
-          byte_length, width, height, line_count, failure_code,
+          byte_length, width, height, duration_ms, line_count, failure_code,
           failure_limit, probed_at)
        values ((select organization_id from bakery.storage_entries where id = $1),
-               $1, $2, 'described', $3, $4, $5, $6, $7, $8, null, null, now())`,
+               $1, $2, 'described', $3, $4, $5, $6, $7, $8, $9, null, null,
+               now())`,
       [
         entryId,
         revision,
@@ -108,6 +110,9 @@ async function writeAnswer(
         bytes.byteLength,
         answer.width ?? null,
         answer.height ?? null,
+        // A video's length is the measurement its facts line states; the working
+        // area's answer has to carry it, not only the artifact page's.
+        answer.durationMs ?? null,
         answer.lineCount ?? null,
       ],
     );
@@ -340,7 +345,7 @@ async function writeArtifact(input: {
   name: string;
   mediaType: string;
   bytes: Uint8Array;
-  answer?: Answer & { durationMs?: number };
+  answer?: Answer;
   /** A digest that is not the digest of the bytes, to seed the mismatch Banner. */
   recordedSha256?: string;
 }) {
@@ -457,6 +462,10 @@ try {
   }
 
   const files: Record<string, { id: string; path: string; name: string }> = {};
+  // The two-second clip is used by the artifact page and by the Files panel.
+  const clip = await Deno.readFile(
+    new URL("./evidence-clip.mp4", import.meta.url),
+  );
   // 1. A text file the sandbox read: the facts line has something to say, and the
   //    preview is cut under a fade so Download stays above the fold.
   files.text = await writeFile({
@@ -517,6 +526,26 @@ try {
     recordedSha256: "0".repeat(64),
     answer: { status: "described", kind: "image", width: 2, height: 2 },
   });
+  // 6b. A video in the Files panel, so the panel's player and its facts line are
+  //     what a still shows -- and the same video damaged, so the panel is measured
+  //     on naming the file rather than blaming the browser.
+  files.video = await writeFile({
+    organizationId: owner.organizationId,
+    principalId: owner.principalId,
+    name: "walkthrough.mp4",
+    mediaType: "video/mp4",
+    bytes: clip,
+    answer: { status: "described", kind: "video", durationMs: 2_000 },
+  });
+  files.videoMismatch = await writeFile({
+    organizationId: owner.organizationId,
+    principalId: owner.principalId,
+    name: "walkthrough-cut.mp4",
+    mediaType: "video/mp4",
+    bytes: clip,
+    recordedSha256: "0".repeat(64),
+    answer: { status: "described", kind: "video", durationMs: 2_000 },
+  });
   // 7. Two revisions with two answers: an older version selected with ?version=
   //    must show its own facts line, not the current one's.
   files.history = await writeFile({
@@ -535,9 +564,6 @@ try {
   // versions that hang off it. The video is a real two-second clip, so the player
   // draws a frame and the facts line has a measured length to state.
   const target = await writeTarget(owner.organizationId, owner.principalId);
-  const clip = await Deno.readFile(
-    new URL("./evidence-clip.mp4", import.meta.url),
-  );
   const video = await writeArtifact({
     organizationId: owner.organizationId,
     taskId: target.taskId,

@@ -654,12 +654,17 @@ export type BakeryApiClient = {
       cursor?: string,
       signal?: AbortSignal,
     ) => Promise<ApiResult<LibraryPage>>;
-    /** A file's bytes: its current version, or the one at `revision`. */
+    /**
+     * A file's bytes: its current version, or the one at `revision`. A `range`
+     * asks for part of them, as `bytes=0-0` does to check a digest without
+     * reading a whole video into the page.
+     */
     readonly content: (
       organizationId: string,
       fileId: string,
       revision: number | undefined,
       signal?: AbortSignal,
+      range?: string,
     ) => Promise<ApiResult<ClientOutputMap["BinaryArtifact"]>>;
     /**
      * What the probe measured about this version's bytes, or nulls. A file
@@ -3187,7 +3192,7 @@ export function createBakeryApiClient({
           return failed(error);
         }
       },
-      async content(org, fileId, revision, signal) {
+      async content(org, fileId, revision, signal, range) {
         const scoped = createBakeryClient({
           baseUrl,
           fetch: fetchImpl,
@@ -3199,6 +3204,7 @@ export function createBakeryApiClient({
             data: await scoped.actions["storageFiles.content"]({
               id: fileId,
               revision,
+              ...(range === undefined ? {} : { range }),
             }, { signal }),
           };
         } catch (error) {

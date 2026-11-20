@@ -190,6 +190,11 @@ export function FilePreview(
   // its record reaches the player as a failure to play. Once it has failed, one
   // content read says which fault it is: a refusal is the answer, and the panel
   // says so rather than blaming the browser beside a Download of the same bytes.
+  // The read asks for a single byte. A whole read would pull a two-gigabyte video
+  // into the tab to answer a question about its digest, and the server checks the
+  // digest before it answers either way. A blob-backed version above the range
+  // ceiling answers 416 instead of a mismatch; the panel then keeps naming the
+  // player, because nothing here proved the file wrong.
   const mediaCheck = useQuery({
     queryKey: protectedQueryKey(scope, "storageFiles.mediaCheck", {
       fileId: file.id,
@@ -208,6 +213,7 @@ export function FilePreview(
         file.id,
         version?.revision,
         signal,
+        "bytes=0-0",
       );
       if (!result.ok) throw result.error;
       return null;

@@ -191,6 +191,48 @@ const STATES = [
     views: [[DESKTOP, LIGHT], [PHONE, LIGHT]],
   },
   {
+    // A video the panel plays, with the length the sandbox measured under it. The
+    // facts line is the promise: without it the panel has a player and no answer.
+    id: "panel-video",
+    file: "walkthrough.mp4",
+    play: true,
+    says: /Video · 2 s · 310\.3 KB/,
+    assert: async (page) => {
+      const player = page.locator("video").first();
+      if (await player.count() === 0) throw new Error("no player in the panel");
+      const box = await player.boundingBox();
+      if (box === null || box.height < 40) {
+        throw new Error(`player is ${box?.height ?? "absent"}px tall`);
+      }
+      // A frame only comes from the bytes themselves: HAVE_CURRENT_DATA means the
+      // element decoded one, where a black rectangle could be any failure at all.
+      const ready = await player.evaluate((node) => node.readyState);
+      if (ready < 2) {
+        throw new Error(`the player never decoded a frame (${ready})`);
+      }
+    },
+    views: [[DESKTOP, LIGHT]],
+  },
+  {
+    // The same video with a digest that does not match: the panel must name the
+    // file, not the browser, and offer nothing to open (#437).
+    id: "panel-video-mismatch",
+    file: "walkthrough-cut.mp4",
+    play: true,
+    says: /does not match its record/i,
+    assert: async (page) => {
+      if (await page.locator("video").count() > 0) {
+        throw new Error("damaged video still rendered a player");
+      }
+      for (const label of [/^download/i, /^open/i]) {
+        if (await page.getByText(label).count() > 0) {
+          throw new Error(`damaged video offers ${label}`);
+        }
+      }
+    },
+    views: [[DESKTOP, LIGHT]],
+  },
+  {
     // An older version carries its own answer: 12 lines, not the current 42.
     id: "older-version",
     file: "changelog.md",
@@ -246,7 +288,11 @@ const seeded = seed();
 const ids = seeded.ids;
 const folder = seeded.folder;
 
-const browser = await chromium.launch();
+// A player is asked to play by the capture, not by a person, so the browser's
+// autoplay policy would otherwise refuse the play() that fetches the bytes.
+const browser = await chromium.launch({
+  args: ["--autoplay-policy=no-user-gesture-required"],
+});
 const files = [];
 for (const state of ONLY === "artifact" ? [] : STATES) {
   const context = await browser.newContext({
@@ -272,6 +318,18 @@ for (const state of ONLY === "artifact" ? [] : STATES) {
       { waitUntil: "load" },
     );
     await page.waitForLoadState("networkidle").catch(() => {});
+    // A player is given its address with preload="none": nothing is fetched until
+    // someone asks it to play, so a still of a video that was never played would
+    // show a black rectangle and prove nothing about the bytes.
+    if (state.play === true) {
+      const player = page.locator("video, audio").first();
+      // The element arrives with the preview query's answer, not with the page.
+      for (let wait = 0; wait < 30 && (await player.count()) === 0; wait += 1) {
+        await page.waitForTimeout(500);
+      }
+      await player.evaluate((node) => node.play().catch(() => {}))
+        .catch(() => {});
+    }
 
     // The state's own sentence, polled: a page that is still loading must not be
     // photographed as if it were a result.
