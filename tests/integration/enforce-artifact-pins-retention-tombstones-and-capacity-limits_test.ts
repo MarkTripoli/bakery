@@ -550,7 +550,9 @@ Deno.test("a cached extract is found only for its own scope, digest and request,
       hasMore: false,
       maxBytes: 65536,
     });
-    const ask = (over: Record<string, unknown> = {}) =>
+    const ask = (
+      over: Partial<Parameters<typeof findCachedExtract>[1]> = {},
+    ) =>
       findCachedExtract(db, {
         organizationId: fixture.organizationId,
         versionId: fixture.versionId,
@@ -559,7 +561,7 @@ Deno.test("a cached extract is found only for its own scope, digest and request,
         maxBytes: 65536,
         scope: "p1|org",
         ...over,
-      } as never);
+      });
     const own = await ask();
     assert(own !== null, "the storing scope finds its row");
     assertEquals(own.text, "Immutable retention evidence");
