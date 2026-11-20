@@ -60,6 +60,9 @@ fn test_hooks(app: &tauri::App, shell: &Arc<Shell>, server: &str) {
             let _ = window.set_size(tauri::LogicalSize::new(w, h));
         }
     }
+    if let Ok(dir) = std::env::var("BAKERY_DESKTOP_COMMANDS") {
+        shell.watch_commands(std::path::PathBuf::from(dir));
+    }
     if std::env::var("BAKERY_DESKTOP_CSP_PROBE").is_ok() {
         let script = include_str!("probe.js").replace("__SERVER__", server);
         let window = window.clone();

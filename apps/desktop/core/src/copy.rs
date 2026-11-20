@@ -44,7 +44,10 @@ pub enum Detail {
     Address {
         address: String,
     },
-    Spinner,
+    /// A spinner with words beside it, while the app works with nothing for the person to do.
+    Working {
+        text: String,
+    },
     Warning {
         text: String,
     },
@@ -86,6 +89,9 @@ pub struct Context<'a> {
     pub until: Option<&'a str>,
     /// The address to confirm at, shown when the browser could not be opened.
     pub address: Option<&'a str>,
+    /// Whether the panel shows inside the "sign in again" dialog, whose waiting step has its own
+    /// sentence: the page behind it comes back as the person left it.
+    pub dialog: bool,
 }
 
 fn button(id: ButtonId, label: &str, primary: bool) -> Button {
@@ -134,7 +140,11 @@ pub fn panel_for(window: &Window, ctx: &Context) -> Option<Panel> {
         },
         Window::Waiting => panel(
             "Finish signing in in your browser",
-            Some("Bakery opened your browser. Confirm the sign-in there. This window continues by itself."),
+            Some(if ctx.dialog {
+                "Confirm the sign-in there. This page comes back as you left it, with what you typed."
+            } else {
+                "Bakery opened your browser. Confirm the sign-in there. This window continues by itself."
+            }),
             Detail::Waiting {
                 status: "Waiting for your browser".into(),
                 until: ctx.until.map(|at| Until {
@@ -155,7 +165,14 @@ pub fn panel_for(window: &Window, ctx: &Context) -> Option<Panel> {
                 button(ButtonId::Cancel, "Cancel", false),
             ],
         ),
-        Window::Finishing => panel("Signing you in", None, Detail::Spinner, vec![]),
+        Window::Finishing => panel(
+            "Signing you in",
+            None,
+            Detail::Working {
+                text: "This takes a moment.".into(),
+            },
+            vec![],
+        ),
         Window::Refusal { refusal } => match refusal {
             Refusal::Expired => panel(
                 "The sign-in ran out of time",
@@ -246,6 +263,7 @@ mod tests {
             server: SERVER,
             until: Some("2026-11-20T14:32:00Z"),
             address: Some(URL),
+            dialog: false,
         }
     }
 
@@ -371,7 +389,9 @@ mod tests {
                     " {status} {}",
                     until.as_ref().map(|u| u.text.clone()).unwrap_or_default()
                 )),
-                Detail::Warning { text } => shown.push_str(&format!(" {text}")),
+                Detail::Warning { text } | Detail::Working { text } => {
+                    shown.push_str(&format!(" {text}"))
+                }
                 _ => {}
             }
             let shown = shown.to_lowercase();
@@ -453,6 +473,65 @@ mod tests {
             },
         ] {
             assert!(shows(w.clone()), "{w:?}");
+        }
+    }
+
+    #[test]
+    fn finishing_puts_words_beside_its_spinner() {
+        let p = panel_for(&Window::Finishing, &ctx()).unwrap();
+        assert_eq!(
+            p.detail,
+            Detail::Working {
+                text: "This takes a moment.".into()
+            }
+        );
+        assert!(p.buttons.is_empty(), "nothing for the person to press");
+    }
+
+    #[test]
+    fn the_dialogs_waiting_step_has_its_own_sentence_and_the_plain_window_keeps_its_own() {
+        let plain = panel_for(&Window::Waiting, &ctx()).unwrap();
+        let dialog = panel_for(
+            &Window::Waiting,
+            &Context {
+                dialog: true,
+                ..ctx()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            plain.text.as_deref(),
+            Some("Bakery opened your browser. Confirm the sign-in there. This window continues by itself.")
+        );
+        assert_eq!(
+            dialog.text.as_deref(),
+            Some("Confirm the sign-in there. This page comes back as you left it, with what you typed.")
+        );
+        // Everything else about the step is the same: heading, deadline and buttons.
+        assert_eq!(plain.heading, dialog.heading);
+        assert_eq!(plain.detail, dialog.detail);
+        assert_eq!(plain.buttons, dialog.buttons);
+    }
+
+    #[test]
+    fn a_refusal_inside_the_dialog_keeps_the_same_headings_and_text() {
+        for r in [
+            Refusal::Expired,
+            Refusal::Cancelled,
+            Refusal::Used,
+            Refusal::NotFromThisApp,
+        ] {
+            let w = Window::Refusal { refusal: r };
+            assert_eq!(
+                panel_for(&w, &ctx()),
+                panel_for(
+                    &w,
+                    &Context {
+                        dialog: true,
+                        ..ctx()
+                    }
+                )
+            );
         }
     }
 

@@ -21,6 +21,7 @@ pub fn view(session: &Session, server: &str) -> View {
         server,
         until: session.expires_at(),
         address: session.confirm_url(),
+        dialog: session.in_dialog(),
     };
     View {
         window: session.window().clone(),
@@ -192,6 +193,27 @@ mod tests {
             "https://bakery.example.com",
         );
         assert!(format!("{:?}", none.panel.unwrap().detail).contains(URL));
+    }
+
+    #[test]
+    fn the_dialogs_waiting_step_reads_its_own_sentence_through_the_real_view() {
+        let plain = view(&preview("waiting").unwrap(), "https://bakery.example.com");
+        let dialog = view(
+            &preview("sign-in-again-waiting").unwrap(),
+            "https://bakery.example.com",
+        );
+        assert!(plain
+            .panel
+            .unwrap()
+            .text
+            .unwrap()
+            .contains("This window continues by itself"));
+        assert!(dialog
+            .panel
+            .unwrap()
+            .text
+            .unwrap()
+            .contains("This page comes back as you left it"));
     }
 
     #[test]

@@ -1,3 +1,28 @@
+/* Geist, the web's typeface: the same files the web uses, copied in at build time. */
+@font-face {
+  font-family: Geist;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/geist-400.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: Geist;
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/geist-500.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: Geist;
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/geist-600.ttf") format("truetype");
+}
+
 /* One panel with different words (design-ux, #77 slice 3). Every value is a web token. */
 html,
 body {
@@ -57,19 +82,17 @@ body {
   overflow-wrap: anywhere;
 }
 
-.panel__heading:focus {
-  outline: none;
-}
-
+/* The heading takes focus so a screen reader reads it, but it is not a control: no ring is drawn. */
+.panel__heading:focus,
 .panel__heading:focus-visible {
-  outline: var(--focus-width) solid var(--color-focus);
-  outline-offset: var(--focus-offset);
+  outline: none;
 }
 
 .panel__text {
   margin: 0;
   color: var(--color-fg-muted);
-  font: var(--type-auth-lead);
+  /* The web's body size, 14 on 20. */
+  font: var(--type-body);
   overflow-wrap: anywhere;
 }
 

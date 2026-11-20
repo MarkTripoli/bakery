@@ -170,7 +170,11 @@ impl Shell {
             }
             Effect::OpenBrowser { url } => {
                 let opened = self.app.opener().open_url(&url, None::<&str>).is_ok();
-                self.report("effect", json!({ "name": "open_browser", "ok": opened }));
+                // The address is what the browser is meant to open: it names the request, never a secret.
+                self.report(
+                    "effect",
+                    json!({ "name": "open_browser", "ok": opened, "url": url }),
+                );
                 Some(if opened {
                     Event::BrowserOpened
                 } else {
@@ -219,6 +223,38 @@ impl Shell {
                 None
             }
         }
+    }
+
+    /// For the end-to-end harness only: presses a button when a file named `press-<button>` appears
+    /// in `dir`, so a run can drive the windows without a person. Set up only when the harness asks.
+    pub fn watch_commands(self: &Arc<Self>, dir: PathBuf) {
+        let shell = Arc::clone(self);
+        tauri::async_runtime::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                let Ok(entries) = std::fs::read_dir(&dir) else {
+                    continue;
+                };
+                for entry in entries.flatten() {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    let Some(id) = name.strip_prefix("press-") else {
+                        continue;
+                    };
+                    let _ = std::fs::remove_file(entry.path());
+                    let Ok(button) = serde_json::from_str::<bakery_desktop_core::copy::ButtonId>(
+                        &format!("\"{id}\""),
+                    ) else {
+                        continue;
+                    };
+                    shell.report("command", json!({ "press": id }));
+                    if let bakery_desktop_core::copy::Press::Event(event) =
+                        bakery_desktop_core::copy::press(button)
+                    {
+                        shell.dispatch(event).await;
+                    }
+                }
+            }
+        });
     }
 
     /// Ends the wait when the request's time is up, unless a newer attempt has begun.

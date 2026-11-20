@@ -49,11 +49,11 @@ function detailBox(detail) {
       box.append(spinner, lines);
       return box;
     }
-    case "spinner": {
+    case "working": {
       const box = el("div", "detail detail--waiting");
       const spinner = el("span", "spinner");
       spinner.setAttribute("aria-hidden", "true");
-      box.append(spinner);
+      box.append(spinner, el("div", "detail__value", detail.text));
       return box;
     }
     case "warning": {
