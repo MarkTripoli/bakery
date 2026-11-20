@@ -884,14 +884,17 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "a001079c230bfd1d039b46b5fb6cc88deb876dd5",
+    "7af7d8692f3c06834a7192c596341ff6d0cf9079",
   ];
   const approvedDigest =
-    "sha256:f61c0f4a77facec344684ffb9915710f8ea65201a8c67b62bbef25382a56b7c3";
+    "sha256:1dc457faed89729badde8c297c0080aa38d7e92bc22970c70bdca0f5c0fcb3a8";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced by the #42 skill copy re-bind: Skill gains required copiedFromSkillId
+    // and copiedFromVersionId, and skills.copy is a new action.
+    "sha256:f61c0f4a77facec344684ffb9915710f8ea65201a8c67b62bbef25382a56b7c3",
     // Displaced when main moved again (#735 and #731 merged): the digest follows the
     // tree, so the earlier one no longer authorises it.
     "sha256:465b0eac418d01b44c8e533f81a2236c7e9a75bdfc572d13453c4d5f8c531537",
