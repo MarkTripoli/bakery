@@ -90,11 +90,17 @@ export function createAlertEvaluator(deps: AlertEvaluatorDependencies) {
   let timer: ReturnType<typeof setInterval> | undefined;
   let running = false;
 
-  /** What each destination dropped since the last check. */
-  async function lostSinceLastCheck(): Promise<
-    { id: string; name: string; lost: number }[]
-  > {
-    if (deps.fanout === undefined) return [];
+  /**
+   * What each destination dropped since the last check, and the counts that
+   * look saw. The counts are only remembered once the check has committed, so a
+   * check that lost the lock or failed leaves its drops to the next one.
+   */
+  async function lostSinceLastCheck(): Promise<{
+    lost: { id: string; name: string; lost: number }[];
+    seen: Map<string, number>;
+  }> {
+    const seen = new Map<string, number>();
+    if (deps.fanout === undefined) return { lost: [], seen };
     const names = new Map(
       (await deps.database.query<{ id: string; name: string }>(
         "select id, name from bakery.telemetry_destinations",
@@ -103,14 +109,14 @@ export function createAlertEvaluator(deps: AlertEvaluatorDependencies) {
     const lost: { id: string; name: string; lost: number }[] = [];
     for (const [id, state] of deps.fanout.states()) {
       const before = previousDropped.get(id);
-      previousDropped.set(id, state.dropped);
+      seen.set(id, state.dropped);
       // The first look only records the count: what was dropped before the
       // server started watching is not news.
       if (before === undefined) continue;
       const delta = state.dropped - before;
       if (delta > 0) lost.push({ id, name: names.get(id) ?? id, lost: delta });
     }
-    return lost;
+    return { lost, seen };
   }
 
   async function deliver(
@@ -176,7 +182,7 @@ export function createAlertEvaluator(deps: AlertEvaluatorDependencies) {
 
   /** Checks the rules once, records what changed and tells every enabled channel. */
   async function evaluateOnce(): Promise<AlertCheckResult> {
-    const lost = await lostSinceLastCheck();
+    let seen = new Map<string, number>();
     const planned = await withPgTransaction(deps.database, async (tx) => {
       const lock = await tx.query<{ locked: boolean }>(
         "select pg_try_advisory_xact_lock($1) as locked",
@@ -202,7 +208,11 @@ export function createAlertEvaluator(deps: AlertEvaluatorDependencies) {
           };
         }
       }
-      const snapshot = await readHealthSnapshot(tx, lost);
+      // Looked at only once this server holds the check, and remembered only
+      // after the check commits.
+      const watched = await lostSinceLastCheck();
+      seen = watched.seen;
+      const snapshot = await readHealthSnapshot(tx, watched.lost);
       const conditions: AlertCondition[] = evaluateRules(snapshot, settings);
       const stored = (await tx.query<{
         rule: string;
@@ -282,6 +292,7 @@ export function createAlertEvaluator(deps: AlertEvaluatorDependencies) {
     if (planned === undefined) {
       return { ran: false, fired: 0, resolved: 0, delivered: 0, failed: 0 };
     }
+    for (const [id, dropped] of seen) previousDropped.set(id, dropped);
     // The states are saved, so a repeat of the same trouble is already
     // suppressed; delivery follows, and what each channel answered is recorded.
     let delivered = 0;

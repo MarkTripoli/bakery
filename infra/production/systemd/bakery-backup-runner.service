@@ -1,0 +1,16 @@
+[Unit]
+Description=Bakery backup runner (takes the backups an administrator or the schedule asked for)
+After=docker.service network-online.target
+ConditionPathExists=/etc/bakery/backup-runner.env
+ConditionPathExists=/opt/bakery/background
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/bakery/backup-runner.env
+# The same exclusive lock as bakery-backup.service and the release tool. A pass
+# that finds it held exits 75 at once (counted as success) and the next minute
+# tries again, so the runner never queues behind a release or a long backup.
+ExecStart=/usr/bin/flock --exclusive --nonblock -E 75 /run/lock/bakery-deploy.lock /opt/bakery/deploy/runtime.sh backup-runner
+SuccessExitStatus=75
+TimeoutStartSec=45min
+UMask=0077

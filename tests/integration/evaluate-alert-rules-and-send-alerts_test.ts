@@ -222,16 +222,42 @@ Deno.test("a worker that stops fires one alert, repeats are suppressed, and a re
         assert(verifies(hook.seen[before], signingSecret));
 
         // Two servers never act on one check: while another holds the lock, this one skips.
+        // And a check that skipped does not use up what a destination dropped meanwhile.
+        let dropped = 0;
+        const lossy = createAlertEvaluator({
+          database,
+          secretsKey,
+          fetch,
+          addressPolicy: allowAnyAddress,
+          fanout: {
+            states: () =>
+              new Map([["telemetry-destination-1", { dropped } as never]]),
+          },
+        });
+        assertEquals(
+          (await lossy.evaluateOnce()).ran,
+          true,
+          "the first look records the count",
+        );
+        dropped = 3;
         const holder = await database.connect();
         try {
           await holder.query("begin");
           await holder.query("select pg_advisory_xact_lock(739001)");
           const skipped = await evaluator.evaluateOnce();
           assertEquals(skipped.ran, false);
+          assertEquals((await lossy.evaluateOnce()).ran, false);
         } finally {
           await holder.query("rollback");
           holder.release();
         }
+        assertEquals((await lossy.evaluateOnce()).ran, true);
+        assert(
+          (await states()).some((s) =>
+            s.rule === "export_loss" && s.subject === "telemetry-destination-1"
+          ),
+          "the drops from the skipped check still raise the alert",
+        );
       } finally {
         await clearAlertFixture(database);
       }

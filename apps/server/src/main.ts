@@ -226,8 +226,10 @@ async function runServer(config: RuntimeConfig): Promise<void> {
   const alertEvaluator = createAlertEvaluator({
     database: pgDatabase,
     secretsKey: config.secretsKey,
-    fetch,
-    addressPolicy: createPublicHttpsPolicy(),
+    // The pinned fetch, so a name re-pointed after the address check cannot
+    // send a signed alert to an internal address.
+    fetch: telemetryDeliveryDependencies.fetch,
+    addressPolicy: telemetryDeliveryDependencies.addressPolicy,
     fanout: destinationFanout,
   });
   alertEvaluator.start();
