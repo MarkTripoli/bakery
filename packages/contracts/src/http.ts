@@ -347,6 +347,20 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "steer_requires_grant",
       "steer_own_run",
       "steer_reviewer_unavailable",
+      // An agent's file write refused by its grant, the area, or the person it
+      // acts for; and a file grant only a person may make (#448).
+      "agent_file_grant_missing",
+      "agent_file_grant_read_only",
+      "agent_file_grant_expired",
+      "agent_file_grant_revoked",
+      "agent_file_library_area",
+      "agent_file_personal_area",
+      "agent_file_trash_area",
+      "agent_file_system_area",
+      "agent_file_record_area",
+      "agent_file_principal_cannot_read",
+      "agent_file_principal_cannot_write",
+      "agent_file_grant_requires_person",
     ]),
   } as const,
 );

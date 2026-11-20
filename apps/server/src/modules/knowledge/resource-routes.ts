@@ -56,6 +56,10 @@ import {
   parseRevision,
   type StorageReader,
 } from "./storage-reads.ts";
+import {
+  createAgentFileGrant,
+  revokeAgentFileGrant,
+} from "./agent-file-grants.ts";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import {
   createFileSearchHandler,
@@ -825,6 +829,34 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
       handler: async (context) =>
         contractSchemas.StoragePurgeResult.parse(
           await purgeStorageEntry(context),
+        ),
+    })
+    .register({
+      name: A.AgentFileGrantsCreate,
+      method: HttpMethod.Post,
+      path: "/v1/storage/agent-file-grants",
+      input: contractSchemas.AgentFileGrantCreate,
+      output: contractSchemas.AgentFileGrant,
+      explicitIdempotency: "key",
+      successStatus: 201,
+      policy: storageAdminPolicy(A.AgentFileGrantsCreate),
+      handler: async (context, input) =>
+        contractSchemas.AgentFileGrant.parse(
+          await createAgentFileGrant(context, input),
+        ),
+    })
+    .register({
+      name: A.AgentFileGrantsRevoke,
+      method: HttpMethod.Post,
+      path: "/v1/storage/agent-file-grants/:id/revoke",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.AgentFileGrant,
+      explicitIdempotency: "key-and-if-match",
+      successStatus: 200,
+      policy: storageAdminPolicy(A.AgentFileGrantsRevoke),
+      handler: async (context) =>
+        contractSchemas.AgentFileGrant.parse(
+          await revokeAgentFileGrant(context),
         ),
     });
 }
