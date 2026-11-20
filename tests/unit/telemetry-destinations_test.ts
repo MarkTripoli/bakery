@@ -1,0 +1,371 @@
+import { assert, assertEquals, assertThrows } from "@std/assert";
+import type { TelemetryRecord } from "@bakery/config/telemetry";
+import type { ExportSink } from "@bakery/config/telemetry-export";
+import {
+  allowAnyAddress,
+  type ConfiguredDestination,
+  createDestinationFanout,
+  createProviderRegistry,
+  createPublicHttpsPolicy,
+  measurementsOf,
+  otlpProvider,
+  type TelemetryProvider,
+} from "../../apps/server/src/platform/telemetry-destinations/index.ts";
+
+const usage: TelemetryRecord = {
+  kind: "event",
+  name: "usage.settled",
+  time: 1,
+  attributes: {},
+};
+const completed: TelemetryRecord = {
+  kind: "event",
+  name: "job.completed",
+  time: 2,
+  attributes: { outcome: "completed" },
+};
+const sample: TelemetryRecord = {
+  kind: "metrics",
+  time: 3,
+  samples: [{
+    name: "bakery_queue_age_seconds",
+    kind: "gauge",
+    value: 4,
+    labels: {},
+  }],
+};
+const unknown: TelemetryRecord = {
+  kind: "event",
+  name: "something.else",
+  time: 4,
+  attributes: {},
+};
+
+async function until(check: () => boolean, ms = 2_000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > end) throw new Error("condition not met in time");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+const fast = {
+  capacity: 5,
+  batchSize: 5,
+  sendTimeoutMs: 100,
+  maxAttempts: 1,
+  retryDelayMs: 1,
+  intervalMs: 1,
+};
+
+/** An adapter whose sink is whatever the test says. */
+function fakeProvider(
+  kind: string,
+  sink: ExportSink<TelemetryRecord>,
+): TelemetryProvider {
+  return {
+    descriptor: {
+      kind,
+      label: kind,
+      fields: [],
+      measurements: ["cost", "durations", "results", "skills", "health"],
+      unavailableReasons: {},
+    },
+    validate: () => Promise.resolve({}),
+    createSink: () => sink,
+    probe: () =>
+      Promise.resolve({ ok: true, status: 200, reason: null, answer: null }),
+  };
+}
+
+const dependencies = { fetch, addressPolicy: allowAnyAddress };
+
+function destination(
+  id: string,
+  kind: string,
+  extra: Partial<ConfiguredDestination> = {},
+): ConfiguredDestination {
+  return {
+    id,
+    kind,
+    name: id,
+    enabled: true,
+    measurements: ["cost", "durations", "results", "health"],
+    values: {},
+    ...extra,
+  };
+}
+
+Deno.test("a registry refuses two adapters for one kind and lists them in order", () => {
+  const a = fakeProvider("a", () => {});
+  const b = fakeProvider("b", () => {});
+  assertThrows(() => createProviderRegistry([a, a]), Error, "DUPLICATE_KIND");
+  const registry = createProviderRegistry([a, b]);
+  assertEquals(registry.list().map((p) => p.descriptor.kind), ["a", "b"]);
+  assertEquals(registry.get("b"), b);
+  assertEquals(registry.get("c"), undefined);
+});
+
+Deno.test("every record the server emits maps to the kinds it carries, and an unmapped one to none", () => {
+  assertEquals(measurementsOf(usage), ["cost"]);
+  assertEquals(measurementsOf(completed), ["durations", "results"]);
+  assertEquals(measurementsOf(sample), ["health"]);
+  assertEquals(measurementsOf(unknown), []);
+});
+
+Deno.test("the public address rule refuses http, credentials, local names and private networks", async () => {
+  const policy = createPublicHttpsPolicy((host) =>
+    Promise.resolve(
+      host === "internal.example.test" ? ["10.0.0.5"] : ["93.184.216.34"],
+    )
+  );
+  const refused = [
+    "http://collector.example.test",
+    "https://user:secret@collector.example.test",
+    "https://localhost:4318",
+    "https://127.0.0.1",
+    "https://192.168.1.10",
+    "https://[::1]",
+    "https://169.254.169.254",
+    "https://internal.example.test",
+    "not a url",
+  ];
+  for (const address of refused) {
+    assertEquals((await policy(address)).ok, false, address);
+  }
+  assertEquals((await policy("https://collector.example.test/otlp")).ok, true);
+});
+
+Deno.test("the OpenTelemetry adapter validates its address and header", async () => {
+  assertEquals(Object.keys(await otlpProvider.validate({})), ["address"]);
+  assertEquals(
+    Object.keys(
+      await otlpProvider.validate({
+        address: "https://c.example.test/v1/traces",
+      }),
+    ),
+    ["address"],
+  );
+  assertEquals(
+    await otlpProvider.validate({ address: "https://c.example.test" }),
+    {},
+  );
+  assertEquals(
+    Object.keys(
+      await otlpProvider.validate({
+        address: "https://c.example.test",
+        headerValue: "token",
+      }),
+    ),
+    ["headerName"],
+  );
+  const secrets = otlpProvider.descriptor.fields.filter((f) => f.secret);
+  assertEquals(secrets.map((f) => f.name), ["headerValue"]);
+});
+
+Deno.test("the OpenTelemetry probe reports the destination's real answer and never follows a redirect", async () => {
+  const seen: { url: string; redirect?: string; header?: string }[] = [];
+  const answer = (status: number, body = "") =>
+    ((
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      seen.push({
+        url: String(input),
+        redirect: init?.redirect,
+        header: (init?.headers as Record<string, string>)?.Authorization,
+      });
+      return Promise.resolve(new Response(body, { status }));
+    }) as typeof fetch;
+  const values = {
+    address: "https://c.example.test",
+    headerName: "Authorization",
+    headerValue: "Bearer s3cret",
+  };
+  const run = (f: typeof fetch) =>
+    otlpProvider.probe(
+      values,
+      { fetch: f, addressPolicy: allowAnyAddress },
+      AbortSignal.timeout(1000),
+    );
+
+  const ok = await run(answer(200, "{}"));
+  assertEquals([ok.ok, ok.status], [true, 200]);
+  assertEquals(seen[0].url, "https://c.example.test/v1/traces");
+  assertEquals(seen[0].redirect, "manual");
+  assertEquals(seen[0].header, "Bearer s3cret");
+
+  const denied = await run(answer(401, "bad token"));
+  assertEquals([denied.ok, denied.status, denied.answer], [
+    false,
+    401,
+    "bad token",
+  ]);
+  assert(denied.reason?.includes("sign-in"));
+
+  const bounced = await run(answer(302));
+  assertEquals(bounced.ok, false);
+  assert(bounced.reason?.includes("redirect"));
+
+  const down = await run(
+    (() => Promise.reject(new TypeError("connect"))) as typeof fetch,
+  );
+  assertEquals([down.ok, down.status], [false, null]);
+
+  const blocked = await otlpProvider.probe(
+    { address: "http://c.example.test" },
+    {
+      fetch: answer(200),
+      addressPolicy: createPublicHttpsPolicy(() =>
+        Promise.resolve(["1.1.1.1"])
+      ),
+    },
+    AbortSignal.timeout(1000),
+  );
+  assertEquals(blocked.ok, false);
+  assertEquals(seen.length, 3, "a refused address sends nothing");
+  assert(
+    !JSON.stringify([ok, denied, bounced, down, blocked]).includes("s3cret"),
+  );
+});
+
+Deno.test("a destination that never answers fills only its own bounded queue while another keeps receiving", async () => {
+  const delivered: TelemetryRecord[] = [];
+  const stuckBatches: number[] = [];
+  const registry = createProviderRegistry([
+    fakeProvider("fine", (batch) => {
+      delivered.push(...batch);
+    }),
+    fakeProvider("stuck", (batch, signal) => {
+      stuckBatches.push(batch.length);
+      return new Promise<void>((_, reject) => {
+        signal.addEventListener("abort", () => reject(new Error("aborted")), {
+          once: true,
+        });
+      });
+    }),
+  ]);
+  const fanout = createDestinationFanout({
+    registry,
+    dependencies,
+    bounds: fast,
+  });
+  fanout.configure([destination("a", "fine"), destination("b", "stuck")]);
+
+  // A steady stream the working destination keeps up with, in bursts of four.
+  let slowest = 0;
+  for (let i = 0; i < 25; i += 1) {
+    const started = performance.now();
+    fanout.send(
+      [usage, usage, usage, usage],
+      new AbortController().signal,
+    );
+    slowest = Math.max(slowest, performance.now() - started);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert(slowest < 50, "send never waits for a destination");
+
+  await until(() => delivered.length === 100);
+  await until(() => (fanout.states().get("b")?.dropped ?? 0) > 0);
+  const states = fanout.states();
+  assertEquals(states.get("a")?.state, "working");
+  assert((states.get("b")?.dropped ?? 0) > 0, "the stuck queue sheds");
+  assert(states.get("b")?.droppedSince !== null);
+  // Nothing past the queue bound was ever held for it.
+  assert(stuckBatches.every((size) => size <= fast.capacity));
+  await fanout.close(0);
+});
+
+Deno.test("a destination receives only the kinds it was told to, and an off one receives nothing", async () => {
+  const got: Record<string, string[]> = { cost: [], health: [], off: [] };
+  const registry = createProviderRegistry(
+    ["cost", "health", "off"].map((kind) =>
+      fakeProvider(kind, (batch) => {
+        for (const r of batch) {
+          got[kind].push(r.kind === "event" ? r.name : "metrics");
+        }
+      })
+    ),
+  );
+  const fanout = createDestinationFanout({
+    registry,
+    dependencies,
+    bounds: fast,
+  });
+  fanout.configure([
+    destination("c", "cost", { measurements: ["cost"] }),
+    destination("h", "health", { measurements: ["health"] }),
+    destination("o", "off", { enabled: false }),
+  ]);
+  fanout.send(
+    [usage, completed, sample, unknown],
+    new AbortController().signal,
+  );
+  await until(() => got.cost.length === 1 && got.health.length === 1);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assertEquals(got.cost, ["usage.settled"]);
+  assertEquals(got.health, ["metrics"]);
+  assertEquals(got.off, []);
+  assertEquals(fanout.states().get("o")?.state, "off");
+  await fanout.close(0);
+});
+
+Deno.test("a new adapter added to the registry receives the same signals with no change to the emitter", async () => {
+  const seen: string[][] = [[], []];
+  const registry = createProviderRegistry([
+    fakeProvider("one", (batch) => {
+      seen[0].push(
+        ...batch.map((r) => (r.kind === "event" ? r.name : "metrics")),
+      );
+    }),
+    fakeProvider("two", (batch) => {
+      seen[1].push(
+        ...batch.map((r) => (r.kind === "event" ? r.name : "metrics")),
+      );
+    }),
+  ]);
+  const fanout = createDestinationFanout({
+    registry,
+    dependencies,
+    bounds: fast,
+  });
+  fanout.configure([destination("1", "one"), destination("2", "two")]);
+  fanout.send([usage, completed, sample], new AbortController().signal);
+  await until(() => seen[0].length === 3 && seen[1].length === 3);
+  assertEquals(seen[0], seen[1]);
+  await fanout.close(0);
+});
+
+Deno.test("a destination's state follows what it answers, and a change is announced once", async () => {
+  let refuse = true;
+  const registry = createProviderRegistry([
+    fakeProvider("flaky", () => {
+      if (refuse) throw new Error("OTLP_DESTINATION_503");
+    }),
+  ]);
+  const changes: string[] = [];
+  const fanout = createDestinationFanout({
+    registry,
+    dependencies,
+    bounds: fast,
+    onStateChange: (state) => changes.push(state.state),
+  });
+  fanout.configure([destination("f", "flaky")]);
+  assertEquals(fanout.states().get("f")?.state, "not_tested_yet");
+  fanout.send([usage], new AbortController().signal);
+  await until(() => fanout.states().get("f")?.state === "failing");
+  assertEquals(
+    fanout.states().get("f")?.lastAnswer?.reason,
+    "The destination answered 503.",
+  );
+  assertEquals(fanout.states().get("f")?.lastAcceptedAt, null);
+  refuse = false;
+  fanout.send([usage], new AbortController().signal);
+  await until(() => fanout.states().get("f")?.state === "working");
+  assert((fanout.states().get("f")?.lastAcceptedAt ?? 0) > 0);
+  assertEquals(changes, ["failing", "working"]);
+  // A kind that is not installed is a failing destination, never a silent one.
+  fanout.configure([destination("g", "gone")]);
+  assertEquals(fanout.states().get("g")?.state, "failing");
+  await fanout.close(0);
+});
