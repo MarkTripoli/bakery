@@ -56,42 +56,39 @@ export function MonitoringProviderChooserScreen(
             gap="none"
             role="list"
           >
-            {props.providers.map((provider) => (
+            {/* Vendors with a mark first, the lettered tiles after, each in the server's order. */}
+            {[
+              ...props.providers.filter((entry) =>
+                UI.providerHasMark(entry.key)
+              ),
+              ...props.providers.filter((entry) =>
+                !UI.providerHasMark(entry.key)
+              ),
+            ].map((provider) => (
               <div
                 data-provider={provider.key}
                 key={provider.key}
                 role="listitem"
               >
-                <UI.ObjectRow
-                  actions={
-                    <UI.Button
-                      aria-label={translate("installation.monitoring.addKind", {
-                        kind: provider.name,
-                      })}
-                      onClick={() => props.onChoose(provider.key)}
-                      type="button"
-                      variant="secondary"
-                    >
-                      {translate("installation.monitoring.chooser.choose")}
-                    </UI.Button>
-                  }
-                  identity={
-                    <UI.Inline gap="standard">
-                      <UI.ProviderMark
-                        name={provider.name}
-                        provider={provider.key}
-                        size="header"
-                      />
-                      <UI.Stack gap="none">
-                        <UI.Text>{provider.name}</UI.Text>
-                        <UI.Text variant="muted">
-                          {provider.description}
-                        </UI.Text>
-                      </UI.Stack>
-                    </UI.Inline>
-                  }
-                  variant="comfortable"
-                />
+                <UI.Link
+                  href={`/installation/monitoring/new?provider=${provider.key}`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    props.onChoose(provider.key);
+                  }}
+                  variant="quiet"
+                >
+                  <UI.ProviderMark
+                    name={provider.name}
+                    provider={provider.key}
+                    size="header"
+                  />
+                  <UI.Stack gap="none">
+                    <UI.Text>{provider.name}</UI.Text>
+                    <UI.Text variant="muted">{provider.description}</UI.Text>
+                  </UI.Stack>
+                  <UI.IconGlyph name="chevron-right" size="small" />
+                </UI.Link>
               </div>
             ))}
           </UI.Stack>

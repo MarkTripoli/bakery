@@ -49,7 +49,9 @@ for (
       await expect(page.getByText("4 destinations")).toBeVisible();
       // Each row leads with its provider's mark: a vendor's own file where
       // Bakery may show it, a letter tile where not, never a guess.
-      await expect(page.locator('[data-provider="sentry"] img').first())
+      await expect(
+        page.locator('[data-provider="sentry"] .ui-provider-mark__art').first(),
+      )
         .toBeVisible();
       await expect(
         page.locator('[data-provider="grafana"] .ui-provider-mark__tile')
@@ -116,7 +118,7 @@ for (
           "Sentry",
         ]
       ) {
-        await expect(page.getByRole("button", { name: `Add ${name}` }))
+        await expect(page.getByRole("link", { name: new RegExp(`^${name}`) }))
           .toBeVisible();
       }
       await expect(
@@ -124,9 +126,21 @@ for (
           "Names and marks belong to their owners. Bakery is not affiliated with them or endorsed by them.",
         ),
       ).toBeVisible();
+      // Vendors with a mark come first, then the lettered tiles.
+      const order = await page.locator('[role="listitem"][data-provider]')
+        .evaluateAll((rows) =>
+          rows.map((row) => row.getAttribute("data-provider"))
+        );
+      expect(order).toEqual([
+        "opentelemetry",
+        "sentry",
+        "grafana",
+        "datadog",
+        "honeycomb",
+      ]);
       await page.mouse.move(700, 700);
       await still(page, "monitoring-chooser");
-      await page.getByRole("button", { name: "Add OpenTelemetry" }).click();
+      await page.getByRole("link", { name: /^OpenTelemetry/ }).click();
       await expect(page).toHaveURL(/\/installation\/monitoring\/new/);
       await expect(
         page.getByRole("heading", {
@@ -155,7 +169,7 @@ for (
       const seen = await monitoringFixture(page, { empty: true });
       await page.goto(LIST);
       await page.getByRole("button", { name: "Add destination" }).click();
-      await page.getByRole("button", { name: "Add OpenTelemetry" }).click();
+      await page.getByRole("link", { name: /^OpenTelemetry/ }).click();
       // Nothing to test until the required settings are in.
       await expect(page.getByRole("button", { name: "Send a test" }))
         .toBeDisabled();
@@ -210,7 +224,7 @@ for (
       await monitoringFixture(page);
       await page.goto(LIST);
       await page.getByRole("button", { name: "Add destination" }).click();
-      await page.getByRole("button", { name: "Add Honeycomb" }).click();
+      await page.getByRole("link", { name: /^Honeycomb/ }).click();
       await expect(page).toHaveURL(/new\?provider=honeycomb/);
       await expect(
         page.getByRole("heading", {
@@ -266,6 +280,12 @@ for (
           "Enter the value again. A saved value is never sent to a different address.",
         ),
       ).toBeVisible();
+      // The test waits for the sign-in value, and the page says so.
+      await expect(page.getByRole("button", { name: "Send a test" }))
+        .toBeDisabled();
+      await expect(
+        page.getByText("Enter the sign-in header value to send a test."),
+      ).toBeVisible();
       await expect(page.getByRole("button", { name: "Save", exact: true }))
         .toBeDisabled();
       await expect(page.getByRole("button", { name: "Send a test" }))
@@ -312,7 +332,7 @@ for (
       });
       await page.goto(LIST);
       await page.getByRole("button", { name: "Add destination" }).click();
-      await page.getByRole("button", { name: "Add OpenTelemetry" }).click();
+      await page.getByRole("link", { name: /^OpenTelemetry/ }).click();
       await page.getByLabel("Name", { exact: true }).fill("Grafana");
       await page.getByLabel("Address", { exact: true }).fill(
         "https://otel.example.com/v1/traces",

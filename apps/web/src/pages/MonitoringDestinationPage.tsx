@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import type {
   BakeryApiClient,
@@ -11,6 +11,8 @@ import {
   MonitoringDestinationScreen,
   type MonitoringDestinationScreenProps,
 } from "../screens/MonitoringDestinationScreen.tsx";
+import { InstallationBreadcrumbs } from "../shell/SettingsShellSlots.tsx";
+import { useI18n } from "../i18n/I18nProvider.tsx";
 import { MonitoringProviderChooserScreen } from "../screens/MonitoringProviderChooserScreen.tsx";
 import {
   blankDraft,
@@ -259,16 +261,22 @@ function ExistingDestination({ id }: { readonly id: string }) {
     ? "error"
     : "ready";
   return (
-    <DestinationEditor
-      api={api}
-      editing={destination}
-      kind={kind}
-      measurements={measurements}
-      onRetry={() => void read.refetch()}
-      provider={provider}
-      refresh={refresh}
-      state={state}
-    />
+    <InstallationBreadcrumbs
+      leaf={destination?.name}
+      section="shell.navigation.monitoring"
+      sectionHref={LIST}
+    >
+      <DestinationEditor
+        api={api}
+        editing={destination}
+        kind={kind}
+        measurements={measurements}
+        onRetry={() => void read.refetch()}
+        provider={provider}
+        refresh={refresh}
+        state={state}
+      />
+    </InstallationBreadcrumbs>
   );
 }
 
@@ -276,8 +284,18 @@ function NewDestination(
   { providerKey }: { readonly providerKey: string | null },
 ) {
   const navigate = useNavigate();
+  const { translate } = useI18n();
   const { api, list, kinds, providers, measurements, refresh } =
     useMonitoringChoices();
+  const crumbs = (children: ReactNode) => (
+    <InstallationBreadcrumbs
+      leaf={translate("installation.monitoring.add")}
+      section="shell.navigation.monitoring"
+      sectionHref={LIST}
+    >
+      {children}
+    </InstallationBreadcrumbs>
+  );
   // With one provider there is nothing to choose, so the chooser is skipped.
   const chosen = providers.find((entry) => entry.key === providerKey) ??
     (providers.length === 1 ? providers[0] : null);
@@ -285,7 +303,7 @@ function NewDestination(
     ? null
     : kinds.find((entry) => entry.kind === chosen.kind) ?? null;
   if (chosen === null) {
-    return (
+    return crumbs(
       <MonitoringProviderChooserScreen
         onCancel={() => void navigate({ to: LIST })}
         onChoose={(key) =>
@@ -296,11 +314,11 @@ function NewDestination(
         onRetry={() => void list.refetch()}
         providers={providers}
         state={list.isPending ? "loading" : list.isError ? "error" : "ready"}
-      />
+      />,
     );
   }
   const state = kind === null ? "error" : "ready";
-  return (
+  return crumbs(
     <DestinationEditor
       api={api}
       editing={null}
@@ -310,7 +328,7 @@ function NewDestination(
       provider={chosen}
       refresh={refresh}
       state={state}
-    />
+    />,
   );
 }
 

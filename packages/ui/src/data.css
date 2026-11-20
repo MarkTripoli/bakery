@@ -2352,14 +2352,25 @@
     inline-size: 100%;
   }
 }
-/* The chooser: a provider's mark, its name and its sentence stay on one line, and
-   the sentence wraps inside its own column, never under the mark. */
-.ui-settings-content[data-page="installation-monitoring-chooser"] .ui-object-row__identity .ui-inline {
+/* The chooser: each row is one link, a provider's mark, its name and its
+   sentence, with a chevron at the end. The sentence wraps inside its own
+   column, never under the mark, and the rules run the whole width. */
+.ui-settings-content[data-page="installation-monitoring-chooser"] [role="listitem"] > .ui-link {
   align-items: center;
-  flex-wrap: nowrap;
+  border-block-end: var(--border-default) solid var(--color-border);
+  color: var(--color-fg);
+  display: flex;
+  gap: var(--space-4);
+  padding-block: var(--space-3);
+  text-decoration: none;
 }
-.ui-settings-content[data-page="installation-monitoring-chooser"] .ui-object-row__identity .ui-stack {
+.ui-settings-content[data-page="installation-monitoring-chooser"] [role="listitem"] > .ui-link .ui-stack {
+  flex: 1 1 0%;
   min-inline-size: 0;
+}
+.ui-settings-content[data-page="installation-monitoring-chooser"] [role="listitem"] > .ui-link:hover,
+.ui-settings-content[data-page="installation-monitoring-chooser"] [role="listitem"] > .ui-link:focus-visible {
+  background: var(--color-surface-subtle);
 }
 /* A phone row: the detail line takes the width and the switch sits at the end
    of it, on the same line. */

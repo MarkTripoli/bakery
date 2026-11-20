@@ -302,6 +302,7 @@ export function InstallationMonitoringScreen(
                     <UI.Button
                       onClick={() => props.onOpen(failing[0])}
                       type="button"
+                      variant="secondary"
                     >
                       {translate("installation.monitoring.row.fix")}
                     </UI.Button>
@@ -339,6 +340,7 @@ export function InstallationMonitoringScreen(
                           state: "failing",
                         })}
                       type="button"
+                      variant="secondary"
                     >
                       {translate("installation.monitoring.failing.show")}
                     </UI.Button>

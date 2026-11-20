@@ -131,6 +131,15 @@ export function MonitoringDestinationScreen(
     kind.fields.some((field) =>
       field.required && (draft.values[field.name] ?? "").trim() === ""
     );
+  // The test waits for the connection fields: on a new destination until the
+  // required ones are filled, on a saved one until a moved address has its
+  // sign-in value typed again.
+  const savedSecret = kind.fields.find((field) =>
+    field.secret && editing?.secretFieldsSet.includes(field.name) &&
+    !draft.touchedSecrets.includes(field.name)
+  );
+  const needsSecret = !missingValues && again && problem === "reenter";
+  const needsValues = missingValues || needsSecret;
   const words = editing === null ? null : stateWords(editing.state);
 
   const fieldInput = (field: KindField) => {
@@ -254,9 +263,7 @@ export function MonitoringDestinationScreen(
       </UI.Text>
       <UI.Inline gap="standard">
         <UI.Button
-          disabled={props.test?.state === "sending" ||
-            missingValues ||
-            (again && problem === "reenter")}
+          disabled={props.test?.state === "sending" || needsValues}
           onClick={props.onTest}
           type="button"
           variant="secondary"
@@ -268,10 +275,14 @@ export function MonitoringDestinationScreen(
           )}
         </UI.Button>
       </UI.Inline>
-      {missingValues
+      {needsValues
         ? (
           <UI.Text variant="muted">
-            {translate("installation.monitoring.test.needsValues")}
+            {missingValues
+              ? translate("installation.monitoring.test.needsValues")
+              : translate("installation.monitoring.test.needsSecret", {
+                field: (savedSecret?.label ?? "").toLocaleLowerCase(locale),
+              })}
           </UI.Text>
         )
         : null}

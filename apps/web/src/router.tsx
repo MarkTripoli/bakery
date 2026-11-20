@@ -1708,11 +1708,8 @@ const installationMonitoringNewRoute = createRoute({
   path: "/installation/monitoring/new",
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
-  component: () => (
-    <InstallationBreadcrumbs section="shell.navigation.monitoring">
-      <MonitoringDestinationPage />
-    </InstallationBreadcrumbs>
-  ),
+  // The page claims its own breadcrumbs: the last crumb is its name.
+  component: () => <MonitoringDestinationPage />,
   errorComponent: ProtectedRouteError,
 });
 
@@ -1721,11 +1718,8 @@ const installationMonitoringDestinationRoute = createRoute({
   path: "/installation/monitoring/$destinationId",
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
-  component: () => (
-    <InstallationBreadcrumbs section="shell.navigation.monitoring">
-      <MonitoringDestinationPage />
-    </InstallationBreadcrumbs>
-  ),
+  // The page claims its own breadcrumbs: the last crumb is its name.
+  component: () => <MonitoringDestinationPage />,
   errorComponent: ProtectedRouteError,
 });
 

@@ -77,11 +77,27 @@ export function ProviderMark(
           </span>
         )
         : (
-          <img
-            alt=""
-            className="ui-provider-mark__art"
-            src={darkTheme ? files.dark : files.light}
-          />
+          files.crop === undefined
+            ? (
+              <img
+                alt=""
+                className="ui-provider-mark__art"
+                src={darkTheme ? files.dark : files.light}
+              />
+            )
+            : (
+              <svg
+                aria-hidden="true"
+                className="ui-provider-mark__art"
+                viewBox={files.crop.viewBox}
+              >
+                <image
+                  height={files.crop.height}
+                  href={darkTheme ? files.dark : files.light}
+                  width={files.crop.width}
+                />
+              </svg>
+            )
         )}
     </span>
   );

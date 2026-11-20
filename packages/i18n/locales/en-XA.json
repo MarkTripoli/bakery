@@ -5390,8 +5390,6 @@
   "installation.monitoring.showing": "⟦Šĥôŵïñĝ {shown} ôƒ {total} ŧëšŧ çô⟧",
   "installation.monitoring.loadMore": "⟦Ļôàð ɱôŕë ŧ⟧",
   "installation.monitoring.chooser.line": "⟦Çĥôôšë ŵĥëŕë Ɓàķëŕÿ šëñðš ïŧš ɱëàšûŕëɱëñŧš. Ÿôû ëñŧëŕ ŧĥë àððŕëšš àñð šïĝñ-ïñ ôñ ŧĥë ñëẋŧ þàĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "installation.monitoring.addKind": "⟦Àðð {kind} ŧ⟧",
-  "installation.monitoring.chooser.choose": "⟦Çĥôôšë…⟧",
   "installation.monitoring.chooser.note": "⟦Ñàɱëš àñð ɱàŕķš ƀëļôñĝ ŧô ŧĥëïŕ ôŵñëŕš. Ɓàķëŕÿ ïš ñôŧ àƒƒïļïàŧëð ŵïŧĥ ŧĥëɱ ôŕ ëñðôŕšëð ƀÿ ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "installation.monitoring.row.line": "⟦{kind} · ļàšŧ šëñŧ {time} ŧëšŧ ç⟧",
   "installation.monitoring.row.lineNever": "⟦{kind} · ñôŧĥïñĝ šëñŧ ÿëŧ ŧëšŧ ç⟧",
@@ -5432,5 +5430,6 @@
   "installation.monitoring.leave.stay": "⟦Ķëëþ ëðïŧïñĝ ŧë⟧",
   "installation.monitoring.leave.confirm": "⟦Ļëàṽë⟧",
   "installation.monitoring.updated": "⟦Ļàšŧ ûþðàŧëð {time} ŧëšŧ⟧",
-  "shell.navigation.monitoring": "⟦Ṁôñïŧôŕïñĝ ŧ⟧"
+  "shell.navigation.monitoring": "⟦Ṁôñïŧôŕïñĝ ŧ⟧",
+  "installation.monitoring.test.needsSecret": "⟦Ëñŧëŕ ŧĥë {field} ŧô šëñð à ŧëšŧ. ŧëšŧ çôþÿ⟧"
 }

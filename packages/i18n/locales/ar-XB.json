@@ -5390,8 +5390,6 @@
   "installation.monitoring.showing": "⟪Showing {shown} of {total}⟫",
   "installation.monitoring.loadMore": "⟪Load more⟫",
   "installation.monitoring.chooser.line": "⟪Choose where Bakery sends its measurements. You enter the address and sign-in on the next page.⟫",
-  "installation.monitoring.addKind": "⟪Add {kind}⟫",
-  "installation.monitoring.chooser.choose": "⟪Choose⟫",
   "installation.monitoring.chooser.note": "⟪Names and marks belong to their owners. Bakery is not affiliated with them or endorsed by them.⟫",
   "installation.monitoring.row.line": "⟪{kind} · last sent {time}⟫",
   "installation.monitoring.row.lineNever": "⟪{kind} · nothing sent yet⟫",
@@ -5432,5 +5430,6 @@
   "installation.monitoring.leave.stay": "⟪Keep editing⟫",
   "installation.monitoring.leave.confirm": "⟪Leave⟫",
   "installation.monitoring.updated": "⟪Last updated {time}⟫",
-  "shell.navigation.monitoring": "⟪Monitoring⟫"
+  "shell.navigation.monitoring": "⟪Monitoring⟫",
+  "installation.monitoring.test.needsSecret": "⟪Enter the {field} to send a test.⟫"
 }
