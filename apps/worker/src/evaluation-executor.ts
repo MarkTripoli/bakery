@@ -18,7 +18,8 @@ export const EVALUATION_SCORE_ACTION = "evaluation.score";
  * harness against a repository worktree (claude-harness.ts, reviewer.ts), so
  * the judge answers unscored rather than inventing a client.
  */
-export const MODEL_SCORING_NOT_WIRED = "model scoring not wired";
+/** The reason every model-scored result carries until the judge primitive lands (#44). */
+export const MODEL_SCORING_NOT_AVAILABLE = "model scoring not available yet";
 
 export type EvaluationExecutorOptions = {
   /**
@@ -130,7 +131,7 @@ export async function executeEvaluationCheck(
 
 /**
  * Runs `evaluation.score`. No judge is wired yet (see
- * {@link MODEL_SCORING_NOT_WIRED}), so a valid input answers unscored; the
+ * {@link MODEL_SCORING_NOT_AVAILABLE}), so a valid input answers unscored; the
  * server records that as an unmeasured attempt.
  */
 export function executeEvaluationScore(
@@ -144,7 +145,7 @@ export function executeEvaluationScore(
     state: parsed.success ? "unscored" : "error",
     score: null,
     reason: parsed.success
-      ? MODEL_SCORING_NOT_WIRED
+      ? MODEL_SCORING_NOT_AVAILABLE
       : "the score input is not valid",
     judgeOutput: null,
   });

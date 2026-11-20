@@ -33447,7 +33447,7 @@ const transportSchemas = {
         "model",
         "storage"
       ],
-      "description": "Model judge scorer: scores one pinned output artifact version against a rubric. The server validates the judge's structured answer against the input's output schema and records a mismatch as unscored."
+      "description": "Model judge scorer: scores one pinned output artifact version against a rubric. The server validates the judge's structured answer against the input's output schema and records a mismatch as unscored. Until the bounded judge call lands, every result is unscored with the reason 'model scoring not available yet', so a gate over model-scored cases stays cannot_be_judged."
     },
     "session.tools": {
       "inputFields": {},

@@ -96,10 +96,14 @@ Deno.test("an unmeasured report keeps its state, drops any score and always has 
     normalizeEvaluationOutcome("evaluation.score", {
       state: "unscored",
       score: null,
-      reason: "model scoring not wired",
+      reason: "model scoring not available yet",
       judgeOutput: null,
     }, input),
-    { state: "unscored", score: null, reason: "model scoring not wired" },
+    {
+      state: "unscored",
+      score: null,
+      reason: "model scoring not available yet",
+    },
   );
   const error = normalizeEvaluationOutcome("evaluation.check", {
     state: "error",

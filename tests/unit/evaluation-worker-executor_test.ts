@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import {
   createEvaluationExecutor,
-  MODEL_SCORING_NOT_WIRED,
+  MODEL_SCORING_NOT_AVAILABLE,
 } from "../../apps/worker/src/evaluation-executor.ts";
 import type { WorkerContextInput } from "../../apps/worker/src/client.ts";
 import type { WorkerExecutor } from "../../apps/worker/src/executor.ts";
@@ -114,7 +114,7 @@ Deno.test("evaluation.score answers unscored until a judge is wired", async () =
     result: {
       state: "unscored",
       score: null,
-      reason: MODEL_SCORING_NOT_WIRED,
+      reason: MODEL_SCORING_NOT_AVAILABLE,
       judgeOutput: null,
     },
   });
