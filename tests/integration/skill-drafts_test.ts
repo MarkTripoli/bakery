@@ -279,6 +279,24 @@ Deno.test("a skill's draft starts from its active version, is edited and checked
     const fixed = await (await owner.call("POST", `${draftPath}/check`))
       .json() as Check;
     assertEquals(fixed.ok, true);
+
+    // A problem that comes from the upload validation, not one the draft raises
+    // itself, still names its file. The API never stores a file whose bytes
+    // disagree with its recorded size, so the row is changed underneath it.
+    await f.fixture.pgDatabase.query(
+      "update bakery.skill_draft_files set content = $3 where draft_id = $1 and path = $2",
+      [added.id, "references/missing.md", encoder.encode("changed\n")],
+    );
+    const resized = await (await owner.call("POST", `${draftPath}/check`))
+      .json() as Check;
+    assertEquals(
+      resized.problems.map(({ file, code }) => ({ file, code })),
+      [{ file: "references/missing.md", code: "file_size" }],
+    );
+    await f.fixture.pgDatabase.query(
+      "update bakery.skill_draft_files set content = $3 where draft_id = $1 and path = $2",
+      [added.id, "references/missing.md", encoder.encode("Now it exists.\n")],
+    );
     const guide = added.files.find((file) =>
       file.path === "references/guide.md"
     )!;
@@ -298,6 +316,17 @@ Deno.test("a skill's draft starts from its active version, is edited and checked
     assertEquals(broken.problems.map((problem) => problem.code), [
       "referenced_file_missing",
     ]);
+    // A license with a character that cannot be printed is refused and says so.
+    const badLicense = await owner.call("PATCH", draftPath, {
+      version: afterDelete.version,
+      body: { license: "tab\there" },
+    });
+    assertEquals(badLicense.status, 422, await badLicense.clone().text());
+    assert((await badLicense.text()).includes('"license"'));
+    assertEquals(
+      ((await (await owner.call("GET", draftPath)).json()) as Draft).license,
+      "MIT",
+    );
     const relicensed = await owner.call("PATCH", draftPath, {
       version: afterDelete.version,
       body: { license: "Apache-2.0" },
@@ -343,6 +372,78 @@ Deno.test("a skill's draft starts from its active version, is edited and checked
     });
     assertEquals(discarded.status, 204, await discarded.clone().text());
     assertEquals((await owner.call("GET", draftPath)).status, 404);
+  } finally {
+    await f.close();
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("a draft refuses a save past its file count or its size", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-74-caps-" });
+  const f = await openPersonalSkillFixture({ skillFileRoot: root });
+  try {
+    const owner = api(f, f.ownerCookie);
+    const created = await f.post(f.ownerCookie, "/v1/skills", {
+      slug: "caps",
+      name: "Caps",
+    }, "skill-caps");
+    assertEquals(created.status, 201, await created.clone().text());
+    const skill = await created.json() as { id: string };
+    const draftPath = `/v1/skills/${skill.id}/draft`;
+    const opened = await owner.call("POST", draftPath);
+    assertEquals(opened.status, 200, await opened.clone().text());
+    let draft = await opened.json() as Draft;
+    const save = async (path: string) => {
+      const response = await owner.call("POST", `${draftPath}/files`, {
+        version: draft.version,
+        body: {
+          path,
+          mediaType: "text/markdown",
+          contentBase64: b64("x"),
+        },
+      });
+      return response;
+    };
+    const first = await save("SKILL.md");
+    assertEquals(first.status, 200, await first.clone().text());
+    draft = await first.json() as Draft;
+    const fill = (count: number) =>
+      f.fixture.pgDatabase.query(
+        `insert into bakery.skill_draft_files (
+           id, organization_id, draft_id, path, media_type, is_executable,
+           content, size_bytes, sha256
+         ) select gen_random_uuid(), $1, $2,
+                  'bulk/' || lpad(g::text, 4, '0') || '.md', 'text/markdown',
+                  false, '\\x78'::bytea, 1, repeat('0', 64)
+             from generate_series(1, $3::integer) g`,
+        [f.organizationId, draft.id, count],
+      );
+
+    // 256 files are allowed; the 257th is too many.
+    await fill(254);
+    const atLimit = await save("notes-a.md");
+    assertEquals(atLimit.status, 200, await atLimit.clone().text());
+    draft = await atLimit.json() as Draft;
+    const overCount = await save("notes-b.md");
+    assertEquals(overCount.status, 409, await overCount.clone().text());
+    assert((await overCount.text()).includes("draft_too_large"));
+    await f.fixture.pgDatabase.query(
+      "delete from bakery.skill_draft_files where draft_id = $1 and path like 'bulk/%'",
+      [draft.id],
+    );
+
+    // 10 MiB of files in all is allowed; one byte more is too much.
+    const cap = 10 * 1024 * 1024;
+    await f.fixture.pgDatabase.query(
+      "update bakery.skill_draft_files set size_bytes = $2 where draft_id = $1 and path = 'SKILL.md'",
+      [draft.id, cap - 2],
+    );
+    const atSize = await save("notes-c.md");
+    assertEquals(atSize.status, 200, await atSize.clone().text());
+    draft = await atSize.json() as Draft;
+    const overSize = await save("notes-d.md");
+    assertEquals(overSize.status, 409, await overSize.clone().text());
+    assert((await overSize.text()).includes("draft_too_large"));
   } finally {
     await f.close();
     await Deno.remove(root, { recursive: true });
