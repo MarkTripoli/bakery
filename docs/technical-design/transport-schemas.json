@@ -10292,6 +10292,97 @@
       ],
       "description": "Saves the R2 account, bucket and credentials that hold skill bundle objects for this installation. Credentials are write-only and never appear in a response, error, log, trace, event or audit record."
     },
+    "BackupRunReport": {
+      "fields": [
+        {
+          "name": "leaseToken",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 32,
+            "maxLength": 128
+          },
+          "description": "Proof that the runner still holds the claim on this backup run, returned once by the claim. A report with any other token is refused, and a report after the lease has lapsed answers 409 STATE_CONFLICT."
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1000000
+          },
+          "description": "Position of this report in the run's report series, starting at 1 and rising by one each time. Sending the stored sequence again with the identical body replays the stored answer; a gap or an older number answers 409 STATE_CONFLICT."
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "running",
+            "completed",
+            "failed"
+          ],
+          "description": "What the runner reports: running while it works (also extends the lease), completed when the encrypted backup is written and checked, failed when it gave up. Completed and failed end the run."
+        },
+        {
+          "name": "progressPercent",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 0,
+            "max": 100
+          },
+          "description": "How far along the backup is, from 0 to 100, for a running report; it never goes down between reports."
+        },
+        {
+          "name": "sizeBytes",
+          "type": "decimalString",
+          "required": false,
+          "bounds": {
+            "min": 0
+          },
+          "description": "Total size in bytes of the finished encrypted backup set as a decimal string; required with a completed report and refused with any other."
+        },
+        {
+          "name": "locations",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 2
+          },
+          "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other."
+        },
+        {
+          "name": "failureCode",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "disk_full",
+            "destination_refused",
+            "destination_unreachable",
+            "key_missing",
+            "runner_error"
+          ],
+          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report and refused with any other."
+        },
+        {
+          "name": "failureDetail",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 1000
+          },
+          "description": "The runner's own plain-text answer for the failure, such as what the destination replied, at most 1000 characters; it is shown to administrators and must not contain key material."
+        }
+      ],
+      "rules": [
+        "Authenticated by the backup runner credential only; a browser session or an access token is refused. The body is strict: a field that would carry backup bytes or key material is not part of the contract and is rejected with 422 UNPROCESSABLE.",
+        "The first report of a claimed run moves it to running. A completed report needs sizeBytes and at least one location, a failed report needs failureCode, and a running report may carry progressPercent; any other combination answers 422 UNPROCESSABLE.",
+        "Idempotent per run and sequence: the next sequence is applied, the stored sequence with an identical body is answered from the stored row, the stored sequence with a different body answers 422 IDEMPOTENCY_PAYLOAD_MISMATCH, and any other sequence answers 409 STATE_CONFLICT."
+      ],
+      "description": "One progress or result report from the host backup runner for a run it has claimed: the lease token, the report sequence, the status and the figures that status needs. The server records what happened; it never receives backup bytes or the age private key."
+    },
     "TelemetryDestinationCreate": {
       "fields": [
         {
@@ -12382,6 +12473,20 @@
         }
       ],
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+    },
+    "StorageFilePin": {
+      "fields": [
+        {
+          "name": "pinned",
+          "type": "boolean",
+          "required": true,
+          "description": "Whether the file's artifact is pinned against retention collection; true protects its versions from expiry-based purge, false lets normal retention apply again. Asking for the state a file is already in changes nothing."
+        }
+      ],
+      "rules": [
+        "Admin permission (artifact:manage); an access token may call it. A file with no artifact (a working-area file) is refused with UNPROCESSABLE."
+      ],
+      "description": "Sets or clears the administrator pin of a record-area file by its storage-tree id, so the command line can pin without knowing the artifact id or its version. It is the same pin as the artifact PATCH."
     },
     "StorageFilePut": {
       "fields": [
@@ -29327,6 +29432,167 @@
         "checkedAt": "When the probe finished."
       }
     },
+    "BackupRun": {
+      "fields": [
+        "id",
+        "triggerKind",
+        "status",
+        "requestedAt",
+        "requestedByPrincipalId",
+        "claimedAt",
+        "startedAt",
+        "finishedAt",
+        "leaseExpiresAt",
+        "progressPercent",
+        "sizeBytes",
+        "locations",
+        "failureCode",
+        "failureDetail"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "triggerKind": "enum(manual|scheduled)",
+        "status": "enum(requested|claimed|running|completed|failed)",
+        "requestedAt": "timestamp",
+        "requestedByPrincipalId": "uuid|null",
+        "claimedAt": "timestamp|null",
+        "startedAt": "timestamp|null",
+        "finishedAt": "timestamp|null",
+        "leaseExpiresAt": "timestamp|null",
+        "progressPercent": "integer|null",
+        "sizeBytes": "decimalString|null",
+        "locations": "string[]",
+        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|runner_error)|null",
+        "failureDetail": "string|null"
+      },
+      "nullableFields": [
+        "requestedByPrincipalId",
+        "claimedAt",
+        "startedAt",
+        "finishedAt",
+        "leaseExpiresAt",
+        "progressPercent",
+        "sizeBytes",
+        "failureCode",
+        "failureDetail"
+      ],
+      "description": "One backup as the installation administrator sees it: who asked and when, the runner's claim, progress, the result, where the finished set is kept and, for a failed run, the stable cause. No lease token, hash, backup byte or key appears here.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the backup run.",
+        "triggerKind": "manual when a person asked for it now; scheduled is reserved for the schedule that a later slice adds.",
+        "status": "requested while it waits for the runner, claimed once the runner holds it, running after the first progress report, then completed or failed.",
+        "requestedAt": "When the request was recorded.",
+        "requestedByPrincipalId": "Principal that asked for the backup, or null for a scheduled run or after that principal was removed.",
+        "claimedAt": "When the runner last claimed the run, or null while it waits.",
+        "startedAt": "When the runner first reported that it was working, or null before then.",
+        "finishedAt": "When the run completed or failed, or null while it is not finished.",
+        "leaseExpiresAt": "When the runner's claim lapses unless it reports again, or null when no claim is held.",
+        "progressPercent": "Latest reported progress from 0 to 100, or null before any report.",
+        "sizeBytes": "Size of the finished encrypted backup set in bytes as a decimal string, or null until completed.",
+        "locations": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed.",
+        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error; null otherwise.",
+        "failureDetail": "The runner's plain-text answer for the failure, or null."
+      }
+    },
+    "Page<BackupRun>": {
+      "pageOf": "BackupRun",
+      "description": "Cursor page of backup runs returned by `GET /v1/installation/backups`, newest request first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "BackupStatus": {
+      "fields": [
+        "state",
+        "lastGoodBackupAt",
+        "lastAttemptAt",
+        "runningRunId",
+        "runningProgressPercent",
+        "waitingRunId",
+        "runnerConfigured",
+        "runnerLastUsedAt"
+      ],
+      "fieldTypes": {
+        "state": "enum(protected|running|stale|failed)",
+        "lastGoodBackupAt": "timestamp|null",
+        "lastAttemptAt": "timestamp|null",
+        "runningRunId": "uuid|null",
+        "runningProgressPercent": "integer|null",
+        "waitingRunId": "uuid|null",
+        "runnerConfigured": "boolean",
+        "runnerLastUsedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "lastGoodBackupAt",
+        "lastAttemptAt",
+        "runningRunId",
+        "runningProgressPercent",
+        "waitingRunId",
+        "runnerLastUsedAt"
+      ],
+      "description": "The one answer to whether this installation is protected: a state word, the last good backup, the run in progress and whether a host runner has been set up and has been heard from.",
+      "fieldDescriptions": {
+        "state": "running while a backup is claimed or running; failed when the newest finished attempt failed; stale when the last good backup is older than 7 days or none exists; protected otherwise.",
+        "lastGoodBackupAt": "When the newest completed backup finished, or null when none has completed.",
+        "lastAttemptAt": "When the newest finished attempt ended, completed or failed, or null when none has finished.",
+        "runningRunId": "Run the runner currently holds, or null.",
+        "runningProgressPercent": "Latest progress of the held run, or null.",
+        "waitingRunId": "Request that waits for the runner to pick it up, or null.",
+        "runnerConfigured": "True once a runner credential has been issued.",
+        "runnerLastUsedAt": "When the runner last authenticated, or null when it never has."
+      }
+    },
+    "BackupRunnerCredentialIssued": {
+      "fields": [
+        "credential",
+        "generation",
+        "issuedAt"
+      ],
+      "fieldTypes": {
+        "credential": "secretString",
+        "generation": "integer",
+        "issuedAt": "timestamp"
+      },
+      "sensitiveFields": [
+        "credential"
+      ],
+      "description": "The backup runner credential, shown once when it is issued or rotated. Only its hash is stored, it is never returned again and it is never replayed. Issuing again replaces it and ends the old one.",
+      "fieldDescriptions": {
+        "credential": "Bearer secret the host runner presents on every runner request; copy it now, it cannot be read back.",
+        "generation": "Counts how many times the credential has been issued; 1 for the first.",
+        "issuedAt": "When this credential was issued."
+      }
+    },
+    "BackupRunClaim": {
+      "fields": [
+        "claimed",
+        "runId",
+        "leaseToken",
+        "leaseExpiresAt",
+        "triggerKind"
+      ],
+      "fieldTypes": {
+        "claimed": "boolean",
+        "runId": "uuid|null",
+        "leaseToken": "secretString|null",
+        "leaseExpiresAt": "timestamp|null",
+        "triggerKind": "enum(manual|scheduled)|null"
+      },
+      "nullableFields": [
+        "runId",
+        "leaseToken",
+        "leaseExpiresAt",
+        "triggerKind"
+      ],
+      "sensitiveFields": [
+        "leaseToken"
+      ],
+      "description": "The runner's answer to asking for work: either one backup run it now holds, with the lease token shown once, or claimed false when nothing is waiting or another run still holds a live lease.",
+      "fieldDescriptions": {
+        "claimed": "True when the runner now holds a run; false when there is nothing for it to do.",
+        "runId": "Run the runner holds, or null when claimed is false.",
+        "leaseToken": "Proof of the claim that every report must carry; returned once and stored only as a hash, or null when claimed is false.",
+        "leaseExpiresAt": "When the claim lapses unless the runner reports again before then, or null when claimed is false.",
+        "triggerKind": "Why the run exists, manual or scheduled, or null when claimed is false."
+      }
+    },
     "TelemetryDestination": {
       "fields": [
         "id",
@@ -32340,6 +32606,7 @@
         "mediaType",
         "sizeBytes",
         "artifactId",
+        "pinned",
         "contentRemoved",
         "updatedAt"
       ],
@@ -32355,6 +32622,7 @@
         "mediaType": "string|null",
         "sizeBytes": "integer|null",
         "artifactId": "uuid|null",
+        "pinned": "boolean",
         "contentRemoved": "boolean",
         "updatedAt": "timestamp"
       },
@@ -32379,6 +32647,7 @@
         "mediaType": "Media type of the file's current version; null for folders.",
         "sizeBytes": "Size of the file's current version in bytes; null for folders.",
         "artifactId": "The artifact a work item's document shows; the page opens the artifact page for it instead of the plain file view. Null for working-area files and folders.",
+        "pinned": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin.",
         "contentRemoved": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders.",
         "updatedAt": "When the entry or its current version last changed."
       }

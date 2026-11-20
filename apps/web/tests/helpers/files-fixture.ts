@@ -91,6 +91,7 @@ export type Entry = {
   updatedAt?: string;
   artifactId?: number | null;
   contentRemoved?: boolean;
+  pinned?: boolean;
 };
 
 export type Version = {
@@ -327,6 +328,7 @@ const item = (entry: Entry) => ({
   artifactId: entry.artifactId === undefined || entry.artifactId === null
     ? null
     : uuid(entry.artifactId),
+  pinned: entry.pinned ?? false,
   contentRemoved: entry.contentRemoved ?? false,
   updatedAt: entry.updatedAt ?? STAMP,
 });

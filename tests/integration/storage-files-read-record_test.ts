@@ -11,7 +11,10 @@ import {
   closeWorkerOrganization,
   createWorkerScope,
 } from "../helpers/worker-execution.ts";
+import { createFilesApi, run } from "@bakery/cli";
 import { signSessionCookie } from "../helpers/auth.ts";
+import { bearerCall } from "../helpers/access-tokens.ts";
+import { mintToken } from "../helpers/access-tokens.ts";
 import { setup } from "../helpers/output-ingestion.ts";
 import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
@@ -892,4 +895,180 @@ Deno.test("record-area file: an artifact version id opens its file with that rev
       ),
     );
     assertEquals([last.revision, last.isCurrent], [3, true]);
+  }));
+
+Deno.test("pin: a token with the admin scope pins a record file by its id; read and operate scopes, a developer, a working-area file and another organization are refused", () =>
+  withWorkerFixture(async (fixture) => {
+    const { file } = await world(fixture);
+    const path = "/v1/storage/files/" + file.entryId + "/pin";
+    const asToken = (
+      secret: string,
+      pinned: boolean,
+      organizationId?: string,
+    ) =>
+      bearerCall(
+        fixture as unknown as Parameters<typeof bearerCall>[0],
+        "PUT",
+        path,
+        secret,
+        { body: { pinned }, organizationId },
+      );
+    const mint = (scopes: string[]) =>
+      mintToken(
+        fixture as unknown as Parameters<typeof mintToken>[0],
+        undefined,
+        scopes,
+        "pin " + scopes.join("+"),
+      );
+    const isPinned = async () =>
+      (await fixture.pgDatabase.query<{ pinned: boolean }>(
+        "select (pinned_at is not null) as pinned from bakery.artifacts where organization_id = $1 and id = $2",
+        [fixture.organizationId, file.artifactId],
+      )).rows[0].pinned;
+
+    // A token whose scope does not cover artifact:manage is refused, and nothing changes.
+    for (const scope of ["bakery:read", "bakery:operate"]) {
+      const token = await mint([scope]);
+      await status(await asToken(token.secret as string, true), 403);
+    }
+    assertEquals(await isPinned(), false);
+
+    // The admin scope pins it: the same result the artifact PATCH gives.
+    const admin = await mint(["bakery:admin"]);
+    const pinned = await ok(await asToken(admin.secret as string, true));
+    assertEquals([pinned.id, pinned.pinned], [file.artifactId, true]);
+    assertEquals(await isPinned(), true);
+    // Asking for the state it is already in changes nothing and still answers.
+    assertEquals(
+      (await ok(await asToken(admin.secret as string, true))).pinned,
+      true,
+    );
+
+    // The listing says so.
+    const parent = (await fixture.pgDatabase.query<{ parent_id: string }>(
+      "select parent_id from bakery.storage_entries where id = $1",
+      [file.entryId],
+    )).rows[0].parent_id;
+    const row = items(
+      await ok(
+        await call(
+          fixture,
+          "GET",
+          "/v1/storage/folders/" + parent + "/entries",
+        ),
+      ),
+    ).find((entry) => entry.id === file.entryId)!;
+    assertEquals(row.pinned, true);
+
+    // The artifact PATCH and the pin are one implementation: the audit names the action.
+    const audited = await fixture.pgDatabase.query<{ operation: string }>(
+      "select operation from bakery.audit_events where organization_id = $1 and resource_id = $2 and operation = 'storageFiles.pin'",
+      [fixture.organizationId, file.artifactId],
+    );
+    assert(audited.rows.length >= 1, "the pin is audited as storageFiles.pin");
+
+    // A developer (not an administrator) is refused with a session too.
+    const member = await addMember(fixture);
+    try {
+      await status(
+        await call(fixture, "PUT", path, {
+          body: { pinned: false },
+          cookie: member.cookie,
+        }),
+        403,
+      );
+    } finally {
+      await removeMember(fixture, member);
+    }
+    assertEquals(await isPinned(), true);
+
+    // Unpin with the token.
+    assertEquals(
+      (await ok(await asToken(admin.secret as string, false))).pinned,
+      false,
+    );
+    assertEquals(await isPinned(), false);
+
+    // The command line does the same end to end: pin, stat, unpin, with the real
+    // generated client, the admin token and the real route.
+    const cli = async (argv: string[]) => {
+      const lines: string[] = [];
+      const errors: string[] = [];
+      const code = await run(argv, {
+        environment: (name) =>
+          ({
+            BAKERY_URL: fixture.config.publicBaseUrl,
+            BAKERY_ORGANIZATION: fixture.organizationId,
+            BAKERY_TOKEN: admin.secret as string,
+          })[name],
+        error: (line) => errors.push(line),
+        createApi: (config) =>
+          createFilesApi(
+            config,
+            ((input: RequestInfo | URL, init?: RequestInit) =>
+              fixture.app.fetch(new Request(input, init))) as typeof fetch,
+          ),
+        output: {
+          text: (line) => lines.push(line),
+          bytes: () => {},
+          file: () => Promise.resolve(),
+        },
+      });
+      console.log(
+        "$ bakery " + argv.join(" ") + "  -> exit " + code +
+          (errors.length > 0 ? "  | " + errors.join(" / ") : ""),
+      );
+      return { code, lines, errors };
+    };
+    const filePath = row.path as string;
+    const cliPin = await cli(["files", "pin", filePath]);
+    assertEquals([cliPin.code, cliPin.lines], [0, ["Pinned " + filePath]]);
+    assertEquals(await isPinned(), true);
+    const cliStat = await cli(["files", "stat", filePath]);
+    assert(cliStat.lines.some((line) => /^Pinned\s+yes$/.test(line)));
+    const cliUnpin = await cli(["files", "unpin", filePath]);
+    assertEquals(cliUnpin.code, 0);
+    assertEquals(await isPinned(), false);
+
+    // A working-area file has no pin: 422, never a quiet no-op.
+    const made = await ok(
+      await call(fixture, "PUT", "/v1/storage/files", {
+        body: {
+          path: "/shared/pin-working.md",
+          mediaType: "text/plain",
+          content: btoa("working"),
+        },
+      }),
+    );
+    const working = await call(
+      fixture,
+      "PUT",
+      "/v1/storage/files/" + (made.id as string) + "/pin",
+      { body: { pinned: true } },
+    );
+    await status(working, 422);
+
+    // Another organization: the file's id is 404, and nothing is pinned.
+    const foreign = await createWorkerScope(fixture, "pin-445", fixture);
+    try {
+      await status(
+        await asToken(admin.secret as string, true, foreign.organizationId),
+        404,
+      );
+    } finally {
+      await closeWorkerOrganization(fixture.pgDatabase, foreign.organizationId);
+    }
+    assertEquals(await isPinned(), false);
+
+    // A file that does not exist is 404.
+    await status(
+      await bearerCall(
+        fixture as unknown as Parameters<typeof bearerCall>[0],
+        "PUT",
+        "/v1/storage/files/" + crypto.randomUUID() + "/pin",
+        admin.secret as string,
+        { body: { pinned: true } },
+      ),
+      404,
+    );
   }));
