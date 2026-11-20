@@ -35,7 +35,29 @@ import {
   FILES_WRITE_SCOPE,
   stepFileScopes,
 } from "../knowledge/agent-file-scope.ts";
-import { stepFilesForAttempt } from "./step-files.ts";
+import { type ResolvedStepFiles, stepFilesForAttempt } from "./step-files.ts";
+import { isSealedStep } from "@bakery/contracts/workflow-compiler";
+
+/**
+ * The granted scopes a step keeps. A sealed step (O53) reads only its pinned
+ * inputs and writes only its declared outputs, so a person's file grant never
+ * reopens storage for it; every other step keeps all it was granted.
+ */
+export function grantedScopesForStep(
+  files: ResolvedStepFiles,
+  granted: readonly OperationScope[],
+): readonly OperationScope[] {
+  return isSealedStep({ read: [...files.read], write: [...files.write] })
+    ? granted.filter((scope) => !isFileScope(scope))
+    : granted;
+}
+
+/** A storage scope: `files.read`, `files.write` or one of their area scopes. */
+function isFileScope(scope: OperationScope): boolean {
+  return scope === FILES_READ_SCOPE || scope === FILES_WRITE_SCOPE ||
+    scope.startsWith(`${FILES_READ_SCOPE}:`) ||
+    scope.startsWith(`${FILES_WRITE_SCOPE}:`);
+}
 
 export type SessionClaimCredentialInput = Readonly<{
   organizationId: string;
@@ -160,20 +182,22 @@ export async function issueCredentialForAttempt(
   });
   // Reads for everyone, plus the write scope of each power a person granted the
   // workflow this attempt runs under (O52). Off by default: no grant, no scope.
+  const files = input.scopes
+    ? null
+    : await stepFilesForAttempt(tx, input.organizationId, input.attemptId);
+  const granted = files
+    ? await grantedScopesForAttempt(tx, input.organizationId, input.attemptId)
+    : [];
   const scopes = input.scopes ??
     [
       ...readScopesForSession(),
-      ...await grantedScopesForAttempt(
-        tx,
-        input.organizationId,
-        input.attemptId,
-      ),
+      // A sealed step (O53) reads only its pinned inputs and writes only its
+      // declared outputs: a person's file grant never reopens storage for it.
+      ...(files ? grantedScopesForStep(files, granted) : granted),
       // The step's files section, defaults applied (O44, O45), pinned into
       // the credential so each storage call is judged against the section
       // the session was claimed under.
-      ...stepFileScopes(
-        await stepFilesForAttempt(tx, input.organizationId, input.attemptId),
-      ),
+      ...(files ? stepFileScopes(files) : []),
     ];
   return await issueStoredSessionCredential(tx, {
     organizationId: input.organizationId,

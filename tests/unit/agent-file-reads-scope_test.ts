@@ -33,6 +33,7 @@ import {
   FILES_WRITE_SCOPE,
   stepFileScopes,
 } from "../../apps/server/src/modules/knowledge/agent-file-scope.ts";
+import { grantedScopesForStep } from "../../apps/server/src/modules/execution/session-claim-credential.ts";
 import {
   type AgentFileTarget,
   assertAgentFileRead,
@@ -731,4 +732,21 @@ Deno.test("write defaults: a default never widens beyond the person", async () =
   // A personal folder never classifies as a default area, so it stays closed.
   assertEquals(await writeReason(ownFolder), AgentFileRefusal.GrantMissing);
   assertEquals(await writeReason(theirFolder), AgentFileRefusal.GrantMissing);
+});
+
+Deno.test("claim: a person's file grant never reopens storage for a sealed step", () => {
+  const granted = [
+    FILES_READ_SCOPE,
+    FILES_WRITE_SCOPE,
+    `${FILES_READ_SCOPE}:shared`,
+    "runs.steer",
+  ] as const;
+  assertEquals(
+    grantedScopesForStep({ read: ["inputs"], write: ["outputs"] }, granted),
+    ["runs.steer"],
+  );
+  assertEquals(
+    grantedScopesForStep(DEFAULT_STEP_FILES, granted),
+    granted,
+  );
 });
