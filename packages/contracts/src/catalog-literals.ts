@@ -516,6 +516,8 @@ export type CatalogPermissionKey =
   | "automationFiring:read"
   | "automationVersion:manage"
   | "automationVersion:read"
+  | "backup:manage"
+  | "backup:read"
   | "browserSession:read"
   | "browserSession:write"
   | "capabilityBinding:manage"

@@ -41,7 +41,16 @@ export const BackupFailureCode = Object.freeze(
   } as const,
 );
 
-/** How long a claim lasts; every running report extends it by this much. */
+/**
+ * How long a claim lasts; every running report extends it by this much.
+ *
+ * A claim is not idempotent: if the runner's claim answer is lost, the runner
+ * asks again and is told there is nothing to claim until this lease lapses,
+ * then the lapsed claim is taken over (its report sequence restarts). A runner
+ * therefore polls rather than assuming one failed claim means no work, and an
+ * operator should expect up to this long between a lost answer and the retry
+ * being served.
+ */
 export const BACKUP_LEASE_SECONDS = 300;
 /** Without a schedule, a backup older than this is "stale". */
 export const BACKUP_STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
