@@ -8509,6 +8509,79 @@ const transportSchemas = {
         }
       ]
     },
+    "EvaluationCheckSpec": {
+      "description": "The deterministic check evaluation.check runs over one output. kind selects the check and config carries its parameters: json_schema reads config.schema (a JSON-schema subset of type, required, properties and items), contains reads config.substring (non-empty text the output must include), equals reads config.expected (the JSON value the parsed output must deep-equal).",
+      "fields": [
+        {
+          "name": "kind",
+          "type": "enum(json_schema|contains|equals)",
+          "required": true,
+          "description": "Which deterministic check to run: json_schema validates the parsed JSON output against config.schema, contains looks for config.substring in the output text, equals compares the parsed JSON output with config.expected."
+        },
+        {
+          "name": "config",
+          "type": "json",
+          "required": true,
+          "description": "Parameters of the selected check, an object holding schema, substring or expected as kind requires. A config the check cannot use makes the attempt an error, never a pass."
+        }
+      ]
+    },
+    "EvaluationCheckInput": {
+      "description": "Input to the evaluation.check workflow action: the evaluation result to record against, the immutable output artifact version to score, and the deterministic check to run over its bytes. No model runs.",
+      "fields": [
+        {
+          "name": "evaluationResultId",
+          "type": "uuid",
+          "required": true,
+          "description": "Evaluation result row the attempt is recorded against; the server records one attempt per worker attempt, so a duplicate delivery changes nothing."
+        },
+        {
+          "name": "outputArtifactVersionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Immutable artifact version holding the output to score. It must be one of the attempt's pinned inputs; the worker reads its bytes through the attempt-context route."
+        },
+        {
+          "name": "check",
+          "type": "EvaluationCheckSpec",
+          "required": true,
+          "description": "The deterministic check to run over the output bytes."
+        }
+      ]
+    },
+    "EvaluationScoreInput": {
+      "description": "Input to the evaluation.score workflow action: the evaluation result to record against, the immutable output artifact version a model judge scores, the rubric it applies and the schema its answer must satisfy.",
+      "fields": [
+        {
+          "name": "evaluationResultId",
+          "type": "uuid",
+          "required": true,
+          "description": "Evaluation result row the attempt is recorded against; the server records one attempt per worker attempt, so a duplicate delivery changes nothing."
+        },
+        {
+          "name": "outputArtifactVersionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Immutable artifact version holding the output the judge scores; it must be one of the attempt's pinned inputs."
+        },
+        {
+          "name": "rubric",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "description": "Plain-language rubric the judge applies to the output. It instructs the judge only and grants no authority."
+        },
+        {
+          "name": "outputSchema",
+          "type": "json",
+          "required": true,
+          "description": "JSON-schema subset (type, required, properties, items) the judge's structured answer must satisfy. The server validates the answer against it and records the attempt as unscored when it does not match."
+        }
+      ]
+    },
     "WorkflowActionsListQuery": {
       "fields": [
         {
@@ -8542,7 +8615,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -22730,7 +22803,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -22775,7 +22848,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -33356,6 +33429,25 @@ const transportSchemas = {
       "schemaSource": "packages/contracts/src/contracts.ts",
       "capabilities": [],
       "description": "Deterministic, model-free action that renders the frozen task brief to canonical JSON and publishes it as an immutable artifact through the worker byte boundary."
+    },
+    "evaluation.check": {
+      "inputSchema": "EvaluationCheckInput",
+      "outputSchema": "EvaluationCheckOutput",
+      "schemaSource": "packages/contracts/src/evaluation-scoring.ts",
+      "capabilities": [
+        "storage"
+      ],
+      "description": "Deterministic, model-free scorer: reads one pinned output artifact version through the attempt-context route and runs a code-owned json_schema, contains or equals check over its bytes. The server re-validates the report and records it as one evaluation attempt."
+    },
+    "evaluation.score": {
+      "inputSchema": "EvaluationScoreInput",
+      "outputSchema": "EvaluationScoreOutput",
+      "schemaSource": "packages/contracts/src/evaluation-scoring.ts",
+      "capabilities": [
+        "model",
+        "storage"
+      ],
+      "description": "Model judge scorer: scores one pinned output artifact version against a rubric. The server validates the judge's structured answer against the input's output schema and records a mismatch as unscored."
     },
     "session.tools": {
       "inputFields": {},

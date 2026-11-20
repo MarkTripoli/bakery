@@ -880,7 +880,8 @@ export type AttemptRecord = Readonly<{
 /**
  * Records one attempt at a result, for the executor. A duplicate delivery
  * (the same delivery key) adds nothing and answers "duplicate"; a canceled
- * batch takes no attempt. Only passed and failed carry a score, and they
+ * batch takes no attempt and answers "canceled", so the worker's result post
+ * still succeeds. Only passed and failed carry a score, and they
  * must; any other state keeps its reason and has none. The result shows the
  * latest attempt; earlier attempts stay as they were.
  */
@@ -889,7 +890,7 @@ export async function recordAttempt(
   organizationId: string,
   resultId: string,
   attempt: AttemptRecord,
-): Promise<"recorded" | "duplicate"> {
+): Promise<"recorded" | "duplicate" | "canceled"> {
   const measured = isMeasured(attempt.state);
   if (measured !== (attempt.score !== null)) {
     unprocessable("score", measured ? "score_required" : "score_not_allowed");
@@ -912,7 +913,9 @@ export async function recordAttempt(
     [resultId, attempt.deliveryKey],
   );
   if (seen.rows[0]) return "duplicate";
-  if (row.canceled_at !== null) conflict("evaluation_batch_canceled");
+  // A canceled batch takes no attempt, but the worker's result still lands:
+  // the attempt is acknowledged and nothing changes.
+  if (row.canceled_at !== null) return "canceled";
   await tx.query(
     `insert into bakery.evaluation_attempts (organization_id, result_id,
        attempt_no, delivery_key, state, reason, score, started_at, ended_at,

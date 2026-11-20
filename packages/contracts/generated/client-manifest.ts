@@ -23985,6 +23985,8 @@ export const clientManifest = {
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
+            "evaluation.check",
+            "evaluation.score",
             "task.brief"
           ],
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
@@ -64149,6 +64151,8 @@ export const clientManifest = {
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
+            "evaluation.check",
+            "evaluation.score",
             "task.brief"
           ],
           "description": "Registered workflow action name."
@@ -64308,6 +64312,8 @@ export const clientManifest = {
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
+                  "evaluation.check",
+                  "evaluation.score",
                   "task.brief"
                 ],
                 "description": "Registered workflow action name."
@@ -64663,6 +64669,8 @@ export const clientManifest = {
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
+                  "evaluation.check",
+                  "evaluation.score",
                   "task.brief"
                 ],
                 "description": "Registered workflow action the step runs."

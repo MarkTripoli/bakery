@@ -11,6 +11,7 @@ import {
   type WorkerConfig,
 } from "./config.ts";
 import { createCheckExecutor } from "./check-runner.ts";
+import { createEvaluationExecutor } from "./evaluation-executor.ts";
 import { createPiHarnessExecutor } from "./pi-harness.ts";
 import { createClaudeHarnessExecutor } from "./claude-harness.ts";
 import { createCodexHarnessExecutor } from "./codex-harness.ts";
@@ -169,7 +170,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     });
     // The scripted harness exists only for the test environment; the config
     // reader already rejected its directory everywhere else.
-    const executor = options.executor === undefined &&
+    const baseExecutor = options.executor === undefined &&
         config.environment === "test" && config.scriptedHarnessDir
       ? createScriptedHarnessExecutor({
         dir: config.scriptedHarnessDir,
@@ -177,6 +178,17 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         publishFor: publishArtifactFor,
       })
       : nativeExecutor;
+    // `evaluation.check` and `evaluation.score` run in-process on the pinned
+    // output bytes, so every production worker advertises them; an injected
+    // test executor keeps exactly the actions it declares.
+    const executor = options.executor === undefined
+      ? createEvaluationExecutor(baseExecutor, {
+        readAttemptContext: async (attemptId) => {
+          const served = await client.attemptContext(attemptId);
+          return served.value;
+        },
+      })
+      : baseExecutor;
     const codingHarness: CodingHarnessConfig | undefined =
       config.codingHarness ??
         (config.codexHarness

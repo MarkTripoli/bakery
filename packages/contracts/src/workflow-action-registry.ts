@@ -22,6 +22,8 @@ export const WORKFLOW_ACTION_NAMES = Object.freeze(
     "artifact.publish",
     "memory.promote",
     "evaluation.sample",
+    "evaluation.check",
+    "evaluation.score",
     "task.brief",
   ] as const,
 );
@@ -287,6 +289,34 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
     "evaluation.sample": metadata({
       input: "EvaluationInput",
       output: "EvaluationOutput",
+      capabilities: ["model", "storage"],
+      cancel: "cooperative",
+      retry: {
+        maxAttempts: 1,
+        backoff: "0s",
+        faults: ["DEPENDENCY_UNAVAILABLE"],
+      },
+      effectPolicy: "evaluation_write",
+    }),
+    // Deterministic scorer: reads one pinned output artifact version and runs
+    // a code-owned check over its bytes. No model, so no budget reservation.
+    "evaluation.check": metadata({
+      input: "EvaluationCheckInput",
+      output: "EvaluationCheckOutput",
+      capabilities: ["storage"],
+      cancel: "cooperative",
+      retry: {
+        maxAttempts: 2,
+        backoff: "30s",
+        faults: ["DEPENDENCY_UNAVAILABLE"],
+      },
+      effectPolicy: "evaluation_write",
+    }),
+    // Model scorer (judge): the judge's answer is validated against the
+    // caller's output schema on the server before it counts as a measurement.
+    "evaluation.score": metadata({
+      input: "EvaluationScoreInput",
+      output: "EvaluationScoreOutput",
       capabilities: ["model", "storage"],
       cancel: "cooperative",
       retry: {

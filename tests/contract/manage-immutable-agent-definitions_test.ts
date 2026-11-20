@@ -36,6 +36,7 @@ const expectedCapabilities = [
   "secret.identity",
   "session.tools",
   "shell",
+  "storage",
   "web",
 ];
 

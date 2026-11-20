@@ -857,6 +857,8 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     Review: "review.independent",
     Freeform: "agent.freeform",
     TaskBrief: "task.brief",
+    EvaluationCheck: "evaluation.check",
+    EvaluationScore: "evaluation.score",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 

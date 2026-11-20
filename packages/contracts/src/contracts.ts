@@ -1688,6 +1688,39 @@ const actionSpecs: Record<
         "Whether the run was actually measured; false when the sample rate selected nothing to evaluate.",
     },
   },
+  EvaluationCheckOutput: {
+    fields: {
+      state: "enum(passed|failed|error)",
+      score: "number|null",
+      reason: "string|null",
+    },
+    meanings: {
+      state:
+        "Verdict of the deterministic check: passed or failed when the output was measured, error when the check itself could not run.",
+      score:
+        "Measured score from 0 to 1, present exactly when state is passed or failed; null for error.",
+      reason:
+        "Why the output failed or the check errored, in plain language; null for a pass.",
+    },
+  },
+  EvaluationScoreOutput: {
+    fields: {
+      state: "enum(passed|failed|unscored|error)",
+      score: "number|null",
+      reason: "string|null",
+      judgeOutput: "json|null",
+    },
+    meanings: {
+      state:
+        "Verdict of the model judge: passed or failed when it measured the output, unscored when no valid measurement exists, error when scoring crashed.",
+      score:
+        "Measured score from 0 to 1, present exactly when state is passed or failed; null otherwise.",
+      reason:
+        "Why the output was not measured or failed, in plain language; null for a pass.",
+      judgeOutput:
+        "The judge's structured answer, validated by the server against the input's output schema; null when the judge gave none.",
+    },
+  },
   HarnessOutput: {
     fields: {
       headSha: "string",
