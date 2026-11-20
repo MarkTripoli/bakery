@@ -99,6 +99,11 @@ export function generateDesktopCredential(): string {
  */
 export const DESKTOP_SOCKET_PROTOCOL = "bakery.desktop";
 const SOCKET_CREDENTIAL_PREFIX = "bakery.credential.";
+/** The live-update sockets a web view opens; the only routes that read the carrier. */
+export const DESKTOP_SOCKET_PATHS: ReadonlySet<string> = new Set([
+  "/v1/events",
+  "/v1/collaboration",
+]);
 
 function socketProtocols(headers: Headers): string[] {
   if (headers.get("upgrade")?.toLowerCase() !== "websocket") return [];
@@ -116,14 +121,20 @@ export function offersDesktopSocketProtocol(headers: Headers): boolean {
 
 /**
  * The Authorization value a request authenticates with: the header itself,
- * or, on a WebSocket upgrade that offers the desktop subprotocol and carries
- * exactly one credential entry, that credential as a bearer value. The
- * carrier yields only a desktop credential, never an access token, and never
- * applies to an ordinary request.
+ * or, on a WebSocket upgrade of one of the socket routes that offers the
+ * desktop subprotocol and carries exactly one credential entry, that
+ * credential as a bearer value. The carrier yields only a desktop credential,
+ * never an access token, and never applies to any other route.
  */
-export function desktopAuthorization(headers: Headers): string | null {
+export function desktopAuthorization(
+  headers: Headers,
+  path?: string,
+): string | null {
   const header = headers.get("authorization");
   if (header !== null) return header;
+  // The carrier is read only on the two socket routes; anywhere else a
+  // request authenticates with the header or the cookie, never the carrier.
+  if (path === undefined || !DESKTOP_SOCKET_PATHS.has(path)) return null;
   const protocols = socketProtocols(headers);
   if (!protocols.includes(DESKTOP_SOCKET_PROTOCOL)) return null;
   const carried = protocols.filter((value) =>

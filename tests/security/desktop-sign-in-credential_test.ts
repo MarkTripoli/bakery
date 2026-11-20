@@ -6,6 +6,11 @@ import {
 import { call } from "../helpers/account-settings.ts";
 import { cleanupAuthFixture } from "../helpers/auth.ts";
 import { openSocketFixture } from "../helpers/events-socket.ts";
+import {
+  cleanupDraftFixture,
+  openDraftFixture,
+} from "../helpers/draft-fixture.ts";
+import { connectWebSocket } from "../helpers/ws-client.ts";
 import type {
   WebSocketHandshakeFailure,
   WsClient,
@@ -221,6 +226,79 @@ Deno.test("a web-view socket carries the desktop credential as a subprotocol, fr
     await cleanupAuthFixture(f.pgDatabase, [f.email]);
     await f.close();
   }
+});
+
+Deno.test("the collaboration socket accepts the carrier from any origin, never echoes it, and refuses it once revoked", async () => {
+  const fixture = await openDraftFixture("alpha target omega", {
+    collaborationSocket: { limits: {} },
+  });
+  let resolvePort: (p: number) => void = () => {};
+  const listening = new Promise<number>((r) => resolvePort = r);
+  const server = Deno.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    onListen: ({ port }) => resolvePort(port),
+  }, (request) => fixture.app.fetch(request));
+  const port = await listening;
+  const url = new URL("ws://127.0.0.1:" + port + "/v1/collaboration");
+  url.searchParams.set("organizationId", fixture.ids.organizationId);
+  let client: WsClient | undefined;
+  try {
+    const issued = await signInDesktop(fixture, fixture.cookie);
+    const headers = new Headers({
+      Origin: "https://evil.example",
+      "sec-websocket-protocol": "bakery.desktop, bakery.credential." +
+        issued.credential,
+    });
+    const c = await connectWebSocket(url, { headers });
+    assert(isClient(c), "collab carrier refused: " + JSON.stringify(c));
+    client = c;
+    assertEquals(c.protocol, "bakery.desktop");
+    const hello = await c.next(3_000);
+    assertEquals(typeof hello, "string");
+    assertEquals(
+      (JSON.parse(hello as string) as { type: string }).type,
+      "hello",
+    );
+    await c.close();
+    client = undefined;
+    const bad = await connectWebSocket(url, {
+      headers: new Headers({
+        Origin: "https://evil.example",
+        "sec-websocket-protocol": "bakery.desktop, bakery.credential.bkd_short",
+      }),
+    });
+    assert(!isClient(bad), "malformed credential opened collab socket");
+    await fixture.pgDatabase.query("delete from public.session where id = $1", [
+      issued.sessionId,
+    ]);
+    const revoked = await connectWebSocket(url, { headers });
+    assert(!isClient(revoked), "revoked credential opened collab socket");
+    assertEquals(revoked.status, 401);
+  } finally {
+    await client?.close().catch(() => {});
+    await server.shutdown();
+    await cleanupDesktopSignIns(fixture);
+    await cleanupDraftFixture(fixture);
+    await fixture.close();
+  }
+});
+
+Deno.test("a plain request never authenticates with the carrier, even with upgrade headers", async () => {
+  await withFixture(async (f) => {
+    const issued = await signInDesktop(f, f.developerCookie);
+    const response = await f.app.fetch(
+      new Request("http://127.0.0.1:8788/v1/me", {
+        headers: {
+          upgrade: "websocket",
+          connection: "Upgrade",
+          "sec-websocket-protocol": "bakery.desktop, bakery.credential." +
+            issued.credential,
+        },
+      }),
+    );
+    assertEquals(response.status, 401, await response.text());
+  });
 });
 
 Deno.test("no credential, code or verifier reaches the logs", async () => {

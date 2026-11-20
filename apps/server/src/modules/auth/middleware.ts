@@ -100,9 +100,10 @@ async function readSignedSessionToken(
 export async function readSessionToken(
   headers: Headers,
   secret: string,
+  path?: string,
 ): Promise<string | null> {
   const desktop = desktopCredentialFromAuthorization(
-    desktopAuthorization(headers),
+    desktopAuthorization(headers, path),
   );
   if (desktop !== null) return desktop;
   const cookie = getSessionCookie(headers);
@@ -165,7 +166,7 @@ export function createOriginGuard(options: {
     // session middleware after this guard validates it.
     if (
       desktopCredentialFromAuthorization(
-        desktopAuthorization(context.req.raw.headers),
+        desktopAuthorization(context.req.raw.headers, context.req.path),
       ) !== null
     ) {
       return await next();
@@ -256,7 +257,10 @@ export function createBrowserSessionMiddleware(options: {
     // browser path below, unchanged. Bearer, so no origin check applies.
     let headers = context.req.raw.headers;
     let desktop = false;
-    const desktopClaim = desktopAuthorization(context.req.raw.headers);
+    const desktopClaim = desktopAuthorization(
+      context.req.raw.headers,
+      context.req.path,
+    );
     if (claimsDesktopCredential(desktopClaim)) {
       const credential = desktopCredentialFromAuthorization(desktopClaim);
       if (credential === null) {
@@ -292,7 +296,11 @@ export function createBrowserSessionMiddleware(options: {
       await next();
       return;
     }
-    const token = await readSessionToken(headers, options.secret);
+    const token = await readSessionToken(
+      headers,
+      options.secret,
+      context.req.path,
+    );
     let state: SessionState | null = null;
     if (token) {
       try {

@@ -1407,7 +1407,11 @@ export function createCollaborationSocketHandler(
       slotHeld = true;
       let sessionToken: string | null;
       try {
-        sessionToken = await readSessionToken(request.headers, options.secret);
+        sessionToken = await readSessionToken(
+          request.headers,
+          options.secret,
+          new URL(request.url).pathname,
+        );
       } catch (cause) {
         throw new StandardError({ code: "AUTH_INVALID", cause });
       }

@@ -369,9 +369,14 @@ Deno.test("a socket carries the desktop credential as a subprotocol, and nothing
       ...extra,
     });
   const carried = upgrade("bakery.desktop, bakery.credential." + credential);
-  assertEquals(desktopAuthorization(carried), "Bearer " + credential);
   assertEquals(
-    desktopCredentialFromAuthorization(desktopAuthorization(carried)),
+    desktopAuthorization(carried, "/v1/events"),
+    "Bearer " + credential,
+  );
+  assertEquals(
+    desktopCredentialFromAuthorization(
+      desktopAuthorization(carried, "/v1/events"),
+    ),
     credential,
   );
   assertEquals(desktopSocketUpgrade(carried), { protocol: "bakery.desktop" });
@@ -379,6 +384,7 @@ Deno.test("a socket carries the desktop credential as a subprotocol, and nothing
   assertEquals(
     desktopAuthorization(
       upgrade("bakery.desktop", { authorization: "Bearer x" }),
+      "/v1/events",
     ),
     "Bearer x",
   );
@@ -396,6 +402,14 @@ Deno.test("a socket carries the desktop credential as a subprotocol, and nothing
       ),
       upgrade("bakery.desktop, bakery.credential.bky_" + randomSecret()),
     ]
-  ) assertEquals(desktopAuthorization(headers), null);
+  ) assertEquals(desktopAuthorization(headers, "/v1/events"), null);
   assertEquals(desktopSocketUpgrade(upgrade("chat")), {});
+  // Any route but the two sockets ignores the carrier, upgrade or not.
+  for (const path of ["/v1/me", "/v1/events/x", undefined]) {
+    assertEquals(desktopAuthorization(carried, path), null, String(path));
+  }
+  assertEquals(
+    desktopAuthorization(carried, "/v1/collaboration"),
+    "Bearer " + credential,
+  );
 });
