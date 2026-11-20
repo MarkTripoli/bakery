@@ -1215,7 +1215,7 @@ test("aside previews this run's patch, not a newer log or a prior run's patch", 
   await expect(pane.getByText("prior-run.patch")).toHaveCount(0);
   await expect(pane.getByText("transcript.log")).toHaveCount(0);
   // A patch is text: its verified bytes show as the preview.
-  await expect(pane.getByRole("region", { name: "Artifact text preview" }))
+  await expect(pane.getByRole("region", { name: "Preview" }))
     .toContainText("+this-run.patch");
   await expect(pane.getByText("Preview unavailable for this media type."))
     .toHaveCount(0);

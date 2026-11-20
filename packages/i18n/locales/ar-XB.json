@@ -836,7 +836,6 @@
   "tasks.artifactPane.meta": "⟪Version {version} · {mediaType}⟫",
   "tasks.artifactPane.versionSelect": "⟪Artifact version⟫",
   "tasks.artifactPane.version": "⟪Version {version}⟫",
-  "tasks.artifactPane.preview": "⟪Artifact text preview⟫",
   "tasks.artifactPane.truncated": "⟪Preview truncated. Download the artifact to read all of it.⟫",
   "tasks.artifactPane.unavailable": "⟪Preview unavailable for this media type. Download or open the artifact.⟫",
   "tasks.artifactPane.loading": "⟪Loading the artifact…⟫",
@@ -4989,5 +4988,6 @@
   "files.preview.facts.durationSeconds": "⟪{seconds} s⟫",
   "artifact.retrieval.sizeValue": "⟪{size}⟫",
   "artifact.retrieval.versionSummary": "⟪{mediaType} · {size}⟫",
-  "artifact.view.description": "⟪Published by {author} · Step {step} · {size}⟫"
+  "artifact.view.description": "⟪Published by {author} · Step {step} · {size}⟫",
+  "tasks.artifactPane.preview": "⟪Preview⟫"
 }

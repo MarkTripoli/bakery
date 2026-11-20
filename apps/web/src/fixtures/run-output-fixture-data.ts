@@ -208,7 +208,7 @@ export function runOutputFixtureData(state: string): RunOutputFixtureData {
       labels: {
         paneTitle: "Artifact",
         versionSelect: "Artifact version",
-        preview: "Artifact text preview",
+        preview: "Preview",
         truncated: "Preview truncated",
         unavailable: "Preview unavailable",
         loading: "Loading artifact",

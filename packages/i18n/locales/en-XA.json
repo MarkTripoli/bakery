@@ -834,7 +834,6 @@
   "tasks.artifactPane.meta": "⟦Version {version} · {mediaType} — ŧëšŧ çôþÿ⟧",
   "tasks.artifactPane.versionSelect": "⟦Artifact version — ŧëšŧ⟧",
   "tasks.artifactPane.version": "⟦Version {version} — ŧëšŧ⟧",
-  "tasks.artifactPane.preview": "⟦Artifact text preview — ŧëšŧ çôþÿ⟧",
   "tasks.artifactPane.truncated": "⟦Preview truncated. Download the artifact to read all of it. — ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.artifactPane.unavailable": "⟦Preview unavailable for this media type. Download or open the artifact. — ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "tasks.artifactPane.loading": "⟦Loading the artifact… — ŧëšŧ çôþÿ⟧",
@@ -4989,5 +4988,6 @@
   "files.preview.facts.durationSeconds": "⟦{seconds} š ŧ⟧",
   "artifact.retrieval.sizeValue": "⟦{size}…⟧",
   "artifact.retrieval.versionSummary": "⟦{mediaType} · {size} ŧëšŧ⟧",
-  "artifact.view.description": "⟦Þûƀļïšĥëð ƀÿ {author} · Šŧëþ {step} · {size} ŧëšŧ çôþÿ ŧëš⟧"
+  "artifact.view.description": "⟦Þûƀļïšĥëð ƀÿ {author} · Šŧëþ {step} · {size} ŧëšŧ çôþÿ ŧëš⟧",
+  "tasks.artifactPane.preview": "⟦Þŕëṽïëŵ…⟧"
 }
