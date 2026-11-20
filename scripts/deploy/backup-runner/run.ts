@@ -60,6 +60,8 @@ export type RunnerDeps = {
 
 export const HEARTBEAT_MS = 120_000;
 
+const LOCAL_KEPT = "The backup was taken and is kept on this host.";
+
 /** Progress points: reported, never lowered. */
 const PROGRESS = {
   claimed: 0,
@@ -209,16 +211,6 @@ export async function runOnce(deps: RunnerDeps): Promise<RunOutcome> {
     }
     await reporter.running(PROGRESS.settings);
 
-    let offsite: Offsite | null;
-    try {
-      offsite = deps.offsite(settings);
-    } catch (error) {
-      if (error instanceof OffsiteError) {
-        return await fail(error.code, error.detail);
-      }
-      throw error;
-    }
-
     let artifact: Artifact;
     try {
       artifact = await deps.backup(work.signal);
@@ -230,6 +222,18 @@ export async function runOnce(deps: RunnerDeps): Promise<RunOutcome> {
       return await fail("runner_error", describe(error, deps.secrets));
     }
     if (fatal !== null) return await finish();
+    // The destination is judged AFTER the local backup exists: a refused or
+    // invalid off-site destination must not cost the backup itself, which stays
+    // on this host and is named as such in the failure.
+    let offsite: Offsite | null;
+    try {
+      offsite = deps.offsite(settings);
+    } catch (error) {
+      if (error instanceof OffsiteError) {
+        return await fail(error.code, `${error.detail} ${LOCAL_KEPT}`);
+      }
+      throw error;
+    }
     await reporter.running(offsite === null ? 90 : PROGRESS.backedUp);
 
     const locations = ["server-host"];
@@ -247,9 +251,12 @@ export async function runOnce(deps: RunnerDeps): Promise<RunOutcome> {
       } catch (error) {
         if (fatal !== null) return await finish();
         if (error instanceof OffsiteError) {
-          return await fail(error.code, error.detail);
+          return await fail(error.code, `${error.detail} ${LOCAL_KEPT}`);
         }
-        return await fail("runner_error", describe(error, deps.secrets));
+        return await fail(
+          "runner_error",
+          `${describe(error, deps.secrets)} ${LOCAL_KEPT}`,
+        );
       }
       if (fatal !== null) return await finish();
       locations.push("off-site");
