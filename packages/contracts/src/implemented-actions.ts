@@ -41,6 +41,8 @@ export const AuthImplementedAction = Object.freeze(
     InstallationAdministratorsList: "installationAdministrators.list",
     InstallationAdministratorsCreate: "installationAdministrators.create",
     InstallationAdministratorsRevoke: "installationAdministrators.revoke",
+    PasswordResetLinksCreate: "passwordResetLinks.create",
+    PasswordResetsRedeem: "passwordResets.redeem",
     AuditEventsList: "auditEvents.list",
     AuditEventsExport: "auditEvents.export",
     AuditEventsStream: "auditEvents.stream",
@@ -168,6 +170,9 @@ export const ConversationImplementedAction = Object.freeze(
     QuestionsList: "questions.list",
     QuestionsGet: "questions.get",
     QuestionsAnswer: "questions.answer",
+    ConversationsMentionCandidates: "conversations.mentionCandidates",
+    ConversationAccessList: "conversationAccess.list",
+    ConversationAccessRevoke: "conversationAccess.revoke",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
@@ -363,12 +368,14 @@ export const DeliveryImplementedAction = Object.freeze(
   {
     ChecksList: "checks.list",
     RunReviewsList: "runReviews.list",
+    RunReviewsAccept: "runReviews.accept",
     ReviewFindingsList: "reviewFindings.list",
     RunDeliveryDecisionsList: "runDeliveryDecisions.list",
     PullRequestsList: "pullRequests.list",
     MergeEntriesList: "mergeEntries.list",
     MergeEntriesCreate: "mergeEntries.create",
     PullRequestsMerge: "pullRequests.merge",
+    MergeAttemptsList: "mergeAttempts.list",
     MergeAttemptsReconcile: "mergeAttempts.reconcile",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -389,6 +396,7 @@ export const TicketImplementedAction = Object.freeze(
     TicketSourcesUpdate: "ticketSources.update",
     TicketSourcesPreview: "ticketSources.preview",
     TicketSourcesLookupPerson: "ticketSources.lookupPerson",
+    TicketSourcesLabels: "ticketSources.labels",
     TicketSourcesSync: "ticketSources.sync",
     TicketRoutingRulesGet: "ticketRoutingRules.get",
     TicketRoutingRulesReplace: "ticketRoutingRules.replace",
@@ -399,6 +407,8 @@ export const TicketImplementedAction = Object.freeze(
     TicketTaskLinksList: "ticketTaskLinks.list",
     TicketTaskLinksResyncNote: "ticketTaskLinks.resyncNote",
     TicketRequestsCreate: "ticketRequests.create",
+    TicketRequestsList: "ticketRequests.list",
+    TicketRequestsGet: "ticketRequests.get",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const ticketImplementedActions = Object.freeze(
@@ -418,6 +428,42 @@ export const NotificationImplementedAction = Object.freeze(
 );
 export const notificationImplementedActions = Object.freeze(
   Object.values(NotificationImplementedAction),
+);
+
+export const RunRequestImplementedAction = Object.freeze(
+  {
+    RunRequestsCreate: "runRequests.create",
+    RunRequestsList: "runRequests.list",
+    RunRequestsMine: "runRequests.mine",
+    RunRequestsWithdraw: "runRequests.withdraw",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const runRequestImplementedActions = Object.freeze(
+  Object.values(RunRequestImplementedAction),
+);
+
+export const GroupImplementedAction = Object.freeze(
+  {
+    GroupsList: "groups.list",
+    GroupsCreate: "groups.create",
+    GroupsUpdate: "groups.update",
+    GroupsDelete: "groups.delete",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const groupImplementedActions = Object.freeze(
+  Object.values(GroupImplementedAction),
+);
+
+export const EmailSettingsImplementedAction = Object.freeze(
+  {
+    EmailSettingsGet: "emailSettings.get",
+    EmailSettingsPut: "emailSettings.put",
+    EmailSettingsTest: "emailSettings.test",
+    EmailSettingsDelete: "emailSettings.delete",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const emailSettingsImplementedActions = Object.freeze(
+  Object.values(EmailSettingsImplementedAction),
 );
 
 export const WorkflowImplementedAction = Object.freeze(
@@ -446,6 +492,46 @@ export const WorkflowImplementedAction = Object.freeze(
 );
 export const workflowImplementedActions = Object.freeze(
   Object.values(WorkflowImplementedAction),
+);
+
+/**
+ * MCP server definitions (#434): the shared, organization-scoped record of what a
+ * remote server is. Connections, discovery and classification are separate groups
+ * as they land; the runtime registry and this list stay equal at every commit.
+ */
+export const McpServerImplementedAction = Object.freeze(
+  {
+    McpServersList: "mcpServers.list",
+    McpServersGet: "mcpServers.get",
+    McpServersCreate: "mcpServers.create",
+    McpServersUpdate: "mcpServers.update",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const mcpServerImplementedActions = Object.freeze(
+  Object.values(McpServerImplementedAction),
+);
+
+/**
+ * MCP connections (#434): one use of a server definition, organization or personal.
+ * Discovery pins what a server offers; the capabilities read shows the pin.
+ */
+export const McpConnectionImplementedAction = Object.freeze(
+  {
+    McpConnectionsList: "mcpConnections.list",
+    McpConnectionsGet: "mcpConnections.get",
+    McpConnectionsCreate: "mcpConnections.create",
+    McpConnectionsUpdate: "mcpConnections.update",
+    McpConnectionsDiscover: "mcpConnections.discover",
+    McpConnectionsCapabilities: "mcpConnections.capabilities",
+    McpToolClassificationsList: "mcpToolClassifications.list",
+    McpToolClassificationsPut: "mcpToolClassifications.put",
+    McpUseGrantsList: "mcpUseGrants.list",
+    McpUseGrantsCreate: "mcpUseGrants.create",
+    McpUseGrantsRevoke: "mcpUseGrants.revoke",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const mcpConnectionImplementedActions = Object.freeze(
+  Object.values(McpConnectionImplementedAction),
 );
 
 /** Registered workflow action discovery served by the handwritten Hono routes. */
@@ -481,7 +567,10 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactCommentsUpdate: "artifactComments.update",
     ArtifactCommentsList: "artifactComments.list",
     ArtifactCommentsListAcrossVersions: "artifactComments.listAcrossVersions",
+    ArtifactCommentsMentionCandidates: "artifactComments.mentionCandidates",
     ArtifactsList: "artifacts.list",
+    FilesSearch: "files.search",
+    FilesLibrary: "files.library",
     ArtifactsGet: "artifacts.get",
     ArtifactsUpdate: "artifacts.update",
     ArtifactStorageGet: "artifactStorage.get",
@@ -568,6 +657,29 @@ export const BlobUploadImplementedAction = Object.freeze(
 );
 export const blobUploadImplementedActions = Object.freeze(
   Object.values(BlobUploadImplementedAction),
+);
+
+export const StorageImplementedAction = Object.freeze(
+  {
+    StorageFilesPut: "storageFiles.put",
+    StorageFoldersCreate: "storageFolders.create",
+    StorageEntriesCopy: "storageEntries.copy",
+    StorageEntriesMove: "storageEntries.move",
+    StorageEntriesTrash: "storageEntries.trash",
+    StorageEntriesRestore: "storageEntries.restore",
+    StorageEntriesPurge: "storageEntries.purge",
+    StorageTrashList: "storageTrash.list",
+    StorageSettingsGet: "storageSettings.get",
+    StorageSettingsPut: "storageSettings.put",
+    StorageRootsList: "storageRoots.list",
+    StorageFolderEntriesList: "storageFolderEntries.list",
+    StorageFileVersionsList: "storageFileVersions.list",
+    StorageFileUsesList: "storageFileUses.list",
+    StorageFilesContent: "storageFiles.content",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const storageImplementedActions = Object.freeze(
+  Object.values(StorageImplementedAction),
 );
 
 export const CatalogImplementedAction = Object.freeze(
@@ -672,6 +784,9 @@ export const implementedActions = Object.freeze(
     ...deliveryImplementedActions,
     ...ticketImplementedActions,
     ...notificationImplementedActions,
+    ...groupImplementedActions,
+    ...emailSettingsImplementedActions,
+    ...runRequestImplementedActions,
     ...workflowImplementedActions,
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,
@@ -683,7 +798,10 @@ export const implementedActions = Object.freeze(
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
     ...integrationClientCredentialsImplementedActions,
+    ...mcpServerImplementedActions,
+    ...mcpConnectionImplementedActions,
     ...blobUploadImplementedActions,
+    ...storageImplementedActions,
     ...memoryImplementedActions,
   ] as const,
 );

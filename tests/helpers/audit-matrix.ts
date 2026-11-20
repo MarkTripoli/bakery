@@ -31,6 +31,18 @@ function integrationGrantBody(principalId: string) {
 }
 
 /** SCIM bearer secrets the matrix was issued; the no-secret test hunts for them. */
+/** A saved email setup with no password, so the matrix needs no secrets key. */
+function emailSettingsBody() {
+  return {
+    host: "smtp.example.com",
+    port: 587,
+    security: "starttls",
+    username: "audit-matrix",
+    fromAddress: "audit-matrix@example.com",
+    fromName: "Bakery",
+  };
+}
+
 export const matrixScimSecrets: string[] = [];
 
 /** Access-token secrets the matrix minted; no audit row may echo them or their digests. */
@@ -560,6 +572,29 @@ export async function runAuditMatrix(
       }),
     },
     {
+      // Runs after the developer's installation administrator grant is
+      // revoked, so only installation authority can refuse the developer.
+      operation: "passwordResetLinks.create",
+      failure: () =>
+        call(f, "POST", "/v1/installation/password-resets", developer, {
+          body: { principalId: f.adminId },
+        }),
+      success: async () => {
+        const response = await call(
+          f,
+          "POST",
+          "/v1/installation/password-resets",
+          f.adminCookie,
+          { body: { principalId: f.developerId } },
+        );
+        return {
+          response,
+          organizationId: null,
+          resourceId: String((await response.clone().json()).id),
+        };
+      },
+    },
+    {
       // Needs the fixture's mounted secrets key; runs after the developer's
       // installation administrator grant is revoked.
       operation: "integrationAppRegistrations.begin",
@@ -696,6 +731,67 @@ export async function runAuditMatrix(
           "/v1/installation/skill-storage/verification",
           f.adminCookie,
           { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      // Runs while email is off, so it answers not_configured and sends nothing.
+      operation: "emailSettings.test",
+      failure: () =>
+        call(f, "POST", "/v1/installation/email/test", developer, {
+          body: {},
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/installation/email/test",
+          f.adminCookie,
+          { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "emailSettings.put",
+      failure: () =>
+        call(f, "PUT", "/v1/installation/email", developer, {
+          body: emailSettingsBody(),
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "PUT",
+          "/v1/installation/email",
+          f.adminCookie,
+          {
+            body: emailSettingsBody(),
+            headers: { "Idempotency-Key": key() },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "emailSettings.delete",
+      failure: () =>
+        call(f, "DELETE", "/v1/installation/email", developer, {
+          body: {},
+          headers: { "Idempotency-Key": key(), "If-Match": '"v1"' },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "DELETE",
+          "/v1/installation/email",
+          f.adminCookie,
+          {
+            body: {},
+            headers: { "Idempotency-Key": key(), "If-Match": '"v1"' },
+          },
         ),
         organizationId: null,
       }),

@@ -288,7 +288,9 @@ Deno.test("execution grants match the worker SQL operations", () =>
        -- (packages/persistence/src/worker-session.ts re-pair branch, 0124).
        ('bakery.worker_hosts', 'capabilities', 'UPDATE'),
        ('bakery.jobs', 'organization_id', 'UPDATE'),
-       ('bakery.jobs', 'input', 'UPDATE'),
+       -- jobs.input UPDATE is granted for restart-with-a-note (0234, #412 slice 3b):
+       -- the note is appended to input.stepNotes, and admission and claim check
+       -- input against the run snapshot and recorded note deliveries.
        ('bakery.jobs', 'requirements', 'UPDATE'),
        ('bakery.jobs', 'billing', 'UPDATE'),
        ('bakery.jobs', 'installation_reservation_id', 'UPDATE'),

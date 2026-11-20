@@ -316,6 +316,16 @@ export async function mockAuthenticatedSession(page: Page): Promise<void> {
       body: JSON.stringify({ unread: 0, revision: 1 }),
     });
   });
+  // The task page asks for the issues a task is linked to (#69). Most specs
+  // are not about that, so it answers with none; one that is registers its own.
+  await page.route("**/v1/ticket-task-links*", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [], nextCursor: null }),
+    });
+  });
   await page.route("**/v1/installation/settings", (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     return route.fulfill({

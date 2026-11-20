@@ -103,6 +103,7 @@ import {
   updateRequest,
   upsertExternalTicket,
 } from "./ticket-store.ts";
+import { ticketRef } from "./ticket-source-reader.ts";
 import type { TicketSourceReader } from "./ticket-source-reader.ts";
 import {
   readRouteRules,
@@ -642,7 +643,11 @@ async function prefetchForCall(
   return await prefetchTicketReads(
     deps.reader,
     handle,
-    { number: call.number, policy: source.policy, origin: call.origin },
+    {
+      ref: ticketRef(call.number),
+      policy: source.policy,
+      origin: call.origin,
+    },
     call.signal,
   );
 }
@@ -1033,6 +1038,9 @@ function evidenceOf(
     version: 1,
     origin: frame.call.origin,
     labelBasis: context.labelBasis,
+    labelName: context.labelBasis === "label"
+      ? requestLabelOf(issueLabels(frame.prefetch), frame.source.policy)
+      : null,
     actingPrincipalId: context.actor?.subject.principalId as string,
     callerPrincipalId: automatic
       ? null
@@ -1860,7 +1868,11 @@ async function prefetchForRecheck(
   return await prefetchTicketReads(
     deps.reader,
     handle,
-    { number, policy: source.policy, origin: call.origin },
+    {
+      ref: ticketRef(number),
+      policy: source.policy,
+      origin: call.origin,
+    },
     call.signal,
   );
 }

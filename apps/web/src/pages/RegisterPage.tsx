@@ -36,7 +36,7 @@ const FAILURE_MESSAGE_KEYS: Readonly<
 > = {
   LOCKED: "auth.signIn.locked",
   NETWORK: "auth.signIn.offline",
-  RATE_LIMITED: "auth.signIn.throttledNotice",
+  RATE_LIMITED: "auth.signIn.rateLimitedNoWait",
 };
 
 /**

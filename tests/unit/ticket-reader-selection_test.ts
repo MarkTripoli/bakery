@@ -4,6 +4,7 @@ import type {
   TicketSourceHandle,
   TicketSourceReader,
 } from "../../apps/server/src/modules/work/ticket-source-reader.ts";
+import { ticketRef } from "../../apps/server/src/modules/work/ticket-source-reader.ts";
 import { selectTicketSourceReader } from "../../apps/server/src/modules/work/ticket-reader-selection.ts";
 
 /**
@@ -71,6 +72,10 @@ function recordingReader(name: string): {
       note(`listIssues:${held.provider}`);
       return Promise.resolve({ kind: "present", numbers: [], hasNext: false });
     },
+    readLabels: (held) => {
+      note(`readLabels:${held.provider}`);
+      return Promise.resolve({ kind: "unsupported" });
+    },
   };
   return { reader, calls };
 }
@@ -91,9 +96,12 @@ Deno.test("a source is read by the reader registered for its provider, not by an
     ]]),
   );
 
-  assertEquals(await reader.readIssue(handle("second-provider"), 1, signal()), {
-    kind: "gone",
-  });
+  assertEquals(
+    await reader.readIssue(handle("second-provider"), ticketRef(1), signal()),
+    {
+      kind: "gone",
+    },
+  );
   assertEquals(first.calls, [], "the other provider's reader was not asked");
   assertEquals(second.calls, ["second:readIssue:second-provider"]);
 });
@@ -106,8 +114,14 @@ Deno.test("a provider with no reader fails closed on every read, never a plausib
   // written.
   const linear = handle("linear");
 
-  assertEquals(await reader.readIssue(linear, 1, signal()), failClosed);
-  assertEquals(await reader.readLinks(linear, 1, signal()), failClosed);
+  assertEquals(
+    await reader.readIssue(linear, ticketRef(1), signal()),
+    failClosed,
+  );
+  assertEquals(
+    await reader.readLinks(linear, ticketRef(1), signal()),
+    failClosed,
+  );
   assertEquals(
     await reader.readPredecessorProof(linear, {
       id: "1",
@@ -121,16 +135,28 @@ Deno.test("a provider with no reader fails closed on every read, never a plausib
     failClosed,
   );
   assertEquals(
-    await reader.readLabelProvenance(linear, 1, "bakery:execute", signal()),
+    await reader.readLabelProvenance(
+      linear,
+      ticketRef(1),
+      "bakery:execute",
+      signal(),
+    ),
     failClosed,
   );
   assertEquals(
     await reader.readActorRole(linear, "someone", signal()),
     failClosed,
   );
-  assertEquals(await reader.readStatuses(linear, 1, signal()), failClosed);
+  assertEquals(
+    await reader.readStatuses(linear, ticketRef(1), signal()),
+    failClosed,
+  );
   assertEquals(
     await reader.listIssues(linear, { page: 1, since: null }, signal()),
+    failClosed,
+  );
+  assertEquals(
+    await reader.readLabels(linear, { page: 1 }, signal()),
     failClosed,
   );
 
@@ -151,7 +177,8 @@ Deno.test("the provider on the handle decides, even when two handles share a con
     new Map([["github", github.reader], ["linear", linear.reader]]),
   );
   assert(
-    (await reader.readIssue(handle("linear"), 1, signal())).kind === "gone",
+    (await reader.readIssue(handle("linear"), ticketRef(1), signal())).kind ===
+      "gone",
   );
   assertEquals(linear.calls, ["linear:readIssue:linear"]);
   assertEquals(github.calls, []);

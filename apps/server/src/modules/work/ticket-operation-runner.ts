@@ -43,11 +43,18 @@ import type {
   TicketActorRole,
   TicketFactIndex,
   TicketIssueListPage,
+  TicketLabelPage,
   TicketReadFailure,
   TicketSourceHandle,
   TicketSourceReader,
 } from "./ticket-source-reader.ts";
+import { ticketRef } from "./ticket-source-reader.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
+import {
+  type CursorBinding,
+  decodeSequenceCursor,
+  encodeSequenceCursor,
+} from "../../platform/cursor.ts";
 
 /**
  * Probe, read, execute: the wrapper that keeps GitHub reads out of registry
@@ -80,6 +87,12 @@ export type TicketOperationDependencies = {
   budget: BudgetRuntimeConfig | undefined;
 };
 
+/** What the runner itself needs besides the reads: the list cursor key. */
+export type TicketRunnerDependencies = TicketOperationDependencies & {
+  /** Signs the provider-page cursor of `ticketSources.labels`. */
+  cursorSecret: string;
+};
+
 /** What the reads step hands the operation's transaction. */
 export type TicketOperationReads =
   | {
@@ -90,7 +103,9 @@ export type TicketOperationReads =
   | { kind: "sync"; issues: ReadonlyMap<number, TicketPrefetch> }
   | { kind: "ticket"; prefetch: TicketPrefetch }
   /** One username looked up on the source's repository (#69). */
-  | { kind: "person"; login: string; role: TicketActorRole };
+  | { kind: "person"; login: string; role: TicketActorRole }
+  /** One page of the source's provider labels (#69). */
+  | { kind: "labels"; page: number; offset: number; answer: TicketLabelPage };
 
 const readsSlot = Symbol("bakery.ticket.operation.reads");
 
@@ -109,6 +124,7 @@ const READING_ACTIONS = Object.freeze(
   new Set<string>([
     "ticketSources.preview",
     "ticketSources.lookupPerson",
+    "ticketSources.labels",
     "ticketSources.sync",
     "ticketReadiness.create",
     "ticketRequests.create",
@@ -121,6 +137,7 @@ export function readsProvider(actionName: string): boolean {
 
 type ReadPlan =
   | { kind: "person"; handle: TicketSourceHandle; login: string }
+  | { kind: "labels"; handle: TicketSourceHandle; page: number; offset: number }
   | {
     kind: "preview";
     handle: TicketSourceHandle;
@@ -163,7 +180,7 @@ async function probe(
   actionName: string,
   context: ActionContext,
   input: unknown,
-  dependencies: TicketOperationDependencies,
+  dependencies: TicketRunnerDependencies,
 ): Promise<ReadPlan> {
   const { transaction, organizationId } = requireWorkTransaction(context);
   const id = context.params.id;
@@ -176,6 +193,23 @@ async function probe(
     }
     const { handle } = await readSourceHandle(transaction, organizationId, id);
     return { kind: "person", handle, login };
+  }
+  if (actionName === "ticketSources.labels") {
+    const { handle } = await readSourceHandle(transaction, organizationId, id);
+    const position = await decodeSequenceCursor(
+      dependencies.cursorSecret,
+      fields.cursor as string | undefined,
+      labelsCursorBinding(context, id),
+    );
+    const at = position === null
+      ? LABEL_CURSOR_PAGE
+      : Number(position.sequence);
+    return {
+      kind: "labels",
+      handle,
+      page: Math.floor(at / LABEL_CURSOR_PAGE),
+      offset: at % LABEL_CURSOR_PAGE,
+    };
   }
   if (actionName === "ticketSources.preview") {
     // A refused filter or draft reads nothing. The handler parses both again
@@ -274,7 +308,11 @@ async function readProvider(
           await prefetchTicketReads(
             reader,
             handle,
-            { number, policy: sourcePolicy, origin: "poll" },
+            {
+              ref: ticketRef(number),
+              policy: sourcePolicy,
+              origin: "poll",
+            },
             signal,
           ),
         ] as const,
@@ -285,6 +323,15 @@ async function readProvider(
     const role = await reader.readActorRole(plan.handle, plan.login, signal);
     if (role.kind === "unavailable") throw dependencyUnavailable(role);
     return { kind: "person", login: plan.login, role };
+  }
+  if (plan.kind === "labels") {
+    const answer = await reader.readLabels(
+      plan.handle,
+      { page: plan.page },
+      signal,
+    );
+    if (answer.kind === "unavailable") throw dependencyUnavailable(answer);
+    return { kind: "labels", page: plan.page, offset: plan.offset, answer };
   }
   if (plan.kind === "sync") {
     return {
@@ -315,7 +362,11 @@ async function readProvider(
     prefetch: await prefetchTicketReads(
       reader,
       plan.handle,
-      { number: plan.number, policy: plan.policy, origin: plan.origin },
+      {
+        ref: ticketRef(plan.number),
+        policy: plan.policy,
+        origin: plan.origin,
+      },
       signal,
     ),
   };
@@ -336,7 +387,7 @@ export function dependencyUnavailable(
 
 export function createTicketOperationRunner(
   authority: ActionAuthorityRunner,
-  dependencies: TicketOperationDependencies,
+  dependencies: TicketRunnerDependencies,
 ): ActionAuthorityRunner["run"] {
   return async (action, context, input, next) => {
     // A read (the person lookup) has no command receipt to replay.
@@ -404,5 +455,59 @@ export function lookupTicketSourcePerson(context: ActionContext): {
     externalUserId: role.userId,
     permission: role.permission,
     canTrigger: role.rank >= ACTOR_ROLE_RANK_ACT,
+  };
+}
+
+/**
+ * A labels cursor position is `page * LABEL_CURSOR_PAGE + offset`: the
+ * provider page and how far into it the last answer reached, so a limit
+ * smaller than the provider's page loses nothing. A provider page holds at
+ * most 100 labels.
+ */
+const LABEL_CURSOR_PAGE = 1000;
+
+/** The labels cursor names a provider page and is bound to the caller and the source. */
+function labelsCursorBinding(
+  context: ActionContext,
+  sourceId: string,
+): CursorBinding {
+  const { organizationId, principalId } = requireWorkTransaction(context);
+  return {
+    action: "ticketSources.labels",
+    principalId,
+    organizationId,
+    ordering: "providerPage:asc",
+    filters: JSON.stringify({ sourceId }),
+    schemaVersion: 1,
+  };
+}
+
+/**
+ * `ticketSources.labels` (#69): one page of the labels the source's provider
+ * holds now, read by the runner before this transaction. The cursor names the
+ * provider's next page. A provider without labels is 422 `labels_unsupported`;
+ * an outage was already 503 in the read step.
+ */
+export function createTicketSourceLabelsHandler(secret: string) {
+  return async (context: ActionContext, input: { limit?: number }) => {
+    const { page, offset, answer } = ticketReads(context, "labels");
+    if (answer.kind !== "present") {
+      throw unprocessable(["id"], "labels_unsupported");
+    }
+    const end = offset + (input.limit ?? 100);
+    // A page cut short by the limit continues inside the same provider page.
+    const next = end < answer.labels.length
+      ? page * LABEL_CURSOR_PAGE + end
+      : answer.hasNext
+      ? (page + 1) * LABEL_CURSOR_PAGE
+      : null;
+    return {
+      items: answer.labels.slice(offset, end),
+      nextCursor: next === null ? null : await encodeSequenceCursor(
+        secret,
+        labelsCursorBinding(context, context.params.id as string),
+        { sequence: String(next) },
+      ),
+    };
   };
 }

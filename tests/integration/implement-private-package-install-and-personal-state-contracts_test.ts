@@ -2333,3 +2333,242 @@ Deno.test("the upgrade read holds the install row lock until the write", () =>
       "the install row must be locked between the read and the UPDATE",
     );
   }));
+
+/** Publishes one more version of a package with the given overrides. */
+async function publishVersionWith(
+  fixture: Fixture,
+  store: ReturnType<typeof memoryStore>,
+  packageId: string,
+  overrides: Record<string, unknown>,
+): Promise<{ versionId: string; versionName: string }> {
+  const bytes = new TextEncoder().encode(`bundle ${crypto.randomUUID()}`);
+  const bundle = await uploadBundle(fixture, store, bytes);
+  const body = versionBody(bundle, overrides);
+  const response = await call(
+    fixture,
+    `/v1/plugin-packages/${packageId}/versions`,
+    { method: "POST", body },
+  );
+  assertEquals(response.status, 201, await response.clone().text());
+  return {
+    versionId: (await response.json()).id,
+    versionName: body.versionName,
+  };
+}
+
+const grantCount = async (fixture: Fixture, installId: string) =>
+  (await fixture.pgDatabase.query<{ n: string }>(
+    `select count(*)::text as n from bakery.plugin_install_grants
+      where organization_id = $1 and plugin_install_id = $2`,
+    [fixture.organizationId, installId],
+  )).rows[0].n;
+
+Deno.test("an update that does not start is remembered, and the install keeps running", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    assertEquals(install.lastUpdateFailure ?? null, null);
+    const grantsBefore = await grantCount(fixture, install.id);
+
+    // A version the host cannot run: the SDK range asks for a major it lacks.
+    const tooNew = await publishVersionWith(
+      fixture,
+      store,
+      published.packageId,
+      { sdkRange: "^99.0.0", manifest: VALID_MANIFEST },
+    );
+    const refused = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId },
+    });
+    // Answered as the install, not as an error: an error would roll the record back.
+    assertEquals(refused.status, 200, await refused.clone().text());
+    const after = await refused.json();
+    assertEquals(after.pluginVersionId, published.versionId);
+    assertEquals(after.status, "enabled");
+    assertEquals(after.lastUpdateFailure.versionId, tooNew.versionId);
+    assertEquals(after.lastUpdateFailure.versionName, tooNew.versionName);
+    assertEquals(after.lastUpdateFailure.reason, "plugin_sdk_incompatible");
+    assert(!Number.isNaN(Date.parse(after.lastUpdateFailure.at)));
+    assertEquals(await grantCount(fixture, install.id), grantsBefore);
+
+    // It is still there when the install is read again, and in the list.
+    const read =
+      await (await call(fixture, `/v1/plugin-installs/${install.id}`, {
+        method: "GET",
+      })).json();
+    assertEquals(read.lastUpdateFailure, after.lastUpdateFailure);
+    const listed = await (await call(fixture, "/v1/plugin-installs", {
+      method: "GET",
+    })).json();
+    assertEquals(
+      listed.items.find((item: { id: string }) => item.id === install.id)
+        .lastUpdateFailure,
+      after.lastUpdateFailure,
+    );
+
+    // A newer refusal replaces the older one: a manifest that asks for a
+    // capability the host does not give.
+    const badManifest = await publishVersionWith(
+      fixture,
+      store,
+      published.packageId,
+      {
+        manifest: { ...VALID_MANIFEST, requestedCapabilities: ["root.shell"] },
+      },
+    );
+    const second =
+      await (await call(fixture, `/v1/plugin-installs/${install.id}`, {
+        method: "PATCH",
+        body: { versionId: badManifest.versionId },
+      })).json();
+    assertEquals(second.lastUpdateFailure.versionId, badManifest.versionId);
+    assert(second.lastUpdateFailure.reason.startsWith("plugin_manifest_"));
+    assertEquals(second.pluginVersionId, published.versionId);
+
+    // A successful update clears it.
+    const good = await publishSecondVersion(fixture, store, published);
+    const updated = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: good.versionId },
+    });
+    assertEquals(updated.status, 200, await updated.clone().text());
+    const done = await updated.json();
+    assertEquals(done.pluginVersionId, good.versionId);
+    assertEquals(done.lastUpdateFailure ?? null, null);
+  }));
+
+Deno.test("a person can dismiss a remembered failure, and only one who may change the install", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    const tooNew = await publishVersionWith(
+      fixture,
+      store,
+      published.packageId,
+      { sdkRange: "^99.0.0", manifest: VALID_MANIFEST },
+    );
+    await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId },
+    });
+
+    // A Developer cannot change an organization install, so cannot clear this.
+    const developer = asCookie(
+      fixture,
+      await inviteColleague(fixture, "developer"),
+    );
+    const refused = await developer(`/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { dismissUpdateFailure: true },
+    });
+    assertEquals(refused.status, 403, await refused.clone().text());
+    const kept =
+      await (await call(fixture, `/v1/plugin-installs/${install.id}`, {
+        method: "GET",
+      })).json();
+    assertEquals(kept.lastUpdateFailure.versionId, tooNew.versionId);
+
+    // An administrator can: only the note goes, nothing else changes.
+    const dismissed = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { dismissUpdateFailure: true },
+    });
+    assertEquals(dismissed.status, 200, await dismissed.clone().text());
+    const body = await dismissed.json();
+    assertEquals(body.lastUpdateFailure ?? null, null);
+    assertEquals(body.pluginVersionId, published.versionId);
+    assertEquals(body.status, "enabled");
+  }));
+
+Deno.test("a refused update in the same request as a disable still disables and revokes", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    assert(Number(await grantCount(fixture, install.id)) > 0);
+    const tooNew = await publishVersionWith(
+      fixture,
+      store,
+      published.packageId,
+      { sdkRange: "^99.0.0", manifest: VALID_MANIFEST },
+    );
+
+    // The version is refused and noted, and the status in the same request is
+    // still applied: authority stops with the lifecycle change (AC3).
+    const response = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId, status: "disabled" },
+    });
+    assertEquals(response.status, 200, await response.clone().text());
+    const body = await response.json();
+    assertEquals(body.status, "disabled");
+    assertEquals(body.pluginVersionId, published.versionId);
+    assertEquals(body.lastUpdateFailure.versionId, tooNew.versionId);
+    assertEquals(body.lastUpdateFailure.reason, "plugin_sdk_incompatible");
+    assertEquals(await grantCount(fixture, install.id), "0");
+
+    // A dismissal beside a new refusal does not hide the refusal.
+    const both = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId, dismissUpdateFailure: true },
+    });
+    assertEquals(both.status, 200, await both.clone().text());
+    const kept = await both.json();
+    assertEquals(kept.lastUpdateFailure.reason, "plugin_sdk_incompatible");
+    assertEquals(kept.status, "disabled");
+  }));
+
+Deno.test("a removed install does not remember an update, and a draft version is still not found", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    const tooNew = await publishVersionWith(
+      fixture,
+      store,
+      published.packageId,
+      { sdkRange: "^99.0.0", manifest: VALID_MANIFEST },
+    );
+    await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { status: "uninstalled" },
+    });
+    const refused = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { versionId: tooNew.versionId },
+    });
+    assertEquals(refused.status, 409, await refused.clone().text());
+    const row = await fixture.pgDatabase.query<{ f: unknown }>(
+      `select last_update_failure as f from bakery.plugin_installs
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, install.id],
+    );
+    assertEquals(row.rows[0].f, null);
+  }));

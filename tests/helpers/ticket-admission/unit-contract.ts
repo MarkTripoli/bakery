@@ -1,3 +1,5 @@
+import { issueNumberFromRef } from "../../../apps/server/src/modules/integrations/ticket-reads.ts";
+import { ticketRef } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 import { assert, assertEquals, assertFalse } from "@std/assert";
 import { z } from "zod";
 import {
@@ -772,11 +774,12 @@ Deno.test("issue 82 contract: the reader port types accept every documented answ
     readActorRole: () => Promise.resolve({ kind: "absent" }),
     listIssues: () =>
       Promise.resolve({ kind: "present", numbers: [], hasNext: false }),
+    readLabels: () => Promise.resolve({ kind: "unsupported" }),
   };
   const signal = new AbortController().signal;
-  const issue = await reader.readIssue(handle, 1, signal);
+  const issue = await reader.readIssue(handle, ticketRef(1), signal);
   assertEquals(issue.kind, "gone");
-  const links = await reader.readLinks(handle, 1, signal);
+  const links = await reader.readLinks(handle, ticketRef(1), signal);
   assertEquals(links.kind, "unavailable");
   const index: TicketFactIndex = {
     listIssueNumbers: () => Promise.resolve([]),
@@ -890,4 +893,40 @@ Deno.test("issue 82 contract: authority evidence names the principal and, for au
       JSON.stringify(bad),
     );
   }
+});
+
+/**
+ * The key parse, on its own, with the cases a reader-level test cannot name.
+ *
+ * `readIssue` refuses an unaddressable key by answering `unavailable`, which is
+ * what a caller sees — but the parse has three independent guards, and a mutant
+ * that drops one of them still fails closed when the *lookup* finds nothing. So
+ * each guard gets a key that only it rejects:
+ *
+ * - `"0"` and `"-1"` are integers `Number.isSafeInteger` accepts, and `String()`
+ *   round-trips them exactly; only `parsed > 0` rejects them.
+ * - `"2.5"` and `""` fail the integer guard; `" 1"` and `"1.0"` fail the exact
+ *   round-trip. Those are covered through the reader, and again here so the parse
+ *   is pinned as a unit rather than only through a lookup that also fails closed.
+ */
+Deno.test("issue 82 key parse: a non-positive ordinal is refused, not turned into a ticket", () => {
+  for (const key of ["0", "-1", "-5", "-0"]) {
+    assertEquals(
+      issueNumberFromRef(ticketRef(key)),
+      null,
+      `${JSON.stringify(key)} is not an ordinal any repository addresses`,
+    );
+  }
+  // The same function still reads a real ordinal, so the guard is about the value
+  // rather than about parsing at all.
+  assertEquals(issueNumberFromRef(ticketRef("1")), 1);
+  assertEquals(issueNumberFromRef(ticketRef("42")), 42);
+});
+
+Deno.test("issue 82 key parse: the id the caller supplied does not change the parse", () => {
+  // The parse answers "which ordinal does this key name"; whether that ordinal is
+  // the ticket the caller meant is `readIssue`'s check, against the id. Keeping
+  // the two apart is what lets the parse stay a pure function of the key.
+  assertEquals(issueNumberFromRef(ticketRef("7", "999")), 7);
+  assertEquals(issueNumberFromRef(ticketRef("0", "999")), null);
 });

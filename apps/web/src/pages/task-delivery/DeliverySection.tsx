@@ -7,6 +7,7 @@ import {
   approvalsQueryOptions,
   artifactsListQueryOptions,
   artifactVersionsQueryOptions,
+  mergeAttemptsQueryOptions,
   pullRequestsQueryOptions,
   reviewFindingsQueryOptions,
   runChecksQueryOptions,
@@ -17,7 +18,13 @@ import {
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { protectedQueryKey } from "../../app/query-scope.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { approvalsForRun, type DeliveryModel, deliveryModel } from "./model.ts";
+import {
+  approvalsForRun,
+  choosePullRequest,
+  type DeliveryModel,
+  deliveryModel,
+} from "./model.ts";
+import { useMerge } from "./use-merge.ts";
 import { useApprovalDecision } from "./use-approval-decision.ts";
 import {
   DeliverySectionView,
@@ -167,6 +174,16 @@ export function DeliverySection(
     refetchInterval: 5000,
   });
 
+  // The chosen pull request's merge attempts, newest first. Like the pull
+  // requests read it never blocks the section: without it nothing about merging
+  // is offered, and an unknown outcome is only ever read from here.
+  const chosen = choosePullRequest(pullRequests.data?.items ?? [], runId);
+  const mergeAttempts = useQuery({
+    ...mergeAttemptsQueryOptions(api, scope, chosen?.id ?? ""),
+    enabled: enabled && chosen !== undefined && chosen.status === "open",
+    refetchInterval: 5000,
+  });
+
   const reads = [checks, reviews, decisions];
   const failed = [...reads, findings].find((read) => read.isError);
   const state: DeliveryViewState = failed !== undefined
@@ -185,6 +202,12 @@ export function DeliverySection(
       decisions: decisions.data?.items ?? [],
       approvals: approvalsForRun(approvals.data?.items ?? [], runId),
       pullRequests: pullRequests.data?.items ?? [],
+      // A pull request whose attempts could not be read offers no merge: an
+      // unknown outcome might be hidden there.
+      mergeAttempts: mergeAttempts.isError ? [] : mergeAttempts.data?.items ??
+        [],
+      mergeUnavailable: chosen !== undefined && chosen.status === "open" &&
+        mergeAttempts.isError,
       // A refusal means this person cannot see approvals, so none is shown;
       // any other failure means one may be waiting that could not be read.
       approvalsUnavailable: approvals.isError && !forbidden(approvals.error),
@@ -196,6 +219,10 @@ export function DeliverySection(
   const refreshDecision = useCallback(async () => {
     await Promise.all([approvals.refetch(), decisions.refetch()]);
   }, [approvals.refetch, decisions.refetch]);
+  const refreshMerge = useCallback(async () => {
+    await Promise.all([pullRequests.refetch(), mergeAttempts.refetch()]);
+  }, [pullRequests.refetch, mergeAttempts.refetch]);
+  const mergeAction = useMerge(refreshMerge);
   const decision = useApprovalDecision(
     model?.approval ?? null,
     refreshDecision,
@@ -219,7 +246,11 @@ export function DeliverySection(
       decisionPhase={decision.phase}
       model={model}
       offline={offline}
+      mergePhase={mergeAction.phase}
+      onCheckAgain={mergeAction.checkAgain}
+      onClearMerge={mergeAction.clear}
       onDecide={decision.decide}
+      onMerge={mergeAction.merge}
       onOpenRules={onOpenRules}
       onRetryApprovals={() => void approvals.refetch()}
       onRetry={() => {
@@ -231,6 +262,7 @@ export function DeliverySection(
             findings,
             approvals,
             pullRequests,
+            mergeAttempts,
           ]
         ) {
           if (read.isError) void read.refetch();

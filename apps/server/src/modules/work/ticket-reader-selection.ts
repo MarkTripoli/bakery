@@ -4,9 +4,11 @@ import type {
   TicketActorRole,
   TicketIssueListPage,
   TicketIssueRead,
+  TicketLabelPage,
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
+  TicketRef,
   TicketSourceHandle,
   TicketSourceReader,
   TicketStatusRead,
@@ -54,23 +56,23 @@ export function selectTicketSourceReader(
   return {
     readIssue(
       handle: TicketSourceHandle,
-      number: number,
+      ref: TicketRef,
       signal: AbortSignal,
     ): Promise<TicketIssueRead> {
       const reader = readerFor(handle);
       return reader === null
         ? Promise.resolve(noReader)
-        : reader.readIssue(handle, number, signal);
+        : reader.readIssue(handle, ref, signal);
     },
     readLinks(
       handle: TicketSourceHandle,
-      number: number,
+      ref: TicketRef,
       signal: AbortSignal,
     ): Promise<TicketLinksRead> {
       const reader = readerFor(handle);
       return reader === null
         ? Promise.resolve(noReader)
-        : reader.readLinks(handle, number, signal);
+        : reader.readLinks(handle, ref, signal);
     },
     readPredecessorProof(
       handle: TicketSourceHandle,
@@ -84,14 +86,14 @@ export function selectTicketSourceReader(
     },
     readLabelProvenance(
       handle: TicketSourceHandle,
-      number: number,
+      ref: TicketRef,
       label: string,
       signal: AbortSignal,
     ): Promise<TicketLabelProvenance> {
       const reader = readerFor(handle);
       return reader === null
         ? Promise.resolve(noReader)
-        : reader.readLabelProvenance(handle, number, label, signal);
+        : reader.readLabelProvenance(handle, ref, label, signal);
     },
     readActorRole(
       handle: TicketSourceHandle,
@@ -105,14 +107,14 @@ export function selectTicketSourceReader(
     },
     readStatuses(
       handle: TicketSourceHandle,
-      number: number,
+      ref: TicketRef,
       signal: AbortSignal,
       issue?: Parameters<TicketSourceReader["readStatuses"]>[3],
     ): Promise<TicketStatusRead> {
       const reader = readerFor(handle);
       return reader === null
         ? Promise.resolve(noReader)
-        : reader.readStatuses(handle, number, signal, issue);
+        : reader.readStatuses(handle, ref, signal, issue);
     },
     listIssues(
       handle: TicketSourceHandle,
@@ -123,6 +125,16 @@ export function selectTicketSourceReader(
       return reader === null
         ? Promise.resolve(noReader)
         : reader.listIssues(handle, request, signal);
+    },
+    readLabels(
+      handle: TicketSourceHandle,
+      request: { page: number },
+      signal: AbortSignal,
+    ): Promise<TicketLabelPage> {
+      const reader = readerFor(handle);
+      return reader === null
+        ? Promise.resolve(noReader)
+        : reader.readLabels(handle, request, signal);
     },
   };
 }
