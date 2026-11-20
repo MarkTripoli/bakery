@@ -12,6 +12,7 @@ import {
 } from "./merge-dispatch.ts";
 import type { MergeDispatchResult } from "./merge-dispatch.ts";
 import { assertCandidateEvidence } from "./merge-entries.ts";
+import { PULL_REQUEST_MERGE_METHOD } from "./postgres.ts";
 import type { MergeRefusalReason } from "./merge-candidate.ts";
 
 /**
@@ -30,9 +31,6 @@ import type { MergeRefusalReason } from "./merge-candidate.ts";
 
 export const MERGE_QUEUE_FUNCTION_ID = "bakery-merge-queue";
 const MERGE_QUEUED_EVENT = INNGEST_EVENT_DEFINITIONS["merge.queued"].name;
-
-/** The merge method the queue uses until a repository can name its own. */
-const QUEUE_MERGE_METHOD = "squash";
 
 /** Why an entry was blocked: the dispatch refusals plus the queue's own. */
 export type BlockedReason =
@@ -215,7 +213,7 @@ export async function processMergeEntry(
     }, {
       expectedHeadSha: entry.expectedHeadSha,
       expectedBaseSha: entry.expectedBaseSha,
-      mergeMethod: QUEUE_MERGE_METHOD,
+      mergeMethod: PULL_REQUEST_MERGE_METHOD,
     });
     const outcome = entryOutcome(result);
     await setEntry(
