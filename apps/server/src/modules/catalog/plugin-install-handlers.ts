@@ -4,6 +4,7 @@ import {
   getPluginInstall,
   listPluginInstalls,
   listPluginState,
+  listPluginStateItems,
   putPluginState,
   updatePluginInstall,
 } from "./plugin-install-postgres.ts";
@@ -27,6 +28,8 @@ export function createPluginInstallHandlers(
       updatePluginInstall(context, input, installId(context)),
     getState: (context, input) =>
       listPluginState(context, input, installId(context), cursorSecret),
+    getStateItems: (context, input) =>
+      listPluginStateItems(context, input, installId(context), cursorSecret),
     putState: (context, input) =>
       putPluginState(context, input, installId(context)),
   };

@@ -30,6 +30,7 @@ import {
 } from "../auth/application/identity.ts";
 import { authorize } from "../auth/application/authorize.ts";
 import { readSessionToken } from "../auth/middleware.ts";
+import { desktopSocketUpgrade } from "../auth/domain/desktop-sign-in.ts";
 import type { SessionStore } from "../auth/adapters/postgres.ts";
 import {
   resolveSessionAssurance,
@@ -738,7 +739,11 @@ export function createEventsSocketHandler(
     try {
       let sessionToken: string | null;
       try {
-        sessionToken = await readSessionToken(request.headers, options.secret);
+        sessionToken = await readSessionToken(
+          request.headers,
+          options.secret,
+          new URL(request.url).pathname,
+        );
       } catch (cause) {
         throw new StandardError({ code: "AUTH_INVALID", cause });
       }
@@ -780,6 +785,7 @@ export function createEventsSocketHandler(
       try {
         upgraded = upgradeWebSocket(request, {
           idleTimeout: limits.idleTimeoutSeconds,
+          ...desktopSocketUpgrade(request.headers),
         });
       } catch (cause) {
         throw cause instanceof TypeError
