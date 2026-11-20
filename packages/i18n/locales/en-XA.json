@@ -5022,6 +5022,7 @@
   "files.search.by.unknown": "⟦Ûñķñôŵñ àççôûñŧ ŧëš⟧",
   "files.search.by.disabled": "⟦{name} (ïñàçŧïṽë) ŧëš⟧",
   "settings.roles.thing.backup": "⟦ƀàçķûþš…⟧",
+  "settings.roles.thing.batch": "⟦ƀàŧçĥëš ôƒ ïššûëš ŧëš⟧",
   "installation.usage.title": "⟦Ûšàĝë⟧",
   "installation.usage.description": "⟦Ŵĥàŧ àĝëñŧš ôñ ŧĥïš ïñšŧàļļàŧïôñ ûšëð, ƒŕôɱ ŧĥë ŕëçôŕðš Ɓàķëŕÿ ķëëþš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "installation.usage.period": "⟦Þëŕïôð…⟧",
@@ -5047,6 +5048,7 @@
   "installation.usage.unknownCount.detail": "⟦Ñô çôšŧ ŵàš ŕëþôŕŧëð. Ûñķñôŵñ ïš ñôŧ žëŕô. ŧëšŧ çôþÿ ŧë⟧",
   "installation.usage.unknownCount.help": "⟦Ŧĥëšë ŕëçôŕðš ĥàṽë ñô çôšŧ àŧ àļļ. Ŧĥëÿ àŕë ñëṽëŕ çôûñŧëð àš žëŕô, ŵĥïçĥ ŵôûļð ɱàķë ŧĥë ŧôŧàļ ļôôķ ļôŵëŕ ŧĥàñ ïŧ ïš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "installation.usage.none": "⟦Ñôñë⟧",
+  "installation.usage.lessThanCent": "⟦Ļëšš ŧĥàñ {amount} ŧëšŧ⟧",
   "installation.usage.budgets.scope.installation": "⟦Ïñšŧàļļàŧïôñ ŧë⟧",
   "installation.usage.budgets.scope.run": "⟦Ŕûñ⟧",
   "installation.usage.records.one": "⟦{count} ŕëçôŕð ŧë⟧",
@@ -5199,6 +5201,5 @@
   "delivery.time.unaccounted.name": "⟦Ñôŧ àççôûñŧëð ƒôŕ: ŧëšŧ⟧",
   "delivery.time.unaccounted.text": "⟦ŧïɱë Ɓàķëŕÿ ĥàš ñô ŕëçôŕð ƒôŕ, ïñçļûðïñĝ àñÿ ŧïɱë ƀļôçķëð. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "delivery.time.blockedUnknown.name": "⟦Ɓļôçķëð: Ûñķñôŵñ. ŧëš⟧",
-  "delivery.time.blockedUnknown.text": "⟦Ɓàķëŕÿ ðôëš ñôŧ ŕëçôŕð ŵĥëñ à ŧàšķ ŵàš ƀļôçķëð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "installation.usage.lessThanCent": "⟦Ļëšš ŧĥàñ {amount} ŧëšŧ⟧"
+  "delivery.time.blockedUnknown.text": "⟦Ɓàķëŕÿ ðôëš ñôŧ ŕëçôŕð ŵĥëñ à ŧàšķ ŵàš ƀļôçķëð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

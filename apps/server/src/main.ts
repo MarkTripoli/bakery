@@ -23,6 +23,7 @@ import {
 import { createDestinationLoader } from "./modules/monitoring/destination-loader.ts";
 import {
   createDestinationFanout,
+  createPinnedFetch,
   createProviderRegistry,
   createPublicHttpsPolicy,
   otlpProvider,
@@ -203,7 +204,7 @@ async function runServer(config: RuntimeConfig): Promise<void> {
   // fills it from the database and keeps it current.
   const telemetryRegistry = createProviderRegistry([otlpProvider]);
   const telemetryDeliveryDependencies = {
-    fetch,
+    fetch: createPinnedFetch(),
     addressPolicy: createPublicHttpsPolicy(),
   };
   const destinationFanout = createDestinationFanout({

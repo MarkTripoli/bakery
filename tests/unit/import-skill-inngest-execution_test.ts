@@ -59,7 +59,7 @@ Deno.test("default Inngest registration keeps workflow and budget recovery handl
     skillImport: { sourceAdapter, skillFileStore },
   });
 
-  assertEquals(functions.length, 14);
+  assertEquals(functions.length, 15);
   assertEquals(captured.map(({ config }) => config.id), [
     "bakery-fixed-workflow",
     "bakery-workflow-recovery",
@@ -75,6 +75,7 @@ Deno.test("default Inngest registration keeps workflow and budget recovery handl
     "bakery-automation-promote",
     "bakery-automation-intake",
     "bakery-dependency-release",
+    "batch-supervisor",
   ]);
   assertEquals(captured[5].config.triggers, [{ cron: "* * * * *" }]);
   // The provider route probe: every minute, one run at a time.
