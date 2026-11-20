@@ -39,6 +39,7 @@ import {
   createTicketPollWorkflow,
 } from "../work/ticket-workflows.ts";
 import { createBatchSupervisorWorkflow } from "../work/batch-tick.ts";
+import { createBatchCancelPort } from "../work/batch-cancel-port.ts";
 import { createBatchStartPort } from "../work/batch-start-port.ts";
 import { selectTicketSourceReader } from "../work/ticket-reader-selection.ts";
 import { GITHUB_PROVIDER } from "../integrations/registry.ts";
@@ -250,25 +251,29 @@ export function createDefaultInngestFunctions(options: {
     createBatchSupervisorWorkflow({
       client: options.client,
       database: options.database,
-      ports: options.integrations
-        ? {
-          startNext: createBatchStartPort({
-            database: options.database,
-            reader: selectTicketSourceReader(
-              new Map([
-                [
-                  GITHUB_PROVIDER,
-                  createTicketSourceReader({
-                    database: options.database,
-                    ...options.integrations,
-                  }),
-                ],
-              ]),
-            ),
-            budget: options.budget,
-          }),
-        }
-        : {},
+      ports: {
+        // A cancel needs no provider, so it is always wired.
+        cancelRun: createBatchCancelPort({ database: options.database }),
+        ...(options.integrations
+          ? {
+            startNext: createBatchStartPort({
+              database: options.database,
+              reader: selectTicketSourceReader(
+                new Map([
+                  [
+                    GITHUB_PROVIDER,
+                    createTicketSourceReader({
+                      database: options.database,
+                      ...options.integrations,
+                    }),
+                  ],
+                ]),
+              ),
+              budget: options.budget,
+            }),
+          }
+          : {}),
+      },
     }),
   ];
 }

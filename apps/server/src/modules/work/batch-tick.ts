@@ -215,7 +215,9 @@ async function apply(
         ticketRequestId: issue.ticketRequestId,
         startedBy: batch.startedBy,
       });
-      break;
+      // The run control audits the cancel itself, and this repeats each tick until the
+      // run ends, so the supervisor adds no row of its own here.
+      return;
     }
     case "start_next": {
       if (!ports.startNext) {
