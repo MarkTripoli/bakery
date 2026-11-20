@@ -22,6 +22,8 @@ async function bearerFetch(origin, credential) {
 }
 
 async function connect() {
+  // Both the load-time check and the signed-in event may ask: one socket at a time.
+  if (socket && socket.readyState <= 1) return;
   const credential = await invoke("socket_credential");
   const origin = await invoke("server_origin");
   if (!credential) {
@@ -98,3 +100,6 @@ listen("signed-in", () => {
   log("signed in");
   connect();
 });
+// The app may have signed in before this page registered the listener above (a restart restores
+// the credential in milliseconds), so ask once on load instead of relying on the push alone.
+connect();
