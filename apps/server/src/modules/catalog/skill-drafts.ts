@@ -5,10 +5,6 @@ import { requireCommandMetadata, StandardError } from "@bakery/contracts/http";
 import { appendAudit } from "@bakery/persistence";
 import type { z } from "zod";
 import type { PgTransactionClient } from "../../platform/database.ts";
-import {
-  POSTGRES_UNIQUE_VIOLATION,
-  postgresErrorCode,
-} from "../../platform/postgres-errors.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
@@ -21,6 +17,7 @@ import {
   decodeSkillFileBase64,
   isSkillExecutableMedia,
   isSkillMediaType,
+  type LocalSkillVersionInput,
   normalizeSkillFilePath,
   skillFileIdentity,
   skillFileSha256,
@@ -165,7 +162,7 @@ async function project(facts: Facts, row: DraftRow): Promise<Draft> {
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-  } as Draft;
+  };
 }
 
 async function requireDraft(
@@ -277,59 +274,68 @@ export async function openSkillDraft(
       )).rows;
     }
   }
-  if (baseFiles.length > 0 && store === undefined) {
-    throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+  // Reading the active version's files needs the file store; with none to copy,
+  // it is not needed.
+  let fileStore: SkillFileStoreOperations | undefined;
+  if (baseFiles.length > 0) {
+    if (store === undefined) {
+      throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+    }
+    fileStore = store;
   }
   const { files: _files, entryPath: _entry, license, ...extra } = base
     ?.manifest ?? {};
   const draftId = crypto.randomUUID();
-  try {
-    await facts.transaction.query(
-      `insert into bakery.skill_drafts (
-         id, organization_id, skill_id, base_version_id, entry_path, license,
-         manifest_extra, created_by, updated_by
-       ) values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $8)`,
-      [
-        draftId,
-        facts.organizationId,
-        facts.skillId,
-        base?.id ?? null,
-        base?.entry_path ?? "SKILL.md",
-        typeof license === "string" ? license : null,
-        JSON.stringify(extra),
-        facts.principalId,
-      ],
-    );
-  } catch (error) {
-    // Two requests opened it at once: the other one's draft is the draft.
-    if (postgresErrorCode(error) === POSTGRES_UNIQUE_VIOLATION) {
-      return await project(facts, await requireDraft(facts));
-    }
-    throw error;
+  // Two requests may open it at once. A unique violation would abort this
+  // transaction, so the insert says what to do instead: when the other
+  // request's draft is there (or appears as it commits), nothing is inserted
+  // and that draft is the draft.
+  const inserted = await facts.transaction.query<{ id: string }>(
+    `insert into bakery.skill_drafts (
+       id, organization_id, skill_id, base_version_id, entry_path, license,
+       manifest_extra, created_by, updated_by
+     ) values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $8)
+     on conflict (organization_id, skill_id) do nothing
+     returning id`,
+    [
+      draftId,
+      facts.organizationId,
+      facts.skillId,
+      base?.id ?? null,
+      base?.entry_path ?? "SKILL.md",
+      typeof license === "string" ? license : null,
+      JSON.stringify(extra),
+      facts.principalId,
+    ],
+  );
+  if (inserted.rows.length === 0) {
+    return await project(facts, await requireDraft(facts));
   }
-  for (const file of baseFiles) {
-    const content = await store!.read(
-      file.object_key,
-      file.sha256,
-      file.size_bytes,
-    );
-    await facts.transaction.query(
-      `insert into bakery.skill_draft_files (
-         id, organization_id, draft_id, path, media_type, is_executable,
-         content, size_bytes, sha256
-       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [
-        crypto.randomUUID(),
-        facts.organizationId,
-        draftId,
-        file.path,
-        file.media_type,
-        file.is_executable,
-        Buffer.from(content),
-        file.size_bytes,
+  if (fileStore !== undefined) {
+    for (const file of baseFiles) {
+      const content = await fileStore.read(
+        file.object_key,
         file.sha256,
-      ],
-    );
+        file.size_bytes,
+      );
+      await facts.transaction.query(
+        `insert into bakery.skill_draft_files (
+           id, organization_id, draft_id, path, media_type, is_executable,
+           content, size_bytes, sha256
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          crypto.randomUUID(),
+          facts.organizationId,
+          draftId,
+          file.path,
+          file.media_type,
+          file.is_executable,
+          Buffer.from(content),
+          file.size_bytes,
+          file.sha256,
+        ],
+      );
+    }
   }
   await appendAudit(facts.transaction, {
     organizationId: facts.organizationId,
@@ -541,7 +547,7 @@ export async function getSkillDraftFile(
     sizeBytes: file.size_bytes,
     sha256: file.sha256,
     contentBase64: Buffer.from(file.content).toString("base64"),
-  } as DraftFile;
+  };
 }
 
 /** skillDraftFiles.delete */
@@ -588,7 +594,14 @@ export function relativeLinks(
       ) {
         continue;
       }
-      const target = decodeURI(raw.split("#")[0].split("?")[0]);
+      const path = raw.split("#")[0].split("?")[0];
+      // A stray % (`50%off.md`) is not an escape; the link is read as written.
+      let target = path;
+      try {
+        target = decodeURI(path);
+      } catch (error) {
+        if (!(error instanceof URIError)) throw error;
+      }
       if (target !== "") found.push({ target, line: index + 1 });
     }
   });
@@ -624,7 +637,7 @@ export async function checkSkillDraft(
       problems.push({ file, line, code, message });
     }
   };
-  const upload = {
+  const upload: LocalSkillVersionInput = {
     id: facts.skillId,
     revision: 1,
     digest: "",
@@ -650,7 +663,7 @@ export async function checkSkillDraft(
     })),
   };
   try {
-    await validateLocalSkillVersion(upload as never, { computeDigest: true });
+    await validateLocalSkillVersion(upload, { computeDigest: true });
   } catch (error) {
     if (!(error instanceof SkillUploadInvalid)) throw error;
     for (const issue of skillUploadIssues(error)) {
@@ -684,9 +697,10 @@ export async function checkSkillDraft(
       }
     }
   }
-  return {
+  const check: DraftCheck = {
     ok: problems.length === 0,
     problems,
     draftVersion: row.version,
-  } as DraftCheck;
+  };
+  return check;
 }

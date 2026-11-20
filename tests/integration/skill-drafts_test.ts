@@ -449,3 +449,85 @@ Deno.test("a draft refuses a save past its file count or its size", async () => 
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test("two people opening a draft at the same moment both get the one draft", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-74-race-" });
+  const f = await openPersonalSkillFixture({ skillFileRoot: root });
+  try {
+    const owner = api(f, f.ownerCookie);
+    const created = await f.post(f.ownerCookie, "/v1/skills", {
+      slug: "race",
+      name: "Race",
+    }, "skill-race");
+    assertEquals(created.status, 201, await created.clone().text());
+    const skill = await created.json() as { id: string };
+    const draftPath = `/v1/skills/${skill.id}/draft`;
+    const opened = await Promise.all(
+      Array.from({ length: 6 }, () => owner.call("POST", draftPath)),
+    );
+    const bodies = await Promise.all(opened.map(async (response) => ({
+      status: response.status,
+      text: await response.text(),
+    })));
+    assertEquals(
+      bodies.map((body) => body.status),
+      [200, 200, 200, 200, 200, 200],
+      bodies.find((body) => body.status !== 200)?.text,
+    );
+    const ids = new Set(
+      bodies.map((body) => (JSON.parse(body.text) as Draft).id),
+    );
+    assertEquals(ids.size, 1, "every request got the same draft");
+    const rows = await f.fixture.pgDatabase.query<{ count: string }>(
+      "select count(*)::text as count from bakery.skill_drafts where skill_id = $1",
+      [skill.id],
+    );
+    assertEquals(rows.rows[0].count, "1");
+    // Only the request that made the draft is audited as opening it.
+    const audits = await f.fixture.pgDatabase.query<{ count: string }>(
+      "select count(*)::text as count from bakery.audit_events where operation = 'skillDrafts.open' and resource_id = $1",
+      [[...ids][0]],
+    );
+    assertEquals(audits.rows[0].count, "1");
+  } finally {
+    await f.close();
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("a stray percent sign in a link is a problem the check reports, not a server error", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-74-percent-" });
+  const f = await openPersonalSkillFixture({ skillFileRoot: root });
+  try {
+    const owner = api(f, f.ownerCookie);
+    const created = await f.post(f.ownerCookie, "/v1/skills", {
+      slug: "percent",
+      name: "Percent",
+    }, "skill-percent");
+    assertEquals(created.status, 201, await created.clone().text());
+    const skill = await created.json() as { id: string };
+    const draftPath = `/v1/skills/${skill.id}/draft`;
+    const opened = await owner.call("POST", draftPath);
+    const draft = await opened.json() as Draft;
+    const saved = await owner.call("POST", `${draftPath}/files`, {
+      version: draft.version,
+      body: {
+        path: "SKILL.md",
+        mediaType: "text/markdown",
+        contentBase64: b64("# Percent\n\nSee [the offer](50%off.md).\n"),
+      },
+    });
+    assertEquals(saved.status, 200, await saved.clone().text());
+    const checked = await owner.call("POST", `${draftPath}/check`);
+    assertEquals(checked.status, 200, await checked.clone().text());
+    const check = await checked.json() as Check;
+    assertEquals(
+      check.problems.map(({ file, line, code }) => ({ file, line, code })),
+      [{ file: "SKILL.md", line: 3, code: "referenced_file_missing" }],
+    );
+    assert(check.problems[0].message.includes("50%off.md"));
+  } finally {
+    await f.close();
+    await Deno.remove(root, { recursive: true });
+  }
+});
