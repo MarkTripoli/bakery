@@ -11393,41 +11393,6 @@ const transportSchemas = {
       ],
       "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     },
-    "AgentFileGrantCreate": {
-      "fields": [
-        {
-          "name": "workflowId",
-          "type": "uuid",
-          "required": true,
-          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
-        },
-        {
-          "name": "folderId",
-          "type": "uuid",
-          "required": true,
-          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
-        },
-        {
-          "name": "access",
-          "type": "enum(read|write)",
-          "required": true,
-          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
-        },
-        {
-          "name": "expiresAt",
-          "type": "timestamp",
-          "required": true,
-          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
-        }
-      ],
-      "rules": [
-        "A person with a browser session only; an agent is refused with AUTH_FORBIDDEN reason agent_file_grant_requires_person, so an agent never widens its own file scope (O52).",
-        "An unknown or foreign workflow, or a folder that is missing, trashed, foreign or another member's personal folder, answers RESOURCE_NOT_FOUND.",
-        "A folder in the library, a record area, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with the reason the agent would get; an expiry in the past or more than 30 days ahead is 422.",
-        "A grant adds scope, never authority: an agent's write still needs the person it acts for to be able to write the folder themselves."
-      ],
-      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
-    },
     "AgentPowerGrantCreate": {
       "fields": [
         {
@@ -11501,93 +11466,6 @@ const transportSchemas = {
         }
       ],
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
-    },
-    "PasswordResetLinkCreate": {
-      "fields": [
-        {
-          "name": "principalId",
-          "type": "uuid",
-          "required": true,
-          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
-        }
-      ],
-      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
-    },
-    "PasswordResetRedemption": {
-      "fields": [
-        {
-          "name": "token",
-          "type": "secretString",
-          "required": true,
-          "bounds": {
-            "maxLength": 256
-          },
-          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
-        },
-        {
-          "name": "newPassword",
-          "type": "secretString",
-          "required": true,
-          "bounds": {
-            "maxLength": 1024
-          },
-          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
-        }
-      ],
-      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
-    },
-    "McpToolClassificationPut": {
-      "fields": [
-        {
-          "name": "effectClass",
-          "type": "enum",
-          "required": true,
-          "enum": [
-            "read",
-            "write_idempotent",
-            "write_reconcilable",
-            "write_opaque"
-          ],
-          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
-        },
-        {
-          "name": "effectKeyArgument",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "bounds": {
-            "maxLength": 128
-          },
-          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
-        },
-        {
-          "name": "pairedReadTool",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "bounds": {
-            "maxLength": 128
-          },
-          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
-        }
-      ],
-      "rules": [
-        "effectKeyArgument is required for write_idempotent and refused for any other class",
-        "pairedReadTool is required for write_reconcilable and refused for any other class",
-        "the tool must be in the connection's current snapshot"
-      ],
-      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
-    },
-    "McpUseGrantCreate": {
-      "fields": [
-        {
-          "name": "workflowId",
-          "type": "uuid",
-          "required": true,
-          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
-        }
-      ],
-      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
     },
     "GroupCreate": {
       "fields": [
@@ -11835,168 +11713,39 @@ const transportSchemas = {
       ],
       "description": "Removes one person's mention-granted access to one conversation under compare-and-set on the grant version."
     },
-    "FileSearchQuery": {
+    "PasswordResetLinkCreate": {
       "fields": [
         {
-          "name": "query",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "minLength": 1,
-            "maxLength": 200
-          },
-          "description": "Text to find, matched case-insensitively as a substring of a file's name or of a library item's name; wildcard characters in it are matched literally."
-        },
-        {
-          "name": "path",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "minLength": 1,
-            "maxLength": 1024
-          },
-          "description": "Absolute storage path of a folder; only files under it are searched. A path that is not a folder in this organization returns no hits rather than an error, so it reveals nothing about other trees."
-        },
-        {
-          "name": "kind",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "minLength": 1,
-            "maxLength": 64
-          },
-          "description": "Restricts hits to one kind: an artifact's type for a file, or `skill`, `agent`, `workflow`, `kind` or `package` for a library item."
-        },
-        {
-          "name": "mediaType",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "minLength": 1,
-            "maxLength": 255
-          },
-          "description": "Restricts hits to files whose current version has exactly this media type. Library items have none, so this filter excludes them."
-        },
-        {
-          "name": "mediaGroup",
-          "type": "enum",
-          "required": false,
-          "enum": [
-            "text",
-            "image",
-            "video",
-            "audio",
-            "data",
-            "archive",
-            "other"
-          ],
-          "description": "Restricts hits to files whose current version falls in this plain group: text (other text/*), image, video, audio, data (JSON, CSV, YAML, XML, NDJSON), archive (zip, gzip, tar) or other. Library items have no media type, so this filter excludes them."
-        },
-        {
-          "name": "producerId",
+          "name": "principalId",
           "type": "uuid",
-          "required": false,
-          "description": "Restricts hits to files whose current version was authored by this principal. Library items have no producer, so this filter excludes them."
-        },
-        {
-          "name": "factKey",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "minLength": 1,
-            "maxLength": 100
-          },
-          "description": "With `factValue`, restricts hits to files whose current version metadata holds this key with exactly this string value. Until kind validators publish typed facts, a version's metadata is where its facts live. Library items have none, so this filter excludes them."
-        },
-        {
-          "name": "factValue",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxLength": 500
-          },
-          "description": "The string value `factKey` must hold; required when `factKey` is given and refused without it."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque continuation token from a prior files.search page; bound to this operation, the caller, the organization and the same filters, so it is rejected if any of them change."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of hits returned per page; defaults to 25 and cannot exceed 100."
+          "required": true,
+          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
         }
       ],
-      "pagination": "pagination",
-      "rules": [
-        "At least one of query, path, kind, mediaType, mediaGroup, producerId or factKey is required. Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization, the filters and the ordering; validate before the keyset query."
-      ],
-      "description": "Searches the organization's file tree and its read-only library mirror by name, path, kind, media type, producer and a metadata fact, newest first. Only files and library items the caller may read are returned, and nothing of another organization is ever counted or listed."
+      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
     },
-    "LibraryFolderQuery": {
+    "PasswordResetRedemption": {
       "fields": [
         {
-          "name": "path",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "minLength": 1,
-            "maxLength": 1024
-          },
-          "description": "Absolute path of a library folder: /library lists the sections that hold a published item, /library/<section> lists that section's published items. Defaults to /library. Any other path is not found."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque continuation token from a prior files.library page; bound to this operation, the caller, the organization and the same path, so it is rejected if any of them change."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of entries returned per page; defaults to 25 and cannot exceed 100."
-        }
-      ],
-      "pagination": "pagination",
-      "rules": [
-        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization, the path and the ordering; validate before the keyset query."
-      ],
-      "description": "Lists one folder of the read-only /library mirror of the catalog, computed from the catalog on every call. Needs library:read, and an agent session needs the library.read scope. Items are ordered oldest first, keyed by creation time and id; sections are a short fixed list."
-    },
-    "ReviewAccept": {
-      "fields": [
-        {
-          "name": "reason",
-          "type": "string",
+          "name": "token",
+          "type": "secretString",
           "required": true,
           "bounds": {
-            "minLength": 1,
-            "maxLength": 2000
+            "maxLength": 256
           },
-          "description": "Why the owner overrules the reviewer and accepts the candidate anyway. It is recorded verbatim in the work item's decisions ledger and shown on the review, in the open; a blank reason is refused."
+          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
+        },
+        {
+          "name": "newPassword",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
         }
       ],
-      "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
     },
     "StorageFilePut": {
       "fields": [
@@ -12170,7 +11919,7 @@ const transportSchemas = {
           "name": "intent",
           "type": "enum(fyi|review|approve|answer|take_over)",
           "required": true,
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
         },
         {
           "name": "stepKey",
@@ -12196,12 +11945,181 @@ const transportSchemas = {
           "type": "timestamp",
           "required": false,
           "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
+        },
+        {
+          "name": "questionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
         }
       ],
       "rules": [
         "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
       ],
       "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+    },
+    "FileSearchQuery": {
+      "fields": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "Text to find, matched case-insensitively as a substring of a file's name or of a library item's name; wildcard characters in it are matched literally."
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "description": "Absolute storage path of a folder; only files under it are searched. A path that is not a folder in this organization returns no hits rather than an error, so it reveals nothing about other trees."
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "Restricts hits to one kind: an artifact's type for a file, or `skill`, `agent`, `workflow`, `kind` or `package` for a library item."
+        },
+        {
+          "name": "mediaType",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": "Restricts hits to files whose current version has exactly this media type. Library items have none, so this filter excludes them."
+        },
+        {
+          "name": "mediaGroup",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "text",
+            "image",
+            "video",
+            "audio",
+            "data",
+            "archive",
+            "other"
+          ],
+          "description": "Restricts hits to files whose current version falls in this plain group: text (other text/*), image, video, audio, data (JSON, CSV, YAML, XML, NDJSON), archive (zip, gzip, tar) or other. Library items have no media type, so this filter excludes them."
+        },
+        {
+          "name": "producerId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restricts hits to files whose current version was authored by this principal. Library items have no producer, so this filter excludes them."
+        },
+        {
+          "name": "factKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "With `factValue`, restricts hits to files whose current version metadata holds this key with exactly this string value. Until kind validators publish typed facts, a version's metadata is where its facts live. Library items have none, so this filter excludes them."
+        },
+        {
+          "name": "factValue",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "The string value `factKey` must hold; required when `factKey` is given and refused without it."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior files.search page; bound to this operation, the caller, the organization and the same filters, so it is rejected if any of them change."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of hits returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "At least one of query, path, kind, mediaType, mediaGroup, producerId or factKey is required. Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization, the filters and the ordering; validate before the keyset query."
+      ],
+      "description": "Searches the organization's file tree and its read-only library mirror by name, path, kind, media type, producer and a metadata fact, newest first. Only files and library items the caller may read are returned, and nothing of another organization is ever counted or listed."
+    },
+    "LibraryFolderQuery": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "description": "Absolute path of a library folder: /library lists the sections that hold a published item, /library/<section> lists that section's published items. Defaults to /library. Any other path is not found."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior files.library page; bound to this operation, the caller, the organization and the same path, so it is rejected if any of them change."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of entries returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization, the path and the ordering; validate before the keyset query."
+      ],
+      "description": "Lists one folder of the read-only /library mirror of the catalog, computed from the catalog on every call. Needs library:read, and an agent session needs the library.read scope. Items are ordered oldest first, keyed by creation time and id; sections are a short fixed list."
+    },
+    "ReviewAccept": {
+      "fields": [
+        {
+          "name": "reason",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": "Why the owner overrules the reviewer and accepts the candidate anyway. It is recorded verbatim in the work item's decisions ledger and shown on the review, in the open; a blank reason is refused."
+        }
+      ],
+      "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
     },
     "StorageFileContentQuery": {
       "fields": [
@@ -12313,6 +12231,94 @@ const transportSchemas = {
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query. Every filter given must match."
       ],
       "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
+    },
+    "McpToolClassificationPut": {
+      "fields": [
+        {
+          "name": "effectClass",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+        },
+        {
+          "name": "effectKeyArgument",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
+        },
+        {
+          "name": "pairedReadTool",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
+        }
+      ],
+      "rules": [
+        "effectKeyArgument is required for write_idempotent and refused for any other class",
+        "pairedReadTool is required for write_reconcilable and refused for any other class",
+        "the tool must be in the connection's current snapshot"
+      ],
+      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "McpUseGrantCreate": {
+      "fields": [
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
+        }
+      ],
+      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
+    },
+    "AgentFileGrantCreate": {
+      "fields": [
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
+        },
+        {
+          "name": "folderId",
+          "type": "uuid",
+          "required": true,
+          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
+        },
+        {
+          "name": "access",
+          "type": "enum(read|write)",
+          "required": true,
+          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
+        },
+        {
+          "name": "expiresAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
+        }
+      ],
+      "rules": [
+        "A person with a browser session only; an agent is refused with AUTH_FORBIDDEN reason agent_file_grant_requires_person, so an agent never widens its own file scope (O52).",
+        "An unknown or foreign workflow, or a folder that is missing, trashed, foreign or another member's personal folder, answers RESOURCE_NOT_FOUND.",
+        "A folder in the library, a record area, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with the reason the agent would get; an expiry in the past or more than 30 days ahead is 422.",
+        "A grant adds scope, never authority: an agent's write still needs the person it acts for to be able to write the folder themselves."
+      ],
+      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
     },
     "DesktopSignInStart": {
       "fields": [
@@ -29976,49 +29982,6 @@ const transportSchemas = {
         "createdAt": "When the note was recorded."
       }
     },
-    "AgentFileGrant": {
-      "fields": [
-        "id",
-        "workflowId",
-        "folderId",
-        "access",
-        "grantedBy",
-        "expiresAt",
-        "revokedAt",
-        "revokedBy",
-        "createdAt",
-        "version"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "workflowId": "uuid",
-        "folderId": "uuid",
-        "access": "enum(read|write)",
-        "grantedBy": "uuid",
-        "expiresAt": "timestamp",
-        "revokedAt": "timestamp|null",
-        "revokedBy": "uuid|null",
-        "createdAt": "timestamp",
-        "version": "integer"
-      },
-      "nullableFields": [
-        "revokedAt",
-        "revokedBy"
-      ],
-      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn.",
-      "fieldDescriptions": {
-        "id": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId.",
-        "workflowId": "Immutable id of the workflow whose agent sessions the grant covers.",
-        "folderId": "The storage folder granted; the grant covers it and everything under it.",
-        "access": "read, or write (which includes the destructive verbs mv and rm).",
-        "grantedBy": "Person who made the grant.",
-        "expiresAt": "When the grant stops working; judged at the time of each write.",
-        "revokedAt": "When a person revoked the grant; null while it stands.",
-        "revokedBy": "Person who revoked the grant; null while it stands.",
-        "createdAt": "When the grant was made.",
-        "version": "Optimistic-concurrency version a revoke must name in If-Match."
-      }
-    },
     "AgentPowerGrant": {
       "fields": [
         "id",
@@ -30139,122 +30102,6 @@ const transportSchemas = {
       "fieldDescriptions": {
         "runId": "UUID of the run these offers belong to.",
         "offers": "The open choices, empty when no step of the run is stalled behind an incident."
-      }
-    },
-    "PasswordResetLinkIssued": {
-      "fields": [
-        "id",
-        "url",
-        "expiresAt"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "url": "secretString",
-        "expiresAt": "timestamp"
-      },
-      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
-      "fieldDescriptions": {
-        "id": "Stable UUID of the reset link record, as the audit trail names it.",
-        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
-        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
-      }
-    },
-    "McpToolClassification": {
-      "fields": [
-        "toolName",
-        "effectClass",
-        "classified",
-        "effectKeyArgument",
-        "pairedReadTool",
-        "classifiedAgainstCurrentSnapshot",
-        "classifiedAt",
-        "version"
-      ],
-      "nullableFields": [
-        "effectKeyArgument",
-        "pairedReadTool",
-        "classifiedAt"
-      ],
-      "fieldTypes": {
-        "toolName": "string",
-        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
-        "classified": "boolean",
-        "effectKeyArgument": "string",
-        "pairedReadTool": "string",
-        "classifiedAgainstCurrentSnapshot": "boolean",
-        "classifiedAt": "timestamp",
-        "version": "integer"
-      },
-      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it.",
-      "fieldDescriptions": {
-        "toolName": "The tool's name in the pinned snapshot.",
-        "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
-        "classified": "True once an Admin has classified this tool.",
-        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
-        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
-        "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
-        "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
-        "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."
-      }
-    },
-    "McpToolClassificationList": {
-      "fields": [
-        "items"
-      ],
-      "nullableFields": [],
-      "fieldTypes": {
-        "items": "McpToolClassification[]"
-      },
-      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered.",
-      "fieldDescriptions": {
-        "items": "The snapshot's tools with their classifications."
-      }
-    },
-    "McpUseGrant": {
-      "fields": [
-        "id",
-        "connectionId",
-        "workflowId",
-        "grantedBy",
-        "createdAt",
-        "revokedAt",
-        "revokedBy"
-      ],
-      "nullableFields": [
-        "revokedAt",
-        "revokedBy"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "connectionId": "uuid",
-        "workflowId": "uuid",
-        "grantedBy": "uuid",
-        "createdAt": "timestamp",
-        "revokedAt": "timestamp",
-        "revokedBy": "uuid"
-      },
-      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record.",
-      "fieldDescriptions": {
-        "id": "Stable UUID identifying the grant.",
-        "connectionId": "The personal connection the grant covers.",
-        "workflowId": "The workflow the grant lets use the connection.",
-        "grantedBy": "The owner who granted it.",
-        "createdAt": "UTC timestamp when the grant was made.",
-        "revokedAt": "UTC timestamp when the grant was revoked, or null while it is live.",
-        "revokedBy": "The principal who revoked it, or null while it is live."
-      }
-    },
-    "McpUseGrantList": {
-      "fields": [
-        "items"
-      ],
-      "nullableFields": [],
-      "fieldTypes": {
-        "items": "McpUseGrant[]"
-      },
-      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant.",
-      "fieldDescriptions": {
-        "items": "The connection's grants, newest first."
       }
     },
     "GroupMember": {
@@ -30524,115 +30371,23 @@ const transportSchemas = {
       "pageOf": "ConversationAccessGrant",
       "description": "Cursor page of live direct grants on one conversation, oldest first. `nextCursor: null` marks the last page."
     },
-    "FileSearchHit": {
+    "PasswordResetLinkIssued": {
       "fields": [
-        "source",
-        "entryId",
-        "path",
-        "name",
-        "kind",
-        "mediaType",
-        "mediaGroup",
-        "sizeBytes",
-        "versionId",
-        "producerId",
-        "producerKind",
-        "producerName",
-        "producerTaskId",
-        "producerTaskTitle",
-        "nameMatchStart",
-        "nameMatchLength",
-        "createdAt"
+        "id",
+        "url",
+        "expiresAt"
       ],
       "fieldTypes": {
-        "source": "enum(files|library)",
-        "entryId": "uuid|null",
-        "path": "string",
-        "name": "string",
-        "kind": "string",
-        "mediaType": "string|null",
-        "mediaGroup": "enum(text|image|video|audio|data|archive|other)|null",
-        "sizeBytes": "integer|null",
-        "versionId": "uuid|null",
-        "producerId": "uuid|null",
-        "producerKind": "enum(person|step)|null",
-        "producerName": "string|null",
-        "producerTaskId": "uuid|null",
-        "producerTaskTitle": "string|null",
-        "nameMatchStart": "integer|null",
-        "nameMatchLength": "integer|null",
-        "createdAt": "timestamp"
+        "id": "uuid",
+        "url": "secretString",
+        "expiresAt": "timestamp"
       },
-      "nullableFields": [
-        "entryId",
-        "mediaType",
-        "mediaGroup",
-        "sizeBytes",
-        "versionId",
-        "producerId",
-        "producerKind",
-        "producerName",
-        "producerTaskId",
-        "producerTaskTitle",
-        "nameMatchStart",
-        "nameMatchLength"
-      ],
-      "description": "One file or library item matched by files.search, with its absolute path, so a caller can open it by path or by the ids shown.",
+      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
       "fieldDescriptions": {
-        "source": "Where the hit lives: the organization's file tree, or the read-only library mirror.",
-        "entryId": "Stable UUID of the file's tree entry; null for a library item, which is shown by path.",
-        "path": "Absolute path of the hit in the tree, for example /projects/<project>/artifacts/<work item>/plan.md or /library/skills/<slug>.",
-        "name": "Name of the file or library item.",
-        "kind": "The artifact type of a file, or the library kind of a library item.",
-        "mediaType": "Media type of the file's current version; null for a library item or a file with no current version.",
-        "mediaGroup": "Plain group of the file's media type (text, image, video, audio, data, archive or other); null for a library item or a file with no current version.",
-        "sizeBytes": "Size in bytes of the file's current version; null for a library item or a file with no current version.",
-        "versionId": "Stable UUID of the file's current version, the one a run would pin; null for a library item or a file with no current version.",
-        "producerId": "Stable UUID of the principal that authored the file's current version; null for a library item.",
-        "producerKind": "Whether the file's current version was made by a person or by a step of a run; null for a library item.",
-        "producerName": "The person's display name, or the step's key for a step; null for a library item.",
-        "producerTaskId": "For a step, the work item (task) its run belongs to; null otherwise.",
-        "producerTaskTitle": "For a step, the title of that work item; null otherwise.",
-        "nameMatchStart": "Zero-based position in the name where the query first matches, case-insensitively, so a page can mark the match; null when the search had no text or the position is not exact.",
-        "nameMatchLength": "Length of the matched text in the name; null with nameMatchStart.",
-        "createdAt": "UTC timestamp when the entry or library item was created."
+        "id": "Stable UUID of the reset link record, as the audit trail names it.",
+        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
+        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
       }
-    },
-    "LibraryEntry": {
-      "fields": [
-        "type",
-        "path",
-        "name",
-        "kind",
-        "createdAt"
-      ],
-      "fieldTypes": {
-        "type": "enum(folder|item)",
-        "path": "string",
-        "name": "string",
-        "kind": "string|null",
-        "createdAt": "timestamp|null"
-      },
-      "nullableFields": [
-        "kind",
-        "createdAt"
-      ],
-      "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path.",
-      "fieldDescriptions": {
-        "type": "folder for a section, item for a published catalog item.",
-        "path": "Absolute path: /library/<section> or /library/<section>/<slug>.",
-        "name": "Display name of the section or item.",
-        "kind": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder.",
-        "createdAt": "UTC time the catalog item was created; null for a folder."
-      }
-    },
-    "Page<FileSearchHit>": {
-      "pageOf": "FileSearchHit",
-      "description": "Cursor page of file search hits, newest first, returned by GET /v1/files/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
-    },
-    "Page<LibraryEntry>": {
-      "pageOf": "LibraryEntry",
-      "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
     "StorageEntry": {
       "fields": [
@@ -30869,7 +30624,8 @@ const transportSchemas = {
         "fallbackForName",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "questionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -30887,14 +30643,16 @@ const transportSchemas = {
         "fallbackForName": "string|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "questionId": "uuid|null"
       },
       "nullableFields": [
         "stepKey",
         "askedBy",
         "note",
         "neededBy",
-        "fallbackForName"
+        "fallbackForName",
+        "questionId"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -30913,8 +30671,12 @@ const transportSchemas = {
         "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
         "createdAt": "UTC time the request was made.",
         "updatedAt": "UTC time it last changed.",
-        "version": "Optimistic-concurrency version used as If-Match."
-      }
+        "version": "Optimistic-concurrency version used as If-Match.",
+        "questionId": "The approval or question the request asks about, or null when it asks for none."
+      },
+      "optionalFields": [
+        "questionId"
+      ]
     },
     "RunRequests": {
       "fields": [
@@ -30928,6 +30690,116 @@ const transportSchemas = {
       "fieldDescriptions": {
         "requests": "Requests in newest-first order; bounded to the most recent fifty."
       }
+    },
+    "FileSearchHit": {
+      "fields": [
+        "source",
+        "entryId",
+        "path",
+        "name",
+        "kind",
+        "mediaType",
+        "mediaGroup",
+        "sizeBytes",
+        "versionId",
+        "producerId",
+        "producerKind",
+        "producerName",
+        "producerTaskId",
+        "producerTaskTitle",
+        "nameMatchStart",
+        "nameMatchLength",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "source": "enum(files|library)",
+        "entryId": "uuid|null",
+        "path": "string",
+        "name": "string",
+        "kind": "string",
+        "mediaType": "string|null",
+        "mediaGroup": "enum(text|image|video|audio|data|archive|other)|null",
+        "sizeBytes": "integer|null",
+        "versionId": "uuid|null",
+        "producerId": "uuid|null",
+        "producerKind": "enum(person|step)|null",
+        "producerName": "string|null",
+        "producerTaskId": "uuid|null",
+        "producerTaskTitle": "string|null",
+        "nameMatchStart": "integer|null",
+        "nameMatchLength": "integer|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "entryId",
+        "mediaType",
+        "mediaGroup",
+        "sizeBytes",
+        "versionId",
+        "producerId",
+        "producerKind",
+        "producerName",
+        "producerTaskId",
+        "producerTaskTitle",
+        "nameMatchStart",
+        "nameMatchLength"
+      ],
+      "description": "One file or library item matched by files.search, with its absolute path, so a caller can open it by path or by the ids shown.",
+      "fieldDescriptions": {
+        "source": "Where the hit lives: the organization's file tree, or the read-only library mirror.",
+        "entryId": "Stable UUID of the file's tree entry; null for a library item, which is shown by path.",
+        "path": "Absolute path of the hit in the tree, for example /projects/<project>/artifacts/<work item>/plan.md or /library/skills/<slug>.",
+        "name": "Name of the file or library item.",
+        "kind": "The artifact type of a file, or the library kind of a library item.",
+        "mediaType": "Media type of the file's current version; null for a library item or a file with no current version.",
+        "mediaGroup": "Plain group of the file's media type (text, image, video, audio, data, archive or other); null for a library item or a file with no current version.",
+        "sizeBytes": "Size in bytes of the file's current version; null for a library item or a file with no current version.",
+        "versionId": "Stable UUID of the file's current version, the one a run would pin; null for a library item or a file with no current version.",
+        "producerId": "Stable UUID of the principal that authored the file's current version; null for a library item.",
+        "producerKind": "Whether the file's current version was made by a person or by a step of a run; null for a library item.",
+        "producerName": "The person's display name, or the step's key for a step; null for a library item.",
+        "producerTaskId": "For a step, the work item (task) its run belongs to; null otherwise.",
+        "producerTaskTitle": "For a step, the title of that work item; null otherwise.",
+        "nameMatchStart": "Zero-based position in the name where the query first matches, case-insensitively, so a page can mark the match; null when the search had no text or the position is not exact.",
+        "nameMatchLength": "Length of the matched text in the name; null with nameMatchStart.",
+        "createdAt": "UTC timestamp when the entry or library item was created."
+      }
+    },
+    "LibraryEntry": {
+      "fields": [
+        "type",
+        "path",
+        "name",
+        "kind",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "type": "enum(folder|item)",
+        "path": "string",
+        "name": "string",
+        "kind": "string|null",
+        "createdAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "kind",
+        "createdAt"
+      ],
+      "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path.",
+      "fieldDescriptions": {
+        "type": "folder for a section, item for a published catalog item.",
+        "path": "Absolute path: /library/<section> or /library/<section>/<slug>.",
+        "name": "Display name of the section or item.",
+        "kind": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder.",
+        "createdAt": "UTC time the catalog item was created; null for a folder."
+      }
+    },
+    "Page<FileSearchHit>": {
+      "pageOf": "FileSearchHit",
+      "description": "Cursor page of file search hits, newest first, returned by GET /v1/files/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "Page<LibraryEntry>": {
+      "pageOf": "LibraryEntry",
+      "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
     "StorageFolderItem": {
       "fields": [
@@ -31130,6 +31002,147 @@ const transportSchemas = {
     "Page<MergeAttempt>": {
       "pageOf": "MergeAttempt",
       "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "McpToolClassification": {
+      "fields": [
+        "toolName",
+        "effectClass",
+        "classified",
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAgainstCurrentSnapshot",
+        "classifiedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAt"
+      ],
+      "fieldTypes": {
+        "toolName": "string",
+        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
+        "classified": "boolean",
+        "effectKeyArgument": "string",
+        "pairedReadTool": "string",
+        "classifiedAgainstCurrentSnapshot": "boolean",
+        "classifiedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it.",
+      "fieldDescriptions": {
+        "toolName": "The tool's name in the pinned snapshot.",
+        "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
+        "classified": "True once an Admin has classified this tool.",
+        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
+        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
+        "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
+        "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
+        "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+      }
+    },
+    "McpToolClassificationList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpToolClassification[]"
+      },
+      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered.",
+      "fieldDescriptions": {
+        "items": "The snapshot's tools with their classifications."
+      }
+    },
+    "McpUseGrant": {
+      "fields": [
+        "id",
+        "connectionId",
+        "workflowId",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "revokedBy"
+      ],
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "connectionId": "uuid",
+        "workflowId": "uuid",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "revokedAt": "timestamp",
+        "revokedBy": "uuid"
+      },
+      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "connectionId": "The personal connection the grant covers.",
+        "workflowId": "The workflow the grant lets use the connection.",
+        "grantedBy": "The owner who granted it.",
+        "createdAt": "UTC timestamp when the grant was made.",
+        "revokedAt": "UTC timestamp when the grant was revoked, or null while it is live.",
+        "revokedBy": "The principal who revoked it, or null while it is live."
+      }
+    },
+    "McpUseGrantList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpUseGrant[]"
+      },
+      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant.",
+      "fieldDescriptions": {
+        "items": "The connection's grants, newest first."
+      }
+    },
+    "AgentFileGrant": {
+      "fields": [
+        "id",
+        "workflowId",
+        "folderId",
+        "access",
+        "grantedBy",
+        "expiresAt",
+        "revokedAt",
+        "revokedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "workflowId": "uuid",
+        "folderId": "uuid",
+        "access": "enum(read|write)",
+        "grantedBy": "uuid",
+        "expiresAt": "timestamp",
+        "revokedAt": "timestamp|null",
+        "revokedBy": "uuid|null",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId.",
+        "workflowId": "Immutable id of the workflow whose agent sessions the grant covers.",
+        "folderId": "The storage folder granted; the grant covers it and everything under it.",
+        "access": "read, or write (which includes the destructive verbs mv and rm).",
+        "grantedBy": "Person who made the grant.",
+        "expiresAt": "When the grant stops working; judged at the time of each write.",
+        "revokedAt": "When a person revoked the grant; null while it stands.",
+        "revokedBy": "Person who revoked the grant; null while it stands.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+      }
     },
     "DesktopSignInStarted": {
       "fields": [
