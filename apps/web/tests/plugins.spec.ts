@@ -557,6 +557,7 @@ for (
       await expect(stated.getByText("n".repeat(300))).toBeVisible();
       await shot(page, `plugin-origin-${viewport.name}`, [], {
         windowOnly: true,
+        scrollToEnd: dialog,
       });
       await dialog.getByRole("button", { name: "Close", exact: true }).click();
       await expect(page.getByTestId("plugin-origin")).toHaveCount(0);
