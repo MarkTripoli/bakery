@@ -63089,6 +63089,11 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "UUID of the principal associated with this organization membership record."
         },
+        "displayName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name of the member's principal, so a member list can name people. Every organization member may read it; it is the name the person chose, never an email address."
+        },
         "role": {
           "anyOf": [
             {
@@ -63145,6 +63150,7 @@ export const clientManifest = {
         "id",
         "organizationId",
         "principalId",
+        "displayName",
         "role",
         "status",
         "joinedAt",
@@ -63182,6 +63188,11 @@ export const clientManifest = {
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the principal associated with this organization membership record."
+              },
+              "displayName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name of the member's principal, so a member list can name people. Every organization member may read it; it is the name the person chose, never an email address."
               },
               "role": {
                 "anyOf": [
@@ -63239,6 +63250,7 @@ export const clientManifest = {
               "id",
               "organizationId",
               "principalId",
+              "displayName",
               "role",
               "status",
               "joinedAt",
