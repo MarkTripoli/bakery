@@ -18,15 +18,19 @@ import {
  *   server computed it, is true;
  * - the source session is still the one the manifest names and is active;
  * - the session row's `resume_ref` (written by the adapter that owns the native
- *   session) names the native session, the checkpoint, the worktree revision, the
- *   harness version and the host, and each equals what the manifest recorded;
+ *   session) names five things: the native session id, which only has to be
+ *   present; the checkpoint, which must equal the manifest's checkpoint digest;
+ *   the worktree revision, which must equal the manifest's commit; the harness
+ *   version, which must equal the manifest's; and the host, which must equal the
+ *   worker host the source attempt ran on;
  * - the history the native session saw is still authorized: the person the run
  *   acts for is still an active member, every artifact the manifest cites is
  *   live with the digest the server holds.
  *
  * A harness also checks its own exact match (session, revision, checkpoint and
- * version) before any model turn; this decision is the server's half, and the
- * claim repeats the history check because authority can change between the two.
+ * version) before any model turn; this decision is the server's half. The
+ * history is checked once, when the continuation is admitted; the claim does not
+ * repeat it.
  */
 
 export type FreshReason =
@@ -67,8 +71,10 @@ function text(value: unknown): string | null {
 }
 
 /**
- * The decision, pure so every branch is tested without a database. `stored` is
- * the manifest as the server stored it, with its own safe boundary.
+ * The decision, pure so every branch is tested without a database. `manifest`
+ * is the manifest as the server stored it, with its own safe boundary. The
+ * session and the history answer are only read when the manifest asks for an
+ * exact resume, so a caller whose manifest does not may pass `null` and `false`.
  */
 export function decideResume(input: {
   manifestId: string;
