@@ -62,6 +62,10 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
   ) => Promise<z.output<typeof contractSchemas["Page<SkillUseGrant>"]>>;
+  listSkillUsage: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.CursorQuery>,
+  ) => Promise<z.output<typeof contractSchemas["Page<SkillUsage>"]>>;
   deleteSkillUseGrant: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.IdPath>,
@@ -239,6 +243,15 @@ export function createCatalogActionRegistry(
       access: ActionAccess.OwnerForPersonalAdminForOrganization,
     },
     handler: handlers.listSkillUseGrants,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillsUsedBy,
+    method: HttpMethod.Get,
+    path: "/v1/skills/:id/used-by",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<SkillUsage>"],
+    policy: queryPolicy,
+    handler: handlers.listSkillUsage,
   });
   registry.register({
     name: CatalogImplementedAction.SkillUseGrantsDelete,
