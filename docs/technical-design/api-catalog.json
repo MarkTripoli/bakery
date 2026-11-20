@@ -1708,6 +1708,27 @@
     },
     {
       "group": "Definitions",
+      "method": "GET",
+      "path": "/v1/workflows/{id}/versions/{versionId}/skills",
+      "action": "workflowVersions.skills",
+      "access": "Developer",
+      "permission": "workflowVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "WorkflowVersionPath",
+      "output": "WorkflowVersionSkills",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Definitions",
       "method": "PATCH",
       "path": "/v1/workflows/{id}/versions/{versionId}",
       "action": "workflowVersions.update",
