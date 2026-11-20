@@ -1187,7 +1187,14 @@ const issueSettingsDetailRoute = createRoute({
 /** `?file=<id>&tab=versions|uses`: the file whose details are open, and its tab. */
 function validateFilesSearch(
   search: Record<string, unknown>,
-): { file?: string; tab?: "versions" | "uses"; version?: number } {
+): {
+  file?: string;
+  tab?: "versions" | "uses";
+  version?: number;
+  q?: string;
+  type?: "text" | "image" | "video" | "audio" | "data" | "archive" | "other";
+  in?: "all";
+} {
   return {
     ...(typeof search.file === "string" && search.file !== ""
       ? { file: search.file }
@@ -1195,6 +1202,13 @@ function validateFilesSearch(
     ...(search.tab === "versions" || search.tab === "uses"
       ? { tab: search.tab }
       : {}),
+    ...(typeof search.q === "string" && search.q !== "" ? { q: search.q } : {}),
+    ...(typeof search.type === "string" &&
+        ["text", "image", "video", "audio", "data", "archive", "other"]
+          .includes(search.type)
+      ? { type: search.type as "text" }
+      : {}),
+    ...(search.in === "all" ? { in: "all" as const } : {}),
     ...(Number.isInteger(Number(search.version)) && Number(search.version) > 0
       ? { version: Number(search.version) }
       : {}),

@@ -530,6 +530,13 @@ export type StorageFileVersion = StorageFileVersionPage["items"][number];
 export type StorageFileUsePage = ClientOutputMap["Page<StorageFileUse>"];
 export type StorageFileUse = StorageFileUsePage["items"][number];
 
+export type FileSearchPage = ClientOutputMap["Page<FileSearchHit>"];
+export type FileSearchHit = FileSearchPage["items"][number];
+export type FileSearchInput = Pick<
+  ClientInputMap["FileSearchQuery"],
+  "query" | "path" | "kind" | "mediaGroup" | "cursor"
+>;
+
 export type BakeryApiClient = {
   /** The stored files and their folders: the read-only files browser's reads. */
   readonly files: {
@@ -557,6 +564,12 @@ export type BakeryApiClient = {
       cursor?: string,
       signal?: AbortSignal,
     ) => Promise<ApiResult<StorageFileUsePage>>;
+    /** Files and library items by name, with the filters of the files page. */
+    readonly search: (
+      organizationId: string,
+      input: FileSearchInput,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<FileSearchPage>>;
     /** A file's bytes: its current version, or the one at `revision`. */
     readonly content: (
       organizationId: string,
@@ -2759,6 +2772,24 @@ export function createBakeryApiClient({
               id: fileId,
               cursor,
               limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async search(org, input, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["files.search"]({
+              ...input,
+              limit: 25,
             }, { signal }),
           };
         } catch (error) {

@@ -33,6 +33,8 @@ import type {
   EnrollmentStatus,
   ExternalTicketListResponse,
   ExternalTicketResponse,
+  FileSearchInput,
+  FileSearchPage,
   InstallationCapabilities,
   InstallationSettings,
   InstallationStatus,
@@ -2956,6 +2958,40 @@ export function storageFolderChainQueryOptions(
       }
       return chain;
     },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The hits for a files search, newest first; more on demand. */
+export function fileSearchQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  input: Omit<FileSearchInput, "cursor">,
+) {
+  return infiniteQueryOptions<
+    FileSearchPage,
+    ApiFailure,
+    { pages: FileSearchPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "files.search", {
+      query: input.query ?? null,
+      path: input.path ?? null,
+      kind: input.kind ?? null,
+      mediaGroup: input.mediaGroup ?? null,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.files.search(
+          requireOrganization(scope),
+          pageParam === null ? input : { ...input, cursor: pageParam },
+          signal,
+        ),
+      ),
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });

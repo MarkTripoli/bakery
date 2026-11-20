@@ -191,6 +191,8 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
     uses: 0,
     /** The revision each content read asked for; null for the current one. */
     contents: [] as (string | null)[],
+    /** The query string of each search read. */
+    searches: [] as string[],
   };
   const json = (route: import("@playwright/test").Route, body: string) =>
     route.fulfill({ status: 200, contentType: "application/json", body });
@@ -268,6 +270,53 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           sessionId: null,
         }))),
       );
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/files/search",
+    (route) => {
+      const url = new URL(route.request().url());
+      seen.searches.push(url.search);
+      const query = (url.searchParams.get("query") ?? "").toLowerCase();
+      const under = url.searchParams.get("path");
+      const group = url.searchParams.get("mediaGroup");
+      const groupOf = (type: string | null | undefined) =>
+        type === undefined || type === null
+          ? null
+          : type.startsWith("video/")
+          ? "video"
+          : type.startsWith("image/")
+          ? "image"
+          : type.startsWith("audio/")
+          ? "audio"
+          : type.startsWith("text/")
+          ? "text"
+          : "other";
+      const hits = tree
+        .filter((entry) => entry.kind === "file")
+        .filter((entry) => entry.name.toLowerCase().includes(query))
+        .filter((entry) => under === null || entry.path.startsWith(`${under}/`))
+        .filter((entry) => group === null || groupOf(entry.mediaType) === group)
+        .map((entry) => ({
+          source: "files",
+          entryId: uuid(entry.id),
+          path: entry.path,
+          name: entry.name,
+          kind: entry.kindName ?? "File",
+          mediaType: entry.mediaType ?? null,
+          mediaGroup: groupOf(entry.mediaType),
+          sizeBytes: entry.sizeBytes ?? null,
+          versionId: uuid(500 + entry.id),
+          producerId: uuid(8800),
+          producerKind: "person",
+          producerName: "Ana Reyes",
+          producerTaskId: null,
+          producerTaskTitle: null,
+          nameMatchStart: null,
+          nameMatchLength: null,
+          createdAt: STAMP,
+        }));
+      return json(route, page_(hits));
     },
   );
   await page.route(

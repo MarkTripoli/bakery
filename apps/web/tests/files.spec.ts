@@ -166,6 +166,62 @@ for (
         .toBeVisible();
     });
 
+    test("searching a folder lists the matching files, and a hit opens in its folder", async ({ page }) => {
+      const { seen } = await filesFixture(page);
+      await page.goto("/files/projects/web-app");
+      await page.getByRole("searchbox", { name: "Search files by name" })
+        .fill("plan");
+      const results = page.getByTestId("files-results");
+      await expect(results.getByRole("link", { name: "plan.md" }))
+        .toBeVisible();
+      await expect(results.getByRole("link", { name: "demo.mp4" }))
+        .toHaveCount(0);
+      await expect(page).toHaveURL(/q=plan/);
+      expect(
+        seen.searches.some((query) =>
+          query.includes("path=%2Fprojects%2Fweb-app")
+        ),
+      )
+        .toBe(true);
+      await page.mouse.move(700, 700);
+      await still(page, "files-search");
+      await results.getByRole("link", { name: "plan.md" }).click();
+      await expect(page).toHaveURL(new RegExp(`file=${uuid(40)}`));
+      await expect(page).not.toHaveURL(/q=/);
+      await expect(page.getByTestId("file-details")).toContainText("plan.md");
+    });
+
+    test("the file type filter narrows a search, and Clear search goes back to the folder", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto("/files/projects/web-app");
+      await page.getByLabel("File type").selectOption("video");
+      const results = page.getByTestId("files-results");
+      await expect(results.getByRole("link", { name: "demo.mp4" }))
+        .toBeVisible();
+      await expect(results.getByRole("link", { name: "plan.md" }))
+        .toHaveCount(0);
+      await page.getByRole("button", { name: "Clear search" }).click();
+      await expect(page.getByTestId("files-results")).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
+    });
+
+    test("All files searches beyond the folder, and no match says so", async ({ page }) => {
+      const { seen } = await filesFixture(page);
+      await page.goto("/files/projects/api");
+      await page.getByLabel("Where").selectOption("all");
+      await page.getByRole("searchbox", { name: "Search files by name" })
+        .fill("plan");
+      await expect(
+        page.getByTestId("files-results").getByRole("link", {
+          name: "plan.md",
+        }),
+      ).toBeVisible();
+      expect(seen.searches.at(-1)).not.toContain("path=");
+      await page.getByRole("searchbox", { name: "Search files by name" })
+        .fill("zzzz");
+      await expect(page.getByText("Nothing matches")).toBeVisible();
+    });
+
     test("a file nothing has used says so", async ({ page }) => {
       await filesFixture(page, { uses: [] });
       await page.goto(`/files/projects/web-app?file=${uuid(40)}&tab=uses`);

@@ -14,6 +14,14 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { FileDetails, type FileTab } from "./files/FileDetails.tsx";
+import {
+  FileSearchControls,
+  FileSearchResults,
+  isSearching,
+  MEDIA_GROUPS,
+  type MediaGroup,
+  type SearchState,
+} from "./files/FileSearch.tsx";
 import { filesHref, rootNoteKey, sizeParts } from "./files/files-state.ts";
 
 /** The files browser (#445): the top folders, or one folder's entries. */
@@ -44,7 +52,19 @@ export function FilesPage({ path }: { readonly path: string }) {
     file?: string;
     tab?: FileTab;
     version?: number;
+    q?: string;
+    type?: MediaGroup;
+    in?: "all";
   };
+  const searchState: SearchState = {
+    q: search.q ?? "",
+    type: search.type !== undefined &&
+        (MEDIA_GROUPS as readonly string[]).includes(search.type)
+      ? search.type
+      : undefined,
+    everywhere: atTop || search.in === "all",
+  };
+  const searching = isSearching(searchState);
   const tab: FileTab = search.tab === "versions" || search.tab === "uses"
     ? search.tab
     : "details";
@@ -53,19 +73,31 @@ export function FilesPage({ path }: { readonly path: string }) {
       file?: string | undefined;
       tab?: "versions" | "uses" | undefined;
       version?: number | undefined;
+      q?: string | undefined;
+      type?: MediaGroup | undefined;
+      in?: "all" | undefined;
     },
   ) => {
     const merged = {
       file: search.file,
       tab: search.tab === "details" ? undefined : search.tab,
       version: search.version,
+      q: search.q,
+      type: search.type,
+      in: search.in,
       ...next,
     };
     const query: {
       file?: string;
       tab?: "versions" | "uses";
       version?: number;
+      q?: string;
+      type?: MediaGroup;
+      in?: "all";
     } = {};
+    if (merged.q !== undefined && merged.q !== "") query.q = merged.q;
+    if (merged.type !== undefined) query.type = merged.type;
+    if (merged.in !== undefined) query.in = merged.in;
     if (merged.file !== undefined) query.file = merged.file;
     if (merged.tab !== undefined) query.tab = merged.tab;
     if (merged.version !== undefined) query.version = merged.version;
@@ -195,7 +227,37 @@ export function FilesPage({ path }: { readonly path: string }) {
             items={crumbs}
           />
         )}
-        {missing
+        <FileSearchControls
+          state={searchState}
+          atTop={atTop}
+          onChange={(next) =>
+            setSearch({
+              q: next.q,
+              type: next.type,
+              in: next.everywhere && !atTop ? "all" : undefined,
+              file: undefined,
+              tab: undefined,
+              version: undefined,
+            })}
+        />
+        {searching
+          ? (
+            <FileSearchResults
+              state={searchState}
+              folderPath={path}
+              onOpen={(hit) => {
+                const parent = hit.path.slice(0, hit.path.lastIndexOf("/"));
+                void navigate({
+                  to: "/files/$",
+                  params: { _splat: parent.slice(1) },
+                  search: hit.entryId !== null && hit.source === "files"
+                    ? { file: hit.entryId }
+                    : {},
+                });
+              }}
+            />
+          )
+          : missing
           ? (
             <UI.EmptyState
               title={translate("files.notFound.title")}
