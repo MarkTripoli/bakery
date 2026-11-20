@@ -374,6 +374,8 @@ export function createApp(options: {
   const catalogRegistry = createCatalogActionRegistry(
     createCatalogHandlers(options.config.auth.secret, {
       normalizeSourceLocator: options.skillSourceLocatorNormalizer,
+      // A draft is started from a published version's files, read from here.
+      skillFileStore,
     }),
     {
       authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),

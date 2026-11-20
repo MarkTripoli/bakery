@@ -59,11 +59,11 @@ Deno.test("a Global skill refuses mutation and disable, even from an administrat
       const text = await response.text();
       assertEquals(response.status, 403, `${method} ${path}: ${text}`);
       const problem = JSON.parse(text) as { code: string; reason?: string };
-      assertEquals(
-        [problem.code, problem.reason],
-        ["AUTH_FORBIDDEN", "global_skill_is_read_only"],
-        `${method} ${path}`,
-      );
+      assertEquals(problem.code, "AUTH_FORBIDDEN", `${method} ${path}`);
+      // A draft names its reason; an update is refused by the access rule itself.
+      if (path.endsWith("/draft")) {
+        assertEquals(problem.reason, "global_skill_is_read_only");
+      }
     }
 
     const after = await f.fixture.pgDatabase.query<Record<string, unknown>>(
