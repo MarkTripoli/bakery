@@ -197,7 +197,7 @@ Deno.test("an expired power is no power, and so is a withdrawn one", async () =>
     // Expiry: the lookup carries the clock, not only the revoked flag.
     await o.fixture.pgDatabase.query(
       `update bakery.run_power_grants set expires_at = now() - interval '1 minute'
-        where organization_id = $1 and target_id = $2`,
+        where organization_id = $1 and question_id = $2`,
       [o.fixture.organizationId, o.approval],
     );
     assertEquals(
@@ -209,7 +209,7 @@ Deno.test("an expired power is no power, and so is a withdrawn one", async () =>
     // withdrawing that takes it away at once.
     await o.fixture.pgDatabase.query(
       `update bakery.run_power_grants set expires_at = now() + interval '1 day'
-        where organization_id = $1 and target_id = $2`,
+        where organization_id = $1 and question_id = $2`,
       [o.fixture.organizationId, o.approval],
     );
     assertEquals(
@@ -283,8 +283,9 @@ Deno.test("a power granted for the other kind of row is no power", async () => {
     const grant = (power: string, target: string) =>
       o.fixture.pgDatabase.query(
         `insert into bakery.run_power_grants (
-           organization_id, run_id, principal_id, power, target_id, expires_at)
-         values ($1, $2, $3, $4, $5, now() + interval '1 day')`,
+           organization_id, run_id, principal_id, power, target_kind, question_id,
+           expires_at)
+         values ($1, $2, $3, $4, 'question', $5, now() + interval '1 day')`,
         [
           o.fixture.organizationId,
           o.run.runId,

@@ -7,6 +7,12 @@
 -- a role. It replaces the audience check of that one row; it does not sit
 -- beside it and it reaches nothing else. The closed vocabulary of powers is
 -- owned by TypeScript. Every lookup carries organization_id.
+--
+-- The target is typed: target_kind says which kind of row, and exactly one of
+-- question_id, artifact_version_id and run_step_id is set (the application
+-- validates that; the PostgreSQL boundary rail forbids CHECK constraints). Each
+-- column is a real foreign key, so a grant can never name a row that does not
+-- exist, and it goes with the row it was for.
 
 -- The request names the question or approval it asks about; null for a request
 -- that asks for none (a plain "just let them know").
@@ -28,7 +34,10 @@ create table bakery.run_power_grants (
   run_id uuid not null,
   principal_id uuid not null,
   power text not null,
-  target_id uuid not null,
+  target_kind text not null,
+  question_id uuid,
+  artifact_version_id uuid,
+  run_step_id uuid,
   source_request_id uuid,
   expires_at timestamptz not null,
   created_at timestamptz not null default now(),
@@ -44,9 +53,16 @@ create table bakery.run_power_grants (
   constraint run_power_grants_principal_fk
     foreign key (principal_id)
     references bakery.principals (id) on delete cascade,
-  constraint run_power_grants_target_fk
-    foreign key (organization_id, target_id)
+  constraint run_power_grants_question_fk
+    foreign key (organization_id, question_id)
     references bakery.questions (organization_id, id) on delete cascade,
+  constraint run_power_grants_artifact_version_fk
+    foreign key (organization_id, artifact_version_id)
+    references bakery.artifact_versions (organization_id, id)
+    on delete cascade,
+  constraint run_power_grants_run_step_fk
+    foreign key (organization_id, run_step_id)
+    references bakery.run_steps (organization_id, id) on delete cascade,
   constraint run_power_grants_request_fk
     foreign key (organization_id, source_request_id)
     references bakery.person_requests (organization_id, id)
@@ -59,9 +75,12 @@ create table bakery.run_power_grants (
 );
 
 -- One live grant per person, power and target: asking again does not add a
--- second.
+-- second. Exactly one target column is set, so coalesce names it.
 create unique index run_power_grants_live_unique
-  on bakery.run_power_grants (organization_id, principal_id, power, target_id)
+  on bakery.run_power_grants (
+    organization_id, principal_id, power,
+    coalesce(question_id, artifact_version_id, run_step_id)
+  )
   where revoked_at is null;
 
 -- The gate's lookup, and "who can act on this run".

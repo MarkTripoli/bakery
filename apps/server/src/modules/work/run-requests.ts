@@ -549,13 +549,15 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
   if (power !== undefined) {
     await transaction.query(
       `insert into bakery.run_power_grants (
-         organization_id, run_id, principal_id, power, target_id,
-         source_request_id, expires_at)
-       select $1, $2, $3, $4, $5, $6, expires_at
+         organization_id, run_id, principal_id, power, target_kind,
+         question_id, source_request_id, expires_at)
+       select $1, $2, $3, $4, 'question', $5, $6, expires_at
          from bakery.person_requests
         where organization_id = $1 and id = $6
-       on conflict (organization_id, principal_id, power, target_id)
-         where revoked_at is null do nothing`,
+       on conflict (
+         organization_id, principal_id, power,
+         (coalesce(question_id, artifact_version_id, run_step_id))
+       ) where revoked_at is null do nothing`,
       [organizationId, run.id, recipientId, power, value.questionId, requestId],
     );
   }
@@ -777,7 +779,7 @@ export async function completeRequestsOnQuestion(
   await transaction.query(
     `update bakery.run_power_grants
         set revoked_at = now(), revoked_by = $2, version = version + 1
-      where organization_id = $1 and principal_id = $2 and target_id = $3
+      where organization_id = $1 and principal_id = $2 and question_id = $3
         and revoked_at is null`,
     [organizationId, principalId, questionId],
   );

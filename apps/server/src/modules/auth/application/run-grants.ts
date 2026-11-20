@@ -121,7 +121,8 @@ export async function hasLivePowerGrant(
   const found = await transaction.query(
     `select 1 from bakery.run_power_grants
       where organization_id = $1 and principal_id = $2 and power = $3
-        and target_id = $4::uuid and revoked_at is null and expires_at > now()
+        and question_id = $4::uuid and revoked_at is null
+        and expires_at > now()
       limit 1
       for share`,
     [organizationId, principalId, power, targetId],

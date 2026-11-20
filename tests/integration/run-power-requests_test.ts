@@ -44,7 +44,7 @@ async function open() {
     (await fixture.pgDatabase.query<
       { power: string; target_id: string; live: boolean }
     >(
-      `select power, target_id, (revoked_at is null) as live
+      `select power, question_id as target_id, (revoked_at is null) as live
          from bakery.run_power_grants
         where organization_id = $1 and run_id = $2 order by created_at`,
       [fixture.organizationId, run.runId],
@@ -153,7 +153,7 @@ Deno.test("asking gives one expiring power on that row, and asking again only re
     // The power lasts exactly as long as the request.
     const grant = await o.fixture.pgDatabase.query<{ expires_at: Date }>(
       `select expires_at from bakery.run_power_grants
-        where organization_id = $1 and target_id = $2`,
+        where organization_id = $1 and question_id = $2`,
       [o.fixture.organizationId, o.approval],
     );
     assertEquals(
