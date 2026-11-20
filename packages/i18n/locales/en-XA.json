@@ -4793,7 +4793,6 @@
   "integrations.linear.credentials.setUp": "⟦Ļïñëàŕ ïš šëŧ ûþ. ŧëš⟧",
   "integrations.linear.credentials.clientIdSaved": "⟦Çļïëñŧ ÏÐ {id} ŧë⟧",
   "integrations.linear.credentials.secretSaved": "⟦Çļïëñŧ šëçŕëŧ šàṽëð {date} ŧëšŧ çô⟧",
-  "integrations.linear.credentials.saveFailed": "⟦Ŧĥë ðëŧàïļš çôûļð ñôŧ ƀë šàṽëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧë⟧",
   "integrations.linear.credentials.stale": "⟦Ŧĥëšë ðëŧàïļš çĥàñĝëð šïñçë ŧĥïš þàĝë ļôàðëð. Ñôŧĥïñĝ ŵàš šàṽëð. Çĥëçķ ŧĥë çûŕŕëñŧ ðëŧàïļš, ŧĥëñ ëñŧëŕ ÿôûŕš àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "integrations.linear.credentials.loading": "⟦Ļôàðïñĝ ŧĥë Ļïñëàŕ ðëŧàïļš. ŧëšŧ çô⟧",
   "integrations.linear.credentials.loadError": "⟦Ŧĥë Ļïñëàŕ ðëŧàïļš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧ⟧",
@@ -4804,5 +4803,6 @@
   "settings.integrations.credentials.replace": "⟦Ŕëþļàçë ðëŧàïļš ŧëš⟧",
   "settings.integrations.credentials.cancel": "⟦Çàñçëļ…⟧",
   "settings.integrations.credentials.tooLong": "⟦Ûšë àŧ ɱôšŧ {limit} çĥàŕàçŧëŕš. ŧëšŧ çôþ⟧",
-  "settings.integrations.credentials.copyCallback": "⟦Çôþÿ çàļļƀàçķ ÛŔĻ ŧëš⟧"
+  "settings.integrations.credentials.copyCallback": "⟦Çôþÿ çàļļƀàçķ ÛŔĻ ŧëš⟧",
+  "integrations.linear.credentials.saveFailed": "⟦Ŧĥë ðëŧàïļš çôûļð ñôŧ ƀë šàṽëð. Ëñŧëŕ ŧĥë çļïëñŧ šëçŕëŧ àĝàïñ, ŧĥëñ šàṽë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
 }

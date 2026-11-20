@@ -1,4 +1,4 @@
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import * as UI from "@bakery/ui";
 import type { MessageKey } from "@bakery/i18n";
 import { useI18n } from "../i18n/I18nProvider.tsx";
@@ -93,6 +93,15 @@ export function ProviderCredentialsSection(
   const [replacing, setReplacing] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const saving = status === "saving";
+  // Replace closes when its save ends in anything but a plain failure: a saved pair, or
+  // "details changed", which shows what is stored now. A failed save keeps the form open.
+  const previousStatus = useRef(status);
+  useEffect(() => {
+    if (previousStatus.current === "saving" && status !== "failed") {
+      setReplacing(false);
+    }
+    previousStatus.current = status;
+  }, [status]);
   const configured = saved?.configured === true;
   const showForm = !configured || replacing;
   const idMissing = attempted && values.clientId.trim() === "";
@@ -110,7 +119,6 @@ export function ProviderCredentialsSection(
     setAttempted(true);
     if (!providerCredentialsReady(values)) return;
     onSubmit();
-    setReplacing(false);
     setAttempted(false);
   };
   const reveal = {

@@ -2959,7 +2959,7 @@
   "integrations.linear.credentials.setUp": "Linear is set up.",
   "integrations.linear.credentials.clientIdSaved": "Client ID {id}",
   "integrations.linear.credentials.secretSaved": "Client secret saved {date}",
-  "integrations.linear.credentials.saveFailed": "The details could not be saved. Try again.",
+  "integrations.linear.credentials.saveFailed": "The details could not be saved. Enter the client secret again, then save.",
   "integrations.linear.credentials.stale": "These details changed since this page loaded. Nothing was saved. Check the current details, then enter yours again.",
   "integrations.linear.credentials.loading": "Loading the Linear details.",
   "integrations.linear.credentials.loadError": "The Linear details could not be loaded.",

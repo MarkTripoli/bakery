@@ -216,7 +216,7 @@ test.describe("Linear credentials on installation settings", () => {
     expect(state.puts[0].headers["if-match"]).toContain("3");
   });
 
-  test("a refused save says so, keeps nothing typed and offers another try", async ({ page }) => {
+  test("a refused save keeps the client ID, empties the secret and leaves the form open to try again", async ({ page }) => {
     const state = await fixture(page);
     state.putAnswer = 500;
     await page.goto(INSTALLATION_PATH);
@@ -224,12 +224,40 @@ test.describe("Linear credentials on installation settings", () => {
     await field(page, "clientSecret").fill(CLIENT_SECRET);
     await save(page).click();
     await expect(section(page)).toContainText(
-      "The details could not be saved. Try again.",
+      "The details could not be saved. Enter the client secret again, then save.",
     );
+    // The client ID is not a secret and stays; the secret never does.
+    await expect(field(page, "clientId")).toHaveValue(CLIENT_ID);
+    await expect(field(page, "clientSecret")).toHaveValue("");
+    await expect(form(page)).toBeVisible();
+    // Entering the secret again and saving works.
+    state.putAnswer = "ok";
+    await field(page, "clientSecret").fill(CLIENT_SECRET);
+    await save(page).click();
+    await expect(section(page)).toContainText("Linear is set up.");
+    expect(state.puts).toHaveLength(2);
+    expect(state.puts[1].body.clientId).toBe(CLIENT_ID);
+  });
+
+  test("a refused save from Replace details keeps the form open with the client ID", async ({ page }) => {
+    const state = await fixture(page, registered);
+    state.putAnswer = 500;
+    await page.goto(INSTALLATION_PATH);
+    await section(page).getByRole("button", { name: "Replace details" })
+      .click();
+    await field(page, "clientId").fill("replacement-client");
+    await field(page, "clientSecret").fill(CLIENT_SECRET);
+    await save(page).click();
+    await expect(section(page)).toContainText(
+      "The details could not be saved. Enter the client secret again, then save.",
+    );
+    // The form did not close: the person is not sent back to start over.
+    await expect(form(page)).toBeVisible();
+    await expect(field(page, "clientId")).toHaveValue("replacement-client");
     await expect(field(page, "clientSecret")).toHaveValue("");
   });
 
-  test("a stale version shows the current details instead of overwriting", async ({ page }) => {
+  test("a stale version closes the form onto the current details and keeps nothing typed", async ({ page }) => {
     const state = await fixture(page, registered);
     state.putAnswer = 412;
     await page.goto(INSTALLATION_PATH);
@@ -241,6 +269,13 @@ test.describe("Linear credentials on installation settings", () => {
     await expect(section(page)).toContainText(
       "These details changed since this page loaded. Nothing was saved. Check the current details, then enter yours again.",
     );
+    // What is stored now is shown, not the form, and nothing typed survives.
+    await expect(section(page)).toContainText(`Client ID ${CLIENT_ID}`);
+    await expect(form(page)).toHaveCount(0);
+    await section(page).getByRole("button", { name: "Replace details" })
+      .click();
+    await expect(field(page, "clientId")).toHaveValue("");
+    await expect(field(page, "clientSecret")).toHaveValue("");
   });
 
   test("a failed load can be retried", async ({ page }) => {

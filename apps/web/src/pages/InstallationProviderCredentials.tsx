@@ -15,7 +15,8 @@ import {
 /**
  * One provider's OAuth client credentials: loads the saved registration, saves with
  * the version it read, and never keeps the secret. The typed secret leaves the form
- * before the request does and is never refilled from a response.
+ * before the request does and is never refilled from a response; the client ID stays
+ * as typed until the save succeeds.
  */
 export function InstallationProviderCredentials(
   { provider, guideUrl }: { provider: string; guideUrl?: string },
@@ -42,7 +43,9 @@ export function InstallationProviderCredentials(
   const loaded = credentials.data;
   const [, save] = useSingleFlightSubmit(async () => {
     const current = values;
-    setValues(EMPTY_PROVIDER_CREDENTIALS);
+    // The secret leaves the form before the request does. The client ID is not a
+    // secret: it stays as typed, so a failed save costs one field to re-enter.
+    setValues({ ...EMPTY_PROVIDER_CREDENTIALS, clientId: current.clientId });
     setStatus("saving");
     const started = scope.sessionGeneration;
     const result = await api.integrationClientCredentials.put({
@@ -57,21 +60,25 @@ export function InstallationProviderCredentials(
     if (started !== scope.sessionGeneration) return;
     if (result.ok) {
       queryClient.setQueryData(options.queryKey, result.data);
+      setValues(EMPTY_PROVIDER_CREDENTIALS);
       setStatus("idle");
       return;
     }
     if (isForbiddenFailure(result.error)) {
+      setValues(EMPTY_PROVIDER_CREDENTIALS);
       setForbidden(true);
       setStatus("idle");
       return;
     }
     const code = failureStatus(result.error);
     if (code === 412 || code === 428) {
-      // Someone saved first: show what is stored now.
+      // Someone saved first: show what is stored now, and nothing of what was typed.
+      setValues(EMPTY_PROVIDER_CREDENTIALS);
       setStatus("stale");
       await credentials.refetch();
       return;
     }
+    // Any other failure saved nothing: the form stays open with the client ID kept.
     setStatus("failed");
   });
   const view = forbidden || (credentials.isError &&
