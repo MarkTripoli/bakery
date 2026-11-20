@@ -802,6 +802,10 @@ for (
         "href",
         `/files/versions/${uuid(7001)}`,
       );
+      await shot(page, "library-memory-source-link", [], {
+        windowOnly: true,
+        only: viewport.name === "desktop" ? "desktop" : "mobile",
+      });
       await link.click();
       await expect(page).toHaveURL(
         new RegExp(`/files/versions/${uuid(7001)}$`),
@@ -894,7 +898,7 @@ for (
       expect(reads).toBeGreaterThan(before);
     });
 
-    test("a link to a fact the list does not hold opens it; one that is gone or not yours says it was not found", async ({ page }) => {
+    test("a link to a fact the list does not hold opens it", async ({ page }) => {
       await memoryFixture(page, [
         ...WORLD,
         { n: 7, body: "Hidden from the list, fetched by id.", unlisted: true },
@@ -903,8 +907,14 @@ for (
       await expect(page.getByTestId("memory-fact-body")).toHaveText(
         "Hidden from the list, fetched by id.",
       );
-      // Gone (404) and not yours (403) read the same.
-      for (const id of [99, 98]) {
+    });
+
+    // Gone (404) and not yours (403) read the same.
+    for (
+      const [why, id] of [["gone", 99], ["not yours", 98]] as const
+    ) {
+      test(`a link to a fact that is ${why} says it was not found; Close returns to the list`, async ({ page }) => {
+        await memoryFixture(page, WORLD);
         await page.goto(`/library?tab=memory&fact=${uuid(id)}`);
         const missing = page.getByTestId("memory-fact-missing");
         // The title shows once: a doubled one would read as a layout bug.
@@ -912,17 +922,17 @@ for (
         await expect(missing).toContainText(
           "It may have been removed, or you may not have access to it.",
         );
-      }
-      await shot(page, "library-memory-missing", [], {
-        windowOnly: true,
-        only: viewport.name === "desktop" ? "desktop" : "mobile",
+        if (id === 99) {
+          await shot(page, "library-memory-missing", [], {
+            windowOnly: true,
+            only: viewport.name === "desktop" ? "desktop" : "mobile",
+          });
+        }
+        await missing.getByRole("button", { name: "Close" }).click();
+        await expect(missing).toHaveCount(0);
+        await expect(page).not.toHaveURL(/fact=/);
       });
-      await page.getByTestId("memory-fact-missing").getByRole("button", {
-        name: "Close",
-      }).click();
-      await expect(page.getByTestId("memory-fact-missing")).toHaveCount(0);
-      await expect(page).not.toHaveURL(/fact=/);
-    });
+    }
 
     if (viewport.name === "desktop") {
       test("on a wide screen the list stays beside the fact; Escape closes it and returns to the row", async ({ page }) => {
