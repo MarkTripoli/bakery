@@ -441,6 +441,7 @@ export function FileDetails(
           full={opened && phone}
           onOpenable={setOpenable}
           onMismatch={setBytesMismatch}
+          downloadRefused={bytesMismatch}
         />
       )}
       <UI.Inline gap="compact">

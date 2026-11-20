@@ -57,7 +57,14 @@ export function previewKind(
 
 /** The file's contents as far as the page can show them: text, images and players, bounded. */
 export function FilePreview(
-  { file, version, full = false, onOpenable, onMismatch }: {
+  {
+    file,
+    version,
+    full = false,
+    onOpenable,
+    onMismatch,
+    downloadRefused = false,
+  }: {
     readonly file: StorageFolderItem;
     /**
      * Told whether the file has anything to open: false for a file with no
@@ -73,6 +80,12 @@ export function FilePreview(
      * panel can stop offering to save them (#437).
      */
     readonly onMismatch?: ((mismatch: boolean) => void) | undefined;
+    /**
+     * The panel's own Download was refused because the bytes and the record
+     * disagree. The player never asked, so nothing here has seen the refusal yet;
+     * it is the same fact, and the preview must say it the same way (#437).
+     */
+    readonly downloadRefused?: boolean;
   },
 ) {
   const api = useBakeryApi();
@@ -136,7 +149,7 @@ export function FilePreview(
   const [mismatch, setMismatch] = useState(false);
   // A refused read outranks the answer: the bytes are not the bytes the record
   // describes, so what they would have looked like is not a fact about this file.
-  const state: PreviewState = mismatch
+  const state: PreviewState = mismatch || downloadRefused
     ? { kind: "mismatch" }
     : answer !== null
     ? previewState(answer)
@@ -224,10 +237,13 @@ export function FilePreview(
   const refusedAsMismatch = mediaFailureIsMismatch(
     media !== null ? mediaCheck.error : content.error,
   );
+  // A refusal the panel already met is not undone by a preview that has not met
+  // one yet: the two are the same fact, and the panel's own Download found it.
+  const mismatchKnown = refusedAsMismatch || downloadRefused;
   useEffect(() => {
     setMismatch(refusedAsMismatch);
-    onMismatch?.(refusedAsMismatch);
-  }, [refusedAsMismatch, onMismatch]);
+    onMismatch?.(mismatchKnown);
+  }, [refusedAsMismatch, mismatchKnown, onMismatch]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!image || !content.data) return;

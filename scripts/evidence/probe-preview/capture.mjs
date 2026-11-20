@@ -206,7 +206,15 @@ const STATES = [
       }
       // A frame only comes from the bytes themselves: HAVE_CURRENT_DATA means the
       // element decoded one, where a black rectangle could be any failure at all.
-      const ready = await player.evaluate((node) => node.readyState);
+      // The clip is small but the decode is not instant, so this waits for it.
+      let ready = 0;
+      for (let wait = 0; wait < 20; wait += 1) {
+        ready = await player.evaluate((node) => node.readyState);
+        if (ready >= 2) break;
+        await player.evaluate((node) => node.play().catch(() => {}))
+          .catch(() => {});
+        await page.waitForTimeout(500);
+      }
       if (ready < 2) {
         throw new Error(`the player never decoded a frame (${ready})`);
       }
@@ -214,11 +222,14 @@ const STATES = [
     views: [[DESKTOP, LIGHT]],
   },
   {
-    // The same video with a digest that does not match: the panel must name the
-    // file, not the browser, and offer nothing to open (#437).
-    id: "panel-video-mismatch",
+    // A damaged video in the panel, met through Download rather than Play: the
+    // panel's own read is refused, and the preview must say the same thing the
+    // player would have said -- banner, no player, and nothing offered that the
+    // file cannot give (#437). Both paths end in this one picture, so one still
+    // proves it; a second, identical still would prove neither.
+    id: "panel-video-download-mismatch",
     file: "walkthrough-cut.mp4",
-    play: true,
+    download: true,
     says: /does not match its record/i,
     assert: async (page) => {
       if (await page.locator("video").count() > 0) {
@@ -291,14 +302,36 @@ const folder = seeded.folder;
 // A player is asked to play by the capture, not by a person, so the browser's
 // autoplay policy would otherwise refuse the play() that fetches the bytes.
 const browser = await chromium.launch({
+  // A download would land in a file picker; keep it off the disk.
+  downloadsPath: OUT,
   args: ["--autoplay-policy=no-user-gesture-required"],
 });
+/**
+ * Do what a person does before the state exists: press Download, or press Play.
+ * Both are retried by the poll below, because the element and the button arrive
+ * with the preview query's answer, and a click that lands too early is lost.
+ */
+async function trigger(page, state) {
+  if (state.download === true) {
+    const button = page.getByRole("button", { name: /^download/i }).first();
+    if (await button.count() > 0) await button.click().catch(() => {});
+  }
+  if (state.play === true) {
+    const player = page.locator("video, audio").first();
+    if (await player.count() > 0) {
+      await player.evaluate((node) => node.play().catch(() => {}))
+        .catch(() => {});
+    }
+  }
+}
+
 const files = [];
 for (const state of ONLY === "artifact" ? [] : STATES) {
   const context = await browser.newContext({
     viewport: DESKTOP[1],
     colorScheme: LIGHT,
     deviceScaleFactor: 1,
+    acceptDownloads: true,
   });
   await signIn(context);
   const page = await context.newPage();
@@ -321,15 +354,7 @@ for (const state of ONLY === "artifact" ? [] : STATES) {
     // A player is given its address with preload="none": nothing is fetched until
     // someone asks it to play, so a still of a video that was never played would
     // show a black rectangle and prove nothing about the bytes.
-    if (state.play === true) {
-      const player = page.locator("video, audio").first();
-      // The element arrives with the preview query's answer, not with the page.
-      for (let wait = 0; wait < 30 && (await player.count()) === 0; wait += 1) {
-        await page.waitForTimeout(500);
-      }
-      await player.evaluate((node) => node.play().catch(() => {}))
-        .catch(() => {});
-    }
+    await trigger(page, state);
 
     // The state's own sentence, polled: a page that is still loading must not be
     // photographed as if it were a result.
@@ -342,6 +367,11 @@ for (const state of ONLY === "artifact" ? [] : STATES) {
       // capture, leaving an empty body. Reload once rather than photograph it.
       if (!found && attempt === 10) {
         await page.reload({ waitUntil: "load" }).catch(() => {});
+      }
+      // A click or a play that landed before the element existed is lost, so the
+      // gesture is repeated while the sentence is still missing.
+      if (!found && attempt > 0 && attempt % 3 === 0) {
+        await trigger(page, state);
       }
       if (!found) await page.waitForTimeout(1000);
     }
