@@ -119,6 +119,7 @@ The status (`GET /v1/installation/backups/status`) answers "am I protected":
 | ----------- | ----------------------------------------------------------------------------------------------------------------- |
 | `protected` | the newest finished backup succeeded and is newer than twice the schedule interval (7 days with no schedule)     |
 | `running`   | a backup holds a live claim                                                                                       |
+| `not_copied` | the newest finished backup was **taken on the host** but its **off-site copy failed** (see below); a later good full backup replaces this state |
 | `stale`     | the newest good backup is older than that                                                                         |
 | `failed`    | the newest attempt failed, or a claim lapsed (the runner stopped reporting: the cause is `runner_lost`)           |
 
@@ -128,13 +129,34 @@ A failed backup keeps a stable code and the runner's plain-text detail:
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `disk_full`               | the host ran out of space writing the set. Free space or lower the days to keep; the half-written set is removed.                              |
 | `key_missing`             | `BAKERY_BACKUP_RECIPIENT` is not set in `/etc/bakery/backup.env`, or `age` is not installed or rejects the recipient.                         |
-| `destination_refused`     | the off-site destination said no (wrong key, bucket or folder, no permission) or the address is private (`destination_private_address`) or the settings are invalid (`destination_invalid`). The detail quotes the destination's answer. |
-| `destination_unreachable` | no answer from the off-site destination, or its name does not resolve (`destination_unresolvable`).                                            |
+| `destination_refused`     | only ever the cause of a `not_copied` backup (below): the off-site destination said no. |
+| `destination_unreachable` | only ever the cause of a `not_copied` backup (below): no answer, or an unverifiable copy.                                                       |
 | `runner_error`            | anything else: `journalctl -u bakery-backup-runner` has the script's last lines.                                                               |
 
-When the local backup was taken but the off-site copy failed, the run is
-reported as failed with that cause **and the detail says the backup was taken
-and is kept on the host**. Fix the destination and ask for another backup.
+### Taken, but not copied off-site (`not_copied`)
+
+When the backup on the host succeeded and only the off-site copy failed, the run
+is **completed, not failed**: the backup exists on the host and is kept there. It
+is reported with `locations: ["server-host"]` and a cause, and the status shows
+its own state, `not_copied` (amber), never `failed`. The cause is one of:
+
+| cause                     | meaning and fix                                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `destination_refused`     | the destination said no (wrong key, bucket or folder, no permission), or its address is private (`destination_private_address`), or the settings are invalid (`destination_invalid`). The detail quotes the destination's own answer. |
+| `destination_unreachable` | no answer, the name does not resolve (`destination_unresolvable`), or the copy could not be verified (for example the destination holds a different size than was sent): the detail has the real cause. |
+
+The local backup counts as taken (it moves "last backup"), but the installation
+is **not** protected off-site. Fix the destination (**Send a test** is the quick
+check), then ask for another backup; the next good full backup becomes the newest
+finished attempt and the state returns to `protected`. A failure *before or
+while* taking the backup on the host (`disk_full`, `key_missing`, `runner_error`)
+is still `failed`.
+
+**The unit exits 1 for this case**, like a failed backup: a backup that was not
+copied off-site is a problem worth seeing, so `bakery-backup-runner.service`
+shows in `systemctl --failed` and the journal says plainly
+`was taken but NOT copied off-site (<cause>)`. Retention after such a run prunes
+the **local** sets only; off-site sets are left alone until a copy succeeds.
 
 ## What the runner does when something goes wrong
 
@@ -157,7 +179,8 @@ and is kept on the host**. Fix the destination and ask for another backup.
   at once, counted as success, and runs again next minute. The runner never
   queues behind a long backup.
 
-Exit codes: `0` nothing to do or backed up, `1` the backup failed (reported),
+Exit codes: `0` nothing to do or backed up, `1` the backup failed, or it was
+taken but not copied off-site (reported either way),
 `2` the lease was lost, `3` the API could not be reached or refused the runner,
 `64` the environment file is missing or invalid.
 

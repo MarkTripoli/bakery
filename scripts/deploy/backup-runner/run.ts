@@ -25,6 +25,12 @@ export type RunOutcome =
     readonly runId: string;
     readonly code: FailureCode;
   }
+  /** The backup was taken and kept on the host, but the off-site copy failed. */
+  | {
+    readonly kind: "not-copied";
+    readonly runId: string;
+    readonly code: NotCopiedCode;
+  }
   | {
     readonly kind: "lease-lost";
     readonly runId: string;
@@ -60,7 +66,19 @@ export type RunnerDeps = {
 
 export const HEARTBEAT_MS = 120_000;
 
-const LOCAL_KEPT = "The backup was taken and is kept on this host.";
+/** The only causes the server accepts on a completed report: the off-site copy failed. */
+export type NotCopiedCode = "destination_refused" | "destination_unreachable";
+
+/**
+ * A refusal stays a refusal; anything else about the off-site step (a dead
+ * connection, a size that did not verify, an unexpected error) is mapped
+ * conservatively to unreachable, with the real cause in the detail.
+ */
+export function notCopiedCode(code: FailureCode): NotCopiedCode {
+  return code === "destination_refused"
+    ? "destination_refused"
+    : "destination_unreachable";
+}
 
 /** Progress points: reported, never lowered. */
 const PROGRESS = {
@@ -222,17 +240,52 @@ export async function runOnce(deps: RunnerDeps): Promise<RunOutcome> {
       return await fail("runner_error", describe(error, deps.secrets));
     }
     if (fatal !== null) return await finish();
+    /**
+     * The local backup exists; the off-site copy did not happen. The run is
+     * COMPLETED on the host with the cause, not failed: the backup is safe here.
+     * Retention afterwards prunes the local sets only.
+     */
+    const notCopied = async (
+      code: FailureCode,
+      detail: string,
+    ): Promise<RunOutcome> => {
+      stopHeartbeat.abort();
+      await heartbeat;
+      if (fatal !== null) return outcomeOf(fatal);
+      const cause = notCopiedCode(code);
+      const text = redact(detail, deps.secrets, 1000);
+      try {
+        await reporter.send({
+          status: "completed",
+          sizeBytes: String(artifact.totalBytes),
+          locations: ["server-host"],
+          failureCode: cause,
+          ...(text === "" ? {} : { failureDetail: text }),
+        });
+      } catch (error) {
+        return outcomeOf(error);
+      }
+      deps.log(
+        `backup run ${runId} was taken but NOT copied off-site (${cause}): ${text}`,
+      );
+      try {
+        await deps.prune(settings, null, artifact);
+      } catch (error) {
+        deps.log(`retention failed: ${describe(error, deps.secrets)}`);
+      }
+      return { kind: "not-copied", runId, code: cause };
+    };
+
     // The destination is judged AFTER the local backup exists: a refused or
-    // invalid off-site destination must not cost the backup itself, which stays
-    // on this host and is named as such in the failure.
+    // invalid off-site destination must not cost the backup itself.
     let offsite: Offsite | null;
     try {
       offsite = deps.offsite(settings);
     } catch (error) {
       if (error instanceof OffsiteError) {
-        return await fail(error.code, `${error.detail} ${LOCAL_KEPT}`);
+        return await notCopied(error.code, error.detail);
       }
-      throw error;
+      return await notCopied("runner_error", describe(error, deps.secrets));
     }
     await reporter.running(offsite === null ? 90 : PROGRESS.backedUp);
 
@@ -251,12 +304,9 @@ export async function runOnce(deps: RunnerDeps): Promise<RunOutcome> {
       } catch (error) {
         if (fatal !== null) return await finish();
         if (error instanceof OffsiteError) {
-          return await fail(error.code, `${error.detail} ${LOCAL_KEPT}`);
+          return await notCopied(error.code, error.detail);
         }
-        return await fail(
-          "runner_error",
-          `${describe(error, deps.secrets)} ${LOCAL_KEPT}`,
-        );
+        return await notCopied("runner_error", describe(error, deps.secrets));
       }
       if (fatal !== null) return await finish();
       locations.push("off-site");

@@ -16,6 +16,8 @@ import {
   OffsiteError,
 } from "../../scripts/deploy/backup-runner/offsite.ts";
 import { createSecrets } from "../../scripts/deploy/backup-runner/redact.ts";
+import { assertReportShape } from "../../apps/server/src/modules/backups/state.ts";
+import { EXIT, exitCodeOf } from "../../scripts/deploy/backup-runner.ts";
 import {
   HEARTBEAT_MS,
   type RunnerDeps,
@@ -86,6 +88,7 @@ function harness(options: Options = {}) {
   const reports: { sequence: number; body: ReportBody }[] = [];
   const logs: string[] = [];
   const sleepers: { ms: number; wake: () => void }[] = [];
+  const pruned: (Offsite | null)[] = [];
   const api: RunnerApi = {
     claim: () => {
       events.push("claim");
@@ -108,6 +111,8 @@ function harness(options: Options = {}) {
       assertEquals(runId, RUN);
       assertEquals(leaseToken, LEASE);
       events.push(`report:${body.status}`);
+      // The server's own shape rules judge every report the runner sends.
+      assertReportShape({ sequence, ...body });
       reports.push({ sequence, body });
       await options.onReport?.(sequence, body);
     },
@@ -137,6 +142,7 @@ function harness(options: Options = {}) {
     },
     prune: (settings, offsite, art) => {
       events.push("prune");
+      pruned.push(offsite);
       return options.prune
         ? options.prune(settings, offsite, art)
         : Promise.resolve();
@@ -148,7 +154,7 @@ function harness(options: Options = {}) {
       }),
     log: (line) => logs.push(line),
   };
-  return { deps, events, reports, logs, sleepers };
+  return { deps, events, reports, logs, sleepers, pruned };
 }
 
 Deno.test("nothing claimed: no settings read, no report, no work", async () => {
@@ -260,7 +266,7 @@ Deno.test("a failed backup step reports its failure code with a redacted detail 
   assertStringIncludes(last.failureDetail!, "No space left on device");
 });
 
-Deno.test("a refused destination fails the run AFTER the backup was taken, and says it was kept", async () => {
+Deno.test("a refused destination completes the run on the host as 'not copied off-site', after the backup was taken", async () => {
   const h = harness({
     settings: withOffsite,
     offsite: () => {
@@ -272,7 +278,7 @@ Deno.test("a refused destination fails the run AFTER the backup was taken, and s
   });
   const outcome = await runOnce(h.deps);
   assertEquals(outcome, {
-    kind: "failed",
+    kind: "not-copied",
     runId: RUN,
     code: "destination_refused",
   });
@@ -281,13 +287,25 @@ Deno.test("a refused destination fails the run AFTER the backup was taken, and s
     true,
   );
   assert(!h.events.includes("upload"));
-  const last = h.reports.at(-1)!.body;
-  assertEquals(last.failureCode, "destination_refused");
-  assertStringIncludes(last.failureDetail!, "destination_private_address");
-  assertStringIncludes(last.failureDetail!, "kept on this host");
+  // Completed, not failed: the backup is on the host, with the cause attached.
+  assertEquals(h.reports.some((r) => r.body.status === "failed"), false);
+  assertEquals(h.reports.at(-1)!.body, {
+    status: "completed",
+    sizeBytes: "1234",
+    locations: ["server-host"],
+    failureCode: "destination_refused",
+    failureDetail: "destination_private_address",
+  });
+  // The pass says so plainly and exits 1.
+  assertEquals(h.logs.some((l) => l.includes("NOT copied off-site")), true);
+  assertEquals(exitCodeOf(outcome), 1);
+  assertEquals(exitCodeOf(outcome), EXIT.failed);
+  // Retention still runs, for the local sets only.
+  assertEquals(h.pruned, [null]);
 });
 
-Deno.test("an upload failure keeps its code, never completes, and never leaks the key pair", async () => {
+Deno.test("an upload failure is 'not copied': refusals stay refusals, everything else is unreachable with the real cause, and no key leaks", async () => {
+  // A generic error mentioning the key pair: unreachable, redacted.
   const h = harness({
     settings: withOffsite,
     upload: () =>
@@ -295,25 +313,129 @@ Deno.test("an upload failure keeps its code, never completes, and never leaks th
         new Error(`boom for ${KEY_ID} using ${KEY_SECRET} and ${LEASE}`),
       ),
   });
-  // The runner learns the pair from the settings it just read.
   const outcome = await runOnce(h.deps);
-  assertEquals(outcome, { kind: "failed", runId: RUN, code: "runner_error" });
-  const body = JSON.stringify(h.reports.at(-1)!.body);
-  for (const secret of [KEY_ID, KEY_SECRET, LEASE]) {
-    assert(!body.includes(secret));
-  }
-  assert(!h.events.includes("prune"));
-
-  const h2 = harness({
-    settings: withOffsite,
-    upload: () =>
-      Promise.reject(
-        new OffsiteError("destination_unreachable", "connect refused"),
-      ),
+  assertEquals(outcome, {
+    kind: "not-copied",
+    runId: RUN,
+    code: "destination_unreachable",
   });
-  assertEquals((await runOnce(h2.deps)).kind, "failed");
-  assertEquals(h2.reports.at(-1)!.body.failureCode, "destination_unreachable");
-  assertEquals(h2.reports.some((r) => r.body.status === "completed"), false);
+  const last = h.reports.at(-1)!.body;
+  assertEquals(last.status, "completed");
+  assertEquals(last.locations, ["server-host"]);
+  assertEquals(last.failureCode, "destination_unreachable");
+  assertStringIncludes(last.failureDetail!, "boom");
+  for (const secret of [KEY_ID, KEY_SECRET, LEASE]) {
+    assert(!JSON.stringify(last).includes(secret));
+  }
+  assertEquals(h.pruned, [null]);
+
+  // Codes the server accepts keep their meaning.
+  for (
+    const [error, expected] of [
+      [
+        new OffsiteError("destination_unreachable", "connect refused"),
+        "destination_unreachable",
+      ],
+      [
+        new OffsiteError("destination_refused", "403 Access Denied"),
+        "destination_refused",
+      ],
+      // A size that did not verify, or any other runner-side cause, is mapped
+      // conservatively to unreachable with the real cause in the detail.
+      [
+        new OffsiteError(
+          "runner_error",
+          "The destination holds 4 bytes of a.age, expected 5.",
+        ),
+        "destination_unreachable",
+      ],
+    ] as const
+  ) {
+    const g = harness({
+      settings: withOffsite,
+      upload: () => Promise.reject(error),
+    });
+    assertEquals((await runOnce(g.deps)).kind, "not-copied");
+    const report = g.reports.at(-1)!.body;
+    assertEquals(report.status, "completed");
+    assertEquals(report.failureCode, expected);
+    assertStringIncludes(report.failureDetail!, error.detail);
+    assertEquals(g.reports.some((r) => r.body.status === "failed"), false);
+  }
+});
+
+Deno.test("a server-withheld destination (offsiteRefusal) is 'not copied' with the matching code", async () => {
+  for (
+    const [code, detail, expected] of [
+      [
+        "destination_refused",
+        "destination_private_address",
+        "destination_refused",
+      ],
+      ["destination_refused", "destination_invalid", "destination_refused"],
+      [
+        "destination_unreachable",
+        "destination_unresolvable",
+        "destination_unreachable",
+      ],
+      [
+        "runner_error",
+        "The off-site destination is configured but the server released no credentials.",
+        "destination_unreachable",
+      ],
+    ] as const
+  ) {
+    const h = harness({
+      settings: withOffsite,
+      offsite: () => {
+        throw new OffsiteError(code, detail);
+      },
+    });
+    const outcome = await runOnce(h.deps);
+    assertEquals(outcome.kind, "not-copied", detail);
+    const report = h.reports.at(-1)!.body;
+    assertEquals(report.status, "completed", detail);
+    assertEquals(report.failureCode, expected, detail);
+    assertEquals(report.failureDetail, detail);
+  }
+});
+
+Deno.test("a failure before or during the local backup is still 'failed' and never 'not copied'", async () => {
+  const before = harness({
+    settings: withOffsite,
+    backup: () => Promise.reject(new StepError("disk_full", "No space left")),
+  });
+  assertEquals(await runOnce(before.deps), {
+    kind: "failed",
+    runId: RUN,
+    code: "disk_full",
+  });
+  assertEquals(before.reports.at(-1)!.body.status, "failed");
+  assertEquals(
+    before.reports.some((r) => r.body.status === "completed"),
+    false,
+  );
+  assertEquals(
+    exitCodeOf({ kind: "failed", runId: RUN, code: "disk_full" }),
+    1,
+  );
+
+  // Settings unreadable: nothing was backed up, so it fails.
+  const noSettings = harness({ settingsError: new ApiFatal(500, "INTERNAL") });
+  assertEquals((await runOnce(noSettings.deps)).kind, "failed");
+});
+
+Deno.test("a fully copied backup stays a plain completed report, and prunes both sides", async () => {
+  const h = harness({ settings: withOffsite });
+  const outcome = await runOnce(h.deps);
+  assertEquals(outcome.kind, "completed");
+  assertEquals(h.reports.at(-1)!.body, {
+    status: "completed",
+    sizeBytes: "1234",
+    locations: ["server-host", "off-site"],
+  });
+  assertEquals(h.pruned, [fakeOffsite]);
+  assertEquals(exitCodeOf(outcome), 0);
 });
 
 Deno.test("when settings cannot be read the run fails with runner_error", async () => {

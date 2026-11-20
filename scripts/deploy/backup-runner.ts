@@ -39,12 +39,15 @@ import type { HostResolver } from "../../apps/server/src/modules/backups/dns.ts"
  * backup bytes or an age key: only the PUBLIC recipient in /etc/bakery/backup.env
  * is used, by backup.sh.
  *
- * Exit codes: 0 nothing to do or backed up; 1 the backup failed (reported);
- * 2 the lease was lost; 3 the server could not be reached or refused the runner.
+ * Exit codes: 0 nothing to do or backed up; 1 the backup failed, or it was taken
+ * but NOT copied off-site (reported either way, so the unit shows in
+ * `systemctl --failed`); 2 the lease was lost; 3 the server could not be reached
+ * or refused the runner.
  */
 export const EXIT = {
   ok: 0,
   failed: 1,
+  notCopied: 1,
   leaseLost: 2,
   unreachable: 3,
   usage: 64,
@@ -74,6 +77,8 @@ export function exitCodeOf(outcome: RunOutcome): number {
       return EXIT.ok;
     case "failed":
       return EXIT.failed;
+    case "not-copied":
+      return EXIT.notCopied;
     case "lease-lost":
       return EXIT.leaseLost;
     case "undelivered":
