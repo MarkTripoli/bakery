@@ -39,6 +39,7 @@ import type {
   IntegrationAppRegistration,
   IntegrationConnection,
   IntegrationResource,
+  MergeAttemptListResponse,
   MessageListResponse,
   NotificationCountResponse,
   NotificationCursorQuery,
@@ -2429,6 +2430,33 @@ export function approvalsQueryOptions(
           organizationId: requireOrganization(scope),
           taskId,
           limit: 25,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * One pull request's merge attempts, newest first. Read whole (the newest is
+ * what the section shows) and kept fresh, so a refused or unknown attempt is
+ * what the page says after a reload, never a guess.
+ */
+export function mergeAttemptsQueryOptions(
+  client: Pick<BakeryApiClient, "listMergeAttempts">,
+  scope: ApiScope,
+  pullRequestId: string,
+) {
+  return queryOptions<MergeAttemptListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "mergeAttempts.list", {
+      pullRequestId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listMergeAttempts({
+          organizationId: requireOrganization(scope),
+          pullRequestId,
+          limit: 10,
           signal,
         }),
       ),
