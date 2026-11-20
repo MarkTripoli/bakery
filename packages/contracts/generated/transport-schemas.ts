@@ -30835,6 +30835,40 @@ const transportSchemas = {
     "Page<MergeAttempt>": {
       "pageOf": "MergeAttempt",
       "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "PluginStateItem": {
+      "fields": [
+        "id",
+        "pluginInstallId",
+        "namespace",
+        "key",
+        "sizeBytes",
+        "createdAt",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "pluginInstallId": "uuid",
+        "namespace": "string",
+        "key": "string",
+        "sizeBytes": "integer",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      },
+      "description": "What one plugin install has saved under one namespaced key, without the saved value: where it is kept, how big it is and when it was created and last saved. For a caller that needs to say what a plugin keeps without being shown, or sent, the data itself. Authorized exactly like the full state read.",
+      "fieldDescriptions": {
+        "id": "Identifier of the saved item.",
+        "pluginInstallId": "The install that saved it.",
+        "namespace": "The group the plugin keeps it under, one the plugin's manifest declared.",
+        "key": "The name the plugin saved it under, within its namespace.",
+        "sizeBytes": "Size in bytes of the stored value's JSON text.",
+        "createdAt": "UTC time the item was first saved.",
+        "updatedAt": "UTC time the item was last saved."
+      }
+    },
+    "Page<PluginStateItem>": {
+      "pageOf": "PluginStateItem",
+      "description": "Cursor page of saved items for one plugin install, newest first, returned by GET /v1/plugin-installs/{id}/state-items. The saved values are never part of it. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     }
   },
   "pageEnvelope": {

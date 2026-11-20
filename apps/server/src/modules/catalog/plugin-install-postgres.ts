@@ -53,6 +53,13 @@ const INSTALL_COLUMNS = `
   i.disabled_at, i.created_at, i.updated_at, i.version, i.last_update_failure
 `;
 
+/** The columns of the values-free read: nothing here can carry a saved value. */
+const STATE_ITEM_COLUMNS = `
+  s.id, s.plugin_install_id, s.owner_principal_id, s.namespace, s.key,
+  s.schema_version, s.cas_version, s.created_at, s.updated_at, s.version,
+  octet_length(s.value::text) as size_bytes
+`;
+
 const STATE_COLUMNS = `
   s.id, s.plugin_install_id, s.owner_principal_id, s.namespace, s.key,
   s.schema_version, s.cas_version, s.value, s.created_at, s.updated_at,
@@ -92,6 +99,7 @@ type StateRow = {
 
 type PluginInstall = z.output<typeof contractSchemas.PluginInstall>;
 type PluginState = z.output<typeof contractSchemas.PluginState>;
+type PluginStateItem = z.output<typeof contractSchemas.PluginStateItem>;
 
 const iso = (value: Date | string | null): string | null =>
   value === null ? null : new Date(value).toISOString();
@@ -115,6 +123,19 @@ function toInstall(row: InstallRow, organizationId: string): PluginInstall {
         row.last_update_failure === undefined
       ? null
       : row.last_update_failure as PluginInstall["lastUpdateFailure"],
+  };
+}
+
+function toStateItem(row: StateRow): PluginStateItem {
+  // Built field by field from the row, so a saved value can never ride along.
+  return {
+    id: row.id,
+    pluginInstallId: row.plugin_install_id,
+    namespace: row.namespace,
+    key: row.key,
+    sizeBytes: Number(row.size_bytes),
+    createdAt: iso(row.created_at)!,
+    updatedAt: iso(row.updated_at)!,
   };
 }
 
@@ -743,6 +764,36 @@ export async function listPluginState(
   installId: string,
   secret: string,
 ): Promise<{ items: PluginState[]; nextCursor: string | null }> {
+  return await readPluginState(context, search, installId, secret, "values");
+}
+
+/**
+ * The same read as `listPluginState`, authorized the same way and paged the same
+ * way, but selecting no value column at all: what a plugin keeps, how big it is
+ * and when it was saved, for a page that never shows the data. The values do not
+ * leave the database, so there is nothing for a client to discard.
+ */
+export async function listPluginStateItems(
+  context: ActionContext,
+  search: { cursor?: string; limit?: number },
+  installId: string,
+  secret: string,
+): Promise<{ items: PluginStateItem[]; nextCursor: string | null }> {
+  return await readPluginState(context, search, installId, secret, "items");
+}
+
+async function readPluginState<Mode extends "values" | "items">(
+  context: ActionContext,
+  search: { cursor?: string; limit?: number },
+  installId: string,
+  secret: string,
+  mode: Mode,
+): Promise<
+  {
+    items: (Mode extends "values" ? PluginState : PluginStateItem)[];
+    nextCursor: string | null;
+  }
+> {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
@@ -764,7 +815,8 @@ export async function listPluginState(
   // Bound to the install as well as the caller: replaying a cursor across two
   // installs would page over another install's rows.
   const binding: CursorBinding = {
-    action: "pluginState.list",
+    // One binding per read, so a cursor from one cannot page the other.
+    action: mode === "values" ? "pluginState.list" : "pluginStateItems.list",
     principalId,
     organizationId,
     ordering: STATE_ORDERING,
@@ -775,7 +827,7 @@ export async function listPluginState(
   const rows = await transaction.query<
     StateRow & { cursor_created_at: string }
   >(
-    `select ${STATE_COLUMNS},
+    `select ${mode === "values" ? STATE_COLUMNS : STATE_ITEM_COLUMNS},
             to_char(
               s.created_at at time zone 'UTC',
               'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
@@ -798,7 +850,9 @@ export async function listPluginState(
   const visible = rows.rows.slice(0, limit);
   const last = visible.at(-1);
   return {
-    items: visible.map((row) => toState(row, organizationId)),
+    items: visible.map((row) =>
+      mode === "values" ? toState(row, organizationId) : toStateItem(row)
+    ) as (Mode extends "values" ? PluginState : PluginStateItem)[],
     nextCursor: rows.rows.length > limit && last
       ? await encodeCursor(secret, binding, {
         createdAt: last.cursor_created_at,

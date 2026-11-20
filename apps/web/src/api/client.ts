@@ -166,8 +166,8 @@ export type PluginInstallListResponse = ClientOutputMap["Page<PluginInstall>"];
 export type PluginInstallResponse = ClientOutputMap["PluginInstall"];
 /**
  * One item a plugin has saved, as the page may know it: where it is kept, how
- * big it is and when it was last saved. The saved value itself is dropped when
- * the read arrives, so it never reaches a component or the query cache.
+ * big it is and when it was last saved. The read it comes from carries no saved
+ * value at all.
  */
 export type SavedDataItem = Readonly<{
   id: string;
@@ -771,7 +771,7 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<PluginInstallResponse>>;
-    /** `GET /v1/plugin-installs/{id}/state`: what the plugin has saved, without the values. */
+    /** `GET /v1/plugin-installs/{id}/state-items`: what the plugin has saved, with no values in the response. */
     readonly savedData: (options: {
       readonly organizationId: string;
       readonly installId: string;
@@ -2349,7 +2349,7 @@ export function createBakeryApiClient({
         return workerResult(
           options.organizationId,
           async (scoped): Promise<SavedDataPage> => {
-            const page = await scoped.actions["pluginState.get"]({
+            const page = await scoped.actions["pluginStateItems.list"]({
               id: options.installId,
               cursor: options.cursor,
               limit: options.limit,
@@ -2359,7 +2359,7 @@ export function createBakeryApiClient({
                 id: item.id,
                 namespace: item.namespace,
                 key: item.key,
-                sizeBytes: item.sizeBytes ?? 0,
+                sizeBytes: item.sizeBytes,
                 updatedAt: item.updatedAt,
               })),
               nextCursor: page.nextCursor,

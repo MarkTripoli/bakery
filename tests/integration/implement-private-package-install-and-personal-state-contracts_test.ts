@@ -2639,3 +2639,91 @@ Deno.test("a state read says how big each saved item is, and the write answers w
           .sizeBytes,
     );
   }));
+
+Deno.test("the values-free state read carries no saved value, pages, and is authorized like the full read", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const ownerCookie = await inviteColleague(fixture, "developer");
+    const owner = asCookie(fixture, ownerCookie);
+    const installed = await (await owner("/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "personal",
+      },
+    })).json();
+    const secret = "TOPSECRET-SAVED-VALUE";
+    for (const key of ["one", "two"]) {
+      const put = await owner(
+        `/v1/plugin-installs/${installed.id}/state/settings/${key}`,
+        {
+          method: "PUT",
+          body: {
+            namespace: "settings",
+            key,
+            schemaVersion: 1,
+            value: { secret, key },
+            expectedCasVersion: 0,
+          },
+        },
+      );
+      assertEquals(put.status, 200, await put.clone().text());
+    }
+
+    // The owner reads what is saved, and the response holds no value anywhere:
+    // not as a field and not as text.
+    const itemsPath = `/v1/plugin-installs/${installed.id}/state-items`;
+    const response = await owner(itemsPath, { method: "GET" });
+    assertEquals(response.status, 200, await response.clone().text());
+    const text = await response.text();
+    assert(!text.includes(secret), "a saved value must not be in the response");
+    const page = JSON.parse(text) as {
+      items: Record<string, unknown>[];
+      nextCursor: string | null;
+    };
+    assertEquals(page.items.length, 2);
+    for (const item of page.items) {
+      assertEquals(Object.keys(item).sort(), [
+        "createdAt",
+        "id",
+        "key",
+        "namespace",
+        "pluginInstallId",
+        "sizeBytes",
+        "updatedAt",
+      ]);
+      assert(!("value" in item));
+      assert((item.sizeBytes as number) > 0);
+    }
+
+    // It pages, and a cursor from it belongs to it alone.
+    const first = await (await owner(`${itemsPath}?limit=1`, {
+      method: "GET",
+    })).json();
+    assertEquals(first.items.length, 1);
+    assert(first.nextCursor !== null);
+    const second = await (await owner(
+      `${itemsPath}?limit=1&cursor=${encodeURIComponent(first.nextCursor)}`,
+      { method: "GET" },
+    )).json();
+    assertEquals(second.items.length, 1);
+    assert(second.items[0].id !== first.items[0].id);
+    const crossed = await owner(
+      `/v1/plugin-installs/${installed.id}/state?limit=1&cursor=${
+        encodeURIComponent(first.nextCursor)
+      }`,
+      { method: "GET" },
+    );
+    assertEquals(crossed.status, 400, await crossed.clone().text());
+
+    // Authorized like the full read: another member, an Admin even, gets not
+    // found for somebody else's personal install, never the metadata.
+    const colleague = asCookie(
+      fixture,
+      await inviteColleague(fixture, "admin"),
+    );
+    const refused = await colleague(itemsPath, { method: "GET" });
+    assertEquals(refused.status, 404, await refused.clone().text());
+    assert(!(await refused.text()).includes("sizeBytes"));
+  }));

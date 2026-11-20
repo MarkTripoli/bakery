@@ -146,6 +146,8 @@ type Fixture = {
   /** What the plugin has saved, and the status the read answers with. */
   saved: SavedItem[];
   savedStatus: number;
+  /** Requests the page made to the full state read, which returns the values. */
+  valuesReads: number;
 };
 type SavedItem = {
   id: string;
@@ -193,6 +195,7 @@ async function pluginsFixture(
       },
     ],
     savedStatus: 200,
+    valuesReads: 0,
   };
   await mockAuthenticatedSession(page);
   const empty = (route: Route) =>
@@ -325,9 +328,8 @@ async function pluginsFixture(
     target.version += 1;
     return route.fulfill(json(target));
   });
-  // What the plugin has saved. The mock answers with the value too, as the
-  // server does, so the page is proven to drop it.
-  await page.route("**/v1/plugin-installs/*/state**", (route) => {
+  // What the plugin has saved: the values-free read the page uses.
+  await page.route("**/v1/plugin-installs/*/state-items**", (route) => {
     if (state.savedStatus !== 200) {
       return route.fulfill(problem(state.savedStatus, "INTERNAL"));
     }
@@ -337,19 +339,26 @@ async function pluginsFixture(
     const page = state.saved.slice(offset, offset + limit);
     return route.fulfill(json({
       items: page.map((item) => ({
-        ...item,
-        organizationId: MOCK_ORGANIZATION_ID,
+        id: item.id,
         pluginInstallId: NOTES_INSTALL,
-        ownerPrincipalId: null,
-        schemaVersion: 1,
-        casVersion: 1,
+        namespace: item.namespace,
+        key: item.key,
+        sizeBytes: item.sizeBytes,
         createdAt: item.updatedAt,
-        version: 1,
-        value: { secret: "TOPSECRET-VALUE" },
+        updatedAt: item.updatedAt,
       })),
       nextCursor: offset + limit < state.saved.length
         ? String(offset + limit)
         : null,
+    }));
+  });
+  // The full state read returns the saved values. The page must never ask for
+  // it, so it counts the asks and would hand back a secret.
+  await page.route(/\/v1\/plugin-installs\/[^/]+\/state(\?.*)?$/, (route) => {
+    state.valuesReads += 1;
+    return route.fulfill(json({
+      items: [{ key: "theme", value: { secret: "TOPSECRET-VALUE" } }],
+      nextCursor: null,
     }));
   });
   return state;
@@ -577,7 +586,7 @@ for (
     });
 
     test("saved data lists group, name, size and last saved, and never shows a value", async ({ page }) => {
-      await pluginsFixture(page);
+      const state = await pluginsFixture(page);
       await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
       const saved = page.getByTestId("plugin-saved");
       await expect(saved.getByRole("heading", { name: "Saved data" }))
@@ -603,8 +612,10 @@ for (
           "2 items, 1.5 KB. Only Notes reads and changes these. Bakery does not show what is inside, and nothing here can be edited. Turning it off keeps them.",
         ),
       ).toBeVisible();
-      // The mock sends a secret value with every item; the page drops it.
+      // The page reads what is saved without the values, and never asks for the
+      // full read that carries them.
       expect(await page.content()).not.toContain("TOPSECRET");
+      expect(state.valuesReads).toBe(0);
       // Read only: nothing to edit, add or delete in this section.
       await expect(
         saved.getByRole("button", { name: /^(edit|add|delete|remove)/i }),

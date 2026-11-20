@@ -15,7 +15,7 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 /**
  * "Saved data": what a plugin has kept for itself, as a read-only list. Where it
  * is kept, how big it is and when it was last saved; never what is inside, and
- * nothing here can be changed. The value is dropped before it reaches this page.
+ * nothing here can be changed. The read carries no value, so there is none to hide.
  */
 export function SavedData(
   { installId, name, phone }: {
