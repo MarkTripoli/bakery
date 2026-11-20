@@ -501,8 +501,14 @@ for (
       // Read at once, before any pause could have committed the text: the
       // filter's own change carries it, so one write holds both.
       expect(new URL(page.url()).searchParams.get("q")).toBe("plan");
-      await page.getByRole("button", { name: /^Clear (search|filters)/ })
-        .click();
+      // Text and a filter are both set, and the button says so.
+      const clearBoth = page.getByRole("button", {
+        name: "Clear search and filters",
+      });
+      await expect(clearBoth).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "files-clear-both");
+      await clearBoth.click();
       await expect(page).not.toHaveURL(/kind=|q=/);
     });
 
@@ -520,6 +526,7 @@ for (
           .selectOption("plan");
         await expect(fact).toBeEnabled();
         await fact.selectOption({ label: "Risk is high" });
+        if (viewport.name === "phone") await still(page, "files-fact-sheet");
       });
       await expect(page).toHaveURL(/fact=risk(%3A|:)high/);
       await expect(page.getByRole("link", { name: "plan.md" })).toBeVisible();
@@ -670,6 +677,7 @@ for (
         name: "bundle.zip",
         path: "/projects/web-app/media/bundle.zip",
         mediaType: "application/zip",
+        kindName: null,
       };
       await filesFixture(page, { tree: [...TREE, zip] });
       const open = async (id: number) => {
@@ -691,6 +699,14 @@ for (
       await open(46);
       await expect(page.getByText("No preview for this kind of file."))
         .toBeVisible();
+      // Nothing to open: no Open, and Download is the main action.
+      const zipDetails = page.getByTestId("file-details");
+      await expect(
+        zipDetails.getByRole("button", { name: "Open", exact: true }),
+      )
+        .toHaveCount(0);
+      await expect(zipDetails.getByRole("button", { name: "Download" }))
+        .toHaveAttribute("data-variant", "primary");
       await page.mouse.move(700, 700);
       await still(page, "files-preview-none");
       await open(45);
@@ -713,7 +729,9 @@ for (
         await expect(details.getByRole("button", { name: "Open", exact: true }))
           .toHaveCount(0);
         await expect(details.getByRole("button", { name: "Download" }))
-          .toBeVisible();
+          .toHaveAttribute("data-variant", "primary");
+        await page.mouse.move(700, 700);
+        await still(page, "files-picture-page");
         return;
       }
       await details.getByRole("button", { name: "Open", exact: true }).click();
@@ -751,6 +769,7 @@ for (
         name: "long.txt",
         path: "/projects/web-app/media/long.txt",
         mediaType: "text/plain",
+        kindName: null,
         sizeBytes: 300,
       };
       await filesFixture(page, { tree: [...TREE, long] });
@@ -797,9 +816,14 @@ for (
       const details = page.getByTestId("file-details");
       await expect(details.getByText("This file could not be played here."))
         .toBeVisible();
-      // One Download, in the actions below the message.
+      // One Download, the main action, and no Open: there is nothing to open.
       await expect(details.getByRole("button", { name: "Download" }))
         .toHaveCount(1);
+      await expect(details.getByRole("button", { name: "Download" }))
+        .toHaveAttribute("data-variant", "primary");
+      await expect(details.getByRole("button", { name: "Open", exact: true }))
+        .toHaveCount(0);
+      await expect(details.getByRole("alert")).toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "files-video-unplayable");
     });

@@ -65,6 +65,8 @@ export function FileDetails(
   });
   const navigate = useNavigate();
   const [downloadFailed, setDownloadFailed] = useState(false);
+  // Whether the file has anything to open, as its preview reports it.
+  const [openable, setOpenable] = useState(true);
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
   const [moreOpen, setMoreOpen] = useState(false);
   const copyPath = async () => {
@@ -171,6 +173,15 @@ export function FileDetails(
   const artifactTarget = file.artifactId !== null && current?.workItemId
     ? { taskId: current.workItemId, artifactId: file.artifactId }
     : null;
+  // Open is offered only where there is something to open: not for a file with
+  // no preview, one too large or unreadable, or a video that cannot be played.
+  // A phone's file page already shows a picture or a player at full width, so
+  // only text, which it cuts to its first lines, has more to open there.
+  const showOpen = !(shown?.contentRemoved ?? file.contentRemoved) &&
+    openable &&
+    (phone
+      ? previewKind(shown?.mediaType ?? file.mediaType) === "text"
+      : !opened);
 
   const more = (
     query: {
@@ -407,6 +418,7 @@ export function FileDetails(
           file={file}
           version={shown}
           full={opened && phone}
+          onOpenable={setOpenable}
         />
       )}
       <UI.Inline gap="compact">
@@ -423,39 +435,26 @@ export function FileDetails(
               {translate("files.action.open")}
             </UI.Button>
           )
-          : (shown?.contentRemoved ?? file.contentRemoved)
-          ? null
-          : phone
+          : showOpen
           ? (
-            // A phone's file page already shows a picture or a player at full
-            // width, so Open adds nothing there; only text, which the page cuts
-            // to its first lines, has more to open.
-            previewKind(shown?.mediaType ?? file.mediaType) === "text"
-              ? (
-                <UI.Button
-                  variant="primary"
-                  aria-pressed={opened}
-                  onClick={opened ? onCloseView : onOpenView}
-                >
-                  {opened
-                    ? translate("files.action.showLess")
-                    : translate("files.action.open")}
-                </UI.Button>
-              )
-              : null
-          )
-          : opened
-          ? null
-          : (
-            // On a desktop, any other file opens full size in the page column,
-            // which carries its own Back to the folder.
-            <UI.Button variant="primary" onClick={onOpenView}>
-              {translate("files.action.open")}
+            <UI.Button
+              variant="primary"
+              aria-pressed={phone ? opened : undefined}
+              onClick={phone && opened ? onCloseView : onOpenView}
+            >
+              {phone && opened
+                ? translate("files.action.showLess")
+                : translate("files.action.open")}
             </UI.Button>
-          )}
+          )
+          : null}
         {(shown?.contentRemoved ?? file.contentRemoved) ? null : (
           <UI.Button
-            variant="secondary"
+            // The first button in the row is the primary one: Download, when
+            // there is nothing to open (or the file is already open).
+            variant={artifactTarget !== null || showOpen
+              ? "secondary"
+              : "primary"}
             onClick={() => void download()}
           >
             {shown === null

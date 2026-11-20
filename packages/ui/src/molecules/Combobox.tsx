@@ -65,7 +65,9 @@ export function Combobox(
         )
         : (
           <>
-            {label}
+            {help === undefined
+              ? label
+              : <span className="ui-combobox__label-text">{label}</span>}
             <IconGlyph name="chevron-down" />
           </>
         )}

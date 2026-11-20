@@ -2125,13 +2125,30 @@
   }
 }
 
-/* A combobox with a help tip: the tip rides the label line, at the end of the
-   control's width, so the control itself is as wide as any other in its stack. */
+/* A combobox with a help tip: the tip sits one small gap after the label's word,
+   centred on its line, and the control below it is as wide as any other in its
+   stack. The label stays the control's label; it only lets its children join
+   the wrapper's grid. */
 .ui-combobox-help {
-  position: relative;
+  align-items: center;
+  column-gap: var(--space-1);
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  row-gap: var(--space-1);
+}
+.ui-combobox-help > .ui-combobox {
+  display: contents;
+}
+.ui-combobox-help .ui-combobox__label-text {
+  grid-column: 1;
+  grid-row: 1;
 }
 .ui-combobox__help {
-  position: absolute;
-  inset-block-start: calc(-1 * var(--space-1));
-  inset-inline-end: 0;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+}
+.ui-combobox-help select {
+  grid-column: 1 / -1;
+  grid-row: 2;
 }

@@ -50,8 +50,13 @@ export function previewKind(
 
 /** The file's contents as far as the page can show them: text, images and players, bounded. */
 export function FilePreview(
-  { file, version, full = false }: {
+  { file, version, full = false, onOpenable }: {
     readonly file: StorageFolderItem;
+    /**
+     * Told whether the file has anything to open: false for a file with no
+     * preview, one too large or unreadable, and a video that cannot be played.
+     */
+    readonly onOpenable?: (openable: boolean) => void;
     /** Opened full size in the page, rather than in the details panel. */
     readonly full?: boolean;
     /** An older version being shown; null for the current one. */
@@ -121,13 +126,16 @@ export function FilePreview(
     };
   }, [content.data, image, mediaType]);
 
+  const openable = !contentRemoved &&
+    (media !== null ? !playFailed : supported && !tooLarge && !content.isError);
+  useEffect(() => onOpenable?.(openable), [onOpenable, openable]);
+
   if (contentRemoved) return null;
   if (media !== null && playFailed) {
-    // The details' own Download sits just below, so the card only says why.
+    // Nothing is wrong with Bakery and the details' own Download sits just
+    // below, so this is a quiet line, not an alert.
     return (
-      <UI.InlineNotice tone="error">
-        {translate("files.preview.unplayable")}
-      </UI.InlineNotice>
+      <UI.Text variant="muted">{translate("files.preview.unplayable")}</UI.Text>
     );
   }
   if (media !== null && scope.organizationId !== null) {
