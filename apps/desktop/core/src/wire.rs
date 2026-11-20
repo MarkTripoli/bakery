@@ -4,15 +4,19 @@
 use serde::Deserialize;
 
 /// Why the server refused to finish a sign-in, in the app's terms. The server names five reasons;
-/// the app shows its own copy for these four.
+/// the app has a window for four and keeps waiting on the fifth.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExchangeFailure {
     /// The request outlived its time limit.
     Expired,
-    /// The answer was replayed, did not match the attempt, or arrived before the person confirmed.
-    NotCompleted,
     /// The person cancelled in the browser.
     Cancelled,
+    /// The answer was already spent.
+    Used,
+    /// The answer did not belong to this attempt.
+    Mismatch,
+    /// The person has not confirmed yet: never shown, the app keeps waiting.
+    Pending,
     /// Anything else: the server answered, but not with a reason the app can show on its own.
     Unexpected,
 }
@@ -37,9 +41,9 @@ pub fn exchange_failure(status: u16, body: &str) -> ExchangeFailure {
     match problem.reason.as_deref() {
         Some("desktop_sign_in_expired") => ExchangeFailure::Expired,
         Some("desktop_sign_in_cancelled") => ExchangeFailure::Cancelled,
-        Some("desktop_sign_in_used" | "desktop_sign_in_mismatch" | "desktop_sign_in_pending") => {
-            ExchangeFailure::NotCompleted
-        }
+        Some("desktop_sign_in_used") => ExchangeFailure::Used,
+        Some("desktop_sign_in_mismatch") => ExchangeFailure::Mismatch,
+        Some("desktop_sign_in_pending") => ExchangeFailure::Pending,
         _ => ExchangeFailure::Unexpected,
     }
 }
@@ -50,6 +54,8 @@ pub fn exchange_failure(status: u16, body: &str) -> ExchangeFailure {
 pub struct StartedRequest {
     pub id: String,
     pub confirm_url: String,
+    /// When the request stops being valid (an RFC 3339 time), as the server gives it.
+    pub expires_at: Option<String>,
 }
 
 pub fn started_request(body: &str) -> Option<StartedRequest> {
@@ -86,9 +92,9 @@ mod tests {
         for (reason, expected) in [
             ("desktop_sign_in_expired", ExchangeFailure::Expired),
             ("desktop_sign_in_cancelled", ExchangeFailure::Cancelled),
-            ("desktop_sign_in_used", ExchangeFailure::NotCompleted),
-            ("desktop_sign_in_mismatch", ExchangeFailure::NotCompleted),
-            ("desktop_sign_in_pending", ExchangeFailure::NotCompleted),
+            ("desktop_sign_in_used", ExchangeFailure::Used),
+            ("desktop_sign_in_mismatch", ExchangeFailure::Mismatch),
+            ("desktop_sign_in_pending", ExchangeFailure::Pending),
         ] {
             assert_eq!(
                 exchange_failure(409, &refusal(reason)),
@@ -131,6 +137,7 @@ mod tests {
         let body = r#"{"id":"b0f","confirmUrl":"http://127.0.0.1:8000/api/desktop/sign-in?request=b0f","expiresAt":"2026-11-20T10:10:00Z"}"#;
         let started = started_request(body).expect("a started request");
         assert_eq!(started.id, "b0f");
+        assert_eq!(started.expires_at.as_deref(), Some("2026-11-20T10:10:00Z"));
         assert!(started.confirm_url.starts_with("http://127.0.0.1:8000/"));
     }
 

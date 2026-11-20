@@ -1,114 +1,260 @@
-//! The words on each window, as the design gives them (#77, design revisions 1 and 2).
+//! What each window says and offers, as design-ux gives it (#77 slice 3, the v3 table).
 //!
-//! Layouts are design-ux's and arrive separately; this is only what each window says. The server's
-//! name is the one thing filled in. No window says "PKCE", "token", "callback", "loopback" or
-//! "bearer": the design bans them, and a test holds it to that.
+//! Every window is one panel with different words: a heading, a line of text, a detail box and
+//! buttons. This module is only those words and the button each one maps to; how the panel looks is
+//! the web page's. No window says "PKCE", "token", "callback", "loopback" or "credential", and a test
+//! holds it to that.
 
-use crate::session::{Refusal, Window};
+use crate::session::{Event, Refusal, Window};
 use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct Copy {
-    pub title: String,
-    pub body: String,
-    /// The one button that takes focus when the window appears.
-    pub primary: String,
-    pub secondary: Vec<String>,
-    /// Whether the window names the server it will connect to, as its own line.
-    pub shows_server: bool,
-    /// A status line shown while the app waits.
-    pub status: Option<String>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ButtonId {
+    SignIn,
+    OpenBrowserAgain,
+    Cancel,
+    CopyAddress,
+    TryOpenAgain,
+    TryAgain,
+    SetUpKeyring,
+    QuitBakery,
 }
 
-fn copy(title: &str, body: &str, primary: &str) -> Copy {
-    Copy {
-        title: title.into(),
-        body: body.into(),
-        primary: primary.into(),
-        secondary: vec![],
-        shows_server: false,
-        status: None,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Button {
+    pub id: ButtonId,
+    pub label: String,
+    /// At most one button on a window is primary; it takes focus and Enter presses it.
+    pub primary: bool,
+}
+
+/// The box under the text.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Detail {
+    None,
+    Server {
+        address: String,
+    },
+    Waiting {
+        status: String,
+        until: Option<String>,
+    },
+    Address {
+        address: String,
+    },
+    Spinner,
+    Warning {
+        text: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Panel {
+    /// A line above the heading, only after signing out.
+    pub notice: Option<String>,
+    pub heading: String,
+    pub text: Option<String>,
+    pub detail: Detail,
+    pub buttons: Vec<Button>,
+}
+
+impl Panel {
+    pub fn primary(&self) -> Option<&Button> {
+        self.buttons.iter().find(|b| b.primary)
+    }
+
+    /// The button Escape presses, where there is a Cancel.
+    pub fn cancel(&self) -> Option<&Button> {
+        self.buttons.iter().find(|b| b.id == ButtonId::Cancel)
     }
 }
 
-/// The words for a window, or `None` for the app itself, which is the web app's own pages.
-pub fn copy_for(window: &Window, server: &str) -> Option<Copy> {
+/// What the words may depend on, all of it given by the app.
+pub struct Context<'a> {
+    pub server: &'a str,
+    /// "You have until {time} to confirm.", already formatted for this person's clock.
+    pub until: Option<&'a str>,
+    /// The address to confirm at, shown when the browser could not be opened.
+    pub address: Option<&'a str>,
+}
+
+fn button(id: ButtonId, label: &str, primary: bool) -> Button {
+    Button {
+        id,
+        label: label.into(),
+        primary,
+    }
+}
+
+fn sign_in_button() -> Button {
+    button(ButtonId::SignIn, "Sign in with your browser", true)
+}
+
+fn server(ctx: &Context) -> Detail {
+    Detail::Server {
+        address: ctx.server.into(),
+    }
+}
+
+fn panel(heading: &str, text: Option<&str>, detail: Detail, buttons: Vec<Button>) -> Panel {
+    Panel {
+        notice: None,
+        heading: heading.into(),
+        text: text.map(Into::into),
+        detail,
+        buttons,
+    }
+}
+
+/// The panel for a window, or `None` for the app itself, which is the web app's own pages.
+pub fn panel_for(window: &Window, ctx: &Context) -> Option<Panel> {
+    let sign_in = || {
+        panel(
+            "Sign in to Bakery",
+            Some("Bakery opens your browser to sign in, then brings you back here."),
+            server(ctx),
+            vec![sign_in_button()],
+        )
+    };
     Some(match window {
-        Window::SignIn => Copy {
-            secondary: vec!["Use a different server".into()],
-            shows_server: true,
-            ..copy(
-                "Sign in to Bakery",
-                "Bakery opens your browser to sign in, then brings you back here.",
-                "Sign in with your browser",
-            )
+        Window::SignIn => sign_in(),
+        Window::SignedOut => Panel {
+            notice: Some("You signed out. Bakery no longer has your sign-in on this computer.".into()),
+            ..sign_in()
         },
-        Window::Waiting => Copy {
-            secondary: vec!["Cancel".into()],
-            status: Some("Waiting for your browser…".into()),
-            ..copy(
-                "Finish signing in in your browser",
-                &format!("A browser tab opened at {server}. Sign in there and this window continues by itself."),
-                "Open the browser again",
-            )
-        },
-        Window::Expired => copy("That sign-in attempt ran out of time.", "Nothing was saved.", "Try again"),
+        Window::Waiting => panel(
+            "Finish signing in in your browser",
+            Some("Bakery opened your browser. Confirm the sign-in there. This window continues by itself."),
+            Detail::Waiting {
+                status: "Waiting for your browser".into(),
+                until: ctx.until.map(|t| format!("You have until {t} to confirm.")),
+            },
+            // No primary: the next step is in the browser.
+            vec![button(ButtonId::OpenBrowserAgain, "Open the browser again", false), button(ButtonId::Cancel, "Cancel", false)],
+        ),
+        Window::BrowserDidNotOpen => panel(
+            "Open this address in your browser",
+            Some("Bakery could not open your browser. Copy the address and paste it into a browser on this computer."),
+            Detail::Address { address: ctx.address.unwrap_or_default().into() },
+            vec![
+                button(ButtonId::CopyAddress, "Copy the address", true),
+                button(ButtonId::TryOpenAgain, "Try to open the browser again", false),
+                button(ButtonId::Cancel, "Cancel", false),
+            ],
+        ),
+        Window::Finishing => panel("Signing you in", None, Detail::Spinner, vec![]),
         Window::Refusal { refusal } => match refusal {
-            Refusal::NotCompleted => copy(
-                "Sign-in was not completed",
-                "The answer from the browser did not match this sign-in attempt, so it was ignored. Nothing was saved. Try again.",
-                "Try again",
+            Refusal::Expired => panel(
+                "The sign-in ran out of time",
+                Some("A sign-in has to be confirmed in the browser within 10 minutes. Nothing was saved."),
+                server(ctx),
+                vec![sign_in_button()],
             ),
-            Refusal::Cancelled => copy("Sign-in was cancelled", "Nothing was saved.", "Sign in with your browser"),
-            Refusal::CannotReach => copy(
-                &format!("Bakery could not reach {server}"),
-                "Check that the server is running and that the address is right.",
-                "Try again",
+            Refusal::Cancelled => panel(
+                "Sign-in was cancelled",
+                Some("You pressed Cancel in the browser. Nothing was saved."),
+                server(ctx),
+                vec![sign_in_button()],
             ),
-            // The button is not in the design, which gives each refusal one of two buttons and
-            // none for this case, where the person is already signed in. Raised with design-ux.
-            Refusal::StorageRefused { reason } => copy(
-                "Bakery could not save your sign-in on this computer",
-                &format!("{reason} You can still use Bakery now; you will have to sign in again next time."),
-                "Continue",
+            Refusal::Used => panel(
+                "This sign-in was already used",
+                Some("Start again from here. If you did not sign in, open Account and security on the web and revoke the Bakery app."),
+                server(ctx),
+                vec![sign_in_button()],
             ),
-            Refusal::NoAccount => copy(
-                &format!("You do not have an account on {server}"),
-                "Ask an administrator for an invitation.",
-                "Sign in with your browser",
+            Refusal::NotFromThisApp => panel(
+                "That sign-in did not come from this app",
+                Some("Bakery ignored it and nothing was saved. Start again from here."),
+                server(ctx),
+                vec![sign_in_button()],
+            ),
+            Refusal::CouldNotFinish => panel(
+                "Bakery could not finish signing in",
+                Some(&format!("{} did not answer. Your browser step is done, so try again.", ctx.server)),
+                server(ctx),
+                vec![button(ButtonId::TryAgain, "Try again", true), button(ButtonId::SignIn, "Sign in with your browser", false)],
+            ),
+            Refusal::NoKeyring => panel(
+                "Bakery could not save your sign-in",
+                Some("You confirmed in the browser, but this computer has no unlocked keyring to keep the sign-in in. Bakery never keeps it in a plain file."),
+                Detail::Warning { text: "Unlock or start your keyring, then sign in again.".into() },
+                vec![sign_in_button(), button(ButtonId::SetUpKeyring, "How to set up a keyring", false)],
+            ),
+            // Not in the design's table; the first design's wording, until slice 4 owns server problems.
+            Refusal::CannotStart => panel(
+                &format!("Bakery could not reach {}", ctx.server),
+                Some("Check that the server is running and that the address is right."),
+                server(ctx),
+                vec![button(ButtonId::SignIn, "Try again", true)],
             ),
         },
-        Window::SignInAgain => Copy {
-            secondary: vec!["Quit Bakery".into()],
-            ..copy(
-                "Sign in again to continue",
-                "Your sign-in on this computer ended. What you typed on this page is kept.",
-                "Sign in with your browser",
-            )
-        },
+        Window::SignInAgain => panel(
+            "Sign in again to continue",
+            Some("Your sign-in on this computer ended. What you typed on this page is kept."),
+            Detail::None,
+            vec![sign_in_button(), button(ButtonId::QuitBakery, "Quit Bakery", false)],
+        ),
         Window::App => return None,
     })
+}
+
+/// What pressing a button does.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Press {
+    /// Feed the state machine.
+    Event(Event),
+    /// The shell does it: copy the address, open the keyring help, quit.
+    Shell(ButtonId),
+}
+
+pub fn press(button: ButtonId) -> Press {
+    match button {
+        ButtonId::SignIn => Press::Event(Event::SignInPressed),
+        ButtonId::OpenBrowserAgain | ButtonId::TryOpenAgain => {
+            Press::Event(Event::OpenBrowserAgain)
+        }
+        ButtonId::Cancel => Press::Event(Event::CancelPressed),
+        ButtonId::TryAgain => Press::Event(Event::TryExchangeAgain),
+        ButtonId::CopyAddress | ButtonId::SetUpKeyring | ButtonId::QuitBakery => {
+            Press::Shell(button)
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    const SERVER: &str = "https://bakery.example.com";
+    const URL: &str = "https://bakery.example.com/api/desktop/sign-in?request=r1";
+
+    fn ctx() -> Context<'static> {
+        Context {
+            server: SERVER,
+            until: Some("14:32"),
+            address: Some(URL),
+        }
+    }
+
     fn every_window() -> Vec<Window> {
         let mut all = vec![
             Window::SignIn,
+            Window::SignedOut,
             Window::Waiting,
-            Window::Expired,
+            Window::BrowserDidNotOpen,
+            Window::Finishing,
             Window::SignInAgain,
         ];
         for r in [
-            Refusal::NotCompleted,
+            Refusal::Expired,
             Refusal::Cancelled,
-            Refusal::CannotReach,
-            Refusal::StorageRefused {
-                reason: "The keyring is locked.".into(),
-            },
-            Refusal::NoAccount,
+            Refusal::Used,
+            Refusal::NotFromThisApp,
+            Refusal::CouldNotFinish,
+            Refusal::NoKeyring,
+            Refusal::CannotStart,
         ] {
             all.push(Window::Refusal { refusal: r });
         }
@@ -116,18 +262,73 @@ mod tests {
     }
 
     #[test]
-    fn every_window_has_a_heading_and_one_primary_button() {
+    fn every_window_has_a_heading_and_at_most_one_primary_button() {
         for window in every_window() {
-            let words =
-                copy_for(&window, "https://bakery.example.com").expect("a window with words");
-            assert!(!words.title.trim().is_empty(), "{window:?}");
-            assert!(!words.primary.trim().is_empty(), "{window:?}");
+            let p = panel_for(&window, &ctx()).expect("a window with words");
+            assert!(!p.heading.trim().is_empty(), "{window:?}");
+            assert!(
+                p.buttons.iter().filter(|b| b.primary).count() <= 1,
+                "{window:?}"
+            );
         }
     }
 
     #[test]
-    fn the_app_itself_has_no_words_of_its_own() {
-        assert_eq!(copy_for(&Window::App, "s"), None);
+    fn the_windows_that_ask_for_a_decision_have_a_primary_button_and_the_others_have_none() {
+        let primary = |w: Window| {
+            panel_for(&w, &ctx())
+                .unwrap()
+                .primary()
+                .map(|b| b.label.clone())
+        };
+        // Waiting has none: the next step is in the browser. Finishing has no buttons at all.
+        assert_eq!(primary(Window::Waiting), None);
+        assert_eq!(primary(Window::Finishing), None);
+        assert_eq!(
+            primary(Window::SignIn).as_deref(),
+            Some("Sign in with your browser")
+        );
+        assert_eq!(
+            primary(Window::BrowserDidNotOpen).as_deref(),
+            Some("Copy the address")
+        );
+        assert!(panel_for(&Window::Finishing, &ctx())
+            .unwrap()
+            .buttons
+            .is_empty());
+        for r in [
+            Refusal::Expired,
+            Refusal::Cancelled,
+            Refusal::Used,
+            Refusal::NotFromThisApp,
+            Refusal::NoKeyring,
+        ] {
+            assert_eq!(
+                primary(Window::Refusal { refusal: r }).as_deref(),
+                Some("Sign in with your browser")
+            );
+        }
+        assert_eq!(
+            primary(Window::Refusal {
+                refusal: Refusal::CouldNotFinish
+            })
+            .as_deref(),
+            Some("Try again")
+        );
+    }
+
+    #[test]
+    fn escape_reaches_cancel_only_where_the_design_has_one() {
+        for window in every_window() {
+            let has_cancel = matches!(window, Window::Waiting | Window::BrowserDidNotOpen);
+            let p = panel_for(&window, &ctx()).unwrap();
+            assert_eq!(p.cancel().is_some(), has_cancel, "{window:?}");
+        }
+    }
+
+    #[test]
+    fn the_app_itself_has_no_panel() {
+        assert_eq!(panel_for(&Window::App, &ctx()), None);
     }
 
     #[test]
@@ -137,22 +338,31 @@ mod tests {
             "token",
             "callback",
             "loopback",
-            "bearer",
             "credential",
             "verifier",
+            "bearer",
             "bkd_",
         ];
         for window in every_window() {
-            let words = copy_for(&window, "https://bakery.example.com").unwrap();
-            let shown = format!(
-                "{} {} {} {} {}",
-                words.title,
-                words.body,
-                words.primary,
-                words.secondary.join(" "),
-                words.status.unwrap_or_default()
-            )
-            .to_lowercase();
+            let p = panel_for(&window, &ctx()).unwrap();
+            let mut shown = format!(
+                "{} {} {}",
+                p.notice.clone().unwrap_or_default(),
+                p.heading,
+                p.text.clone().unwrap_or_default()
+            );
+            for b in &p.buttons {
+                shown.push(' ');
+                shown.push_str(&b.label);
+            }
+            match &p.detail {
+                Detail::Waiting { status, until } => {
+                    shown.push_str(&format!(" {status} {}", until.clone().unwrap_or_default()))
+                }
+                Detail::Warning { text } => shown.push_str(&format!(" {text}")),
+                _ => {}
+            }
+            let shown = shown.to_lowercase();
             for word in banned {
                 assert!(!shown.contains(word), "{window:?} says {word:?}: {shown}");
             }
@@ -160,48 +370,143 @@ mod tests {
     }
 
     #[test]
-    fn the_server_is_named_where_the_design_names_it() {
-        let server = "https://bakery.example.com";
-        let named = |w: Window| {
-            let c = copy_for(&w, server).unwrap();
-            format!("{} {}", c.title, c.body).contains(server)
-        };
-        assert!(named(Window::Waiting));
-        assert!(named(Window::Refusal {
-            refusal: Refusal::CannotReach
-        }));
-        assert!(named(Window::Refusal {
-            refusal: Refusal::NoAccount
-        }));
-        // The first window shows it as its own line instead.
-        assert!(copy_for(&Window::SignIn, server).unwrap().shows_server);
+    fn the_signed_out_window_is_the_sign_in_panel_under_one_notice() {
+        let plain = panel_for(&Window::SignIn, &ctx()).unwrap();
+        let out = panel_for(&Window::SignedOut, &ctx()).unwrap();
+        assert_eq!(plain.notice, None);
+        assert_eq!(
+            out.notice.as_deref(),
+            Some("You signed out. Bakery no longer has your sign-in on this computer.")
+        );
+        assert_eq!(
+            Panel {
+                notice: None,
+                ..out
+            },
+            plain
+        );
     }
 
     #[test]
-    fn a_refusal_says_that_nothing_was_saved_or_what_to_do_next() {
-        for refusal in [Refusal::NotCompleted, Refusal::Cancelled] {
-            let c = copy_for(&Window::Refusal { refusal }, "s").unwrap();
-            assert!(c.body.contains("Nothing was saved"), "{}", c.body);
-        }
-        let c = copy_for(
-            &Window::Refusal {
-                refusal: Refusal::CannotReach,
+    fn waiting_names_the_deadline_only_when_the_server_gave_one() {
+        let with = panel_for(&Window::Waiting, &ctx()).unwrap();
+        assert_eq!(
+            with.detail,
+            Detail::Waiting {
+                status: "Waiting for your browser".into(),
+                until: Some("You have until 14:32 to confirm.".into())
+            }
+        );
+        let none = panel_for(
+            &Window::Waiting,
+            &Context {
+                until: None,
+                ..ctx()
             },
-            "s",
         )
         .unwrap();
-        assert!(c.body.starts_with("Check that"), "{}", c.body);
+        assert_eq!(
+            none.detail,
+            Detail::Waiting {
+                status: "Waiting for your browser".into(),
+                until: None
+            }
+        );
     }
 
     #[test]
-    fn the_storage_notice_carries_the_systems_reason_and_says_the_person_can_carry_on() {
-        let w = Window::Refusal {
-            refusal: Refusal::StorageRefused {
-                reason: "The keyring is locked.".into(),
-            },
+    fn the_server_is_named_where_the_design_names_it() {
+        let says = |w: Window| {
+            let p = panel_for(&w, &ctx()).unwrap();
+            format!("{} {}", p.heading, p.text.unwrap_or_default()).contains(SERVER)
         };
-        let c = copy_for(&w, "s").unwrap();
-        assert!(c.body.starts_with("The keyring is locked."));
-        assert!(c.body.contains("You can still use Bakery now"));
+        assert!(says(Window::Refusal {
+            refusal: Refusal::CouldNotFinish
+        }));
+        assert!(says(Window::Refusal {
+            refusal: Refusal::CannotStart
+        }));
+        let shows = |w: Window| matches!(panel_for(&w, &ctx()).unwrap().detail, Detail::Server { ref address } if address == SERVER);
+        for w in [
+            Window::SignIn,
+            Window::SignedOut,
+            Window::Refusal {
+                refusal: Refusal::Expired,
+            },
+            Window::Refusal {
+                refusal: Refusal::Used,
+            },
+        ] {
+            assert!(shows(w.clone()), "{w:?}");
+        }
+    }
+
+    #[test]
+    fn the_address_is_shown_when_the_browser_could_not_open() {
+        let p = panel_for(&Window::BrowserDidNotOpen, &ctx()).unwrap();
+        assert_eq!(
+            p.detail,
+            Detail::Address {
+                address: URL.into()
+            }
+        );
+        assert_eq!(p.buttons.len(), 3);
+    }
+
+    #[test]
+    fn the_no_keyring_window_warns_and_offers_help_without_offering_a_plain_file() {
+        let p = panel_for(
+            &Window::Refusal {
+                refusal: Refusal::NoKeyring,
+            },
+            &ctx(),
+        )
+        .unwrap();
+        assert!(p
+            .text
+            .as_deref()
+            .unwrap()
+            .contains("never keeps it in a plain file"));
+        assert_eq!(
+            p.detail,
+            Detail::Warning {
+                text: "Unlock or start your keyring, then sign in again.".into()
+            }
+        );
+        assert!(p.buttons.iter().any(|b| b.id == ButtonId::SetUpKeyring));
+    }
+
+    #[test]
+    fn each_button_does_what_its_label_says() {
+        assert_eq!(press(ButtonId::SignIn), Press::Event(Event::SignInPressed));
+        assert_eq!(
+            press(ButtonId::OpenBrowserAgain),
+            Press::Event(Event::OpenBrowserAgain)
+        );
+        assert_eq!(
+            press(ButtonId::TryOpenAgain),
+            Press::Event(Event::OpenBrowserAgain)
+        );
+        assert_eq!(press(ButtonId::Cancel), Press::Event(Event::CancelPressed));
+        assert_eq!(
+            press(ButtonId::TryAgain),
+            Press::Event(Event::TryExchangeAgain)
+        );
+        for b in [
+            ButtonId::CopyAddress,
+            ButtonId::SetUpKeyring,
+            ButtonId::QuitBakery,
+        ] {
+            assert_eq!(press(b), Press::Shell(b));
+        }
+    }
+
+    #[test]
+    fn every_button_on_every_window_can_be_pressed() {
+        for window in every_window() {
+            for b in panel_for(&window, &ctx()).unwrap().buttons {
+                let _ = press(b.id);
+            }
+        }
     }
 }
