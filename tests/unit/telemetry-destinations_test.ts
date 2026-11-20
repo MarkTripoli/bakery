@@ -137,6 +137,20 @@ Deno.test("the public address rule refuses http, credentials, local names and pr
   assertEquals((await policy("https://collector.example.test/otlp")).ok, true);
 });
 
+Deno.test("a measurement a kind offers is one the server really emits", () => {
+  const emitted = new Set([usage, completed, sample].flatMap((record) => [
+    ...measurementsOf(record),
+  ]));
+  emitted.add("health");
+  for (const kind of otlpProvider.descriptor.measurements) {
+    assert(emitted.has(kind), `${kind} is offered but nothing sends it`);
+  }
+  assertEquals(
+    otlpProvider.descriptor.unavailableReasons.skills,
+    "Bakery does not send this yet.",
+  );
+});
+
 Deno.test("an IPv4 address in any IPv6 spelling, and the other special ranges, are refused", async () => {
   const policy = createPublicHttpsPolicy(() =>
     Promise.resolve(["93.184.216.34"])
