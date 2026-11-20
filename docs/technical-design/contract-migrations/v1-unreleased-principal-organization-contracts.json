@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "283ceeaf7750a9d6bfac79dce642a0b0bdf28224"
+    "168b504d36e82f366c73d7931d4b9c82afe389da"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:a2990005fe2611b63e5122a6bea9699a1d73c4030c7f11b2c4e1cfe541674f77",
-  "reason": "#739 Monitoring list server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 283ceeaf7750a9d6bfac79dce642a0b0bdf28224: TelemetryDestinationList gains destinationLimit, nextCursor, total and stateCounts, all required, and the list now takes search, state, kind, cursor and limit; telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:b6340fefd73f1155f0b70b57f61530f9a538d482b7816f4588851b78f52c1123",
+  "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 168b504d36e82f366c73d7931d4b9c82afe389da: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged below, then this PR's previous one.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "283ceeaf7750a9d6bfac79dce642a0b0bdf28224"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a2990005fe2611b63e5122a6bea9699a1d73c4030c7f11b2c4e1cfe541674f77",
+      "reason": "#739 Monitoring list server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 283ceeaf7750a9d6bfac79dce642a0b0bdf28224: TelemetryDestinationList gains destinationLimit, nextCursor, total and stateCounts, all required, and the list now takes search, state, kind, cursor and limit; telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

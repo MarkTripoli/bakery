@@ -10448,6 +10448,7 @@ const transportSchemas = {
             "destination_refused",
             "destination_unreachable",
             "key_missing",
+            "incomplete_set",
             "runner_error"
           ],
           "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report. A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site."
@@ -29963,7 +29964,7 @@ const transportSchemas = {
         "progressPercent": "integer|null",
         "sizeBytes": "decimalString|null",
         "locations": "string[]",
-        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|runner_error)|null",
+        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|incomplete_set|runner_error)|null",
         "failureDetail": "string|null"
       },
       "nullableFields": [
@@ -29991,7 +29992,7 @@ const transportSchemas = {
         "progressPercent": "Latest reported progress from 0 to 100, or null before any report.",
         "sizeBytes": "Size of the finished encrypted backup set in bytes as a decimal string, or null until completed.",
         "locations": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site.",
-        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise.",
+        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise.",
         "failureDetail": "The runner's plain-text answer for the failure or the failed off-site copy, or null."
       }
     },

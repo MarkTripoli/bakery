@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import type { DestinationFanout } from "../../apps/server/src/platform/telemetry-destinations/index.ts";
 import {
+  allowAnyAddress,
   createProviderRegistry,
   otlpProvider,
 } from "../../apps/server/src/platform/telemetry-destinations/index.ts";
@@ -17,7 +18,13 @@ import {
  * reports what the test says, since state lives in memory, not in the table.
  */
 
-type Destination = { id: string; name: string; state: string; kind: string };
+type Destination = {
+  id: string;
+  name: string;
+  state: string;
+  kind: string;
+  provider: string;
+};
 type Page = {
   destinations: Destination[];
   nextCursor: string | null;
@@ -26,6 +33,13 @@ type Page = {
   stateCounts: Record<string, number>;
   kinds: { kind: string }[];
   measurements: { kind: string }[];
+  providers: {
+    key: string;
+    name: string;
+    description: string;
+    kind: string;
+    prefill: Record<string, string>;
+  }[];
 };
 
 const NAMES = [
@@ -56,10 +70,7 @@ Deno.test("the Monitoring list pages, searches, filters and orders destinations,
     telemetryDestinations: {
       registry,
       fanout,
-      providerDependencies: {
-        fetch,
-        addressPolicy: () => Promise.resolve({ ok: true }),
-      } as never,
+      providerDependencies: { fetch, addressPolicy: allowAnyAddress },
       secretsKey: undefined,
     },
   });
@@ -83,9 +94,9 @@ Deno.test("the Monitoring list pages, searches, filters and orders destinations,
     await f.pgDatabase.query("delete from bakery.telemetry_destinations");
     for (const name of NAMES) {
       await f.pgDatabase.query(
-        `insert into bakery.telemetry_destinations (id, kind, name, measurements, enabled)
-         values (gen_random_uuid(), 'otlp', $1, array['health'], $2)`,
-        [name, name !== "Zulu"],
+        `insert into bakery.telemetry_destinations (id, kind, provider, name, measurements, enabled)
+         values (gen_random_uuid(), 'otlp', $3, $1, array['health'], $2)`,
+        [name, name !== "Zulu", name.startsWith("beta") ? "honeycomb" : null],
       );
     }
     const ids = new Map(
@@ -127,6 +138,22 @@ Deno.test("the Monitoring list pages, searches, filters and orders destinations,
       off: 1,
     });
     assertEquals(first.kinds.map((k) => k.kind), ["otlp"]);
+    // The chooser's providers, with the Honeycomb address and header filled in.
+    assertEquals(first.providers.map((p) => p.key), [
+      "opentelemetry",
+      "grafana",
+      "datadog",
+      "honeycomb",
+      "sentry",
+    ]);
+    assert(first.providers.every((p) => p.kind === "otlp" && p.description));
+    assertEquals(
+      first.providers.find((p) => p.key === "honeycomb")!.prefill,
+      { address: "https://api.honeycomb.io", headerName: "x-honeycomb-team" },
+    );
+    // A row saved with no provider reads as its kind's default.
+    assertEquals(first.destinations[2].provider, "opentelemetry");
+    assertEquals(first.destinations[1].provider, "honeycomb");
     assertEquals(first.measurements.length, 6);
 
     // Paging by cursor visits every destination once, in the same order.
@@ -185,6 +212,9 @@ Deno.test("the Monitoring list pages, searches, filters and orders destinations,
     assertEquals((await list("?state=off")).total, 1);
     assertEquals((await list("?kind=otlp&state=dropping_data")).total, 1);
     assertEquals((await list("?kind=nothing")).total, 0);
+    assertEquals((await list("?provider=honeycomb")).total, 28);
+    assertEquals((await list("?provider=opentelemetry")).total, 32);
+    assertEquals((await list("?provider=grafana")).total, 0);
     assertEquals((await list("?search=zzz")).destinations, []);
 
     // A cursor is good only for the filters it was made with; bad windows and
@@ -216,6 +246,13 @@ Deno.test("the Monitoring list pages, searches, filters and orders destinations,
     assertEquals(one.json.destination.name, "failing one");
     assertEquals(one.json.destination.state, "failing");
     assertEquals(one.json.kind.kind, "otlp");
+    assertEquals(one.json.destination.provider, "opentelemetry");
+    assertEquals(one.json.provider.key, "opentelemetry");
+    const honey = await get(
+      `/v1/installation/telemetry-destinations/${ids.get("beta 05")}`,
+    );
+    assertEquals(honey.json.destination.provider, "honeycomb");
+    assertEquals(honey.json.provider.name, "Honeycomb");
     assertEquals(one.json.measurements.length, 6);
     assertEquals(
       (await get(
@@ -230,6 +267,54 @@ Deno.test("the Monitoring list pages, searches, filters and orders destinations,
       )).status,
       403,
     );
+
+    // A destination is added for a provider; one the list does not offer is refused.
+    const make = async (name: string, provider?: string) => {
+      const response = await call(
+        f,
+        "POST",
+        "/v1/installation/telemetry-destinations",
+        f.adminCookie,
+        {
+          body: {
+            kind: "otlp",
+            name,
+            ...(provider === undefined ? {} : { provider }),
+            measurements: ["health"],
+            values: { address: "https://collector.example.test" },
+          },
+          headers: {
+            "Bakery-Organization-Id": f.organizationId,
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+        },
+      );
+      const text = await response.text();
+      return {
+        status: response.status,
+        text,
+        json: text ? JSON.parse(text) : {},
+      };
+    };
+    const grafana = await make("Grafana prod", "grafana");
+    assertEquals(grafana.status, 201, grafana.text);
+    assertEquals(grafana.json.provider, "grafana");
+    const plain = await make("Collector prod");
+    assertEquals(plain.status, 201, plain.text);
+    assertEquals(plain.json.provider, "opentelemetry");
+    const unknown = await make("Elsewhere", "splunk");
+    assertEquals(unknown.status, 422, unknown.text);
+    assert(unknown.text.includes("provider"));
+    assertEquals(
+      (await list("?provider=grafana")).destinations.map((d) => d.name),
+      ["Grafana prod"],
+    );
+    // A provider is a label fixed when the destination is added.
+    const stored = await f.pgDatabase.query<{ provider: string }>(
+      "select provider from bakery.telemetry_destinations where id = $1",
+      [grafana.json.id],
+    );
+    assertEquals(stored.rows[0].provider, "grafana");
 
     // The drop reports, newest first, a page at a time.
     const beta = ids.get("beta 05")!;

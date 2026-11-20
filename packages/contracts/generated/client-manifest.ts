@@ -3074,6 +3074,37 @@ export const clientManifest = {
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/draft/publish",
+      "action": "skillDrafts.publish",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "SkillVersion",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "SKILL_CONTENT_INTEGRITY_FAILED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft/files",
       "action": "skillDraftFiles.save",
       "access": "Owner for personal; Admin for organization",
@@ -17971,6 +18002,7 @@ export const clientManifest = {
             "skillDrafts.update",
             "skillDrafts.discard",
             "skillDrafts.check",
+            "skillDrafts.publish",
             "skillDraftFiles.save",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
@@ -26733,6 +26765,7 @@ export const clientManifest = {
             "destination_refused",
             "destination_unreachable",
             "key_missing",
+            "incomplete_set",
             "runner_error"
           ]
         },
@@ -44685,6 +44718,7 @@ export const clientManifest = {
                   "skillDrafts.update",
                   "skillDrafts.discard",
                   "skillDrafts.check",
+                  "skillDrafts.publish",
                   "skillDraftFiles.save",
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
@@ -65106,6 +65140,7 @@ export const clientManifest = {
             "skillDrafts.update",
             "skillDrafts.discard",
             "skillDrafts.check",
+            "skillDrafts.publish",
             "skillDraftFiles.save",
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
@@ -89454,9 +89489,10 @@ export const clientManifest = {
                 "destination_refused",
                 "destination_unreachable",
                 "key_missing",
+                "incomplete_set",
                 "runner_error"
               ],
-              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
             },
             {
               "type": "null",
@@ -89662,9 +89698,10 @@ export const clientManifest = {
                       "destination_refused",
                       "destination_unreachable",
                       "key_missing",
+                      "incomplete_set",
                       "runner_error"
                     ],
-                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                   },
                   {
                     "type": "null",
