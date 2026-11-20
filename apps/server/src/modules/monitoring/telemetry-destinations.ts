@@ -228,6 +228,33 @@ function splitValues(
   return { settings, secrets };
 }
 
+/**
+ * A saved secret is only ever sent to the address it was saved for. When a
+ * setting that says where secrets go is changed, every saved secret must be
+ * entered again, so a new or test address can never receive the stored value.
+ */
+function refuseSavedSecretsForANewTarget(
+  provider: TelemetryProvider,
+  saved: Readonly<Record<string, string>>,
+  savedSecretNames: readonly string[],
+  suppliedSettings: Readonly<Record<string, string>>,
+  suppliedSecrets: Readonly<Record<string, string>>,
+): void {
+  const moved = provider.secretBoundFields.some((field) =>
+    suppliedSettings[field] !== undefined &&
+    suppliedSettings[field].trim() !== (saved[field] ?? "").trim()
+  );
+  if (!moved) return;
+  const stale: Record<string, string> = {};
+  for (const name of savedSecretNames) {
+    if ((suppliedSecrets[name] ?? "") === "") {
+      stale[name] =
+        "Enter this again: a saved value is not sent to a different address.";
+    }
+  }
+  if (Object.keys(stale).length > 0) throw problems(stale);
+}
+
 /** Checks required fields and the adapter's own rules against the whole set. */
 async function validateValues(
   provider: TelemetryProvider,
@@ -457,6 +484,13 @@ export async function updateTelemetryDestination(
     dependencies.secretsKey,
     current,
   );
+  refuseSavedSecretsForANewTarget(
+    provider,
+    current.settings,
+    Object.keys(savedSecrets),
+    supplied.settings,
+    supplied.secrets,
+  );
   const settings = { ...current.settings, ...supplied.settings };
   const secrets = { ...savedSecrets, ...supplied.secrets };
   for (const [key, text] of Object.entries(settings)) {
@@ -595,14 +629,15 @@ export async function testTelemetryDestination(
   const transaction = value.transaction;
   let kind = input.kind;
   let saved: Record<string, string> = {};
+  let savedSettings: Record<string, string> = {};
+  let savedSecrets: Record<string, string> = {};
   if (input.id !== undefined) {
     const row = await readRow(transaction, input.id);
     if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
     kind = row.kind;
-    saved = {
-      ...row.settings,
-      ...await openSecrets(transaction, dependencies.secretsKey, row),
-    };
+    savedSettings = row.settings;
+    savedSecrets = await openSecrets(transaction, dependencies.secretsKey, row);
+    saved = { ...savedSettings, ...savedSecrets };
   }
   if (kind === undefined) {
     throw new StandardError({
@@ -618,6 +653,13 @@ export async function testTelemetryDestination(
   }
   const provider = providerOf(dependencies.registry, kind);
   const supplied = splitValues(provider, input.values);
+  refuseSavedSecretsForANewTarget(
+    provider,
+    savedSettings,
+    Object.keys(savedSecrets),
+    supplied.settings,
+    supplied.secrets,
+  );
   const values: Record<string, string> = {
     ...saved,
     ...Object.fromEntries(

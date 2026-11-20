@@ -71,6 +71,7 @@ function fakeProvider(
       measurements: ["cost", "durations", "results", "skills", "health"],
       unavailableReasons: {},
     },
+    secretBoundFields: [],
     validate: () => Promise.resolve({}),
     createSink: () => sink,
     probe: () =>
@@ -134,6 +135,75 @@ Deno.test("the public address rule refuses http, credentials, local names and pr
     assertEquals((await policy(address)).ok, false, address);
   }
   assertEquals((await policy("https://collector.example.test/otlp")).ok, true);
+});
+
+Deno.test("an IPv4 address in any IPv6 spelling, and the other special ranges, are refused", async () => {
+  const policy = createPublicHttpsPolicy(() =>
+    Promise.resolve(["93.184.216.34"])
+  );
+  const refused = [
+    // IPv4-mapped, dotted and hex (what the URL parser writes)
+    "https://[::ffff:127.0.0.1]",
+    "https://[::ffff:7f00:1]",
+    "https://[::ffff:a00:1]",
+    "https://[::ffff:a9fe:a9fe]",
+    "https://[::FFFF:C0A8:101]",
+    "https://[0:0:0:0:0:ffff:7f00:1]",
+    // IPv4-compatible and the unspecified address
+    "https://[::7f00:1]",
+    "https://[::127.0.0.1]",
+    "https://[::]",
+    // NAT64 and 6to4 carrying a private IPv4 address
+    "https://[64:ff9b::7f00:1]",
+    "https://[64:ff9b::10.0.0.1]",
+    "https://[2002:7f00:1::]",
+    // unique local, link-local, multicast, documentation, Teredo
+    "https://[fd00::1]",
+    "https://[fe80::1]",
+    "https://[ff02::1]",
+    "https://[2001:db8::1]",
+    "https://[2001:0:4136:e378:8000:63bf:3fff:fdd2]",
+    // IPv4 special ranges
+    "https://198.18.0.1",
+    "https://198.19.255.254",
+    "https://192.0.2.7",
+    "https://198.51.100.7",
+    "https://203.0.113.7",
+    "https://100.64.0.1",
+    "https://0.0.0.0",
+  ];
+  for (const address of refused) {
+    assertEquals((await policy(address)).ok, false, address);
+  }
+  for (
+    const address of [
+      "https://93.184.216.34",
+      "https://[::ffff:5db8:d822]",
+      "https://[64:ff9b::5db8:d822]",
+      "https://[2606:4700:4700::1111]",
+    ]
+  ) {
+    assertEquals((await policy(address)).ok, true, address);
+  }
+});
+
+Deno.test("a header value with a line break or control character is refused on save", async () => {
+  for (const bad of ["Bearer a\r\nx-evil: 1", "a\nb", "a\u0000b", "a\u007fb"]) {
+    const found = await otlpProvider.validate({
+      address: "https://collector.example.test",
+      headerName: "Authorization",
+      headerValue: bad,
+    });
+    assertEquals(Object.keys(found), ["headerValue"], JSON.stringify(bad));
+  }
+  assertEquals(
+    await otlpProvider.validate({
+      address: "https://collector.example.test",
+      headerName: "Authorization",
+      headerValue: "Bearer abc.def-123 ünï",
+    }),
+    {},
+  );
 });
 
 Deno.test("the OpenTelemetry adapter validates its address and header", async () => {

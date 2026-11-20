@@ -60,6 +60,12 @@ export type ProviderDependencies = Readonly<{
  */
 export type TelemetryProvider = Readonly<{
   descriptor: DestinationKind;
+  /**
+   * The settings that say where a destination's secrets are sent. Changing one
+   * without entering every saved secret again is refused, so a stored secret
+   * never follows a new address and cannot be read back by pointing it elsewhere.
+   */
+  secretBoundFields: readonly string[];
   /** The problems with these values, by field name. Empty when they are fine. */
   validate(
     values: DestinationValues,

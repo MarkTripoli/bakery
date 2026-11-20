@@ -417,6 +417,66 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
       )
     );
 
+    // A saved sign-in header goes only to the address it was saved for. Moving
+    // the address, or testing a different one, needs the value entered again.
+    const afterReplace = replaced.json as { version: number };
+    const seenByOther = other.seen.length;
+    const moved = await send(
+      f.adminCookie,
+      "PATCH",
+      `/v1/installation/telemetry-destinations/${destination.id}`,
+      {
+        body: { values: { address: other.address } },
+        ifMatch: `"${afterReplace.version}"`,
+      },
+    );
+    assertEquals(moved.status, 422, moved.text);
+    assert(moved.text.includes("headerValue"), "the problem names the header");
+    const renamed = await send(
+      f.adminCookie,
+      "PATCH",
+      `/v1/installation/telemetry-destinations/${destination.id}`,
+      {
+        body: { values: { headerName: "X-Other" } },
+        ifMatch: `"${afterReplace.version}"`,
+      },
+    );
+    assertEquals(renamed.status, 422, renamed.text);
+    const unchanged = (await list()).destinations.find((d) =>
+      d.id === destination.id
+    ) as { settings: Body; version: number };
+    assertEquals(unchanged.settings, destination.settings);
+    assertEquals(unchanged.version, afterReplace.version);
+    const elsewhere = await send(
+      f.adminCookie,
+      "POST",
+      "/v1/installation/telemetry-destination-tests",
+      { body: { id: destination.id, values: { address: other.address } } },
+    );
+    assertEquals(elsewhere.status, 422, elsewhere.text);
+    assertEquals(
+      other.seen.length,
+      seenByOther,
+      "a saved header was sent to a different address",
+    );
+    // With the value entered again it is allowed, and only that value is sent.
+    const reentered = await send(
+      f.adminCookie,
+      "POST",
+      "/v1/installation/telemetry-destination-tests",
+      {
+        body: {
+          id: destination.id,
+          values: { address: other.address, headerValue: "Bearer typed_again" },
+        },
+      },
+    );
+    assertEquals(reentered.status, 200, reentered.text);
+    assertEquals(
+      other.seen.slice(seenByOther).map((s) => s.authorization),
+      ["Bearer typed_again"],
+    );
+
     // Removing it needs the current version and forgets it.
     const wrong = await send(
       f.adminCookie,

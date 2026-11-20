@@ -18,28 +18,112 @@ const nodeResolver: HostResolver = async (host) =>
 function ipv4Octets(address: string): number[] | undefined {
   const parts = address.split(".");
   if (parts.length !== 4) return undefined;
-  const octets = parts.map((part) => Number(part));
+  const octets = parts.map((
+    part,
+  ) => (/^\d{1,3}$/.test(part) ? Number(part) : NaN));
   return octets.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
     ? octets
     : undefined;
 }
 
-/** Whether an IP literal is one an outside service must never be sent to. */
-export function isNonPublicIp(address: string): boolean {
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
-  const candidate = mapped ? mapped[1] : address;
-  const octets = ipv4Octets(candidate);
-  if (octets) {
-    const [a, b] = octets;
-    return a === 0 || a === 10 || a === 127 ||
-      (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
-      (a === 192 && b === 0) || a >= 224;
+function isNonPublicIpv4([a, b, c]: readonly number[]): boolean {
+  return a === 0 || a === 10 || a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+    (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) || a >= 224;
+}
+
+/** The sixteen bytes of an IPv6 literal, or undefined when it is not one. */
+function ipv6Bytes(literal: string): number[] | undefined {
+  // A zone ("%eth0") never changes where the address points.
+  const address = literal.replace(/^\[|\]$/g, "").split("%")[0].toLowerCase();
+  if (!/^[0-9a-f:.]+$/.test(address) || !address.includes(":")) {
+    return undefined;
   }
-  const lower = address.toLowerCase();
-  return lower === "::" || lower === "::1" || lower.startsWith("fc") ||
-    lower.startsWith("fd") || /^fe[89ab]/.test(lower) ||
-    lower.startsWith("ff");
+  const halves = address.split("::");
+  if (halves.length > 2) return undefined;
+  const groupsOf = (text: string): number[] | undefined => {
+    if (text === "") return [];
+    const out: number[] = [];
+    const pieces = text.split(":");
+    for (let i = 0; i < pieces.length; i++) {
+      const piece = pieces[i];
+      if (i === pieces.length - 1 && piece.includes(".")) {
+        const v4 = ipv4Octets(piece);
+        if (!v4) return undefined;
+        out.push((v4[0] << 8) | v4[1], (v4[2] << 8) | v4[3]);
+      } else if (/^[0-9a-f]{1,4}$/.test(piece)) {
+        out.push(parseInt(piece, 16));
+      } else {
+        return undefined;
+      }
+    }
+    return out;
+  };
+  const head = groupsOf(halves[0]);
+  const tail = halves.length === 2 ? groupsOf(halves[1]) : [];
+  if (!head || !tail) return undefined;
+  const missing = 8 - head.length - tail.length;
+  if (halves.length === 2 ? missing < 1 : missing !== 0) return undefined;
+  const groups = [
+    ...head,
+    ...new Array<number>(Math.max(missing, 0)).fill(0),
+    ...tail,
+  ];
+  return groups.flatMap((group) => [group >> 8, group & 0xff]);
+}
+
+/**
+ * Whether an IP literal is one an outside service must never be sent to. IPv6
+ * is read as bytes, so every spelling of an IPv4 address inside it is checked as
+ * that IPv4 address: mapped (::ffff:a.b.c.d or ::ffff:7f00:1), compatible
+ * (::a.b.c.d), NAT64 (64:ff9b::/96) and 6to4 (2002::/16).
+ */
+export function isNonPublicIp(address: string): boolean {
+  const octets = ipv4Octets(address);
+  if (octets) return isNonPublicIpv4(octets);
+  const bytes = ipv6Bytes(address);
+  if (bytes === undefined) return true; // not an address we can reason about
+  const zeroUpTo = (end: number) => bytes.slice(0, end).every((b) => b === 0);
+  // ::/96 holds the unspecified address, loopback and IPv4-compatible forms.
+  if (zeroUpTo(12)) return true;
+  // ::ffff:0:0/96, IPv4-mapped.
+  if (zeroUpTo(10) && bytes[10] === 0xff && bytes[11] === 0xff) {
+    return isNonPublicIpv4(bytes.slice(12));
+  }
+  // 64:ff9b::/96, NAT64 well-known prefix.
+  if (
+    bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff &&
+    bytes[3] === 0x9b && bytes.slice(4, 12).every((b) => b === 0)
+  ) return isNonPublicIpv4(bytes.slice(12));
+  // 64:ff9b:1::/48, local-use NAT64.
+  if (
+    bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff &&
+    bytes[3] === 0x9b && bytes[4] === 0x00 && bytes[5] === 0x01
+  ) return true;
+  // 2002::/16, 6to4: the IPv4 address sits in bytes 2 to 5.
+  if (bytes[0] === 0x20 && bytes[1] === 0x02) {
+    return isNonPublicIpv4(bytes.slice(2, 6));
+  }
+  // 2001::/32 Teredo, 2001:db8::/32 documentation, 100::/64 discard.
+  if (
+    bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x00 &&
+    bytes[3] === 0x00
+  ) return true;
+  if (
+    bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x0d &&
+    bytes[3] === 0xb8
+  ) return true;
+  if (
+    bytes[0] === 0x01 && bytes[1] === 0x00 &&
+    bytes.slice(2, 8).every((b) => b === 0)
+  ) return true;
+  // fc00::/7 unique local, fe80::/10 link-local, ff00::/8 multicast.
+  return (bytes[0] & 0xfe) === 0xfc ||
+    (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) ||
+    bytes[0] === 0xff;
 }
 
 /**

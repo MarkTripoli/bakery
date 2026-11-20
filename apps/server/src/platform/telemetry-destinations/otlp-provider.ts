@@ -18,6 +18,9 @@ const HEADER_VALUE_FIELD = "headerValue";
 /** An HTTP header name: letters, digits and the usual separators, no spaces. */
 const HEADER_NAME = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,100}$/;
 
+/** A header value is visible text and tabs only: no CR, LF or other control character. */
+const HEADER_VALUE = /^[\t\x20-\x7e\u0080-\uffff]*$/;
+
 function headersOf(values: DestinationValues): Record<string, string> {
   const name = values[HEADER_NAME_FIELD]?.trim();
   const value = values[HEADER_VALUE_FIELD];
@@ -38,6 +41,7 @@ function noRedirectFetch(base: typeof fetch): typeof fetch {
  * Honeycomb and any other backend that speaks it.
  */
 export const otlpProvider: TelemetryProvider = Object.freeze({
+  secretBoundFields: Object.freeze([ADDRESS_FIELD, HEADER_NAME_FIELD]),
   descriptor: Object.freeze({
     kind: "otlp",
     label: "OpenTelemetry",
@@ -87,6 +91,10 @@ export const otlpProvider: TelemetryProvider = Object.freeze({
     const value = values[HEADER_VALUE_FIELD] ?? "";
     if (name !== "" && !HEADER_NAME.test(name)) {
       problems[HEADER_NAME_FIELD] = "That is not a valid header name.";
+    }
+    if (value !== "" && !HEADER_VALUE.test(value)) {
+      problems[HEADER_VALUE_FIELD] =
+        "The value may not contain line breaks or other control characters.";
     }
     if (value !== "" && name === "") {
       problems[HEADER_NAME_FIELD] = "Name the header the value is sent in.";
