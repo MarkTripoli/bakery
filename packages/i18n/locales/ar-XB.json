@@ -4971,5 +4971,12 @@
   "settings.plugins.saved.retry": "⟪Try again⟫",
   "settings.plugins.saved.forbidden": "⟪You do not have access to this plugin's saved data.⟫",
   "settings.plugins.saved.showMore": "⟪Show more⟫",
-  "settings.plugins.saved.moreFailed": "⟪More saved data could not be loaded.⟫"
+  "settings.plugins.saved.moreFailed": "⟪More saved data could not be loaded.⟫",
+  "files.madeBy.agent": "⟪{agent}, an agent working for {person}⟫",
+  "files.madeBy.agentUnnamed": "⟪An agent working for {person}⟫",
+  "files.madeBy.agentAccess": "⟪Written with {person}'s access to this folder.⟫",
+  "files.version.agentBadge": "⟪Agent⟫",
+  "files.version.agentHelp": "⟪An agent wrote this version. Open it to see which session, and whose access it used.⟫",
+  "files.version.agentHelpLabel": "⟪About agent versions⟫",
+  "files.version.chooseAgent": "⟪Show version {number}, written by an agent⟫"
 }

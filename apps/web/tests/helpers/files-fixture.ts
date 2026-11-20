@@ -29,8 +29,9 @@ export type Version = {
   isCurrent: boolean;
   sizeBytes: number;
   contentRemoved?: boolean;
-  makerKind?: "person" | "step";
+  makerKind?: "person" | "step" | "agent";
   makerName?: string | null;
+  agentName?: string | null;
   stepName?: string | null;
   workItemTitle?: string | null;
 };
@@ -334,7 +335,8 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           runId: version.makerKind === "step" ? uuid(601) : null,
           workItemId: version.makerKind === "step" ? uuid(602) : null,
           workItemTitle: version.workItemTitle ?? null,
-          sessionId: null,
+          sessionId: version.makerKind === "agent" ? uuid(603) : null,
+          agentName: version.agentName ?? null,
         }))),
       );
     },

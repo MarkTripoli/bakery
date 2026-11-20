@@ -427,6 +427,49 @@ for (
       );
     });
 
+    test("a version an agent wrote names the agent and the person, with an Agent badge", async ({ page }) => {
+      await filesFixture(page, {
+        versions: [
+          {
+            revision: 2,
+            isCurrent: true,
+            sizeBytes: 4200,
+            makerKind: "agent",
+            makerName: "Ana Reyes",
+            agentName: "Reviewer",
+          },
+          {
+            revision: 1,
+            isCurrent: false,
+            sizeBytes: 3900,
+            makerKind: "person",
+            makerName: "Ana Reyes",
+          },
+        ],
+      });
+      await page.goto(`/files/projects/web-app?file=${uuid(40)}`);
+      const panel = page.getByTestId("file-details");
+      // Never the person's own: the agent, and whose access it used.
+      await expect(panel).toContainText(
+        "Reviewer, an agent working for Ana Reyes",
+      );
+      await expect(panel).toContainText(
+        "Written with Ana Reyes's access to this folder.",
+      );
+      await page.getByRole("tab", { name: "Versions" }).click();
+      await expect(
+        panel.getByRole("button", {
+          name: "Show version 2, written by an agent",
+        }),
+      ).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Show version 1" }))
+        .toBeVisible();
+      await expect(panel.getByText("Agent", { exact: true })).toHaveCount(1);
+      await expect(panel).toContainText(
+        "Reviewer, an agent working for Ana Reyes",
+      );
+    });
+
     test("the version being viewed is marked in the list", async ({ page }) => {
       await filesFixture(page);
       await page.goto(

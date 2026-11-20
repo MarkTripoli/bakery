@@ -138,8 +138,23 @@ export function FileDetails(
         </>
       );
     }
+    if (version.makerKind === "agent") {
+      return (
+        <UI.Stack gap="none">
+          {madeByText(version)}
+          <UI.Text variant="muted">
+            {translate("files.madeBy.agentAccess", {
+              person: person(version),
+            })}
+          </UI.Text>
+        </UI.Stack>
+      );
+    }
     return version.makerName ?? translate("files.madeBy.unknown");
   };
+  // The person an agent worked for: always named, even when not recorded.
+  const person = (version: StorageFileVersion): string =>
+    version.makerName ?? translate("files.madeBy.unknown");
   // The "who or what" line as text, for a row whose description is a string.
   const madeByText = (version: StorageFileVersion | null): string => {
     if (version === null) return translate("files.madeBy.unknown");
@@ -148,6 +163,15 @@ export function FileDetails(
         step: version.stepName,
         item: version.workItemTitle ?? "",
       });
+    }
+    if (version.makerKind === "agent") {
+      // An agent's version never reads as the person's own (#448).
+      return version.agentName === null
+        ? translate("files.madeBy.agentUnnamed", { person: person(version) })
+        : translate("files.madeBy.agent", {
+          agent: version.agentName,
+          person: person(version),
+        });
     }
     return version.makerName ?? translate("files.madeBy.unknown");
   };
@@ -237,9 +261,12 @@ export function FileDetails(
               key={version.id}
               onSelect={() =>
                 onRevision(version.isCurrent ? undefined : version.revision)}
-              aria-label={translate("files.version.choose", {
-                number: version.revision,
-              })}
+              aria-label={translate(
+                version.makerKind === "person"
+                  ? "files.version.choose"
+                  : "files.version.chooseAgent",
+                { number: version.revision },
+              )}
               title={
                 <UI.Inline gap="compact">
                   {translate("files.version.title", {
@@ -252,6 +279,20 @@ export function FileDetails(
                       </UI.Badge>
                     )
                     : null}
+                  {version.makerKind === "person"
+                    ? null
+                    : (
+                      <UI.Inline gap="compact">
+                        <UI.Badge tone="neutral">
+                          {translate("files.version.agentBadge")}
+                        </UI.Badge>
+                        <UI.HelpTip
+                          label={translate("files.version.agentHelpLabel")}
+                        >
+                          {translate("files.version.agentHelp")}
+                        </UI.HelpTip>
+                      </UI.Inline>
+                    )}
                   {shown?.revision === version.revision
                     ? (
                       <UI.Badge tone="neutral">
