@@ -163,6 +163,10 @@ export type MonitoringOptions = {
   extra?: number;
   /** Offer only this many providers, to skip the chooser with one. */
   providers?: number;
+  /** The first save is refused with 412 after someone else changed the destination's name. */
+  conflictOnce?: boolean;
+  /** Grafana Cloud has lost records but no first-lost time is known. */
+  droppedWithoutTime?: boolean;
   /** The status the next create answers with, and its problem body. */
   createProblem?: { status: number; body: unknown };
   /** What the next test answers with. */
@@ -198,7 +202,11 @@ export async function monitoringFixture(
       }),
   );
   const items: Destination[] = options.empty ? [] : [
-    destination(1, { name: "Grafana Cloud", provider: "grafana" }),
+    destination(1, {
+      name: "Grafana Cloud",
+      provider: "grafana",
+      ...(options.droppedWithoutTime ? { dropped: 3, droppedSince: null } : {}),
+    }),
     destination(4, { name: "Errors, production", provider: "sentry" }),
     destination(2, {
       name: "Honeycomb",
@@ -241,6 +249,7 @@ export async function monitoringFixture(
   };
   const seen: Seen[] = [];
   let createProblem = options.createProblem;
+  let conflictOnce = options.conflictOnce === true;
   const record = (route: import("@playwright/test").Route) => {
     const request = route.request();
     seen.push({
@@ -358,6 +367,25 @@ export async function monitoringFixture(
         return route.fulfill({ status: 204 });
       }
       const input = request.postDataJSON() as Record<string, unknown>;
+      if (conflictOnce && input.name !== undefined) {
+        conflictOnce = false;
+        items[at].name = "Changed elsewhere";
+        items[at].version = items[at].version + 1;
+        return route.fulfill({
+          status: 412,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "https://bakery.example/problems/precondition_failed",
+            title: "Precondition failed",
+            status: 412,
+            detail: "The destination changed.",
+            code: "PRECONDITION_FAILED",
+            requestId: "00000000-0000-4000-8000-0000000000e1",
+            traceId: "00000000-0000-4000-8000-0000000000e2",
+            retryable: false,
+          }),
+        });
+      }
       Object.assign(
         items[at],
         input.enabled === undefined ? {} : {

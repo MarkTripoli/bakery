@@ -261,6 +261,28 @@ for (
         .toHaveCount(0);
     });
 
+    test("Reload after a conflict shows what the other change left, not the old values", async ({ page }) => {
+      await monitoringFixture(page, { conflictOnce: true });
+      await page.goto(LIST);
+      await page.getByRole("link", { name: "Grafana Cloud", exact: true })
+        .click();
+      await page.getByLabel("Name", { exact: true }).fill("My edit");
+      await page.getByRole("button", { name: "Save", exact: true }).click();
+      await page.getByRole("button", { name: "Reload" }).click();
+      await expect(page.getByLabel("Name", { exact: true })).toHaveValue(
+        "Changed elsewhere",
+      );
+    });
+
+    test("a count of lost records shows even when no first-lost time is known", async ({ page }) => {
+      await monitoringFixture(page, { droppedWithoutTime: true });
+      await page.goto(LIST);
+      await page.getByRole("link", { name: "Grafana Cloud", exact: true })
+        .click();
+      await expect(page.getByText("3 records", { exact: true }))
+        .toBeVisible();
+    });
+
     test("a saved secret is never shown, and a new address asks for it again", async ({ page }) => {
       await monitoringFixture(page);
       await page.goto(LIST);

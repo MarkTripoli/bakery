@@ -71,7 +71,9 @@ export function MonitoringProviderChooserScreen(
                 role="listitem"
               >
                 <UI.Link
-                  href={`/installation/monitoring/new?provider=${provider.key}`}
+                  href={`/installation/monitoring/new?provider=${
+                    encodeURIComponent(provider.key)
+                  }`}
                   onClick={(event) => {
                     event.preventDefault();
                     props.onChoose(provider.key);

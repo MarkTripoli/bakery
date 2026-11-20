@@ -1919,6 +1919,7 @@
   "installation.monitoring.sendingLabel": "Sending",
   "installation.monitoring.kindLine": "{kind} destination",
   "installation.monitoring.status.heading": "Status",
+  "installation.monitoring.status.droppedCount": "{count, plural, one {# record} other {# records}}",
   "installation.monitoring.status.never": "Nothing sent yet",
   "installation.monitoring.status.noAnswer": "No answer yet",
   "installation.monitoring.status.answer": "Last answer",

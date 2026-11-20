@@ -215,9 +215,12 @@ function DestinationEditor(
         onCancel={() => void navigate({ to: LIST })}
         onChange={change}
         onReload={() => {
-          void refresh();
-          loadedFor.current = null;
-          setDraft(null);
+          // The draft is rebuilt only once the newer read is in, so Reload
+          // never shows the old values under the new version.
+          void refresh().then(() => {
+            loadedFor.current = null;
+            setDraft(null);
+          });
         }}
         onRemove={() => void remove()}
         onRemoveAsk={setRemoving}

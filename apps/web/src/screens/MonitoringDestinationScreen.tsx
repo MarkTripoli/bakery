@@ -104,6 +104,18 @@ export function MonitoringDestinationScreen(
       </UI.SettingsContent>
     );
   }
+  if (state === "ready" && kind !== null && draft === null) {
+    // The query is ready and the draft follows on the next effect: the form's
+    // skeleton shows, not an error that flashes before the form.
+    return (
+      <UI.SettingsContent data-page="installation-monitoring-destination">
+        <UI.Stack aria-busy="true" gap="compact">
+          <UI.Skeleton shape="row" />
+          <UI.Skeleton shape="row" />
+        </UI.Stack>
+      </UI.SettingsContent>
+    );
+  }
   if (state === "error" || kind === null || draft === null) {
     return (
       <UI.SettingsContent data-page="installation-monitoring-destination">
@@ -286,7 +298,10 @@ export function MonitoringDestinationScreen(
           </UI.Text>
         )
         : null}
-      <TestResult test={props.test} />
+      {/* One live region stays mounted, so a result of either kind is announced. */}
+      <div aria-live="polite" role="status">
+        <TestResult test={props.test} />
+      </div>
     </UI.SettingsSection>
   );
 
@@ -483,13 +498,19 @@ export function MonitoringDestinationScreen(
                     title={translate("installation.monitoring.status.answer")}
                   />
                   <UI.DescriptionItem
-                    description={editing.dropped > 0 &&
-                        editing.droppedSince !== null
-                      ? translate("installation.monitoring.status.dropped", {
+                    description={editing.dropped === 0
+                      ? "0"
+                      : editing.droppedSince === null
+                      ? translate(
+                        "installation.monitoring.status.droppedCount",
+                        {
+                          count: editing.dropped,
+                        },
+                      )
+                      : translate("installation.monitoring.status.dropped", {
                         count: editing.dropped,
                         since: when(editing.droppedSince),
-                      })
-                      : "0"}
+                      })}
                     title={translate("installation.monitoring.column.dropped")}
                   />
                 </UI.DescriptionList>
@@ -510,7 +531,12 @@ export function MonitoringDestinationScreen(
           </UI.Button>
         }
         confirmAction={
-          <UI.Button onClick={props.onRemove} type="button">
+          <UI.Button
+            disabled={props.togglePending}
+            loading={props.togglePending}
+            onClick={props.onRemove}
+            type="button"
+          >
             {translate("installation.monitoring.remove.confirm")}
           </UI.Button>
         }
@@ -543,7 +569,7 @@ function TestResult({ test }: { readonly test: MonitoringTest }) {
   }
   const result = test.result;
   return (
-    <div aria-live="polite" role="status">
+    <>
       {result.ok
         ? (
           <UI.InlineNotice tone="success">
@@ -570,6 +596,6 @@ function TestResult({ test }: { readonly test: MonitoringTest }) {
               : null}
           </UI.InlineNotice>
         )}
-    </div>
+    </>
   );
 }

@@ -5431,5 +5431,6 @@
   "installation.monitoring.leave.confirm": "⟦Ļëàṽë⟧",
   "installation.monitoring.updated": "⟦Ļàšŧ ûþðàŧëð {time} ŧëšŧ⟧",
   "shell.navigation.monitoring": "⟦Ṁôñïŧôŕïñĝ ŧ⟧",
-  "installation.monitoring.test.needsSecret": "⟦Ëñŧëŕ ŧĥë {field} ŧô šëñð à ŧëšŧ. ŧëšŧ çôþÿ⟧"
+  "installation.monitoring.test.needsSecret": "⟦Ëñŧëŕ ŧĥë {field} ŧô šëñð à ŧëšŧ. ŧëšŧ çôþÿ⟧",
+  "installation.monitoring.status.droppedCount": "⟦{count, plural, one {# record} other {# records}} ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }
