@@ -40,6 +40,10 @@ export function OrganizationSettingsNavigation(
         href: "/settings/organization/roles",
         label: translate("shell.navigation.customRoles"),
       }, {
+        id: "organization-plugins",
+        href: "/settings/organization/plugins",
+        label: translate("shell.navigation.plugins"),
+      }, {
         id: "organization-repository-rules",
         href: "/settings/organization/repository-rules",
         label: translate("shell.navigation.repositoryRules"),
