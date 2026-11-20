@@ -5780,7 +5780,7 @@ export const clientManifest = {
       "action": "mergeEntries.list",
       "access": "Developer",
       "permission": "mergeEntry:read",
-      "input": "RepositoryQuery",
+      "input": "MergeEntryQuery",
       "output": "Page<MergeEntry>",
       "event": "",
       "mcp": "bakery_mergeEntries_list",
@@ -6957,6 +6957,390 @@ export const clientManifest = {
         "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "STATE_CONFLICT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "PUT",
+      "path": "/v1/storage/files",
+      "action": "storageFiles.put",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "StorageFilePut",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match when the file exists",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STORAGE_AREA_REFUSED",
+        "STORAGE_QUOTA_EXCEEDED",
+        "STORAGE_FILE_TOO_LARGE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/folders",
+      "action": "storageFolders.create",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "StorageFolderCreate",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/entries/{id}/copy",
+      "action": "storageEntries.copy",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "StorageEntryDestination",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "STORAGE_QUOTA_EXCEEDED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/entries/{id}/move",
+      "action": "storageEntries.move",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "StorageEntryDestination",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STORAGE_AREA_REFUSED",
+        "STORAGE_QUOTA_EXCEEDED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "DELETE",
+      "path": "/v1/storage/entries/{id}",
+      "action": "storageEntries.trash",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "IdPath",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/entries/{id}/restore",
+      "action": "storageEntries.restore",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "IdPath",
+      "output": "StorageEntry",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/roots",
+      "action": "storageRoots.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "Empty",
+      "output": "Page<StorageFolderItem>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/folders/{id}/entries",
+      "action": "storageFolderEntries.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "CursorQuery",
+      "output": "Page<StorageFolderItem>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/files/{id}/versions",
+      "action": "storageFileVersions.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "CursorQuery",
+      "output": "Page<StorageFileVersion>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/files/{id}/uses",
+      "action": "storageFileUses.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "CursorQuery",
+      "output": "Page<StorageFileUse>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/files/{id}/content",
+      "action": "storageFiles.content",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "StorageFileContentQuery",
+      "output": "BinaryArtifact",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "ARTIFACT_CONTENT_EXPIRED",
+        "RANGE_NOT_SATISFIABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/trash",
+      "action": "storageTrash.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "CursorQuery",
+      "output": "Page<StorageEntry>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/settings",
+      "action": "storageSettings.get",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "Empty",
+      "output": "StorageSettings",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "PUT",
+      "path": "/v1/storage/settings",
+      "action": "storageSettings.put",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "input": "StorageSettingsPut",
+      "output": "StorageSettings",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match once settings exist",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/entries/{id}/purge",
+      "action": "storageEntries.purge",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "input": "IdPath",
+      "output": "StoragePurgeResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -9064,6 +9448,29 @@ export const clientManifest = {
         "INTERNAL"
       ],
       "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "GET",
+      "path": "/v1/merge-attempts",
+      "action": "mergeAttempts.list",
+      "access": "Developer",
+      "permission": "pullRequest:read",
+      "input": "MergeAttemptQuery",
+      "output": "Page<MergeAttempt>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     }
   ],
@@ -14121,6 +14528,21 @@ export const clientManifest = {
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
+            "storageFiles.put",
+            "storageFolders.create",
+            "storageEntries.copy",
+            "storageEntries.move",
+            "storageEntries.trash",
+            "storageEntries.restore",
+            "storageRoots.list",
+            "storageFolderEntries.list",
+            "storageFileVersions.list",
+            "storageFileUses.list",
+            "storageFiles.content",
+            "storageTrash.list",
+            "storageSettings.get",
+            "storageSettings.put",
+            "storageEntries.purge",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -14223,7 +14645,8 @@ export const clientManifest = {
             "emailSettings.get",
             "emailSettings.put",
             "emailSettings.test",
-            "emailSettings.delete"
+            "emailSettings.delete",
+            "mergeAttempts.list"
           ],
           "description": "Exact registered Bakery action name to grant within the selected organization; wildcard and prefix matching are forbidden."
         },
@@ -14919,41 +15342,6 @@ export const clientManifest = {
           ]
         }
       }
-    },
-    "RepositoryQuery": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "repositoryId": {
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "environment": {
-          "description": "Restrict deployment results to one environment: `preview`, `staging`, or `production`.",
-          "type": "string",
-          "enum": [
-            "preview",
-            "staging",
-            "production"
-          ]
-        },
-        "cursor": {
-          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. RepositoryQuery.cursor must contain at most 512 UTF-8 bytes.",
-          "type": "string",
-          "maxLength": 65536,
-          "x-utf8-max-bytes": 512
-        },
-        "limit": {
-          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. RepositoryQuery.limit must be at least 1. RepositoryQuery.limit must be at most 100.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "additionalProperties": false,
-      "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
     },
     "PullRequestQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -23853,51 +24241,72 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
     },
-    "RunRequestCreate": {
+    "MergeAttemptQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "recipientId": {
+        "pullRequestId": {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
         },
-        "intent": {
+        "cursor": {
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. MergeAttemptQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
-          "enum": [
-            "fyi",
-            "review",
-            "approve",
-            "answer",
-            "take_over"
-          ],
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
         },
-        "stepKey": {
-          "description": "The step the request concerns, or omitted for the run as a whole. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "note": {
-          "description": "Optional one line shown to the person asked. RunRequestCreate.note must contain at most 280 characters.",
-          "type": "string",
-          "maxLength": 280
-        },
-        "neededBy": {
-          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days.",
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        "limit": {
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. MergeAttemptQuery.limit must be at least 1. MergeAttemptQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
         }
       },
       "required": [
-        "recipientId",
-        "intent"
+        "pullRequestId"
       ],
       "additionalProperties": false,
-      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+      "description": "Filters for listing one pull request's merge attempts, newest first."
+    },
+    "MergeEntryQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "pullRequestId": {
+          "description": "Restrict results to this tracked pull request's merge entries.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "runId": {
+          "description": "Restrict results to the merge entries admitted for this run, so a page can read one run's entry without listing a whole repository's queue.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "cursor": {
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. MergeEntryQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. MergeEntryQuery.limit must be at least 1. MergeEntryQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
     },
     "FileSearchQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -24015,6 +24424,201 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+    },
+    "RunRequestCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "recipientId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "fyi",
+            "review",
+            "approve",
+            "answer",
+            "take_over"
+          ],
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
+        },
+        "stepKey": {
+          "description": "The step the request concerns, or omitted for the run as a whole. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "note": {
+          "description": "Optional one line shown to the person asked. RunRequestCreate.note must contain at most 280 characters.",
+          "type": "string",
+          "maxLength": 280
+        },
+        "neededBy": {
+          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        }
+      },
+      "required": [
+        "recipientId",
+        "intent"
+      ],
+      "additionalProperties": false,
+      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+    },
+    "StorageFilePut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 4096,
+          "description": "Where the file goes: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent folder must exist and be in a working, personal (owner only) or scratch area. StorageFilePut.path must contain at least 2 characters. StorageFilePut.path must contain at most 4096 characters."
+        },
+        "mediaType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "description": "IANA media type the version records and later serves, such as text/markdown or application/octet-stream. StorageFilePut.mediaType must contain at least 1 characters. StorageFilePut.mediaType must contain at most 255 characters."
+        },
+        "content": {
+          "description": "The file's bytes, base64, for a small file of at most 1 MiB. Send exactly one of content or blobId. StorageFilePut.content must contain at most 1398104 characters.",
+          "type": "string",
+          "maxLength": 65536
+        },
+        "blobId": {
+          "description": "A blob a completed resumable upload stored in this organization (blobUploads.complete). This is how a large file is uploaded: upload the bytes, then put the blob at a path. Send exactly one of content or blobId.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "path",
+        "mediaType"
+      ],
+      "additionalProperties": false,
+      "description": "Writes a file at a path in a working area (O42, chapter 25 section 17.4 put and upload): the first write makes the file entry, each later write adds a version. Working areas keep the newest versions up to the organization's setting; scratch keeps only the latest."
+    },
+    "StorageFolderCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 4096,
+          "description": "The new folder: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must exist and be writable by the caller. StorageFolderCreate.path must contain at least 2 characters. StorageFolderCreate.path must contain at most 4096 characters."
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "Makes a folder in a working, personal or scratch area. People add folders only in assets, attachments, /shared, workspaces and their own personal folder (section 17.2); everywhere else is refused."
+    },
+    "StorageEntryDestination": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "destinationPath": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 4096,
+          "description": "Where the entry ends up, name included: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must be a folder the caller may write. StorageEntryDestination.destinationPath must contain at least 2 characters. StorageEntryDestination.destinationPath must contain at most 4096 characters."
+        }
+      },
+      "required": [
+        "destinationPath"
+      ],
+      "additionalProperties": false,
+      "description": "The destination of a copy or a move inside the storage tree. A copy makes a new entry naming the same bytes; a move changes only the entry's parent and name, so nothing pinned to its versions breaks (O34)."
+    },
+    "StorageSettingsPut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "workingVersionsKept": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "How many versions a working-area file keeps; older ones are removed on the next write. Default 20. StorageSettingsPut.workingVersionsKept must be at least 1. StorageSettingsPut.workingVersionsKept must be at most 1000."
+        },
+        "trashRetentionDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650,
+          "description": "Days a deleted working file stays in /trash, restorable, before the hourly sweep removes it. Default 30. StorageSettingsPut.trashRetentionDays must be at least 1. StorageSettingsPut.trashRetentionDays must be at most 3650."
+        },
+        "scratchRetentionDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650,
+          "description": "Days a file in a personal scratch folder lives after its last write before the sweep removes it. Default 30. StorageSettingsPut.scratchRetentionDays must be at least 1. StorageSettingsPut.scratchRetentionDays must be at most 3650."
+        },
+        "maxFileBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5368709120,
+          "description": "Largest single file a put accepts, in bytes; at most the 5 GiB blob limit. Default 5 GiB. StorageSettingsPut.maxFileBytes must be at least 1. StorageSettingsPut.maxFileBytes must be at most 5368709120."
+        },
+        "organizationQuotaBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1125899906842624,
+          "description": "Bytes all working-area files of the organization may hold. Usage warns at 75% and new writes pause at 90%. Default 100 GiB. StorageSettingsPut.organizationQuotaBytes must be at least 1. StorageSettingsPut.organizationQuotaBytes must be at most 1125899906842624."
+        },
+        "projectQuotaBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1125899906842624,
+          "description": "Bytes each project's working-area files (assets, workspaces, attachments) may hold, with the same 75% warning and 90% pause. Default 50 GiB. StorageSettingsPut.projectQuotaBytes must be at least 1. StorageSettingsPut.projectQuotaBytes must be at most 1125899906842624."
+        },
+        "personalQuotaBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1125899906842624,
+          "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB. StorageSettingsPut.personalQuotaBytes must be at least 1. StorageSettingsPut.personalQuotaBytes must be at most 1125899906842624."
+        }
+      },
+      "required": [
+        "workingVersionsKept",
+        "trashRetentionDays",
+        "scratchRetentionDays",
+        "maxFileBytes",
+        "organizationQuotaBytes",
+        "projectQuotaBytes",
+        "personalQuotaBytes"
+      ],
+      "additionalProperties": false,
+      "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
+    },
+    "StorageFileContentQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Which version to read, by its revision number from storageFileVersions.list; omit it to read the file's current version. A revision the file does not have is 404. StorageFileContentQuery.revision must be at least 1. StorageFileContentQuery.revision must be at most 999999999.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999999999
+        },
+        "range": {
+          "description": "Standard HTTP Range header value selecting one byte range, as a media player sends while it seeks; multiple ranges are rejected, and an unsatisfiable range returns 416 with the total size. StorageFileContentQuery.range must contain at most 100 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^bytes=(?:\\d+-\\d*|-\\d+)$",
+          "x-utf8-max-bytes": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -36587,6 +37191,21 @@ export const clientManifest = {
                   "blobUploads.start",
                   "blobUploads.part",
                   "blobUploads.complete",
+                  "storageFiles.put",
+                  "storageFolders.create",
+                  "storageEntries.copy",
+                  "storageEntries.move",
+                  "storageEntries.trash",
+                  "storageEntries.restore",
+                  "storageRoots.list",
+                  "storageFolderEntries.list",
+                  "storageFileVersions.list",
+                  "storageFileUses.list",
+                  "storageFiles.content",
+                  "storageTrash.list",
+                  "storageSettings.get",
+                  "storageSettings.put",
+                  "storageEntries.purge",
                   "integrationAuth.manifestCallback",
                   "integrationResources.list",
                   "integrationDiscoveries.create",
@@ -36689,7 +37308,8 @@ export const clientManifest = {
                   "emailSettings.get",
                   "emailSettings.put",
                   "emailSettings.test",
-                  "emailSettings.delete"
+                  "emailSettings.delete",
+                  "mergeAttempts.list"
                 ],
                 "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
               },
@@ -39537,6 +40157,19 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "mayMerge": {
+                "type": "boolean",
+                "description": "Whether the caller holds the permission to merge this pull request from Bakery (the pullRequest:merge permission). It says nothing about whether the pull request is ready to merge; the checks and the dispatch still decide that."
+              },
+              "mergeMethod": {
+                "type": "string",
+                "enum": [
+                  "merge",
+                  "squash",
+                  "rebase"
+                ],
+                "description": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one."
               }
             },
             "required": [
@@ -39552,7 +40185,9 @@ export const clientManifest = {
               "mergedSha",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "mayMerge",
+              "mergeMethod"
             ],
             "additionalProperties": false,
             "description": "Bakery's mirror of a provider pull request's identity and latest known SHAs for a task's repository; provider webhooks reconcile status, mergedSha and the head/base SHAs against the provider's current state, so this record can lag briefly behind Git history."
@@ -54474,6 +55109,21 @@ export const clientManifest = {
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
+            "storageFiles.put",
+            "storageFolders.create",
+            "storageEntries.copy",
+            "storageEntries.move",
+            "storageEntries.trash",
+            "storageEntries.restore",
+            "storageRoots.list",
+            "storageFolderEntries.list",
+            "storageFileVersions.list",
+            "storageFileUses.list",
+            "storageFiles.content",
+            "storageTrash.list",
+            "storageSettings.get",
+            "storageSettings.put",
+            "storageEntries.purge",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -54576,7 +55226,8 @@ export const clientManifest = {
             "emailSettings.get",
             "emailSettings.put",
             "emailSettings.test",
-            "emailSettings.delete"
+            "emailSettings.delete",
+            "mergeAttempts.list"
           ],
           "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
         },
@@ -62444,6 +63095,7 @@ export const clientManifest = {
               "integrationAuthAttempt:read",
               "integrationInstallation:read",
               "artifact:create",
+              "artifact:manage",
               "integrationResource:read",
               "integrationDiscovery:manage",
               "integrationResource:manage",
@@ -62476,7 +63128,6 @@ export const clientManifest = {
               "pluginState:write",
               "userPreference:read",
               "userPreference:write",
-              "artifact:manage",
               "draft:write",
               "draftCheckpoint:read",
               "draftSlice:read",
@@ -62528,6 +63179,11 @@ export const clientManifest = {
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "UUID of the principal associated with this organization membership record."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name of the member's principal, so a member list can name people. Every organization member may read it; it is the name the person chose, never an email address."
         },
         "role": {
           "anyOf": [
@@ -62585,6 +63241,7 @@ export const clientManifest = {
         "id",
         "organizationId",
         "principalId",
+        "displayName",
         "role",
         "status",
         "joinedAt",
@@ -62622,6 +63279,11 @@ export const clientManifest = {
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the principal associated with this organization membership record."
+              },
+              "displayName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name of the member's principal, so a member list can name people. Every organization member may read it; it is the name the person chose, never an email address."
               },
               "role": {
                 "anyOf": [
@@ -62679,6 +63341,7 @@ export const clientManifest = {
               "id",
               "organizationId",
               "principalId",
+              "displayName",
               "role",
               "status",
               "joinedAt",
@@ -83034,6 +83697,604 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again."
     },
+    "Page<MergeAttempt>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the merge attempt record."
+              },
+              "pullRequestId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this attempt to the pull request it merges."
+              },
+              "providerNumber": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "GitHub's pull request number for the attempt."
+              },
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this attempt to the repository it merges into."
+              },
+              "baseBranch": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Target branch the merge was dispatched against."
+              },
+              "expectedHeadSha": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Head commit the caller verified and the attempt was dispatched against."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "merged",
+                  "refused",
+                  "unknown"
+                ],
+                "description": "Outcome of the attempt: merged, refused, or unknown while a lost provider answer waits for reconciliation."
+              },
+              "providerStatus": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "GitHub's HTTP status for a refused or merged answer; null when no provider call was made or the answer was lost."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MergeAttempt.providerStatus may be null in this transport value."
+              },
+              "mergedSha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Commit GitHub reports for a merged attempt; null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MergeAttempt.mergedSha may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the attempt was recorded."
+              },
+              "settledAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when an unknown attempt was settled by reconciliation; null while unknown."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MergeAttempt.settledAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "pullRequestId",
+              "providerNumber",
+              "repositoryId",
+              "baseBranch",
+              "expectedHeadSha",
+              "state",
+              "providerStatus",
+              "mergedSha",
+              "createdAt",
+              "settledAt"
+            ],
+            "additionalProperties": false,
+            "description": "One recorded merge attempt: the exact head it was dispatched against, the outcome, and the provider status or merged commit when GitHub answered."
+          },
+          "description": "MergeAttempt items in this cursor page. Page<MergeAttempt>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<MergeAttempt>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MergeAttempt>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<MergeAttempt>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<MergeAttempt>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of MergeAttempt."
+    },
+    "Page<FileSearchHit>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "enum": [
+                  "files",
+                  "library"
+                ],
+                "description": "Where the hit lives: the organization's file tree, or the read-only library mirror."
+              },
+              "entryId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID of the file's tree entry; null for a library item, which is shown by path."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.entryId may be null in this transport value."
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Absolute path of the hit in the tree, for example /projects/<project>/artifacts/<work item>/plan.md or /library/skills/<slug>."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Name of the file or library item."
+              },
+              "kind": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The artifact type of a file, or the library kind of a library item."
+              },
+              "mediaType": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Media type of the file's current version; null for a library item or a file with no current version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.mediaType may be null in this transport value."
+              },
+              "mediaGroup": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "image",
+                      "video",
+                      "audio",
+                      "data",
+                      "archive",
+                      "other"
+                    ],
+                    "description": "Plain group of the file's media type (text, image, video, audio, data, archive or other); null for a library item or a file with no current version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.mediaGroup may be null in this transport value."
+              },
+              "sizeBytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Size in bytes of the file's current version; null for a library item or a file with no current version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.sizeBytes may be null in this transport value."
+              },
+              "versionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID of the file's current version, the one a run would pin; null for a library item or a file with no current version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.versionId may be null in this transport value."
+              },
+              "producerId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID of the principal that authored the file's current version; null for a library item."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerId may be null in this transport value."
+              },
+              "producerKind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "person",
+                      "step"
+                    ],
+                    "description": "Whether the file's current version was made by a person or by a step of a run; null for a library item."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerKind may be null in this transport value."
+              },
+              "producerName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The person's display name, or the step's key for a step; null for a library item."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerName may be null in this transport value."
+              },
+              "producerTaskId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "For a step, the work item (task) its run belongs to; null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerTaskId may be null in this transport value."
+              },
+              "producerTaskTitle": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "For a step, the title of that work item; null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerTaskTitle may be null in this transport value."
+              },
+              "nameMatchStart": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Zero-based position in the name where the query first matches, case-insensitively, so a page can mark the match; null when the search had no text or the position is not exact."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.nameMatchStart may be null in this transport value."
+              },
+              "nameMatchLength": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Length of the matched text in the name; null with nameMatchStart."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.nameMatchLength may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the entry or library item was created."
+              }
+            },
+            "required": [
+              "source",
+              "entryId",
+              "path",
+              "name",
+              "kind",
+              "mediaType",
+              "mediaGroup",
+              "sizeBytes",
+              "versionId",
+              "producerId",
+              "producerKind",
+              "producerName",
+              "producerTaskId",
+              "producerTaskTitle",
+              "nameMatchStart",
+              "nameMatchLength",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One file or library item matched by files.search, with its absolute path, so a caller can open it by path or by the ids shown."
+          },
+          "description": "FileSearchHit items in this cursor page. Page<FileSearchHit>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<FileSearchHit>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<FileSearchHit>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<FileSearchHit>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<FileSearchHit>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of FileSearchHit."
+    },
+    "Page<LibraryEntry>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "folder",
+                  "item"
+                ],
+                "description": "folder for a section, item for a published catalog item."
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Absolute path: /library/<section> or /library/<section>/<slug>."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name of the section or item."
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "LibraryEntry.kind may be null in this transport value."
+              },
+              "createdAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC time the catalog item was created; null for a folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "LibraryEntry.createdAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "type",
+              "path",
+              "name",
+              "kind",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path."
+          },
+          "description": "LibraryEntry items in this cursor page. Page<LibraryEntry>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<LibraryEntry>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<LibraryEntry>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<LibraryEntry>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<LibraryEntry>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of LibraryEntry."
+    },
     "RunRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -83462,7 +84723,291 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first."
     },
-    "Page<FileSearchHit>": {
+    "StorageEntry": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable id of the entry. A rename or move never changes it, so links and pins keep working."
+        },
+        "parentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Folder that holds the entry now; the /trash folder while it is deleted. Null only for a top-level area."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.parentId may be null in this transport value."
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The entry's path now, a label that changes with a rename or move; the id is its identity."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The entry's display name, unique in its folder when compared case-insensitively."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "folder",
+            "file"
+          ],
+          "description": "Whether this is a folder or a file."
+        },
+        "policy": {
+          "type": "string",
+          "enum": [
+            "record",
+            "working",
+            "scratch",
+            "library",
+            "personal",
+            "system"
+          ],
+          "description": "Folder policy the entry follows: record areas keep their files, working and personal areas take writes and delete to trash, scratch keeps only the latest version and expires."
+        },
+        "artifactId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The artifact a record-area file shows; null for a file written into a working area and for folders."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.artifactId may be null in this transport value."
+        },
+        "currentVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The working-area file's current version; null for folders and record-area files, whose version is their artifact's."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.currentVersionId may be null in this transport value."
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of the current working-area version, counting from 1."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.revision may be null in this transport value."
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Lowercase hexadecimal SHA-256 of the current working-area version's bytes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.sha256 may be null in this transport value."
+        },
+        "sizeBytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Size of the current working-area version in bytes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.sizeBytes may be null in this transport value."
+        },
+        "mediaType": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Media type of the current working-area version."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.mediaType may be null in this transport value."
+        },
+        "trashedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the entry was deleted to trash; null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.trashedAt may be null in this transport value."
+        },
+        "restoreParentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Folder a restore puts a trashed entry back into; null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.restoreParentId may be null in this transport value."
+        },
+        "originalName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Name the entry had before it was deleted, which a restore gives it back; null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.originalName may be null in this transport value."
+        },
+        "originalFolderPath": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Path of the folder the entry was deleted from, for showing where it came from; null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.originalFolderPath may be null in this transport value."
+        },
+        "trashedById": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Person or agent that deleted the entry to trash; null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.trashedById may be null in this transport value."
+        },
+        "trashedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of whoever deleted the entry, as shown in the trash list; null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.trashedByName may be null in this transport value."
+        },
+        "deletionRequestedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When an Admin asked to delete this record-area file forever; set while that request waits for the owner maintenance task, so the page can show it as being deleted. Null when no deletion is pending."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.deletionRequestedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic concurrency version; send it as If-Match to replace, move, delete or restore this entry."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the entry or its current version last changed."
+        }
+      },
+      "required": [
+        "id",
+        "parentId",
+        "path",
+        "name",
+        "kind",
+        "policy",
+        "artifactId",
+        "currentVersionId",
+        "revision",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "trashedAt",
+        "restoreParentId",
+        "originalName",
+        "originalFolderPath",
+        "trashedById",
+        "trashedByName",
+        "deletionRequestedAt",
+        "version",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "description": "A folder or file in the organization's storage tree as the caller may see it: where it is, what policy it follows and, for a working-area file, its current version's digest and size."
+    },
+    "Page<StorageEntry>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
@@ -83472,79 +85017,115 @@ export const clientManifest = {
           "items": {
             "type": "object",
             "properties": {
-              "source": {
+              "id": {
                 "type": "string",
-                "enum": [
-                  "files",
-                  "library"
-                ],
-                "description": "Where the hit lives: the organization's file tree, or the read-only library mirror."
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable id of the entry. A rename or move never changes it, so links and pins keep working."
               },
-              "entryId": {
+              "parentId": {
                 "anyOf": [
                   {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID of the file's tree entry; null for a library item, which is shown by path."
+                    "description": "Folder that holds the entry now; the /trash folder while it is deleted. Null only for a top-level area."
                   },
                   {
                     "type": "null",
                     "description": "Null indicates that the value is unavailable."
                   }
                 ],
-                "description": "FileSearchHit.entryId may be null in this transport value."
+                "description": "StorageEntry.parentId may be null in this transport value."
               },
               "path": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Absolute path of the hit in the tree, for example /projects/<project>/artifacts/<work item>/plan.md or /library/skills/<slug>."
+                "description": "The entry's path now, a label that changes with a rename or move; the id is its identity."
               },
               "name": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Name of the file or library item."
+                "description": "The entry's display name, unique in its folder when compared case-insensitively."
               },
               "kind": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "The artifact type of a file, or the library kind of a library item."
+                "enum": [
+                  "folder",
+                  "file"
+                ],
+                "description": "Whether this is a folder or a file."
               },
-              "mediaType": {
+              "policy": {
+                "type": "string",
+                "enum": [
+                  "record",
+                  "working",
+                  "scratch",
+                  "library",
+                  "personal",
+                  "system"
+                ],
+                "description": "Folder policy the entry follows: record areas keep their files, working and personal areas take writes and delete to trash, scratch keeps only the latest version and expires."
+              },
+              "artifactId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The artifact a record-area file shows; null for a file written into a working area and for folders."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageEntry.artifactId may be null in this transport value."
+              },
+              "currentVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The working-area file's current version; null for folders and record-area files, whose version is their artifact's."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageEntry.currentVersionId may be null in this transport value."
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Revision number of the current working-area version, counting from 1."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageEntry.revision may be null in this transport value."
+              },
+              "sha256": {
                 "anyOf": [
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Media type of the file's current version; null for a library item or a file with no current version."
+                    "description": "Lowercase hexadecimal SHA-256 of the current working-area version's bytes."
                   },
                   {
                     "type": "null",
                     "description": "Null indicates that the value is unavailable."
                   }
                 ],
-                "description": "FileSearchHit.mediaType may be null in this transport value."
-              },
-              "mediaGroup": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "text",
-                      "image",
-                      "video",
-                      "audio",
-                      "data",
-                      "archive",
-                      "other"
-                    ],
-                    "description": "Plain group of the file's media type (text, image, video, audio, data, archive or other); null for a library item or a file with no current version."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "FileSearchHit.mediaGroup may be null in this transport value."
+                "description": "StorageEntry.sha256 may be null in this transport value."
               },
               "sizeBytes": {
                 "anyOf": [
@@ -83552,165 +85133,171 @@ export const clientManifest = {
                     "type": "integer",
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991,
-                    "description": "Size in bytes of the file's current version; null for a library item or a file with no current version."
+                    "description": "Size of the current working-area version in bytes."
                   },
                   {
                     "type": "null",
                     "description": "Null indicates that the value is unavailable."
                   }
                 ],
-                "description": "FileSearchHit.sizeBytes may be null in this transport value."
+                "description": "StorageEntry.sizeBytes may be null in this transport value."
               },
-              "versionId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID of the file's current version, the one a run would pin; null for a library item or a file with no current version."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "FileSearchHit.versionId may be null in this transport value."
-              },
-              "producerId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID of the principal that authored the file's current version; null for a library item."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "FileSearchHit.producerId may be null in this transport value."
-              },
-              "producerKind": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "person",
-                      "step"
-                    ],
-                    "description": "Whether the file's current version was made by a person or by a step of a run; null for a library item."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "FileSearchHit.producerKind may be null in this transport value."
-              },
-              "producerName": {
+              "mediaType": {
                 "anyOf": [
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "The person's display name, or the step's key for a step; null for a library item."
+                    "description": "Media type of the current working-area version."
                   },
                   {
                     "type": "null",
                     "description": "Null indicates that the value is unavailable."
                   }
                 ],
-                "description": "FileSearchHit.producerName may be null in this transport value."
+                "description": "StorageEntry.mediaType may be null in this transport value."
               },
-              "producerTaskId": {
+              "trashedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the entry was deleted to trash; null while it is live."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageEntry.trashedAt may be null in this transport value."
+              },
+              "restoreParentId": {
                 "anyOf": [
                   {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "For a step, the work item (task) its run belongs to; null otherwise."
+                    "description": "Folder a restore puts a trashed entry back into; null while it is live."
                   },
                   {
                     "type": "null",
                     "description": "Null indicates that the value is unavailable."
                   }
                 ],
-                "description": "FileSearchHit.producerTaskId may be null in this transport value."
+                "description": "StorageEntry.restoreParentId may be null in this transport value."
               },
-              "producerTaskTitle": {
+              "originalName": {
                 "anyOf": [
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "For a step, the title of that work item; null otherwise."
+                    "description": "Name the entry had before it was deleted, which a restore gives it back; null while it is live."
                   },
                   {
                     "type": "null",
                     "description": "Null indicates that the value is unavailable."
                   }
                 ],
-                "description": "FileSearchHit.producerTaskTitle may be null in this transport value."
+                "description": "StorageEntry.originalName may be null in this transport value."
               },
-              "nameMatchStart": {
+              "originalFolderPath": {
                 "anyOf": [
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Zero-based position in the name where the query first matches, case-insensitively, so a page can mark the match; null when the search had no text or the position is not exact."
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Path of the folder the entry was deleted from, for showing where it came from; null while it is live."
                   },
                   {
                     "type": "null",
                     "description": "Null indicates that the value is unavailable."
                   }
                 ],
-                "description": "FileSearchHit.nameMatchStart may be null in this transport value."
+                "description": "StorageEntry.originalFolderPath may be null in this transport value."
               },
-              "nameMatchLength": {
+              "trashedById": {
                 "anyOf": [
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Length of the matched text in the name; null with nameMatchStart."
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Person or agent that deleted the entry to trash; null while it is live."
                   },
                   {
                     "type": "null",
                     "description": "Null indicates that the value is unavailable."
                   }
                 ],
-                "description": "FileSearchHit.nameMatchLength may be null in this transport value."
+                "description": "StorageEntry.trashedById may be null in this transport value."
               },
-              "createdAt": {
+              "trashedByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of whoever deleted the entry, as shown in the trash list; null while it is live."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageEntry.trashedByName may be null in this transport value."
+              },
+              "deletionRequestedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When an Admin asked to delete this record-area file forever; set while that request waits for the owner maintenance task, so the page can show it as being deleted. Null when no deletion is pending."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageEntry.deletionRequestedAt may be null in this transport value."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic concurrency version; send it as If-Match to replace, move, delete or restore this entry."
+              },
+              "updatedAt": {
                 "type": "string",
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC timestamp when the entry or library item was created."
+                "description": "When the entry or its current version last changed."
               }
             },
             "required": [
-              "source",
-              "entryId",
+              "id",
+              "parentId",
               "path",
               "name",
               "kind",
-              "mediaType",
-              "mediaGroup",
+              "policy",
+              "artifactId",
+              "currentVersionId",
+              "revision",
+              "sha256",
               "sizeBytes",
-              "versionId",
-              "producerId",
-              "producerKind",
-              "producerName",
-              "producerTaskId",
-              "producerTaskTitle",
-              "nameMatchStart",
-              "nameMatchLength",
-              "createdAt"
+              "mediaType",
+              "trashedAt",
+              "restoreParentId",
+              "originalName",
+              "originalFolderPath",
+              "trashedById",
+              "trashedByName",
+              "deletionRequestedAt",
+              "version",
+              "updatedAt"
             ],
             "additionalProperties": false,
-            "description": "One file or library item matched by files.search, with its absolute path, so a caller can open it by path or by the ids shown."
+            "description": "A folder or file in the organization's storage tree as the caller may see it: where it is, what policy it follows and, for a working-area file, its current version's digest and size."
           },
-          "description": "FileSearchHit items in this cursor page. Page<FileSearchHit>.items must contain at most 100 items."
+          "description": "StorageEntry items in this cursor page. Page<StorageEntry>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -83727,12 +85314,12 @@ export const clientManifest = {
           "description": "Opaque continuation cursor, or null at the end."
         },
         "prevCursor": {
-          "description": "Page<FileSearchHit>.prevCursor may be null in this transport value.",
+          "description": "Page<StorageEntry>.prevCursor may be null in this transport value.",
           "anyOf": [
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<FileSearchHit>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageEntry>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -83742,12 +85329,12 @@ export const clientManifest = {
           ]
         },
         "highwater": {
-          "description": "Page<FileSearchHit>.highwater may be null in this transport value.",
+          "description": "Page<StorageEntry>.highwater may be null in this transport value.",
           "anyOf": [
             {
               "type": "string",
               "pattern": "^(?:0|[1-9][0-9]*)$",
-              "description": "Page<FileSearchHit>.highwater is a bounded decimal string.",
+              "description": "Page<StorageEntry>.highwater is a bounded decimal string.",
               "x-bigint-minimum": "0"
             },
             {
@@ -83762,9 +85349,142 @@ export const clientManifest = {
         "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "Cursor page of FileSearchHit."
+      "description": "Cursor page of StorageEntry."
     },
-    "Page<LibraryEntry>": {
+    "StorageSettings": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "workingVersionsKept": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Versions a working-area file keeps."
+        },
+        "trashRetentionDays": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Days a deleted working file stays restorable in /trash."
+        },
+        "scratchRetentionDays": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Days a scratch file lives after its last write."
+        },
+        "maxFileBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Largest single file a put accepts, in bytes."
+        },
+        "organizationQuotaBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Bytes the organization's working-area files may hold."
+        },
+        "projectQuotaBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Bytes each project's working-area files may hold."
+        },
+        "personalQuotaBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Bytes each member's personal folder may hold."
+        },
+        "organizationUsedBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Bytes working-area file versions hold now, trash included until it is swept or purged."
+        },
+        "organizationQuotaState": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "warning",
+            "paused"
+          ],
+          "description": "Where usage stands against the organization quota: warning from 75%, paused from 90%, when new writes are refused."
+        },
+        "customized": {
+          "type": "boolean",
+          "description": "False while the organization uses Bakery's defaults; true once an Admin saved its own values."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Settings version for If-Match on the next save; 0 while the defaults apply."
+        }
+      },
+      "required": [
+        "workingVersionsKept",
+        "trashRetentionDays",
+        "scratchRetentionDays",
+        "maxFileBytes",
+        "organizationQuotaBytes",
+        "projectQuotaBytes",
+        "personalQuotaBytes",
+        "organizationUsedBytes",
+        "organizationQuotaState",
+        "customized",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "The organization's storage limits and how much of its quota working-area files use. Every limit is an organization setting with a default (O42)."
+    },
+    "StoragePurgeResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The purged entry."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "removed",
+            "queued"
+          ],
+          "description": "removed when the entry and everything under it were deleted in this request; queued when a record-area file's purge was recorded for the owner-privileged job, which clears every version's bytes and leaves the entry as a tombstone. Purging the same file again before the job runs returns queued for the same request."
+        },
+        "alreadyRequested": {
+          "type": "boolean",
+          "description": "True when the record-area file already had a pending purge request, so this call queued nothing new; false when this call made the request or removed the entry."
+        },
+        "entriesRemoved": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Entries deleted with their versions: the entry and everything under it. Zero when the purge is queued."
+        },
+        "bytesRemoved": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Bytes of working-area versions deleted. Zero when the purge is queued."
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "alreadyRequested",
+        "entriesRemoved",
+        "bytesRemoved"
+      ],
+      "additionalProperties": false,
+      "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
+    },
+    "Page<StorageFolderItem>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
@@ -83774,65 +85494,159 @@ export const clientManifest = {
           "items": {
             "type": "object",
             "properties": {
-              "type": {
+              "id": {
                 "type": "string",
-                "enum": [
-                  "folder",
-                  "item"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable id of the entry; open a folder with storageFolderEntries.list and a file's history with storageFileVersions.list."
+              },
+              "parentId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Folder that holds the entry; null for a top-level folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
                 ],
-                "description": "folder for a section, item for a published catalog item."
+                "description": "StorageFolderItem.parentId may be null in this transport value."
               },
               "path": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Absolute path: /library/<section> or /library/<section>/<slug>."
+                "description": "The entry's path now, for the breadcrumb and Copy path; a label that changes with a rename or move."
               },
               "name": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Display name of the section or item."
+                "description": "The entry's name in its folder, unique there when compared case-insensitively."
               },
-              "kind": {
+              "displayName": {
                 "anyOf": [
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder."
+                    "description": "The name to show instead of name where Bakery named the folder after something: a work item's folder carries the work item's title. Null when the entry's own name is the one to show."
                   },
                   {
                     "type": "null",
                     "description": "Null indicates that the value is unavailable."
                   }
                 ],
-                "description": "LibraryEntry.kind may be null in this transport value."
+                "description": "StorageFolderItem.displayName may be null in this transport value."
               },
-              "createdAt": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "folder",
+                  "file"
+                ],
+                "description": "Whether this is a folder or a file."
+              },
+              "policy": {
+                "type": "string",
+                "enum": [
+                  "record",
+                  "working",
+                  "scratch",
+                  "library",
+                  "personal",
+                  "system"
+                ],
+                "description": "Folder policy the entry follows, which the badge beside the breadcrumb explains: record, working, scratch, library, personal or system."
+              },
+              "kindName": {
                 "anyOf": [
                   {
                     "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "UTC time the catalog item was created; null for a folder."
+                    "maxLength": 65536,
+                    "description": "The artifact kind of a work item's document (its artifact type key); null for folders and for files written into working areas, which have no kind."
                   },
                   {
                     "type": "null",
                     "description": "Null indicates that the value is unavailable."
                   }
                 ],
-                "description": "LibraryEntry.createdAt may be null in this transport value."
+                "description": "StorageFolderItem.kindName may be null in this transport value."
+              },
+              "mediaType": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Media type of the file's current version; null for folders."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFolderItem.mediaType may be null in this transport value."
+              },
+              "sizeBytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Size of the file's current version in bytes; null for folders."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFolderItem.sizeBytes may be null in this transport value."
+              },
+              "artifactId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The artifact a work item's document shows; the page opens the artifact page for it instead of the plain file view. Null for working-area files and folders."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFolderItem.artifactId may be null in this transport value."
+              },
+              "contentRemoved": {
+                "type": "boolean",
+                "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the entry or its current version last changed."
               }
             },
             "required": [
-              "type",
+              "id",
+              "parentId",
               "path",
               "name",
+              "displayName",
               "kind",
-              "createdAt"
+              "policy",
+              "kindName",
+              "mediaType",
+              "sizeBytes",
+              "artifactId",
+              "contentRemoved",
+              "updatedAt"
             ],
             "additionalProperties": false,
-            "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path."
+            "description": "One folder or file as the files browser lists it: what it is called, what its folder allows, its artifact kind and current size, and the artifact it shows when it is a work item's document."
           },
-          "description": "LibraryEntry items in this cursor page. Page<LibraryEntry>.items must contain at most 100 items."
+          "description": "StorageFolderItem items in this cursor page. Page<StorageFolderItem>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -83849,12 +85663,12 @@ export const clientManifest = {
           "description": "Opaque continuation cursor, or null at the end."
         },
         "prevCursor": {
-          "description": "Page<LibraryEntry>.prevCursor may be null in this transport value.",
+          "description": "Page<StorageFolderItem>.prevCursor may be null in this transport value.",
           "anyOf": [
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<LibraryEntry>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageFolderItem>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -83864,12 +85678,12 @@ export const clientManifest = {
           ]
         },
         "highwater": {
-          "description": "Page<LibraryEntry>.highwater may be null in this transport value.",
+          "description": "Page<StorageFolderItem>.highwater may be null in this transport value.",
           "anyOf": [
             {
               "type": "string",
               "pattern": "^(?:0|[1-9][0-9]*)$",
-              "description": "Page<LibraryEntry>.highwater is a bounded decimal string.",
+              "description": "Page<StorageFolderItem>.highwater is a bounded decimal string.",
               "x-bigint-minimum": "0"
             },
             {
@@ -83884,7 +85698,401 @@ export const clientManifest = {
         "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "Cursor page of LibraryEntry."
+      "description": "Cursor page of StorageFolderItem."
+    },
+    "Page<StorageFileVersion>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Id of the version: an artifact version id for a work item's document, a working-area version id otherwise."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Version number, counting from 1; pass it as revision to storageFiles.content to read or download this version."
+              },
+              "isCurrent": {
+                "type": "boolean",
+                "description": "True for the version the file shows now."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the version was saved."
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Size of the version's bytes."
+              },
+              "mediaType": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Media type the version was saved with."
+              },
+              "sha256": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Lowercase hexadecimal SHA-256 of the version's bytes."
+              },
+              "contentRemoved": {
+                "type": "boolean",
+                "description": "True when retention or an Admin purge removed the version's bytes; the version stays listed and cannot be read."
+              },
+              "removedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the bytes were removed; null while they are there."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.removedAt may be null in this transport value."
+              },
+              "makerKind": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "step"
+                ],
+                "description": "Who made the version: step when a run step published it, person when a member or service wrote it."
+              },
+              "makerPrincipalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal that wrote the version: the member for a person, the run's acting principal for a step."
+              },
+              "makerName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of makerPrincipalId."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.makerName may be null in this transport value."
+              },
+              "stepId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The run step that published the version; null for a person's version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.stepId may be null in this transport value."
+              },
+              "stepName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The step's key in its workflow; null for a person's version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.stepName may be null in this transport value."
+              },
+              "runId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The run the step belongs to, for Open the run; null for a person's version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.runId may be null in this transport value."
+              },
+              "workItemId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The work item the run worked on; null for a person's version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.workItemId may be null in this transport value."
+              },
+              "workItemTitle": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "That work item's title; null for a person's version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.workItemTitle may be null in this transport value."
+              },
+              "sessionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The step's most recent agent session, for Open the session; null when the step had none or for a person's version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.sessionId may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "revision",
+              "isCurrent",
+              "createdAt",
+              "sizeBytes",
+              "mediaType",
+              "sha256",
+              "contentRemoved",
+              "removedAt",
+              "makerKind",
+              "makerPrincipalId",
+              "makerName",
+              "stepId",
+              "stepName",
+              "runId",
+              "workItemId",
+              "workItemTitle",
+              "sessionId"
+            ],
+            "additionalProperties": false,
+            "description": "One version of a storage-tree file: its number, when and by whom or which step it was saved, its size, and whether its contents are still there."
+          },
+          "description": "StorageFileVersion items in this cursor page. Page<StorageFileVersion>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<StorageFileVersion>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageFileVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<StorageFileVersion>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<StorageFileVersion>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of StorageFileVersion."
+    },
+    "Page<StorageFileUse>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Id of the run's input pin."
+              },
+              "workItemId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The work item the run worked on."
+              },
+              "workItemTitle": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "That work item's title."
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The run that used the file."
+              },
+              "inputName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The run input that named the file by its storage path; null when the input named the version directly. Pins are per run, so no step is recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileUse.inputName may be null in this transport value."
+              },
+              "versionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The artifact version the run pinned."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "That version's number, for 'used version n'."
+              },
+              "usedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the run was admitted and pinned the version."
+              }
+            },
+            "required": [
+              "id",
+              "workItemId",
+              "workItemTitle",
+              "runId",
+              "inputName",
+              "versionId",
+              "revision",
+              "usedAt"
+            ],
+            "additionalProperties": false,
+            "description": "One run that used a storage-tree file: the run pinned one of the file's versions as an input when it was admitted, and keeps that version even if the file changes or is deleted."
+          },
+          "description": "StorageFileUse items in this cursor page. Page<StorageFileUse>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<StorageFileUse>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageFileUse>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<StorageFileUse>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<StorageFileUse>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of StorageFileUse."
     }
   }
 } as const;

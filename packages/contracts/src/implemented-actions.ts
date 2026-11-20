@@ -375,6 +375,7 @@ export const DeliveryImplementedAction = Object.freeze(
     MergeEntriesList: "mergeEntries.list",
     MergeEntriesCreate: "mergeEntries.create",
     PullRequestsMerge: "pullRequests.merge",
+    MergeAttemptsList: "mergeAttempts.list",
     MergeAttemptsReconcile: "mergeAttempts.reconcile",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -600,6 +601,29 @@ export const blobUploadImplementedActions = Object.freeze(
   Object.values(BlobUploadImplementedAction),
 );
 
+export const StorageImplementedAction = Object.freeze(
+  {
+    StorageFilesPut: "storageFiles.put",
+    StorageFoldersCreate: "storageFolders.create",
+    StorageEntriesCopy: "storageEntries.copy",
+    StorageEntriesMove: "storageEntries.move",
+    StorageEntriesTrash: "storageEntries.trash",
+    StorageEntriesRestore: "storageEntries.restore",
+    StorageEntriesPurge: "storageEntries.purge",
+    StorageTrashList: "storageTrash.list",
+    StorageSettingsGet: "storageSettings.get",
+    StorageSettingsPut: "storageSettings.put",
+    StorageRootsList: "storageRoots.list",
+    StorageFolderEntriesList: "storageFolderEntries.list",
+    StorageFileVersionsList: "storageFileVersions.list",
+    StorageFileUsesList: "storageFileUses.list",
+    StorageFilesContent: "storageFiles.content",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const storageImplementedActions = Object.freeze(
+  Object.values(StorageImplementedAction),
+);
+
 export const CatalogImplementedAction = Object.freeze(
   {
     SkillSourcesList: "skillSources.list",
@@ -716,6 +740,7 @@ export const implementedActions = Object.freeze(
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
     ...blobUploadImplementedActions,
+    ...storageImplementedActions,
     ...memoryImplementedActions,
   ] as const,
 );

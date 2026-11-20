@@ -196,6 +196,47 @@ Deno.test("the merge queue admits only the exact reviewed candidate (#40)", asyn
     assertEquals(page.items[0].id, admitted.id);
     assertEquals(page.nextCursor, null);
 
+    // The pull request and run filters read one entry without listing the
+    // repository's queue; every filter given must match.
+    const filtered = (
+      query: { pullRequestId?: string; runId?: string },
+    ) =>
+      withPgTransaction(
+        database,
+        (transaction) =>
+          listMergeEntries(
+            transaction,
+            organizationId,
+            principal,
+            "test-secret",
+            { repositoryId, ...query },
+          ),
+      );
+    assertEquals(
+      (await filtered({ runId: admitted.runId })).items.map((item) => item.id),
+      [admitted.id],
+    );
+    assertEquals(
+      (await filtered({ pullRequestId: admitted.pullRequestId })).items.length,
+      1,
+    );
+    assertEquals(
+      (await filtered({ runId: crypto.randomUUID() })).items.length,
+      0,
+    );
+    assertEquals(
+      (await filtered({ pullRequestId: crypto.randomUUID() })).items.length,
+      0,
+    );
+    // A matching run with a different pull request is no match.
+    assertEquals(
+      (await filtered({
+        runId: admitted.runId,
+        pullRequestId: crypto.randomUUID(),
+      })).items.length,
+      0,
+    );
+
     // The fixture deletes the organization's tasks; the pull request this test
     // added would block that, so it goes first (its entries cascade).
     await database.query(
