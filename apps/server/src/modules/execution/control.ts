@@ -648,10 +648,8 @@ export function createRunControlRegistry(
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
     handler: (context) =>
-      Promise.resolve(
-        contractSchemas.HandoffManifestRecord.parse(
-          getHandoffManifest(context),
-        ),
+      getHandoffManifest(context).then((record) =>
+        contractSchemas.HandoffManifestRecord.parse(record)
       ),
   });
   registry.register({
