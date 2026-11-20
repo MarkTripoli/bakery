@@ -234,6 +234,23 @@ Deno.test("a judge timeout is unscored; a transport failure is an error", async 
   assert(failed.usage);
 });
 
+Deno.test("a timed-out call is recorded as unknown usage, never free", async () => {
+  const outcome = await score(fake({ kind: "timeout" }).transport);
+  assertEquals(resultOf(outcome).state, "unscored");
+  assertEquals(outcome.usage, {
+    usageFactId: `evaluation.score:${ATTEMPT}`,
+    providerCallId: `evaluation.score.timeout:${ATTEMPT}`,
+    provider: "anthropic",
+    billingAccountId: "acct-1",
+    model: "claude-sonnet",
+    billingRoute: "api",
+    pricingMetadataSnapshot: "pricing-v1",
+    measurement: "unknown",
+    occurredAt: "2026-11-20T00:00:00.000Z",
+  });
+  assert(contractSchemas.UsageReceipt.safeParse(outcome.usage).success);
+});
+
 Deno.test("a canceled call returns the canceled outcome", async () => {
   const outcome = await score(fake({ kind: "canceled" }).transport);
   assertEquals(outcome.status, "canceled");

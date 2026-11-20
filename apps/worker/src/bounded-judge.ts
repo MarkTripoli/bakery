@@ -169,10 +169,11 @@ export function judgeUsageReceipt(
     ...(usage.outputTokens === null
       ? {}
       : { outputTokens: String(usage.outputTokens) }),
-    costUsd: cost,
-    measurement: cost === null ? "unknown" : "reported",
+    ...(cost === null
+      ? { measurement: "unknown" as const }
+      : { costUsd: cost, measurement: "reported" as const }),
     occurredAt: occurredAt.toISOString(),
-  } as UsageReceipt;
+  };
 }
 
 /** What `evaluation.score` reports, plus the receipt when a call was billed. */
@@ -248,8 +249,21 @@ export async function runBoundedJudge(
   switch (result.kind) {
     case "unavailable":
       return unscored(result.reason);
-    case "timeout":
-      return unscored(`the judge did not answer within ${timeLimitMs} ms`);
+    case "timeout": {
+      // A call that ran out of time may still have been billed. Record it as
+      // unknown usage against the reservation so the budget never shows it as
+      // free; no session id came back, so the attempt names the call.
+      const usage = judgeUsageReceipt(assignment, {
+        providerCallId: `evaluation.score.timeout:${assignment.attemptId}`,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+      }, now());
+      return {
+        ...unscored(`the judge did not answer within ${timeLimitMs} ms`),
+        ...(usage ? { usage } : {}),
+      };
+    }
     case "failed": {
       const usage = result.usage &&
         judgeUsageReceipt(assignment, result.usage, now());
