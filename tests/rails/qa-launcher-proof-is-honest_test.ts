@@ -118,7 +118,69 @@ Deno.test("a defect in the proof is never reported as a limit of the host", () =
   // built. Nothing else: a caps mismatch is a defect in this script, and
   // reporting it as a host limit is what sent the first real run looking at the
   // wrong machine.
-  assertEquals(exitTwos.length, 3, "only a host that cannot start a unit");
+  // No bus, an unaskable manager, a unit whose namespaces could not be built,
+  // and a host that cannot enforce a read-only sandbox. Each is a fact about the
+  // machine. A step that cannot make its own fixture, or that mislabels what it
+  // observed, is a defect in this script and exits 1.
+  assertEquals(exitTwos.length, 4, "only a host that cannot host the sandbox");
+});
+
+Deno.test("the worker is told where the spool is, not how long to run", async () => {
+  // Step 5 ran with the duration in the spool's place, so the worker tried to
+  // read a directory named "10" and the fixture was never seen. The mapping is
+  // a function now, lifted out of the script and run here for both modes.
+  const block = script.slice(
+    script.indexOf("# --- worker arguments"),
+    script.indexOf("# --- end worker arguments ---"),
+  );
+  const driver = await Deno.makeTempFile({ prefix: "bakery-qa-wargs-" });
+  await Deno.writeTextFile(
+    driver,
+    `${block}
+printf '%s|%s\n' "$(worker_args_for spool 10 /run/user/1000/spool)" "$(worker_args_for time 120 '')"
+printf 'outside:%s\n' "$(worker_args_for spool 10 /run/user/1000/spool /run/user/1000/out)"
+`,
+  );
+  const result = await new Deno.Command("/bin/sh", { args: [driver] }).output();
+  assertEquals(
+    new TextDecoder().decode(result.stdout).trim().split("\n"),
+    [
+      "spool /run/user/1000/spool|time 120",
+      // The path outside the grant travels with it: both are needed to tell a
+      // skipped read-only mount from a broken grant.
+      "outside:spool /run/user/1000/spool /run/user/1000/out",
+    ],
+  );
+});
+
+Deno.test("the spool worker refuses on the mount, not on its own permissions", async () => {
+  // QA's finding: the sandboxed worker said "NotCapable" because it had no
+  // --allow-write at all, and the identical unsandboxed worker said the same
+  // thing. A permission flag is not a sandbox. Both halves are run here: given
+  // the write permission the worker writes, and given only read it cannot -- so
+  // a refusal inside the unit can only come from the mount.
+  const dir = await Deno.makeTempDir({ prefix: "bakery-qa-spool-" });
+  await Deno.writeTextFile(
+    `${dir}/probe-fixture.blob`,
+    "probe-fixture-bytes\n",
+  );
+  const victim =
+    new URL("../../scripts/qa/437-probe-victim.ts", import.meta.url)
+      .pathname;
+  const run = async (args: string[]) => {
+    const out = await new Deno.Command(Deno.execPath(), {
+      args: ["run", ...args, victim, "spool", dir],
+    }).output();
+    return new TextDecoder().decode(out.stdout);
+  };
+  const permitted = await run(["--allow-read", `--allow-write=${dir}`]);
+  assertEquals(permitted.includes("spool: read 20 bytes"), true, permitted);
+  assertEquals(permitted.includes("spool: wrote"), true, permitted);
+  await Deno.remove(`${dir}/probe-written-by-sandbox`).catch(() => {});
+  const denied = await run(["--allow-read"]);
+  assertEquals(denied.includes("spool: read 20 bytes"), true, denied);
+  assertEquals(denied.includes("spool: write-refused"), true, denied);
+  await Deno.remove(dir, { recursive: true });
 });
 
 Deno.test("a unit recorded from a subshell is still cleaned up", async () => {
@@ -222,15 +284,21 @@ Deno.test("the proof cleans up after itself and stays in its own directory", () 
         // The spool fixture is the one deliberate write outside the output
         // directory: the sandbox may only be granted a directory that is not
         // under /tmp, /var/tmp or $HOME. It is allowed here and pinned below.
-        redirect.includes("$spool_dir"),
+        redirect.includes("$spool_dir") || redirect.includes("$outside_probe"),
       `a write outside the output directory: ${redirect}`,
     );
   }
   // The one directory outside the output directory it writes to is the spool
   // fixture, and it must be a place the launcher will grant, then be removed.
+  // Under the runtime directory: writable by this user (which /var/lib is not)
+  // and outside /tmp, /var/tmp and $HOME, where the launcher refuses to grant.
   assert(
-    script.includes('spool_dir="${TMPDIR:-/var/lib}/bakery-spool-$$"'),
+    script.includes('spool_dir="$runtime_dir/bakery-spool-$$"'),
     "the spool fixture avoids /tmp, /var/tmp and $HOME",
+  );
+  assert(
+    !script.includes("TMPDIR"),
+    "no fallback to a directory the user may not own",
   );
   assertEquals(
     script.includes('rm -rf "$spool_dir"'),

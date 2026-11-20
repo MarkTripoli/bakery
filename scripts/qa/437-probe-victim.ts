@@ -73,7 +73,10 @@ async function reachNetwork(): Promise<void> {
  * directory the server spools to and must not be able to change it. The write is
  * attempted after the read so a read-only mount is still tested for reading.
  */
-async function readSpoolAndTryToWrite(dir: string): Promise<void> {
+async function readSpoolAndTryToWrite(
+  dir: string,
+  outside?: string,
+): Promise<void> {
   const names: string[] = [];
   for await (const entry of Deno.readDir(dir)) names.push(entry.name);
   const file = names.find((name) => name.startsWith("probe-"));
@@ -89,6 +92,18 @@ async function readSpoolAndTryToWrite(dir: string): Promise<void> {
   } catch (error) {
     say(`spool: write-refused ${(error as Error).name}`);
   }
+  // A second write, to a path OUTSIDE the grant. Some hosts cannot set up the
+  // read-only mounts at all and systemd proceeds without them; on those the
+  // spool's refusal would mean nothing, because nothing outside is refused
+  // either. This line is what tells the two apart.
+  if (outside !== undefined && outside !== "") {
+    try {
+      await Deno.writeTextFile(outside, "x");
+      say("outside: wrote");
+    } catch (error) {
+      say(`outside: write-refused ${(error as Error).name}`);
+    }
+  }
 }
 
 const mode = Deno.args[0];
@@ -103,7 +118,7 @@ switch (mode) {
     await reachNetwork();
     break;
   case "spool":
-    await readSpoolAndTryToWrite(Deno.args[1] ?? "");
+    await readSpoolAndTryToWrite(Deno.args[1] ?? "", Deno.args[2]);
     break;
   default:
     say(`unknown mode: ${mode ?? "(none)"}`);

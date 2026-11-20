@@ -20,6 +20,10 @@
 set -u
 
 outdir="${1:-./437-launcher-proof}"
+# Before the ledger, the summary or any step writes a line: a fresh output
+# directory is the normal case, and a script that prints "No such file" on its
+# first line has already taught the reader to distrust the rest of it.
+mkdir -p "$outdir" || { printf '%s\n' "cannot create $outdir"; exit 2; }
 here=$(cd "$(dirname "$0")" && pwd -P)
 repo=$(cd "$here/../.." && pwd -P)
 launcher="$repo/infra/server-exec/artifact-probe.sh"
@@ -69,6 +73,24 @@ cleanup() {
   reset_ledger
 }
 trap cleanup EXIT INT TERM
+
+# --- worker arguments (tested) ---
+# What the victim is told, per mode. The spool mode's second word is the
+# DIRECTORY, not a duration: a first version forwarded the duration for every
+# mode, so the worker tried to read a directory named "10" and step 5 could
+# never see the fixture.
+worker_args_for() { # worker_args_for <mode> <seconds> <spool dir> [outside path]
+  if [ "$1" = "spool" ]; then
+    if [ -n "${4:-}" ]; then
+      printf '%s %s %s' "$1" "$3" "$4"
+    else
+      printf '%s %s' "$1" "$3"
+    fi
+  else
+    printf '%s %s' "$1" "$2"
+  fi
+}
+# --- end worker arguments ---
 
 # --- property matching (tested: tests/rails/qa-launcher-proof-is-honest_test.ts) ---
 # systemd renames properties in `systemctl show` output, and the renaming is
@@ -223,7 +245,24 @@ step_launcher() {
 # itself, because the launcher runs the real probe and the real probe does not
 # eat memory.
 run_victim() {
-  local mode=$1 seconds=${2:-120} spool=${3:-} id unit runtime
+  local mode=$1 seconds=${2:-120} spool=${3:-} grant=${4:-grant}
+  local outside=${5:-} id unit runtime wargs
+  local write_flag="--deny-write" grant_prop=""
+  # The worker that reads a spool must be ALLOWED to write it, or Deno refuses
+  # the write itself and the step proves the permission flag rather than the
+  # mount. The mount is what must refuse.
+  if [ "$mode" = "spool" ]; then
+    # Both paths, so Deno's own permission can never be the thing that refuses:
+    # the only difference between the spool and the path outside it is the mount.
+    write_flag="--allow-write=$spool"
+    [ -n "$outside" ] && write_flag="--allow-write=$spool,$outside"
+  fi
+  # Word-split on purpose, and safe because the directory is one this script
+  # made under the runtime directory: no spaces, no globbing characters.
+  if [ -n "$spool" ] && [ "$grant" != "nogrant" ]; then
+    grant_prop="--property=ReadOnlyPaths=$spool"
+  fi
+  wargs=$(worker_args_for "$mode" "$seconds" "$spool" "$outside")
   id=$(uuidgen | tr 'A-Z' 'a-z')
   unit="bakery-artifact-probe-$id"
   record_unit "$unit"
@@ -256,8 +295,8 @@ run_victim() {
     --property=RemoveIPC=yes \
     --property=TemporaryFileSystem=/tmp:ro \
     --property=InaccessiblePaths=/var/tmp \
-    ${spool:+--property=ReadOnlyPaths=$spool} \
-    deno run --allow-read --allow-net "$victim" "$mode" "$seconds" \
+    $grant_prop \
+    deno run --allow-read --allow-net "$write_flag" "$victim" $wargs \
     >"$outdir/victim-$mode-stdout.txt" 2>"$outdir/victim-$mode-stderr.txt"
   local code=$?
   {
@@ -352,16 +391,45 @@ fi
 say ""
 say "## step 5: the unit reads the spool and cannot write it"
 # The spool is the one directory outside the repository the unit may read: it is
-# how a blob whose store cannot hand over a path gets described. Two claims, and
-# both are the point: a readable copy (or a healthy file reports an unreadable
-# one) and an unwritable directory (or a sandboxed process edits what it reads).
-# The directory is made here, outside /tmp, /var/tmp and $HOME, because those are
-# exactly the places the launcher refuses to grant.
-spool_dir="${TMPDIR:-/var/lib}/bakery-spool-$$"
-mkdir -p "$spool_dir" || { say "step 5: cannot make $spool_dir"; exit 2; }
-chmod 700 "$spool_dir"
+# how a blob whose store cannot hand over a path gets described. Three claims:
+# the unit can read it (or a healthy file reports an unreadable one), it cannot
+# write it (or a sandboxed process edits what it reads), and the refusal is the
+# MOUNT rather than a dropped Deno permission -- a worker without --allow-write
+# would refuse the write on a fully writable directory, which proves nothing.
+#
+# The directory lives under the runtime directory: outside /tmp, /var/tmp and
+# $HOME (where the launcher refuses to grant), and writable by this user, which
+# /var/lib is not.
+spool_dir="$runtime_dir/bakery-spool-$$"
+if ! mkdir -m 700 "$spool_dir" 2>"$outdir/spool-mkdir.txt"; then
+  say "step 5: cannot make $spool_dir: $(cat "$outdir/spool-mkdir.txt")"
+  say "result: HARNESS DEFECT — the spool directory could not be made"
+  say "        (a runtime directory this user cannot write, or no XDG_RUNTIME_DIR)"
+  exit 1
+fi
 printf 'probe-fixture-bytes\n' >"$spool_dir/probe-fixture.blob"
-spool_unit=$(run_victim spool 10 "$spool_dir")
+
+# The control, unsandboxed: the same worker, the same flags, the same directory.
+# It must read the fixture AND write beside it. Without this, a "write-refused"
+# line from the sandboxed run means whatever the reader assumes it means.
+control=$(deno run --allow-read --allow-net "--allow-write=$spool_dir" \
+  "$victim" spool "$spool_dir" 2>&1)
+say "control (no sandbox) said:"
+printf '%s\n' "$control" | sed 's/^/  /' | tee -a "$summary"
+if printf '%s' "$control" | grep -q "^spool: read " &&
+  printf '%s' "$control" | grep -q "^spool: wrote"; then
+  record "step-5 control: an unsandboxed worker can read and write the spool" 0
+else
+  record "step-5 control: an unsandboxed worker can read and write the spool" 1
+fi
+rm -f "$spool_dir/probe-written-by-sandbox"
+
+# A path outside the grant, in the unit's own working directory: writable by
+# this user before the sandbox exists. If the sandbox cannot refuse THIS, it is
+# not refusing the spool either, whatever the spool line says.
+outside_probe="$runtime_dir/bakery-outside-$$"
+: >"$outside_probe" 2>/dev/null || true
+spool_unit=$(run_victim spool 10 "$spool_dir" grant "$outside_probe")
 spool_code=$?
 spool_out=$(cat "$outdir/victim-spool-stdout.txt" 2>/dev/null)
 say "unit: $spool_unit"
@@ -373,11 +441,32 @@ if printf '%s' "$spool_out" | grep -q "^spool: read "; then
   record "step-5 the unit can read the spool" 0
 else
   record "step-5 the unit can read the spool" 1
+  # stderr matters here: a worker that cannot open the directory says why, and
+  # that line is the difference between a broken harness and a broken sandbox.
+  say "worker stderr (tail):"
+  tail -5 "$outdir/victim-spool-stderr.txt" 2>/dev/null | sed 's/^/  /' | tee -a "$summary"
 fi
-if printf '%s' "$spool_out" | grep -q "^spool: wrote"; then
-  record "step-5 the unit cannot write the spool" 1
-elif printf '%s' "$spool_out" | grep -q "^spool: write-refused"; then
+if printf '%s' "$spool_out" | grep -q "^spool: write-refused"; then
   record "step-5 the unit cannot write the spool" 0
+elif printf '%s' "$spool_out" | grep -q "^spool: wrote"; then
+  # Which of two very different things happened? If a path OUTSIDE the grant is
+  # writable too, this host is not enforcing read-only mounts at all -- systemd
+  # skips them in a user unit it cannot set up, and says so only in the journal.
+  # Then the spool claim is unmeasurable here, and calling it a harness defect
+  # would hide a host that cannot host the sandbox it declares.
+  if printf '%s' "$spool_out" | grep -q "^outside: wrote"; then
+    say "step 5: the sandbox wrote both the spool and a path outside it"
+    say "        systemd did not apply the read-only mounts in this user unit"
+    record "step-5 the unit cannot write the spool (host skips read-only mounts)" 1
+    rm -f "$outside_probe"
+    say "result: NOT PROVEN (this host cannot enforce a read-only sandbox)"
+    exit 2
+  fi
+  record "step-5 the unit cannot write the spool" 1
+elif printf '%s' "$spool_out" | grep -q "^outside: write-refused"; then
+  # Outside refused but the spool accepted: the mount works and the grant is
+  # wrong, which is this script's defect and nobody else's.
+  record "step-5 the unit cannot write the spool (the grant is wrong)" 1
 else
   record "step-5 the unit cannot write the spool (no attempt recorded)" 1
 fi
@@ -387,6 +476,19 @@ if [ -e "$spool_dir/probe-written-by-sandbox" ]; then
 else
   record "step-5 nothing was written into the spool" 0
 fi
+
+# Diagnostic, never a claim: whether ProtectSystem=strict alone already makes the
+# spool unwritable. The launcher always grants it read-only when it spools, so a
+# value of "refused" here means the grant is belt and braces on this host and
+# "wrote" means the grant is what refuses -- which is worth knowing, and is not
+# a defect either way.
+rm -f "$spool_dir/probe-written-by-sandbox"
+nogrant_unit=$(run_victim spool 10 "$spool_dir" nogrant)
+nogrant_out=$(cat "$outdir/victim-spool-stdout.txt" 2>/dev/null)
+rm -f "$spool_dir/probe-written-by-sandbox"
+say "without the grant (diagnostic, not a claim), the worker said:"
+printf '%s\n' "$nogrant_out" | sed 's/^/  /' | tee -a "$summary"
+rm -f "$outside_probe"
 rm -rf "$spool_dir"
 
 say ""
