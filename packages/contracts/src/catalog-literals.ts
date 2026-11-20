@@ -367,6 +367,7 @@ export type CatalogActionName =
   | "skillVersions.create"
   | "skillVersions.get"
   | "skillVersions.list"
+  | "skills.copy"
   | "skills.create"
   | "skills.get"
   | "skills.import"
@@ -466,6 +467,7 @@ export type CatalogActionName =
   | "workflowVersions.get"
   | "workflowVersions.list"
   | "workflowVersions.publish"
+  | "workflowVersions.skills"
   | "workflowVersions.update"
   | "workflows.copy"
   | "workflows.create"
@@ -1009,6 +1011,7 @@ export type ContractInputName =
   | "SecretRotation"
   | "SessionFeedList"
   | "SessionList"
+  | "SkillCopy"
   | "SkillCreate"
   | "SkillFilePath"
   | "SkillFileUpload"
@@ -1527,4 +1530,6 @@ export type ContractOutputName =
   | "WorkflowPresetAvailability"
   | "WorkflowPresetStep"
   | "WorkflowStepBinding"
-  | "WorkflowVersion";
+  | "WorkflowStepSkill"
+  | "WorkflowVersion"
+  | "WorkflowVersionSkills";

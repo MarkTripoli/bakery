@@ -1708,6 +1708,27 @@
     },
     {
       "group": "Definitions",
+      "method": "GET",
+      "path": "/v1/workflows/{id}/versions/{versionId}/skills",
+      "action": "workflowVersions.skills",
+      "access": "Developer",
+      "permission": "workflowVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "WorkflowVersionPath",
+      "output": "WorkflowVersionSkills",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Definitions",
       "method": "PATCH",
       "path": "/v1/workflows/{id}/versions/{versionId}",
       "action": "workflowVersions.update",
@@ -2721,6 +2742,35 @@
         "IDEMPOTENCY_IN_FLIGHT",
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED"
+      ]
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/copy",
+      "action": "skills.copy",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "skill:author",
+      "organizationContext": "required_authenticated_context",
+      "input": "SkillCopy",
+      "output": "Skill",
+      "event": "skills.copied",
+      "mcp": "bakery_skills_copy",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "SKILL_CONTENT_INTEGRITY_FAILED"
       ]
     },
     {
