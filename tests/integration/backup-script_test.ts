@@ -7,6 +7,7 @@ import {
   verifyBackupDirectory,
 } from "../../scripts/deploy/backup-runner/manifest.ts";
 import { isBackupName } from "../../scripts/deploy/backup-runner/retention.ts";
+import type { Cutoff } from "../../apps/server/src/modules/backups/cutoff-rules.ts";
 
 /**
  * #64 slice A: the real scripts/deploy/backup.sh against shim docker, age and
@@ -511,4 +512,114 @@ Deno.test("the verify command can check a key file against the recorded fingerpr
     assert(!wrong.text.includes("a different key"));
     assert(!wrong.text.includes(KEY_MATERIAL));
   });
+});
+
+// ---- #64 slice C: the cutoff ------------------------------------------------
+
+const RUNNER_CUTOFF: Cutoff = {
+  at: "2026-11-20T02:59:58.125Z",
+  source: "database",
+  effects: {
+    total: 2,
+    prepared: 1,
+    submitted: 0,
+    uncertain: 1,
+    byOperation: [{ operation: "github.merge", count: 2 }],
+    digest: "b".repeat(64),
+  },
+};
+
+Deno.test("a database cutoff from the runner is recorded in the manifest, with its census", async () => {
+  await withSandbox({}, async (box) => {
+    const result = await box.run({
+      BAKERY_BACKUP_CUTOFF: JSON.stringify(RUNNER_CUTOFF),
+    });
+    assertEquals(result.code, 0, result.stderr);
+    const name = /BACKUP_COMPLETED (\S+)/.exec(result.stdout)?.[1];
+    assert(name, result.stdout);
+    const set = join(box.backups, name);
+    const manifest = JSON.parse(
+      await Deno.readTextFile(join(set, "manifest.json")),
+    ) as Manifest;
+    assertEquals(manifest.format, 2);
+    assertEquals(manifest.cutoff, RUNNER_CUTOFF);
+    // It is the cutoff a restore can rely on, and the verifier says so.
+    const verified = await verifyBackupDirectory(set, {
+      requireDatabaseCutoff: true,
+    });
+    assertEquals(verified.complete, true);
+    assertEquals(verified.cutoff?.source, "database");
+  });
+});
+
+Deno.test("with no runner cutoff the manifest records the host clock, marked weaker", async () => {
+  await withSandbox({}, async (box) => {
+    const before = Date.now();
+    const result = await box.run();
+    assertEquals(result.code, 0, result.stderr);
+    const name = /BACKUP_COMPLETED (\S+)/.exec(result.stdout)?.[1];
+    assert(name, result.stdout);
+    const set = join(box.backups, name);
+    const manifest = JSON.parse(
+      await Deno.readTextFile(join(set, "manifest.json")),
+    ) as Manifest;
+    assertEquals(manifest.format, 2);
+    assertEquals(manifest.cutoff?.source, "host-clock");
+    assertEquals(manifest.cutoff?.effects, null);
+    const at = Date.parse(manifest.cutoff!.at);
+    assert(at >= before - 2000 && at <= Date.now() + 2000, manifest.cutoff!.at);
+    // Complete as a set, but not good enough for a restore that must know.
+    assertEquals((await verifyBackupDirectory(set)).complete, true);
+    const strict = await verifyBackupDirectory(set, {
+      requireDatabaseCutoff: true,
+    });
+    assertEquals(strict.problems.map((p) => p.kind), ["cutoff_not_database"]);
+  });
+});
+
+Deno.test("a cutoff that is not valid fails the backup loudly, leaves no set and keeps the previous latest", async () => {
+  const bad: [string, string, string][] = [
+    ["not JSON", "{nope", "not valid JSON"],
+    [
+      "a host-clock cutoff cannot be supplied",
+      JSON.stringify({ at: RUNNER_CUTOFF.at, source: "host-clock" }),
+      "only a database cutoff",
+    ],
+    [
+      "a database cutoff without a census",
+      JSON.stringify({ at: RUNNER_CUTOFF.at, source: "database" }),
+      "census",
+    ],
+    [
+      "a census that does not add up",
+      JSON.stringify({
+        ...RUNNER_CUTOFF,
+        effects: { ...RUNNER_CUTOFF.effects, total: 9 },
+      }),
+      "do not add up",
+    ],
+    [
+      "a malformed time",
+      JSON.stringify({ ...RUNNER_CUTOFF, at: "soon" }),
+      "malformed",
+    ],
+  ];
+  for (const [name, cutoff, word] of bad) {
+    await withSandbox({}, async (box) => {
+      await Deno.mkdir(box.backups, { recursive: true });
+      await Deno.writeTextFile(join(box.backups, "latest"), "/previous-set\n");
+      const result = await box.run({ BAKERY_BACKUP_CUTOFF: cutoff });
+      assertEquals(result.code, 70, `${name}: ${result.stderr}`);
+      assert(result.stderr.includes("BACKUP_INCOMPLETE"), name);
+      assert(result.stderr.includes(word), `${name}: ${result.stderr}`);
+      assert(!result.stdout.includes("BACKUP_COMPLETED"), name);
+      // Nothing became a backup, and the previous `latest` is untouched.
+      assertEquals(await entries(box.backups), ["latest"], name);
+      assertEquals(
+        (await Deno.readTextFile(join(box.backups, "latest"))).trim(),
+        "/previous-set",
+        name,
+      );
+    });
+  }
 });
