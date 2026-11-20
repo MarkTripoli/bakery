@@ -64,6 +64,10 @@ import {
 } from "./installation-handlers.ts";
 import type { PasswordHasher } from "../../../adapters/password-reset-links-postgres.ts";
 import {
+  desktopSignInsExchange,
+  desktopSignInsStart,
+} from "./desktop-sign-in-handlers.ts";
+import {
   scimConnectionCreate,
   scimConnectionGet,
   scimConnectionRevoke,
@@ -805,6 +809,33 @@ export function createAuthActionRegistry(
         database: options.database,
         passwordHasher: options.passwordHasher,
       }),
+  }).register({
+    name: AuthImplementedAction.DesktopSignInsStart,
+    method: HttpMethod.Post,
+    path: "/v1/desktop-sign-ins",
+    input: contractSchemas.DesktopSignInStart,
+    output: contractSchemas.DesktopSignInStarted,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Public,
+    },
+    handler: (context, input) =>
+      desktopSignInsStart(context, input, {
+        database: options.database,
+        publicBaseUrl: options.publicBaseUrl,
+      }),
+  }).register({
+    name: AuthImplementedAction.DesktopSignInsExchange,
+    method: HttpMethod.Post,
+    path: "/v1/desktop-sign-ins/:id/credential",
+    input: contractSchemas.DesktopSignInExchange,
+    output: contractSchemas.DesktopSignInCredential,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Public,
+    },
+    handler: (context, input) =>
+      desktopSignInsExchange(context, input, { database: options.database }),
   }).register({
     name: AuthImplementedAction.InstallationStatus,
     method: HttpMethod.Get,

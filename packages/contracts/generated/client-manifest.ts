@@ -3832,6 +3832,51 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-sign-ins",
+      "action": "desktopSignIns.start",
+      "access": "Public",
+      "permission": null,
+      "input": "DesktopSignInStart",
+      "output": "DesktopSignInStarted",
+      "event": "",
+      "mcp": "",
+      "idempotency": "none; every call opens a new ten-minute request",
+      "errors": [
+        "VALIDATION_FAILED",
+        "UNPROCESSABLE",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-sign-ins/{id}/credential",
+      "action": "desktopSignIns.exchange",
+      "access": "Public",
+      "permission": null,
+      "input": "DesktopSignInExchange",
+      "output": "DesktopSignInCredential",
+      "event": "",
+      "mcp": "",
+      "idempotency": "none; a request is exchanged at most once and a replay ends the sign-in it issued",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/installation/audit-events",
@@ -15617,6 +15662,8 @@ export const clientManifest = {
             "installationAdministrators.revoke",
             "passwordResetLinks.create",
             "passwordResets.redeem",
+            "desktopSignIns.start",
+            "desktopSignIns.exchange",
             "installationAuditEvents.list",
             "browserSessions.list",
             "browserSessions.revoke",
@@ -25998,6 +26045,91 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
+    },
+    "DesktopSignInStart": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "enum": [
+            "bakery-desktop"
+          ],
+          "description": "Built-in identifier of the first-party Bakery desktop app; every server knows it, so no operator registers it, and any other value is refused."
+        },
+        "codeChallenge": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "description": "PKCE S256 challenge: the unpadded base64url SHA-256 of a verifier only the app holds. The exchange must present that verifier. DesktopSignInStart.codeChallenge must contain at least 43 characters. DesktopSignInStart.codeChallenge must contain at most 43 characters."
+        },
+        "codeChallengeMethod": {
+          "type": "string",
+          "enum": [
+            "S256"
+          ],
+          "description": "PKCE transform the challenge used; only S256 is accepted, never plain."
+        },
+        "redirectUri": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Where the browser hands the one-time code back to the app: http on 127.0.0.1 or [::1] with an explicit port, or the app link bakery://auth/callback. No credentials, query or fragment. DesktopSignInStart.redirectUri must contain at most 512 characters."
+        },
+        "computerName": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "\\S",
+          "description": "Name of the computer the app runs on, shown on the browser confirmation page and in Active sessions; control characters are refused. DesktopSignInStart.computerName must contain at most 64 characters."
+        }
+      },
+      "required": [
+        "clientId",
+        "codeChallenge",
+        "codeChallengeMethod",
+        "redirectUri",
+        "computerName"
+      ],
+      "additionalProperties": false,
+      "description": "Opens one browser sign-in request for the Bakery desktop app. The response names the browser page that asks the person to confirm; the app keeps the PKCE verifier to itself."
+    },
+    "DesktopSignInExchange": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifier of the sign-in request the app opened, from the start response."
+        },
+        "clientId": {
+          "type": "string",
+          "enum": [
+            "bakery-desktop"
+          ],
+          "description": "Built-in identifier of the first-party desktop app; it must equal the one the request was opened with."
+        },
+        "code": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "description": "One-time code the browser handed to the app's redirect address after the person confirmed. Only its SHA-256 digest is stored. DesktopSignInExchange.code must contain at least 43 characters. DesktopSignInExchange.code must contain at most 43 characters."
+        },
+        "codeVerifier": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 128,
+          "description": "PKCE verifier whose S256 transform equals the request's challenge; RFC 7636 characters only. DesktopSignInExchange.codeVerifier must contain at least 43 characters. DesktopSignInExchange.codeVerifier must contain at most 128 characters."
+        }
+      },
+      "required": [
+        "id",
+        "clientId",
+        "code",
+        "codeVerifier"
+      ],
+      "additionalProperties": false,
+      "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -39511,6 +39643,8 @@ export const clientManifest = {
                   "installationAdministrators.revoke",
                   "passwordResetLinks.create",
                   "passwordResets.redeem",
+                  "desktopSignIns.start",
+                  "desktopSignIns.exchange",
                   "installationAuditEvents.list",
                   "browserSessions.list",
                   "browserSessions.revoke",
@@ -58647,6 +58781,8 @@ export const clientManifest = {
             "installationAdministrators.revoke",
             "passwordResetLinks.create",
             "passwordResets.redeem",
+            "desktopSignIns.start",
+            "desktopSignIns.exchange",
             "installationAuditEvents.list",
             "browserSessions.list",
             "browserSessions.revoke",
@@ -90595,6 +90731,67 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of MergeAttempt."
+    },
+    "DesktopSignInStarted": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the request; the app sends it back with the code and verifier."
+        },
+        "confirmUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Absolute browser address of the confirmation page for this request; the app opens it in the system browser."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC instant ten minutes after the request opened, after which it can no longer be confirmed or exchanged."
+        }
+      },
+      "required": [
+        "id",
+        "confirmUrl",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "A newly opened desktop sign-in request, waiting for the person to confirm it in the browser."
+    },
+    "DesktopSignInCredential": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "credential": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Bearer credential starting with bkd_, sent as `Authorization: Bearer <credential>` to the page API and live updates. Returned only here; Bakery cannot show it again."
+        },
+        "sessionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the sign-in session it opened; the person sees it as the Bakery app in Active sessions and can revoke it there."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC instant the sign-in ends unless use renews it, as a browser sign-in renews."
+        }
+      },
+      "required": [
+        "credential",
+        "sessionId",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "The desktop app's credential, returned once. The app keeps it in the system secret store and sends it as an Authorization bearer value."
     }
   }
 } as const;
