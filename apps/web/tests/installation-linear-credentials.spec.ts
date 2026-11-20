@@ -161,6 +161,21 @@ test.describe("Linear credentials on installation settings", () => {
       .toBe(longCallback);
   });
 
+  test("a pasted secret with surrounding whitespace is trimmed before it is sent, as the client ID is", async ({ page }) => {
+    const state = await fixture(page);
+    await page.goto(INSTALLATION_PATH);
+    // A provider page often hands over a trailing space or newline with the value.
+    await field(page, "clientId").fill(`  ${CLIENT_ID} `);
+    await field(page, "clientSecret").fill(` ${CLIENT_SECRET}\n `);
+    await save(page).click();
+    await expect(section(page)).toContainText("Linear is set up.");
+    expect(state.puts).toHaveLength(1);
+    expect(state.puts[0].body).toEqual({
+      clientId: CLIENT_ID,
+      clientSecret: CLIENT_SECRET,
+    });
+  });
+
   test("both fields are required and say so under the field", async ({ page }) => {
     const state = await fixture(page);
     await page.goto(INSTALLATION_PATH);

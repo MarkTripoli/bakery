@@ -52,7 +52,9 @@ export function InstallationProviderCredentials(
       provider,
       input: {
         clientId: current.clientId.trim(),
-        clientSecret: current.clientSecret,
+        // Pasted from a provider page, a secret often carries a trailing space or
+        // newline, which the server refuses: trim it as the client ID is trimmed.
+        clientSecret: current.clientSecret.trim(),
       },
       ...(loaded && loaded.configured ? { version: loaded.version } : {}),
       idempotencyKey: crypto.randomUUID(),
