@@ -15,7 +15,7 @@ import {
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { sizeParts } from "./files-state.ts";
-import { FilePreview } from "./FilePreview.tsx";
+import { FilePreview, previewKind } from "./FilePreview.tsx";
 import { type ReactNode, useState } from "react";
 
 export type FileTab = "details" | "versions" | "uses";
@@ -402,7 +402,13 @@ export function FileDetails(
           </UI.Stack>
         )
         : null}
-      <FilePreview file={file} version={shown} full={opened && phone} />
+      {opened && !phone ? null : (
+        <FilePreview
+          file={file}
+          version={shown}
+          full={opened && phone}
+        />
+      )}
       <UI.Inline gap="compact">
         {artifactTarget !== null
           ? (
@@ -419,17 +425,32 @@ export function FileDetails(
           )
           : (shown?.contentRemoved ?? file.contentRemoved)
           ? null
+          : phone
+          ? (
+            // A phone's file page already shows a picture or a player at full
+            // width, so Open adds nothing there; only text, which the page cuts
+            // to its first lines, has more to open.
+            previewKind(shown?.mediaType ?? file.mediaType) === "text"
+              ? (
+                <UI.Button
+                  variant="primary"
+                  aria-pressed={opened}
+                  onClick={opened ? onCloseView : onOpenView}
+                >
+                  {opened
+                    ? translate("files.action.showLess")
+                    : translate("files.action.open")}
+                </UI.Button>
+              )
+              : null
+          )
+          : opened
+          ? null
           : (
-            // Any other file opens full size in the page, and the same button
-            // closes that view again.
-            <UI.Button
-              variant="primary"
-              aria-pressed={opened}
-              onClick={opened ? onCloseView : onOpenView}
-            >
-              {opened
-                ? translate("files.action.closeView")
-                : translate("files.action.open")}
+            // On a desktop, any other file opens full size in the page column,
+            // which carries its own Back to the folder.
+            <UI.Button variant="primary" onClick={onOpenView}>
+              {translate("files.action.open")}
             </UI.Button>
           )}
         {(shown?.contentRemoved ?? file.contentRemoved) ? null : (

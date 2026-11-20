@@ -4783,7 +4783,6 @@
   "files.search.column.where": "⟦Ŵĥëŕë⟧",
   "files.search.column.madeBy": "⟦Ṁàðë ƀÿ…⟧",
   "files.search.none.title": "⟦Ñôŧĥïñĝ ɱàŧçĥëš ŧëš⟧",
-  "files.search.none.description": "⟦Ŧŕÿ ƒëŵëŕ ļëŧŧëŕš, àñôŧĥëŕ ƒïļë ŧÿþë, ôŕ Àļļ ƒïļëš. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "files.search.error": "⟦Ŧĥë šëàŕçĥ ðïð ñôŧ ŕûñ. ŧëšŧ ç⟧",
   "files.search.library": "⟦Ļïƀŕàŕÿ…⟧",
   "files.version.finding": "⟦Ƒïñðïñĝ ŧĥàŧ ṽëŕšïôñ… ŧëšŧŧ⟧",
@@ -5010,5 +5009,14 @@
   "files.search.fact.helpLabel": "⟦Àƀôûŧ ƒàçŧš ŧ⟧",
   "files.search.fact.help": "⟦Ƒàçŧš àŕë ṽàļûëš à ķïñð ŕëçôŕðš, šûçĥ àš à þļàñ'š ŕïšķ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "files.preview.player": "⟦Þļàÿëŕ: {name} ŧë⟧",
-  "files.action.closeView": "⟦Ɓàçķ ŧô ŧĥë ƒôļðëŕ ŧëšŧ⟧"
+  "files.action.closeView": "⟦Ɓàçķ ŧô ŧĥë ƒôļðëŕ ŧëšŧ⟧",
+  "files.preview.unplayable": "⟦Ŧĥïš ƒïļë çôûļð ñôŧ ƀë þļàÿëð ĥëŕë. ŧëšŧ çôþÿŧ⟧",
+  "files.search.clearBoth": "⟦Çļëàŕ šëàŕçĥ àñð ƒïļŧëŕš ŧëšŧ ç⟧",
+  "files.action.showLess": "⟦Šĥôŵ ļëšš ŧ⟧",
+  "files.search.none.text.folder": "⟦Ŧŕÿ ƒëŵëŕ ļëŧŧëŕš, ôŕ Àļļ ƒïļëš. ŧëšŧ çôþÿ⟧",
+  "files.search.none.text.all": "⟦Ŧŕÿ ƒëŵëŕ ļëŧŧëŕš. ŧëšŧ⟧",
+  "files.search.none.filters.folder": "⟦Ŧŕÿ àñôŧĥëŕ ƒïļŧëŕ, ôŕ Àļļ ƒïļëš. ŧëšŧ çôþÿ⟧",
+  "files.search.none.filters.all": "⟦Ŧŕÿ àñôŧĥëŕ ƒïļŧëŕ. ŧëšŧ⟧",
+  "files.search.none.both.folder": "⟦Ŧŕÿ ƒëŵëŕ ļëŧŧëŕš, àñôŧĥëŕ ƒïļŧëŕ, ôŕ Àļļ ƒïļëš. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "files.search.none.both.all": "⟦Ŧŕÿ ƒëŵëŕ ļëŧŧëŕš ôŕ àñôŧĥëŕ ƒïļŧëŕ. ŧëšŧ çôþÿŧ⟧"
 }

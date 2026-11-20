@@ -668,6 +668,14 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
         ? { bytes: DEMO_WEBM, type: "video/webm" }
         : fileId === uuid(47)
         ? { bytes: STANDUP_WEBM, type: "audio/webm" }
+        // A file that says it is video and is not: no player can decode it.
+        : fileId === uuid(48)
+        ? {
+          bytes: Buffer.from(
+            "This is not a video, so no player can decode it.",
+          ),
+          type: "video/webm",
+        }
         : null;
       if (media !== null) {
         const range = route.request().headers()["range"];
@@ -703,6 +711,23 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
             ...common,
             "content-length": String(slice.length),
             "content-range": `bytes ${start}-${end}/${total}`,
+          },
+        });
+      }
+      if (fileId === uuid(49)) {
+        // Forty lines: more than the panel shows, so opening it has something to add.
+        const text = Buffer.from(
+          Array.from({ length: 40 }, (_, index) => `Line ${index + 1}`).join(
+            "\n",
+          ),
+        );
+        return route.fulfill({
+          status: 200,
+          body: text,
+          headers: {
+            "content-type": "text/plain",
+            "content-length": String(text.length),
+            etag: `"${createHash("sha256").update(text).digest("hex")}"`,
           },
         });
       }

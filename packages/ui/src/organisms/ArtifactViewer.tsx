@@ -5,6 +5,8 @@ export type ArtifactViewerContent =
   | {
     readonly kind: "text" | "markdown" | "patch" | "log";
     readonly text: string;
+    /** The text is the first lines of more: a fade marks the cut. */
+    readonly cut?: boolean;
   }
   | {
     readonly kind: "image";
@@ -23,6 +25,8 @@ export type ArtifactViewerContent =
     /** Names the player for assistive technology, such as the file name. */
     readonly label: string;
     readonly unavailableLabel: string;
+    /** Called when the browser cannot play the file, so the page can say so. */
+    readonly onError?: () => void;
   }
   | { readonly kind: "unsupported"; readonly message: ReactNode };
 export type ArtifactViewerProps = {
@@ -119,14 +123,24 @@ function preview(content: ArtifactViewerContent): ReactNode {
   switch (content.kind) {
     case "markdown":
       return (
-        <div className="ui-artifact-viewer__markdown">
+        <div
+          className="ui-artifact-viewer__markdown"
+          data-cut={content.cut ? "true" : undefined}
+        >
           {markdown(content.text)}
         </div>
       );
     case "text":
     case "log":
     case "patch":
-      return <pre data-ui-overflow="wrap"><code>{content.text}</code></pre>;
+      return (
+        <pre
+          data-ui-overflow="wrap"
+          data-cut={content.cut ? "true" : undefined}
+        >
+          <code>{content.text}</code>
+        </pre>
+      );
     case "image":
       return content.src.startsWith("blob:")
         ? (
@@ -146,6 +160,7 @@ function preview(content: ArtifactViewerContent): ReactNode {
             <video
               aria-label={content.label}
               controls
+              onError={content.onError}
               preload="none"
               src={content.src}
             />
@@ -156,6 +171,7 @@ function preview(content: ArtifactViewerContent): ReactNode {
             <audio
               aria-label={content.label}
               controls
+              onError={content.onError}
               preload="none"
               src={content.src}
             />
@@ -195,7 +211,11 @@ export function ArtifactViewer(
       data-size={size}
       data-state={state}
     >
-      <h2 id={titleId}>{label}</h2>
+      {
+        /* Opened full size, the page names the file above the card: the heading
+          stays only to name the card for assistive technology, and is not shown. */
+      }
+      <h2 id={titleId} hidden={size === "full"}>{label}</h2>
       {state === "ready" ? preview(content) : null}
       {footer}
     </section>

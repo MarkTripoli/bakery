@@ -163,6 +163,15 @@ export function FileSearchControls(
   const anySet = state.q !== "" || state.type !== undefined ||
     state.kind !== undefined || state.by !== undefined ||
     state.fact !== undefined;
+  // The button says what it clears: the text, the filters, or both.
+  const textSet = state.q !== "";
+  const filterSet = state.type !== undefined || state.kind !== undefined ||
+    state.by !== undefined || state.fact !== undefined;
+  const clearLabel = textSet && filterSet
+    ? translate("files.search.clearBoth")
+    : textSet
+    ? translate("files.search.clear")
+    : translate("files.filters.clear");
   const clearSearch = anySet
     ? (
       <UI.Button
@@ -178,7 +187,7 @@ export function FileSearchControls(
           });
         }}
       >
-        {translate("files.search.clear")}
+        {clearLabel}
       </UI.Button>
     )
     : null;
@@ -231,26 +240,23 @@ export function FileSearchControls(
         }}
         options={kindOptions}
       />
-      <UI.Inline gap="compact">
-        <UI.Combobox
-          label={translate("files.search.fact")}
-          value={state.kind === undefined ? "" : state.fact ?? ""}
-          disabled={state.kind === undefined}
-          onChange={(event) => {
-            const value = event.currentTarget.value;
-            change({ fact: value === "" ? undefined : value });
-          }}
-          options={state.kind === undefined
-            ? [{
-              value: "",
-              label: translate("files.search.fact.chooseKind"),
-            }]
-            : factOptions}
-        />
-        <UI.HelpTip label={translate("files.search.fact.helpLabel")}>
-          {translate("files.search.fact.help")}
-        </UI.HelpTip>
-      </UI.Inline>
+      <UI.Combobox
+        label={translate("files.search.fact")}
+        help={
+          <UI.HelpTip label={translate("files.search.fact.helpLabel")}>
+            {translate("files.search.fact.help")}
+          </UI.HelpTip>
+        }
+        value={state.kind === undefined ? "" : state.fact ?? ""}
+        disabled={state.kind === undefined}
+        onChange={(event) => {
+          const value = event.currentTarget.value;
+          change({ fact: value === "" ? undefined : value });
+        }}
+        options={state.kind === undefined
+          ? [{ value: "", label: translate("files.search.fact.chooseKind") }]
+          : factOptions}
+      />
       <UI.Combobox
         label={translate("files.search.by")}
         value={state.by ?? ""}
@@ -421,10 +427,17 @@ export function FileSearchResults(
     return <UI.Text role="status">{translate("files.loading")}</UI.Text>;
   }
   if (hits.length === 0) {
+    // The hint names what is set: letters, filters, or both, and offers
+    // All files only while the search is still limited to a folder.
+    const textSet = state.q.trim() !== "";
+    const filterSet = state.type !== undefined || state.kind !== undefined ||
+      state.by !== undefined || state.fact !== undefined;
+    const set = textSet && filterSet ? "both" : filterSet ? "filters" : "text";
+    const where = !state.everywhere && folderPath !== "" ? "folder" : "all";
     return (
       <UI.EmptyState
         title={translate("files.search.none.title")}
-        description={translate("files.search.none.description")}
+        description={translate(`files.search.none.${set}.${where}` as never)}
       />
     );
   }

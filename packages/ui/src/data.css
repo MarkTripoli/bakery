@@ -2124,3 +2124,14 @@
     );
   }
 }
+
+/* A combobox with a help tip: the tip rides the label line, at the end of the
+   control's width, so the control itself is as wide as any other in its stack. */
+.ui-combobox-help {
+  position: relative;
+}
+.ui-combobox__help {
+  position: absolute;
+  inset-block-start: calc(-1 * var(--space-1));
+  inset-inline-end: 0;
+}

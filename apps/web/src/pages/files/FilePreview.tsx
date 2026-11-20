@@ -34,7 +34,21 @@ const imageTypes = new Set([
   "image/webp",
 ]);
 
-/** The file's contents as far as the page can show them: text and images, bounded. */
+/** How many lines of a text file the details panel shows; opened, all of it. */
+export const PANEL_LINES = 20;
+
+/** What the page can show of a file, from its media type. */
+export function previewKind(
+  mediaType: string | null | undefined,
+): "text" | "image" | "media" | "other" {
+  const type = (mediaType ?? "").split(";", 1)[0]!.trim().toLowerCase();
+  if (textModes[type] !== undefined) return "text";
+  if (imageTypes.has(type)) return "image";
+  if (type.startsWith("video/") || type.startsWith("audio/")) return "media";
+  return "other";
+}
+
+/** The file's contents as far as the page can show them: text, images and players, bounded. */
 export function FilePreview(
   { file, version, full = false }: {
     readonly file: StorageFolderItem;
@@ -91,6 +105,9 @@ export function FilePreview(
       return data.content;
     },
   });
+  // A player the browser could not play: it says so, and offers the download.
+  const [playFailed, setPlayFailed] = useState(false);
+  useEffect(() => setPlayFailed(false), [file.id, version?.revision]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!image || !content.data) return;
@@ -105,6 +122,14 @@ export function FilePreview(
   }, [content.data, image, mediaType]);
 
   if (contentRemoved) return null;
+  if (media !== null && playFailed) {
+    // The details' own Download sits just below, so the card only says why.
+    return (
+      <UI.InlineNotice tone="error">
+        {translate("files.preview.unplayable")}
+      </UI.InlineNotice>
+    );
+  }
   if (media !== null && scope.organizationId !== null) {
     return (
       <ArtifactPreviewView
@@ -120,6 +145,7 @@ export function FilePreview(
           ),
           label: translate("files.preview.player", { name: file.name }),
           unavailableLabel: translate("files.preview.error"),
+          onError: () => setPlayFailed(true),
         }}
       />
     );
@@ -170,10 +196,17 @@ export function FilePreview(
           alt: translate("files.preview.image", { name: file.name }),
           unavailableLabel: translate("files.preview.error"),
         }
-        : {
-          kind: textMode ?? "text",
-          text: new TextDecoder().decode(content.data),
-        }}
+        : (() => {
+          // The panel shows the first lines, cut with a fade; opened, all of it.
+          const all = new TextDecoder().decode(content.data);
+          const lines = all.split("\n");
+          const cut = !full && lines.length > PANEL_LINES;
+          return {
+            kind: textMode ?? "text",
+            text: cut ? lines.slice(0, PANEL_LINES).join("\n") : all,
+            cut,
+          };
+        })()}
     />
   );
 }
