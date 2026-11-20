@@ -141,7 +141,6 @@ Deno.test("a measurement a kind offers is one the server really emits", () => {
   const emitted = new Set([usage, completed, sample].flatMap((record) => [
     ...measurementsOf(record),
   ]));
-  emitted.add("health");
   for (const kind of otlpProvider.descriptor.measurements) {
     assert(emitted.has(kind), `${kind} is offered but nothing sends it`);
   }
