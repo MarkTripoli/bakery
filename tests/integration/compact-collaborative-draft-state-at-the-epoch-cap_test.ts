@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { compactDraftEpoch } from "../../apps/server/src/modules/knowledge/draft-compaction.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
 import {
@@ -241,6 +241,196 @@ Deno.test("a retry inside the window replays its receipt after the checkpoint it
   }
 });
 
+/** Eight edits of the middle word; the checkpoint id after each, index 0 being the opening one. */
+async function eightEdits(
+  fixture: DraftFixture,
+): Promise<{ draft: Draft; checkpoints: string[] }> {
+  let draft = await openDraft(fixture);
+  const checkpoints = [draft.checkpointId];
+  for (const word of WORDS) {
+    const step = await editMiddle(fixture, draft, word);
+    assertEquals(step.response.status, 201);
+    draft = step.draft;
+    checkpoints.push(draft.checkpointId);
+  }
+  return { draft, checkpoints };
+}
+
+async function ageReceipts(fixture: DraftFixture, draft: Draft) {
+  await fixture.pgDatabase.query(
+    `update bakery.artifact_draft_receipts
+        set committed_at = clock_timestamp() - interval '2 days'
+      where organization_id=$1 and draft_id=$2`,
+    [fixture.ids.organizationId, draft.id],
+  );
+}
+
+async function checkpointIds(
+  fixture: DraftFixture,
+  draft: Draft,
+): Promise<Set<string>> {
+  const rows = await fixture.pgDatabase.query<{ id: string }>(
+    `select id from bakery.artifact_draft_checkpoints
+      where organization_id=$1 and draft_id=$2`,
+    [fixture.ids.organizationId, draft.id],
+  );
+  return new Set(rows.rows.map((row) => row.id));
+}
+
+Deno.test("a checkpoint a publication, comment, reference or comment publication names is never compacted", async () => {
+  const fixture = await openDraftFixture("alpha target omega");
+  try {
+    let draft = await openDraft(fixture);
+    const checkpoints = [draft.checkpointId];
+    for (const [index, word] of WORDS.entries()) {
+      const step = await editMiddle(fixture, draft, word);
+      assertEquals(step.response.status, 201);
+      draft = step.draft;
+      checkpoints.push(draft.checkpointId);
+      if (index === 0) {
+        // Publication: checkpoint 1 is frozen as an artifact version.
+        const read = await fixture.app.fetch(
+          draftRequest(fixture, `/v1/drafts/${draft.id}`),
+        );
+        const frozen = await responseJson(read) as Draft & {
+          textDigest: string;
+        };
+        const published = await fixture.app.fetch(jsonDraftRequest(
+          fixture,
+          `/v1/drafts/${draft.id}/publications`,
+          "POST",
+          { checkpointId: frozen.checkpointId, textDigest: frozen.textDigest },
+        ));
+        assertEquals(published.status, 201, await published.clone().text());
+      }
+    }
+    const org = fixture.ids.organizationId;
+    const principal = fixture.ids.principalId;
+    // Comment: checkpoint 2 is where it was made.
+    const comment = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.artifact_draft_comments (
+         organization_id,draft_id,epoch,author_id,actor_kind,body,
+         creation_checkpoint_id,client_mutation_id,request_digest,request_id,
+         trace_id,status
+       ) values ($1,$2,1,$3,'person','pinned',$4,$5,'d','r','t','open')
+       returning id`,
+      [org, draft.id, principal, checkpoints[2], crypto.randomUUID()],
+    );
+    // Reference: checkpoint 3 is one an agent was pointed at.
+    await fixture.pgDatabase.query(
+      `insert into bakery.artifact_draft_references (
+         organization_id,draft_id,epoch,checkpoint_id,server_sequence,
+         content_digest,created_by,actor_kind,client_mutation_id,
+         request_digest,request_id,trace_id
+       ) values ($1,$2,1,$3,3,'x',$4,'person',$5,'d','r','t')`,
+      [org, draft.id, checkpoints[3], principal, crypto.randomUUID()],
+    );
+    // Comment publication: checkpoint 4 is the cutoff a thread was copied from.
+    const artifactComment = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.artifact_comments (
+         organization_id,artifact_version_id,author_id,body
+       ) values ($1,$2,$3,'copied') returning id`,
+      [org, fixture.ids.versionId, principal],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.artifact_draft_comment_publications (
+         organization_id,draft_id,draft_comment_id,artifact_version_id,
+         artifact_comment_id,source_checkpoint_id
+       ) values ($1,$2,$3,$4,$5,$6)`,
+      [
+        org,
+        draft.id,
+        comment.rows[0].id,
+        fixture.ids.versionId,
+        artifactComment.rows[0].id,
+        checkpoints[4],
+      ],
+    );
+    await ageReceipts(fixture, draft);
+
+    await compactAsApp(fixture, draft);
+    const left = await checkpointIds(fixture, draft);
+    // Pinned (1 to 4), newest four (5 to 8) and current stay; only the opening one goes.
+    for (const index of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      assertEquals(left.has(checkpoints[index]), true, `checkpoint ${index}`);
+    }
+    assertEquals(left.has(checkpoints[0]), false);
+  } finally {
+    // The copied comment sits on the fixture's version, which cleanup removes.
+    await fixture.pgDatabase.query(
+      "delete from bakery.artifact_comments where organization_id=$1",
+      [fixture.ids.organizationId],
+    );
+    await cleanup(fixture);
+  }
+});
+
+Deno.test("a decided suggestion no longer pins its checkpoint", async () => {
+  const fixture = await openDraftFixture("alpha target omega");
+  try {
+    let draft = await openDraft(fixture);
+    const checkpoints = [draft.checkpointId];
+    let suggestionId = "";
+    for (const [index, word] of WORDS.entries()) {
+      const step = await editMiddle(fixture, draft, word);
+      assertEquals(step.response.status, 201);
+      draft = step.draft;
+      checkpoints.push(draft.checkpointId);
+      if (index === 1) {
+        const selected = await sliceOf(fixture, draft);
+        const proposed = await fixture.app.fetch(jsonDraftRequest(
+          fixture,
+          `/v1/drafts/${draft.id}/suggestions`,
+          "POST",
+          body(draft, selected, crypto.randomUUID(), "pinned"),
+        ));
+        assertEquals(proposed.status, 201);
+        suggestionId = (await proposed.json() as { id: string }).id;
+      }
+    }
+    const rejected = await fixture.app.fetch(draftRequest(
+      fixture,
+      `/v1/drafts/${draft.id}/suggestions/${suggestionId}/reject`,
+      { method: "POST" },
+    ));
+    assertEquals(rejected.status, 201, await rejected.clone().text());
+    await ageReceipts(fixture, draft);
+
+    await compactAsApp(fixture, draft);
+    const left = await checkpointIds(fixture, draft);
+    assertEquals(left.has(checkpoints[2]), false);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+Deno.test("a current checkpoint whose digest does not match its text stops compaction before anything is removed", async () => {
+  const fixture = await openDraftFixture("alpha target omega");
+  try {
+    const { draft } = await eightEdits(fixture);
+    await ageReceipts(fixture, draft);
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_draft_checkpoints
+          set text_digest='0000'
+        where organization_id=$1 and id=$2`,
+      [fixture.ids.organizationId, draft.checkpointId],
+    );
+    const before = await counts(fixture, draft);
+    await assertRejects(() => compactAsApp(fixture, draft));
+    assertEquals(await counts(fixture, draft), before);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+async function counts(fixture: DraftFixture, draft: Draft) {
+  return {
+    checkpoints: await count(fixture, "artifact_draft_checkpoints", draft.id),
+    updates: await count(fixture, "artifact_draft_updates", draft.id),
+    receipts: await count(fixture, "artifact_draft_receipts", draft.id),
+  };
+}
+
 async function seedState(
   fixture: DraftFixture,
   draft: Draft,
@@ -286,8 +476,14 @@ Deno.test("an edit that would pass the epoch cap compacts once, and is refused w
     for (const sequence of [100, 101, 102]) {
       await seedState(fixture, fits.draft, sequence, 6);
     }
+    const before = await counts(fixture, draft);
     const refused = await editMiddle(fixture, fits.draft, "ffffff");
     assertEquals(refused.response.status, 409);
+    assertEquals(
+      (await refused.response.clone().json() as { code: string }).code,
+      "STORAGE_QUOTA_EXCEEDED",
+    );
+    assertEquals(await counts(fixture, draft), before);
     assertEquals(await count(fixture, "artifact_draft_receipts", draft.id), 5);
   } finally {
     await cleanup(fixture);
