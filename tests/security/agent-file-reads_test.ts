@@ -177,6 +177,14 @@ function rootAt(items: readonly Item[], path: string): Item {
 
 Deno.test("an agent reads the O44 areas and each closed area refuses by name", () =>
   withWorkerFixture(async (fixture) => {
+    // A file PUT lands in an existing folder only: create it first, or the
+    // PUT answers 404 and none of the checks below run.
+    await json(
+      await asPerson(fixture, "POST", "/v1/storage/folders", {
+        path: "/shared/agent-448-read",
+      }),
+      201,
+    );
     const sharedFile = await json(
       await asPerson(fixture, "PUT", "/v1/storage/files", {
         path: "/shared/agent-448-read/brief.md",
