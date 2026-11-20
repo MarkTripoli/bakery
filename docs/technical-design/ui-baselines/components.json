@@ -1,5 +1,5 @@
 {
-  "revision": "4f0e635889893b33ebcfbcd294f3e12993fbf1616696dc254f6b855702824963",
+  "revision": "f506fd437f5d708a0e9e57e82a5b7690ad2a9fb6be4b07555aba8dd28daccb8d",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -19883,6 +19883,253 @@
           "desktop-light-fine"
         ]
       }
+    },
+    {
+      "id": "ui.segmentedBar",
+      "name": "SegmentedBar",
+      "description": "One bar split into the parts of a whole, with a key that says each part in words.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/SegmentedBar",
+      "usage": {
+        "whenToUse": "One bar split into the parts of a whole, with a key that says each part in words.",
+        "whenNotToUse": "Keep content verification, authorization, and mutation orchestration in the caller.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "img",
+        "accessibleName": "aria-label",
+        "keyboard": [],
+        "notes": "The bar is a picture named by the caller; the key under it is the content, so no part is told by colour alone."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg",
+        "--color-fg-muted",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--radius-control",
+        "--space-1",
+        "--space-2",
+        "--space-3",
+        "--space-4",
+        "--type-caption",
+        "--type-row-title"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "One bar split into the parts of a whole, with a key that says each part in words.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.segmentedBar.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.segmentedBar.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.segmentedBar.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 75, not in Paper; the Paper manifests have no segmented or stacked bar."
+    },
+    {
+      "id": "ui.statTile",
+      "name": "StatTile",
+      "description": "One figure with its label, a line of detail and an optional help tip; it can be chosen when it carries an action.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/StatTile",
+      "usage": {
+        "whenToUse": "One figure with its label, a line of detail and an optional help tip; it can be chosen when it carries an action.",
+        "whenNotToUse": "Keep content verification, authorization, and mutation orchestration in the caller.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "none",
+        "accessibleName": "content",
+        "keyboard": [
+          "Enter",
+          "Space"
+        ],
+        "notes": "A tile with an action is one button whose name is its label, figure and detail; a tile without one is plain text."
+      },
+      "tokens": [
+        "--border-default",
+        "--border-emphasis",
+        "--color-fg-muted",
+        "--color-focus",
+        "--color-selection",
+        "--color-surface-subtle",
+        "--focus-offset",
+        "--focus-width",
+        "--radius-control",
+        "--space-1",
+        "--target-coarse",
+        "--target-min",
+        "--type-caption",
+        "--type-heading-section",
+        "--type-row-title"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "One figure with its label, a line of detail and an optional help tip; it can be chosen when it carries an action.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.statTile.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.statTile.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.statTile.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 75, not in Paper; the Paper manifests have no figure tile."
     },
     {
       "id": "ui.sendToAgentDialog",
