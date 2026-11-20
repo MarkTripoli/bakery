@@ -336,7 +336,7 @@ export function LibraryPage() {
           : null}
         {memoryStale
           ? (
-            <UI.InlineNotice tone="warning" data-testid="memory-stale">
+            <UI.InlineNotice tone="information" data-testid="memory-stale">
               {translate(
                 (offlineNow
                   ? "library.memory.live.offline"

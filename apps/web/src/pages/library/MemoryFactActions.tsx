@@ -285,7 +285,10 @@ export function MemoryFactActions(
       {failureNotice}
       {changedByOther
         ? (
-          <UI.InlineNotice tone="warning" data-testid="memory-changed-by-other">
+          <UI.InlineNotice
+            tone={correcting === null ? "information" : "warning"}
+            data-testid="memory-changed-by-other"
+          >
             {translate(
               (correcting === null
                 ? "library.memory.live.corrected"

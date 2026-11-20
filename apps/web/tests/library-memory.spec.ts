@@ -732,7 +732,10 @@ for (
         "Someone else corrected this fact. The new wording is shown.",
       );
       await expect(row(page, 1)).toContainText("corrected 3 times");
-      await shot(page, "library-memory-changed", [], { windowOnly: true });
+      await shot(page, "library-memory-changed", [], {
+        windowOnly: true,
+        only: viewport.name === "desktop" ? "desktop" : "mobile",
+      });
     });
 
     test("a dropped connection says updates are paused, then clears when it is back", async ({ page }) => {
@@ -745,6 +748,10 @@ for (
       await expect(page.getByTestId("memory-stale")).toContainText(
         "Live updates are paused. Reconnecting.",
       );
+      await shot(page, "library-memory-paused", [], {
+        windowOnly: true,
+        only: viewport.name === "desktop" ? "desktop" : "mobile",
+      });
       await expect.poll(() => events.subscribes.length).toBe(2);
       await expect(page.getByTestId("memory-stale")).toHaveCount(0);
     });
