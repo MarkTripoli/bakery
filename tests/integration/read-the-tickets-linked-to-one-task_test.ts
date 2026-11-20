@@ -18,7 +18,6 @@ import {
 } from "../helpers/ticket-admission/operations-http.ts";
 
 const TICKETS = "/v1/external-tickets";
-const SOURCES = "/v1/ticket-sources";
 
 type Page<T> = { items: T[]; nextCursor: string | null };
 
@@ -51,8 +50,11 @@ async function ticketOf(
   return found;
 }
 
-async function previewAll(fx: TicketFixture, sourceId: string) {
-  await read(await post(fx, `${SOURCES}/${sourceId}/previews`), 201);
+/** Caches the seeded issues the way a poll does. A preview stores nothing. */
+async function previewAll(fx: TicketFixture, sourceId: string, count = 3) {
+  for (let number = 1; number <= count; number++) {
+    await fx.admit(sourceId, { number, origin: "poll" });
+  }
 }
 
 Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one task, and only those", async () => {
@@ -93,19 +95,12 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
       ticketCall(fx, "GET", `${TICKETS}?taskId=${id}${extra}`).then((
         response,
       ) => read<Page<TicketView>>(response, 200));
-    // All three tickets are cached by ONE preview call, so they share
-    // `created_at`: "linked to this task, and only those" is the property under
-    // test, and the newest-first order the docstring promises is asserted by
-    // deriving the expected pair from `created_at desc, id desc` instead of
-    // trusting the order this case happened to write them in.
+    // Each ticket is cached by its own poll, in its own transaction, so they
+    // have distinct `created_at` and the read answers the newer first:
+    // "linked to this task, and only those" is the property under test.
     const mine = await forTask(taskId);
-    const [leadsOnId, trailsOnId] = second.id < first.id
-      ? [first.id, second.id]
-      : [second.id, first.id];
-    // The derivation must be a real choice: two distinct ids, so the ternary
-    // cannot collapse to one branch and let the assertion below pass empty.
-    assertNotEquals(leadsOnId, trailsOnId);
-    assertEquals(mine.items.map((item) => item.id), [leadsOnId, trailsOnId]);
+    assertNotEquals(first.id, second.id);
+    assertEquals(mine.items.map((item) => item.id), [second.id, first.id]);
     assert(!mine.items.some((item) => item.id === third.id));
     // The ticket still serves every task it is linked to, from the same read,
     // newest link first. Each link is its own request and its own transaction,
@@ -128,12 +123,12 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
     assertEquals([none.items, none.nextCursor], [[], null]);
     // An id that names no task matches nothing rather than failing.
     assertEquals((await forTask(crypto.randomUUID())).items, []);
-    // The filter composes with keyset paging. Paging walks the SAME derived
-    // order, so the second page is the other ticket by construction.
+    // The filter composes with keyset paging. Paging walks the SAME
+    // newest-first order, so the second page is the other ticket by construction.
     const page = await forTask(taskId, "&limit=1");
-    assertEquals(page.items.map((item) => item.id), [leadsOnId]);
+    assertEquals(page.items.map((item) => item.id), [second.id]);
     const rest = await forTask(taskId, `&limit=1&cursor=${page.nextCursor}`);
-    assertEquals(rest.items.map((item) => item.id), [trailsOnId]);
+    assertEquals(rest.items.map((item) => item.id), [first.id]);
     assertEquals(rest.nextCursor, null);
     // A cursor carries the filters it was issued under, so an unfiltered
     // cursor cannot be replayed against a task-scoped read.

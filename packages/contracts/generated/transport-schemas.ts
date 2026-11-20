@@ -3007,7 +3007,7 @@ const transportSchemas = {
     "PreviewAccess": {
       "fields": [
         {
-          "name": "expiresInSeconds",
+          "name": "sessionSeconds",
           "type": "integer",
           "required": false,
           "bounds": {
@@ -3015,10 +3015,10 @@ const transportSchemas = {
             "max": 86400,
             "default": 3600
           },
-          "description": "How long the issued preview access grant stays valid before the caller must request a new one; bounded between one minute and 24 hours."
+          "description": "How long the signed-in preview session lasts once the grant is exchanged, from 60 seconds to 24 hours; it does not change how long the one-use grant can be exchanged, which is always 30 seconds."
         }
       ],
-      "description": "Requests a one-use access grant for a running preview; the caller's client posts the grant to the separate preview origin, which exchanges it for its own short-lived HttpOnly cookie."
+      "description": "Requests a one-use access grant for a running preview. The grant is exchangeable for 30 seconds only; the session it opens lasts sessionSeconds. The caller's client posts the grant to the separate preview origin, which exchanges it for its own HttpOnly cookie."
     },
     "PrincipalCreate": {
       "fields": [
@@ -4932,6 +4932,18 @@ const transportSchemas = {
           "type": "gitSha",
           "required": true,
           "description": "Commit SHA the running preview was built from."
+        },
+        {
+          "name": "workerSessionId",
+          "type": "uuid",
+          "required": false,
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts."
+        },
+        {
+          "name": "workerSessionGeneration",
+          "type": "decimalString",
+          "required": false,
+          "description": "Generation of that worker session; required with workerSessionId."
         }
       ],
       "description": "Registers a running preview upstream for an attempt so Bakery can proxy client traffic to it; the record tracks its route, port and expiry until the preview stops."
@@ -12024,6 +12036,24 @@ const transportSchemas = {
       ],
       "description": "Searches the organization's file tree and its read-only library mirror by name, path, kind, media type, producer and a metadata fact, newest first. Only files and library items the caller may read are returned, and nothing of another organization is ever counted or listed."
     },
+    "FileFactQuery": {
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "Restricts the list to one kind: the artifact type of the files whose facts are listed. Omit it to list the facts of every kind the caller can read."
+        }
+      ],
+      "rules": [
+        "Returns one bounded list, never continued: at most 50 fact keys per kind, at most 50 values per key and at most 500 rows in all, ordered by kind, key and value. Files the caller may not read are never counted; another organization's are never listed."
+      ],
+      "description": "Lists the facts files carry, by kind: each fact key with each string value it holds on the current version of a file the caller may read, and how many files hold it. It is the source for the file search's fact filter (files.search factKey and factValue). Until kind validators publish typed facts, a version's metadata is where its facts live."
+    },
     "LibraryFolderQuery": {
       "fields": [
         {
@@ -12539,6 +12569,50 @@ const transportSchemas = {
         }
       ],
       "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
+    },
+    "PreviewQuery": {
+      "fields": [
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to the previews registered by attempts of this workflow run, newest first."
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 50
+          },
+          "description": "Restrict results to the current state of the preview: starting, ready, stopped or expired."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque cursor carried from a prior page of this exact query; leave unset to start from the newest page."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of items returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Filters for listing the running-app previews of an organization, newest first."
     },
     "StorageFileProbeQuery": {
       "fields": [
@@ -15404,11 +15478,13 @@ const transportSchemas = {
     "previews": {
       "fields": [
         "id",
-        "workspaceId",
+        "runId",
+        "attemptId",
         "headSha",
-        "routeKey",
-        "upstreamPort",
         "status",
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt",
         "expiresAt",
         "createdAt",
         "updatedAt",
@@ -15416,24 +15492,32 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "workspaceId": "uuid",
         "headSha": "string",
-        "routeKey": "string",
-        "upstreamPort": "integer",
         "status": "enum(starting|ready|stopped|expired)",
         "expiresAt": "timestamp",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "runId": "uuid",
+        "attemptId": "uuid",
+        "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
+        "stoppedBy": "uuid",
+        "stoppedAt": "timestamp"
       },
-      "nullableFields": [],
+      "nullableFields": [
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt"
+      ],
       "sourceColumns": {
         "id": "id",
-        "workspaceId": "workspace_id",
+        "runId": "run_id",
+        "attemptId": "attempt_id",
         "headSha": "head_sha",
-        "routeKey": "route_key",
-        "upstreamPort": "upstream_port",
         "status": "status",
+        "stopReason": "stop_reason",
+        "stoppedBy": "stopped_by",
+        "stoppedAt": "stopped_at",
         "expiresAt": "expires_at",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
@@ -15442,15 +15526,17 @@ const transportSchemas = {
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the preview record.",
-        "workspaceId": "Stable UUID linking this preview record to the related workspace entity.",
-        "headSha": "Head commit SHA associated with the record.",
-        "routeKey": "Routing key used to reach the preview.",
-        "upstreamPort": "Local port exposed by the preview upstream.",
-        "status": "Current lifecycle status of the preview record.",
-        "expiresAt": "UTC timestamp when the preview record expires.",
-        "createdAt": "UTC timestamp when the preview record was created.",
-        "updatedAt": "UTC timestamp when the preview record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the preview record."
+        "headSha": "Commit SHA the running preview was built from.",
+        "status": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready.",
+        "expiresAt": "UTC timestamp when the preview stops by itself.",
+        "createdAt": "UTC timestamp when the record was created.",
+        "updatedAt": "UTC timestamp when the record was last updated.",
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "runId": "The workflow run whose attempt registered this preview.",
+        "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
+        "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
+        "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
     "pull_requests": {
@@ -22139,11 +22225,13 @@ const transportSchemas = {
       "projection": "previews",
       "fields": [
         "id",
-        "workspaceId",
+        "runId",
+        "attemptId",
         "headSha",
-        "routeKey",
-        "upstreamPort",
         "status",
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt",
         "expiresAt",
         "createdAt",
         "updatedAt",
@@ -22151,29 +22239,37 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "workspaceId": "uuid",
         "headSha": "string",
-        "routeKey": "string",
-        "upstreamPort": "integer",
         "status": "enum(starting|ready|stopped|expired)",
         "expiresAt": "timestamp",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "runId": "uuid",
+        "attemptId": "uuid",
+        "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
+        "stoppedBy": "uuid",
+        "stoppedAt": "timestamp"
       },
-      "nullableFields": [],
-      "description": "Registration for an authenticated developer preview URL exposing a worker's live workspace port during an attempt; returned when worker.previews registers it. status tracks starting/ready/stopped/expired, and access is private, session-bound, and served from a separate origin with no API cookies forwarded.",
+      "nullableFields": [
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt"
+      ],
+      "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the preview record.",
-        "workspaceId": "Stable UUID linking this record to the related workspace entity.",
-        "headSha": "Head commit SHA associated with the record.",
-        "routeKey": "Contract-defined route key associated with the preview record.",
-        "upstreamPort": "Contract-defined upstream port associated with the preview record.",
-        "status": "Current lifecycle status of the record.",
-        "expiresAt": "UTC timestamp when the record expires.",
+        "headSha": "Commit SHA the running preview was built from.",
+        "status": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready.",
+        "expiresAt": "UTC timestamp when the preview stops by itself.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "runId": "The workflow run whose attempt registered this preview.",
+        "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
+        "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
+        "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
     "MergeEntry": {
@@ -22922,26 +23018,32 @@ const transportSchemas = {
     },
     "PreviewAccessResult": {
       "fields": [
+        "grantId",
         "grant",
         "exchangeUrl",
         "previewUrl",
-        "expiresAt"
+        "expiresAt",
+        "sessionSeconds"
       ],
       "fieldTypes": {
         "grant": "secretString",
         "exchangeUrl": "uri",
         "previewUrl": "uri",
-        "expiresAt": "timestamp"
+        "expiresAt": "timestamp",
+        "grantId": "uuid",
+        "sessionSeconds": "integer"
       },
       "sensitiveFields": [
         "grant"
       ],
-      "description": "One-use grant is POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs.",
+      "description": "One-use grant, exchangeable for 30 seconds, POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs. The session it opens lasts sessionSeconds.",
       "fieldDescriptions": {
-        "grant": "Capability grant issued for the preview.",
-        "exchangeUrl": "One-time URL used to exchange preview access.",
-        "previewUrl": "URL used to access the preview.",
-        "expiresAt": "UTC timestamp when the record expires."
+        "grant": "One-use secret handoff value: 32 random bytes, base64url. Post it once, in a form body; never put it in a URL, log, event or cache. Only its sha256 is stored.",
+        "exchangeUrl": "Absolute URL on the separate preview origin that exchanges the posted grant for a preview session.",
+        "previewUrl": "Absolute URL on the preview origin where the preview is shown after the exchange.",
+        "expiresAt": "When the grant stops being exchangeable, 30 seconds after it was issued. This is not the session length.",
+        "grantId": "Identifier of this access grant, used to end one person's access before it expires. Not a secret.",
+        "sessionSeconds": "How long the session lasts after the grant is exchanged."
       }
     },
     "BinaryArtifact": {
@@ -30835,6 +30937,31 @@ const transportSchemas = {
       "pageOf": "FileSearchHit",
       "description": "Cursor page of file search hits, newest first, returned by GET /v1/files/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
+    "FileFact": {
+      "fields": [
+        "kind",
+        "key",
+        "value",
+        "files"
+      ],
+      "fieldTypes": {
+        "kind": "string",
+        "key": "string",
+        "value": "string",
+        "files": "integer"
+      },
+      "description": "One fact a kind of file carries: a metadata key and one string value it holds on the current version of some files the caller may read, with the number of those files. Pass key and value to files.search as factKey and factValue, and kind as kind, to list the files.",
+      "fieldDescriptions": {
+        "kind": "The artifact type of the files that hold the fact.",
+        "key": "The metadata key, at most 100 characters.",
+        "value": "One value the key holds on the current version of at least one such file, at most 500 characters; an empty value is not listed.",
+        "files": "How many files of this kind the caller may read hold this key with this value on their current version."
+      }
+    },
+    "Page<FileFact>": {
+      "pageOf": "FileFact",
+      "description": "The facts of the files the caller may read, by kind, key and value, returned by GET /v1/files/facts. items and nextCursor are always present; the list is one bounded page, so nextCursor is always null and there are no page numbers or offsets."
+    },
     "Page<LibraryEntry>": {
       "pageOf": "LibraryEntry",
       "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
@@ -31035,6 +31162,41 @@ const transportSchemas = {
         "createdAt": "When the grant was made.",
         "version": "Optimistic-concurrency version a stop must name in If-Match."
       }
+    },
+    "SkillUsage": {
+      "fields": [
+        "kind",
+        "definitionId",
+        "definitionName",
+        "versionId",
+        "revision",
+        "skillVersionIds",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "kind": "enum(workflow|agent)",
+        "definitionId": "uuid",
+        "definitionName": "string",
+        "versionId": "uuid",
+        "revision": "integer",
+        "skillVersionIds": "uuid[]",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [],
+      "description": "One workflow version or agent version that pins a version of a skill: what it is, which version of it, and which versions of the skill it names. A workflow version uses a skill when one of its steps lists the version; an agent version uses it when its skill bindings name the version.",
+      "fieldDescriptions": {
+        "kind": "workflow for a published workflow version, agent for an agent version.",
+        "definitionId": "Stable UUID of the workflow or agent the version belongs to.",
+        "definitionName": "Name of that workflow or agent, as shown in the Library.",
+        "versionId": "Immutable UUID of the workflow version or agent version that names the skill.",
+        "revision": "Revision number of that workflow or agent version.",
+        "skillVersionIds": "The versions of this skill the workflow or agent version pins, oldest first; at least one.",
+        "createdAt": "UTC time that workflow or agent version was created, which orders the list newest first."
+      }
+    },
+    "Page<SkillUsage>": {
+      "pageOf": "SkillUsage",
+      "description": "Cursor page of SkillUsage rows, newest first. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
     },
     "Page<SkillUseGrant>": {
       "pageOf": "SkillUseGrant",
@@ -31535,6 +31697,18 @@ const transportSchemas = {
     "Page<PluginStateItem>": {
       "pageOf": "PluginStateItem",
       "description": "Cursor page of saved items for one plugin install, newest first, returned by GET /v1/plugin-installs/{id}/state-items. The saved values are never part of it. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "PreviewAvailability": {
+      "fields": [
+        "available"
+      ],
+      "fieldTypes": {
+        "available": "boolean"
+      },
+      "fieldDescriptions": {
+        "available": "True when the deployment configures a separate preview origin. When false every preview operation fails closed and clients show that previews are not set up."
+      },
+      "description": "Whether this deployment can serve running-app previews."
     },
     "ArtifactProbeAnswer": {
       "fields": [
