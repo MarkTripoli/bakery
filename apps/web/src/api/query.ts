@@ -41,6 +41,7 @@ import type {
   IntegrationAppRegistration,
   IntegrationConnection,
   IntegrationResource,
+  LibraryPage,
   MemoryEntryResponse,
   MemoryRevisionResponse,
   MergeAttemptListResponse,
@@ -61,6 +62,7 @@ import type {
   PluginInstallListResponse,
   PluginPackageListResponse,
   PluginVersionListResponse,
+  PrincipalPage,
   PullRequestListResponse,
   QuestionListResponse,
   RepositoryEffectiveRulesResponse,
@@ -3234,6 +3236,7 @@ export function fileSearchQueryOptions(
       path: input.path ?? null,
       kind: input.kind ?? null,
       mediaGroup: input.mediaGroup ?? null,
+      producerId: input.producerId ?? null,
     }),
     initialPageParam: null,
     getNextPageParam: (last) => last.nextCursor,
@@ -3246,6 +3249,50 @@ export function fileSearchQueryOptions(
         ),
       ),
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The kinds of document the organization has, by name, for the Kind filter. */
+export function fileKindsQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+) {
+  return queryOptions<LibraryPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "files.library", {
+      path: "/library/kinds",
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.files.library(
+          requireOrganization(scope),
+          "/library/kinds",
+          undefined,
+          signal,
+        ),
+      ),
+    enabled: Boolean(scope.organizationId),
+    staleTime: 60_000,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Who can have made a file: the organization's people, workers and service accounts. */
+export function filePeopleQueryOptions(
+  client: Pick<BakeryApiClient, "principals">,
+  scope: ApiScope,
+) {
+  return queryOptions<PrincipalPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "files.people", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.principals.list({
+          organizationId: requireOrganization(scope),
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    staleTime: 60_000,
     retry: retryNetworkOnce,
   });
 }

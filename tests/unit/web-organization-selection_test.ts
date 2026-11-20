@@ -70,6 +70,7 @@ function fakeApi(
       versions: rejecting,
       uses: rejecting,
       atVersion: rejecting,
+      library: rejecting,
       search: rejecting,
       content: rejecting,
     },

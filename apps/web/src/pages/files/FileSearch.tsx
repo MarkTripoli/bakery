@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { formatNumber } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import type { FileSearchHit } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
-import { fileSearchQueryOptions } from "../../api/query.ts";
+import {
+  fileKindsQueryOptions,
+  filePeopleQueryOptions,
+  fileSearchQueryOptions,
+} from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
@@ -25,12 +29,17 @@ export type MediaGroup = typeof MEDIA_GROUPS[number];
 export type SearchState = {
   readonly q: string;
   readonly type: MediaGroup | undefined;
+  /** A kind's name as the library lists it (`plan`), or any kind. */
+  readonly kind: string | undefined;
+  /** The principal who made the file, or anyone. */
+  readonly by: string | undefined;
   readonly everywhere: boolean;
 };
 
 /** A search runs from two letters, or as soon as a filter is set. */
 export function isSearching(state: SearchState): boolean {
-  return state.q.trim().length >= 2 || state.type !== undefined;
+  return state.q.trim().length >= 2 || state.type !== undefined ||
+    state.kind !== undefined || state.by !== undefined;
 }
 
 /** The search field and its filters, one row; typing is settled for 250 ms. */
@@ -42,6 +51,41 @@ export function FileSearchControls(
   },
 ) {
   const { translate } = useI18n();
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const kinds = useQuery(fileKindsQueryOptions(api, scope));
+  const people = useQuery(filePeopleQueryOptions(api, scope));
+  const kindOptions = [
+    { value: "", label: translate("files.search.kind.any") },
+    ...(kinds.data?.items ?? [])
+      .filter((entry) => entry.type === "item")
+      .map((entry) => ({
+        value: entry.path.slice(entry.path.lastIndexOf("/") + 1),
+        label: entry.name,
+      })),
+  ];
+  if (
+    state.kind !== undefined &&
+    !kindOptions.some((option) => option.value === state.kind)
+  ) {
+    kindOptions.push({ value: state.kind, label: state.kind });
+  }
+  const principals = (people.data?.items ?? []).filter((item) =>
+    item.disabledAt === null
+  );
+  const byOptions = [
+    { value: "", label: translate("files.search.by.any") },
+    ...[
+      ...principals.filter((item) => item.principalType === "human"),
+      ...principals.filter((item) => item.principalType !== "human"),
+    ].map((item) => ({ value: item.id, label: item.displayName })),
+  ];
+  if (
+    state.by !== undefined &&
+    !byOptions.some((option) => option.value === state.by)
+  ) {
+    byOptions.push({ value: state.by, label: state.by });
+  }
   const [text, setText] = useState(state.q);
   useEffect(() => setText(state.q), [state.q]);
   useEffect(() => {
@@ -105,13 +149,38 @@ export function FileSearchControls(
             })),
           ]}
         />
-        {state.q !== "" || state.type !== undefined
+        <UI.Combobox
+          label={translate("files.search.kind")}
+          value={state.kind ?? ""}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            onChange({ ...state, kind: value === "" ? undefined : value });
+          }}
+          options={kindOptions}
+        />
+        <UI.Combobox
+          label={translate("files.search.by")}
+          value={state.by ?? ""}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            onChange({ ...state, by: value === "" ? undefined : value });
+          }}
+          options={byOptions}
+        />
+        {state.q !== "" || state.type !== undefined ||
+            state.kind !== undefined || state.by !== undefined
           ? (
             <UI.Button
               variant="secondary"
               onClick={() => {
                 setText("");
-                onChange({ ...state, q: "", type: undefined });
+                onChange({
+                  ...state,
+                  q: "",
+                  type: undefined,
+                  kind: undefined,
+                  by: undefined,
+                });
               }}
             >
               {translate("files.search.clear")}
@@ -140,6 +209,8 @@ export function FileSearchResults(
     ...fileSearchQueryOptions(api, scope, {
       ...(state.q.trim() !== "" ? { query: state.q.trim() } : {}),
       ...(state.type !== undefined ? { mediaGroup: state.type } : {}),
+      ...(state.kind !== undefined ? { kind: state.kind } : {}),
+      ...(state.by !== undefined ? { producerId: state.by } : {}),
       ...(!state.everywhere && folderPath !== "" ? { path: folderPath } : {}),
     }),
     enabled: scope.organizationId !== null,

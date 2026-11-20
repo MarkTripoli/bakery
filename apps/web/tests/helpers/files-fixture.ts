@@ -374,10 +374,49 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
     },
   );
   await page.route(
+    (url) => url.pathname === "/v1/files/library",
+    (route) =>
+      json(
+        route,
+        page_([
+          { slug: "plan", name: "Plan" },
+          { slug: "review", name: "Review" },
+        ].map((entry) => ({
+          type: "item",
+          path: `/library/kinds/${entry.slug}`,
+          name: entry.name,
+          kind: "kind",
+          createdAt: STAMP,
+        }))),
+      ),
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/principals",
+    (route) =>
+      json(
+        route,
+        page_([
+          { id: 8800, type: "human", name: "Ana Reyes" },
+          { id: 8801, type: "worker", name: "Build worker" },
+        ].map((principal) => ({
+          id: uuid(principal.id),
+          principalType: principal.type,
+          displayName: principal.name,
+          createdByPrincipalId: null,
+          disabledAt: null,
+          createdAt: STAMP,
+          updatedAt: STAMP,
+          version: 1,
+        }))),
+      ),
+  );
+  await page.route(
     (url) => url.pathname === "/v1/files/search",
     (route) => {
       const url = new URL(route.request().url());
       seen.searches.push(url.search);
+      const kindFilter = url.searchParams.get("kind");
+      const producerFilter = url.searchParams.get("producerId");
       const query = (url.searchParams.get("query") ?? "").toLowerCase();
       const under = url.searchParams.get("path");
       const group = url.searchParams.get("mediaGroup");
@@ -398,6 +437,10 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
         .filter((entry) => entry.name.toLowerCase().includes(query))
         .filter((entry) => under === null || entry.path.startsWith(`${under}/`))
         .filter((entry) => group === null || groupOf(entry.mediaType) === group)
+        .filter((entry) =>
+          kindFilter === null || entry.kindName?.toLowerCase() === kindFilter
+        )
+        .filter(() => producerFilter === null || producerFilter === uuid(8800))
         .map((entry) => ({
           source: "files",
           entryId: uuid(entry.id),

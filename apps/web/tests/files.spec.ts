@@ -264,6 +264,31 @@ for (
       await expect(page.getByTestId("file-details")).toContainText("plan.md");
     });
 
+    test("the Kind and Made by filters narrow a search and live in the address", async ({ page }) => {
+      const { seen } = await filesFixture(page);
+      await page.goto("/files/projects/web-app");
+      await page.getByRole("combobox", { name: "Kind" }).selectOption("plan");
+      await expect(page).toHaveURL(/kind=plan/);
+      await expect(page.getByRole("link", { name: "plan.md" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "demo.mp4" })).toHaveCount(0);
+      expect(seen.searches.some((search) => search.includes("kind=plan")))
+        .toBe(true);
+      await page.getByLabel("Made by").selectOption({ label: "Ana Reyes" });
+      await expect(page).toHaveURL(new RegExp(`by=${uuid(8800)}`));
+      await page.mouse.move(700, 700);
+      await still(page, "files-filters");
+      expect(
+        seen.searches.some((search) =>
+          search.includes(`producerId=${uuid(8800)}`)
+        ),
+      ).toBe(true);
+      await page.getByLabel("Made by").selectOption({ label: "Build worker" });
+      await expect(page.getByText("Nothing matches")).toBeVisible();
+      await page.getByRole("button", { name: "Clear search" }).click();
+      await expect(page).not.toHaveURL(/kind=|by=/);
+      await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
+    });
+
     test("the file type filter narrows a search, and Clear search goes back to the folder", async ({ page }) => {
       await filesFixture(page);
       await page.goto("/files/projects/web-app");

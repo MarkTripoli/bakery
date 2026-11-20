@@ -4905,5 +4905,9 @@
   "library.memory.action.adminOnly": "⟦Ôñļÿ àñ àðɱïñïšŧŕàŧôŕ çàñ çĥàñĝë ŕëɱëɱƀëŕëð ƒàçŧš. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "files.kind.none": "⟦—⟧",
   "files.file.missing": "⟦Ŧĥàŧ ƒïļë ïš ñôŧ ïñ ŧĥïš ƒôļðëŕ. Ïŧ ɱàÿ ĥàṽë ƀëëñ ɱôṽëð ôŕ ŕëɱôṽëð, ôŕ ÿôû ɱàÿ ñôŧ ĥàṽë àççëšš ŧô ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "files.file.finding": "⟦Ƒïñðïñĝ ŧĥàŧ ƒïļë… ŧëšŧ⟧"
+  "files.file.finding": "⟦Ƒïñðïñĝ ŧĥàŧ ƒïļë… ŧëšŧ⟧",
+  "files.search.kind": "⟦Ķïñð⟧",
+  "files.search.kind.any": "⟦Àñÿ⟧",
+  "files.search.by": "⟦Ṁàðë ƀÿ…⟧",
+  "files.search.by.any": "⟦Àñÿôñë…⟧"
 }

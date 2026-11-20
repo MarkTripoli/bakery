@@ -60,10 +60,14 @@ export function FilesPage({ path }: { readonly path: string }) {
     version?: number;
     q?: string;
     type?: MediaGroup;
+    kind?: string;
+    by?: string;
     in?: "all";
   };
   const searchState: SearchState = {
     q: search.q ?? "",
+    kind: search.kind,
+    by: search.by,
     type: search.type !== undefined &&
         (MEDIA_GROUPS as readonly string[]).includes(search.type)
       ? search.type
@@ -81,6 +85,8 @@ export function FilesPage({ path }: { readonly path: string }) {
       version?: number | undefined;
       q?: string | undefined;
       type?: MediaGroup | undefined;
+      kind?: string | undefined;
+      by?: string | undefined;
       in?: "all" | undefined;
     },
   ) => {
@@ -90,6 +96,8 @@ export function FilesPage({ path }: { readonly path: string }) {
       version: search.version,
       q: search.q,
       type: search.type,
+      kind: search.kind,
+      by: search.by,
       in: search.in,
       ...next,
     };
@@ -99,10 +107,14 @@ export function FilesPage({ path }: { readonly path: string }) {
       version?: number;
       q?: string;
       type?: MediaGroup;
+      kind?: string;
+      by?: string;
       in?: "all";
     } = {};
     if (merged.q !== undefined && merged.q !== "") query.q = merged.q;
     if (merged.type !== undefined) query.type = merged.type;
+    if (merged.kind !== undefined) query.kind = merged.kind;
+    if (merged.by !== undefined) query.by = merged.by;
     if (merged.in !== undefined) query.in = merged.in;
     if (merged.file !== undefined) query.file = merged.file;
     if (merged.tab !== undefined) query.tab = merged.tab;
@@ -294,6 +306,8 @@ export function FilesPage({ path }: { readonly path: string }) {
               setSearch({
                 q: next.q,
                 type: next.type,
+                kind: next.kind,
+                by: next.by,
                 in: next.everywhere && !atTop ? "all" : undefined,
                 file: undefined,
                 tab: undefined,
