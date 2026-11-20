@@ -93,8 +93,24 @@ export type ProjectionKind =
   | "pdf_reference"
   | "binary_reference";
 
+/**
+ * Why a projection carries no content, so a reader is told the limit instead of
+ * guessing from an empty item:
+ * - binary_media: images, audio, video and unknown binaries never enter a prompt
+ *   as text, only as a reference;
+ * - no_text_extractor: a PDF is held as a reference because Bakery has no PDF
+ *   text extractor yet, not because the file is empty;
+ * - extraction_failed: a text window was asked for and could not be produced.
+ */
+export type ProjectionLimit =
+  | "binary_media"
+  | "no_text_extractor"
+  | "extraction_failed";
+
 export type ContextProjection = {
   kind: ProjectionKind;
+  /** Why there is no content, or null when the projection carries a window. */
+  limit: ProjectionLimit | null;
   citation: ContextCitation;
   /** Bounded, credential-redacted text for the model; null for every reference projection. */
   text: string | null;
@@ -134,13 +150,23 @@ function kindOf(mediaType: string): ProjectionKind {
  */
 export function referenceProjection(
   entry: ArtifactVersionIndexEntry,
-  options: { required?: boolean; priority?: number } = {},
+  options: {
+    required?: boolean;
+    priority?: number;
+    /** Overrides the limit the media type implies, e.g. a failed text window. */
+    limit?: ProjectionLimit;
+  } = {},
 ): ContextProjection {
   const kind = kindOf(entry.mediaType);
+  const textual = kind === "text_window" || kind === "log_window";
   return {
-    kind: kind === "text_window" || kind === "log_window"
-      ? "binary_reference"
-      : kind,
+    kind: textual ? "binary_reference" : kind,
+    limit: options.limit ??
+      (textual
+        ? "extraction_failed"
+        : kind === "pdf_reference"
+        ? "no_text_extractor"
+        : "binary_media"),
     citation: ContextCitationSchema.parse({
       artifactId: entry.artifactId,
       versionId: entry.versionId,
@@ -195,6 +221,7 @@ export function projectArtifactVersion(
   const redactedBytes = new TextEncoder().encode(redacted.text).byteLength;
   return {
     kind,
+    limit: null,
     citation: ContextCitationSchema.parse({
       artifactId: entry.artifactId,
       versionId: entry.versionId,
@@ -287,11 +314,58 @@ export function verifyCitation(
   return { valid: true };
 }
 
-/** Cache key for a bounded immutable extract; holds no authorization. */
-export function extractCacheKey(
+/**
+ * Largest window one artifact version may have cached, and the stride rows are
+ * keyed at.
+ *
+ * An extract is a pure function of its window, so the cache would otherwise be
+ * bounded only by the number of byte offsets a reader cares to ask for: 10 MiB
+ * of start offsets times 64 KiB of text is an unbounded write through a read
+ * endpoint. Two bounds fix that, and both live here so the key computation and
+ * the storage agree on them:
+ *
+ * - the window is keyed as the 64 KiB chunk that holds it, so offsets inside one
+ *   chunk share a row; and
+ * - a version keeps at most 256 rows, shared across every authorization scope
+ *   (not 256 per scope), oldest evicted first. A request may name a start
+ *   offset up to 10 MiB, which is 160 chunks.
+ */
+export const EXTRACT_CACHE_CHUNK_BYTES = 65_536;
+export const EXTRACT_CACHE_ROWS_PER_VERSION = 256;
+
+/**
+ * The storage window an extraction request is cached under.
+ *
+ * A request for the middle of a file shares its chunk's row rather than minting
+ * one of its own, and the row covers the whole chunk, so any window inside it is
+ * answered from the one stored text.
+ */
+export function cachedExtractWindow(
+  startByte: number,
+): Readonly<{ startByte: number; maxBytes: number }> {
+  const chunkStart = Math.floor(startByte / EXTRACT_CACHE_CHUNK_BYTES) *
+    EXTRACT_CACHE_CHUNK_BYTES;
+  // A caller's smaller window is widened to the whole chunk: the chunk is the
+  // unit the cache stores, and text beyond what the caller asked for is never
+  // returned from it.
+  return {
+    startByte: chunkStart,
+    maxBytes: EXTRACT_CACHE_CHUNK_BYTES,
+  };
+}
+
+/**
+ * Cache key for a bounded immutable extract. It carries no authorization
+ * decision: the scope is hashed into it only so another scope cannot find the
+ * row. Whether a caller may read the version is decided by the live read before
+ * any lookup.
+ */
+export async function extractCacheKey(
   organizationId: string,
   citation: ContextCitation,
-): string {
+  /** The authorization scope the extract was produced under. */
+  scope?: string,
+): Promise<string> {
   const range = citation.location === null
     ? "ref"
     : `${citation.location.startByte}-${citation.location.endByteExclusive}`;
@@ -301,5 +375,27 @@ export function extractCacheKey(
     citation.sha256,
     range,
     citation.extractorVersion ?? "none",
+    ...(scope === undefined ? [] : [`scope-${await sha256Text(scope)}`]),
   ].join("|");
+}
+
+/**
+ * The scope as a fixed-width, delimiter-free digest (see below).
+ *
+ * Two reasons it is a digest and not the scope itself. The key is the primary
+ * key, so a scope whose text happens to contain the separator could otherwise
+ * spell another scope's key; and a caller who controls their own scope string
+ * could mint a row per request, which is exactly the unbounded write the chunked
+ * window is there to prevent. A digest is 64 hex characters whatever the scope
+ * says, so the row count stays a function of the window alone.
+ */
+async function sha256Text(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value) as unknown as BufferSource,
+  );
+  return Array.from(
+    new Uint8Array(digest),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
 }

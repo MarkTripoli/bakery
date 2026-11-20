@@ -8,6 +8,18 @@ import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { classifyArtifactMedia } from "./media.ts";
+import {
+  cachedExtractWindow,
+  CONTEXT_EXTRACTOR_VERSION,
+} from "./context-projection.ts";
+import { ContextCitationSchema } from "./context-projection.ts";
+import {
+  evictExtractCacheBeyondCap,
+  extractScope,
+  findCachedExtract,
+  reusableCachedExtract,
+  storeCachedExtract,
+} from "./extract-cache.ts";
 
 const MAX_EXTRACTION_BYTES = 65_536;
 const MAX_START_BYTE = 10_485_760;
@@ -271,7 +283,8 @@ export async function extractArtifactVersion(
   context: ActionContext,
   input: ArtifactExtractQuery,
 ): Promise<ArtifactExtraction> {
-  const { transaction, organizationId } = requireWorkTransaction(context);
+  const work = requireWorkTransaction(context);
+  const { transaction, organizationId } = work;
   const versionId = context.params.id;
   if (!versionId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
 
@@ -289,6 +302,62 @@ export async function extractArtifactVersion(
   let mediaProbe: Uint8Array | undefined;
   let window: Uint8Array | undefined;
   try {
+    // Authorize and read the metadata first: this is the query that decides the
+    // caller may see the version, and it is all a cache hit needs.
+    const identity = await readArtifactVersionIdentity(
+      transaction,
+      organizationId,
+      versionId,
+    );
+    const identitySize = Number(identity.size_bytes);
+    if (
+      !Number.isSafeInteger(identitySize) ||
+      identitySize < 0 ||
+      identitySize > MAX_ARTIFACT_BYTES ||
+      !/^[0-9a-f]{64}$/.test(identity.sha256)
+    ) internalFailure();
+    if (startByte > identitySize) rejectExtraction();
+
+    // A bounded extract is a pure function of version, digest, range and
+    // extractor, so it can be served without re-reading content - but only to
+    // the scope that produced it, and only while the citation still verifies.
+    const scope = extractScope(work);
+    // The cache stores one row per 64 KiB chunk, so a request is looked up under
+    // its chunk rather than under the exact offset it named. Without this the
+    // row count would be a function of how many offsets a reader asks for.
+    // Only a request that names the chunk itself can be answered from it: any
+    // other window starts inside the row's text, and returning the row would
+    // label chunk text with the window the caller asked for.
+    const storage = cachedExtractWindow(startByte);
+    const servesChunk = startByte === storage.startByte &&
+      maxBytes === storage.maxBytes;
+    const cached = !servesChunk ? null : await findCachedExtract(transaction, {
+      organizationId,
+      versionId,
+      sha256: identity.sha256,
+      startByte: storage.startByte,
+      maxBytes: storage.maxBytes,
+      scope,
+    });
+    if (
+      cached !== null &&
+      cached.citation.location !== null &&
+      reusableCachedExtract(cached, {
+        authorized: true,
+        currentSha256: identity.sha256,
+      })
+    ) {
+      return {
+        versionId,
+        sha256: identity.sha256,
+        mediaType: cached.citation.mediaType,
+        startByte,
+        endByteExclusive: cached.citation.location.endByteExclusive,
+        text: cached.text,
+        hasMore: cached.hasMore,
+      };
+    }
+
     let row: ArtifactExtractionRow;
     try {
       row = await loadArtifactExtractionRow(
@@ -342,13 +411,45 @@ export async function extractArtifactVersion(
       size,
       startByte,
     );
-    return {
+    const result: ArtifactExtraction = {
       versionId: row.id,
       sha256: row.sha256,
       mediaType: media.mediaType,
       startByte,
       ...extracted,
     };
+    // Only the chunk-aligned request is cached, and it is cached as what it is:
+    // the chunk's own text with the chunk's own range. Any other window is
+    // answered from the bytes just read and writes nothing, so the row count
+    // stays one per chunk and no row ever holds text that does not start where
+    // its citation says it does.
+    if (servesChunk) {
+      await storeCachedExtract(transaction, {
+        organizationId,
+        scope,
+        maxBytes,
+        text: extracted.text,
+        hasMore: extracted.hasMore,
+        citation: ContextCitationSchema.parse({
+          artifactId: identity.artifact_id,
+          versionId: row.id,
+          sha256: row.sha256,
+          mediaType: result.mediaType,
+          location: {
+            startByte,
+            // Where the text really ends: code-point alignment can end it before
+            // the chunk does, and a hit must report what a cold read reports.
+            endByteExclusive: extracted.endByteExclusive,
+          },
+          extractorVersion: CONTEXT_EXTRACTOR_VERSION,
+        }),
+      });
+      await evictExtractCacheBeyondCap(transaction, {
+        organizationId,
+        versionId,
+      });
+    }
+    return result;
   } finally {
     mediaProbe = undefined;
     window = undefined;

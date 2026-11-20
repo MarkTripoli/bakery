@@ -91,6 +91,9 @@ Deno.test("a version made by a step names the step, run, work item and session",
     task_id: "t",
     task_title: "Write the plan",
     session_id: "x",
+    agent_write: false,
+    agent_session_id: null,
+    agent_name: null,
   });
   assertEquals(byStep, {
     makerKind: "step",
@@ -102,6 +105,7 @@ Deno.test("a version made by a step names the step, run, work item and session",
     workItemId: "t",
     workItemTitle: "Write the plan",
     sessionId: "x",
+    agentName: null,
   });
   const byPerson = versionMaker({
     ...base,
@@ -111,9 +115,48 @@ Deno.test("a version made by a step names the step, run, work item and session",
     task_id: null,
     task_title: null,
     session_id: null,
+    agent_write: false,
+    agent_session_id: null,
+    agent_name: null,
   });
   assertEquals(byPerson.makerKind, "person");
   assertEquals(byPerson.stepId, null);
+});
+
+Deno.test("a version an agent wrote with a person's access reads as the agent's, naming that person", () => {
+  const byAgent = versionMaker({
+    id: "v",
+    revision: 3,
+    created_at: new Date(),
+    size_bytes: "1",
+    media_type: "text/plain",
+    sha256: "a".repeat(64),
+    removed_at: null,
+    content_removed: false,
+    author_id: me,
+    author_name: "Ada",
+    run_step_id: null,
+    step_key: null,
+    run_id: null,
+    task_id: null,
+    task_title: null,
+    session_id: null,
+    agent_write: true,
+    agent_session_id: "session",
+    agent_name: "Reviewer",
+  });
+  assertEquals(byAgent, {
+    makerKind: "agent",
+    makerPrincipalId: me,
+    makerName: "Ada",
+    stepId: null,
+    stepName: null,
+    runId: null,
+    workItemId: null,
+    workItemTitle: null,
+    sessionId: "session",
+    agentName: "Reviewer",
+  });
 });
 
 Deno.test("every storage list ordering is one the cursor accepts", async () => {

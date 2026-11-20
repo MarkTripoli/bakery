@@ -20,6 +20,8 @@ import {
   type ReportBody,
   reportDigest,
 } from "./state.ts";
+import { isBackupDue, staleAfterMs } from "./schedule.ts";
+import { readBackupSchedule } from "./settings.ts";
 
 type Run = z.output<typeof contractSchemas.BackupRun>;
 type Status = z.output<typeof contractSchemas.BackupStatus>;
@@ -138,9 +140,10 @@ export async function readBackupStatus(
     `select id from bakery.backup_runs where status = 'requested'`,
   );
   const newest = await transaction.query<
-    { status: string; finishedAt: Date | null }
+    { status: string; finishedAt: Date | null; failureCode: string | null }
   >(
-    `select status, finished_at as "finishedAt" from bakery.backup_runs
+    `select status, finished_at as "finishedAt", failure_code as "failureCode"
+       from bakery.backup_runs
       where status in ('completed', 'failed')
       order by finished_at desc, id desc limit 1`,
   );
@@ -158,7 +161,11 @@ export async function readBackupStatus(
     now,
     held: heldRow,
     newestFinishedStatus: (newest.rows[0]?.status as BackupRunStatus) ?? null,
+    // Completed with a failure code is "taken, not copied off-site".
+    newestFinishedNotCopied: newest.rows[0]?.status === "completed" &&
+      newest.rows[0]?.failureCode != null,
     lastGoodAt,
+    staleAfterMs: staleAfterMs(await readBackupSchedule(transaction)),
   });
   const live = heldRow !== null && heldRow.leaseExpiresAt !== null &&
     heldRow.leaseExpiresAt > now;
@@ -258,17 +265,46 @@ function readBearer(headers: Headers): string {
 export async function authenticateRunner(
   transaction: PgTransactionClient,
   headers: Headers,
-): Promise<void> {
+): Promise<{ readonly generation: number }> {
   const tokenHash = await sha256Hex(readBearer(headers));
-  const result = await transaction.query(
+  const result = await transaction.query<{ generation: number }>(
     `update bakery.backup_runner_credentials
         set last_used_at = now()
-      where id = true and token_hash = $1`,
+      where id = true and token_hash = $1
+      returning generation`,
     [tokenHash],
   );
   if (result.rowCount !== 1) {
     throw new StandardError({ code: "AUTH_FORBIDDEN" });
   }
+  return { generation: result.rows[0].generation };
+}
+
+/**
+ * With no server-side scheduler, the runner's own poll is the clock: a claim
+ * that finds nothing waiting asks `isBackupDue` and, when a scheduled backup is
+ * due, records it as a waiting request in the same transaction. The one-waiting
+ * unique index keeps it single when two claims race; the loser's insert does
+ * nothing. Returns whether a due schedule was acted on.
+ */
+async function materializeScheduledRun(
+  transaction: PgTransactionClient,
+): Promise<boolean> {
+  const schedule = await readBackupSchedule(transaction);
+  if (schedule === null || !schedule.enabled) return false;
+  const clock = await transaction.query<{ now: Date; newest: Date | null }>(
+    `select clock_timestamp() as now,
+            (select max(requested_at) from bakery.backup_runs) as newest`,
+  );
+  const { now, newest } = clock.rows[0];
+  if (!isBackupDue(schedule, now, newest)) return false;
+  await transaction.query(
+    `insert into bakery.backup_runs
+       (trigger_kind, status, requested_by_principal_id, requested_at)
+     values ('scheduled', 'requested', null, clock_timestamp())
+     on conflict ((true)) where status = 'requested' do nothing`,
+  );
+  return true;
 }
 
 /**
@@ -295,11 +331,21 @@ export async function claimRun(
     target = held.rows[0].id;
     reclaim = true;
   } else {
-    const waiting = await transaction.query<{ id: string }>(
-      `select id from bakery.backup_runs
-        where status = 'requested'
-        order by requested_at, id limit 1 for update`,
-    );
+    const selectWaiting = () =>
+      transaction.query<{ id: string }>(
+        `select id from bakery.backup_runs
+          where status = 'requested'
+          order by requested_at, id limit 1 for update`,
+      );
+    let waiting = await selectWaiting();
+    if (
+      waiting.rows[0] === undefined &&
+      await materializeScheduledRun(transaction)
+    ) {
+      // Nothing was waiting and a scheduled backup is due: it is the run to
+      // take. (A concurrent claim that inserted it first is found the same way.)
+      waiting = await selectWaiting();
+    }
     target = waiting.rows[0]?.id;
   }
   if (target === undefined) return nothingToClaim();
@@ -443,9 +489,19 @@ async function applyReport(
               finished_at = clock_timestamp(), progress_percent = 100,
               size_bytes = $2::bigint, locations = $3::text[],
               lease_expires_at = null,
+              failure_code = $6, failure_detail = $7,
               report_sequence = $4, last_report_digest = $5, version = version + 1
         where id = $1`,
-      [runId, report.sizeBytes, report.locations, report.sequence, digest],
+      [
+        runId,
+        report.sizeBytes,
+        report.locations,
+        report.sequence,
+        digest,
+        // Only a backup taken but not copied off-site carries a cause.
+        report.failureCode ?? null,
+        report.failureCode === undefined ? null : report.failureDetail ?? null,
+      ],
     );
     return;
   }
