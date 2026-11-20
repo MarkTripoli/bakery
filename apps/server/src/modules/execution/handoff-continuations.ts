@@ -233,23 +233,30 @@ export async function admitHandoffContinuation(
   // Exact resume reuses the source's native history, so the server decides it
   // from its own rows: the session, the host, the revision and the history's
   // authorization. Any mismatch is a fresh bounded session, never a resume.
+  // The session and the history are read only when an exact resume was asked
+  // for; a fresh-only manifest decides from its own mode.
+  const wantsExact = stored.data.mode === "exact_harness_resume";
   const decision = decideResume({
     manifestId: manifest.id,
     manifestDigest: manifest.digest,
     manifest: stored.data,
-    session: await loadSourceSession(
-      transaction,
-      organizationId,
-      stored.data.sourceSessionId,
-    ),
+    session: wantsExact
+      ? await loadSourceSession(
+        transaction,
+        organizationId,
+        stored.data.sourceSessionId,
+      )
+      : null,
     sourceHostId: source.worker_host_id ?? "",
     effectsSettled,
-    historyAuthorized: await historyIsAuthorized(transaction, {
-      organizationId,
-      taskId: stored.data.taskId,
-      runId: named.run_id,
-      manifest: stored.data,
-    }),
+    historyAuthorized: wantsExact
+      ? await historyIsAuthorized(transaction, {
+        organizationId,
+        taskId: stored.data.taskId,
+        runId: named.run_id,
+        manifest: stored.data,
+      })
+      : false,
   });
 
   // 4. The writes: fence the source, requeue the job, mark the manifest.
