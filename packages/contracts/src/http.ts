@@ -353,6 +353,10 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "steer_requires_grant",
       "steer_own_run",
       "steer_reviewer_unavailable",
+      // A skill that comes with Bakery is read-only; its draft is a person's
+      // act (#74).
+      "global_skill_is_read_only",
+      "skill_draft_requires_person",
       // An agent's file write refused by its grant, the area, or the person it
       // acts for; and a file grant only a person may make (#448).
       "agent_file_grant_missing",

@@ -131,6 +131,46 @@ function fail(message: string, fileIndex?: number): never {
   throw new SkillUploadInvalid(message, fileIndex);
 }
 
+/** The path rules an upload applies to a file name, for a draft to share. */
+export function normalizeSkillFilePath(raw: string): string {
+  return normalizePath(raw);
+}
+
+/** Two names that collide once case and Unicode forms are ignored have one identity. */
+export function skillFileIdentity(path: string): string {
+  return pathIdentity(path);
+}
+
+/** Whether a string is an acceptable media type for a skill file. */
+export function isSkillMediaType(value: string): boolean {
+  return MEDIA.test(value);
+}
+
+/** Whether a file of this media type may be marked runnable. */
+export function isSkillExecutableMedia(mediaType: string): boolean {
+  return executableMediaAllowed(mediaType);
+}
+
+/** Decodes one file's base64 under the limits an upload has. */
+export function decodeSkillFileBase64(
+  contentBase64: string,
+): Uint8Array {
+  if (contentBase64.length > MAX_BASE64_FILE_LENGTH) fail("FILE_BYTES");
+  const expected = expectedDecodedBytes(contentBase64);
+  if (expected > MAX_DECODED_FILE_BYTES) fail("FILE_BYTES");
+  if (!BASE64.test(contentBase64) || contentBase64.length % 4 !== 0) {
+    fail("BASE64");
+  }
+  const content = strictBase64(contentBase64);
+  if (content.byteLength !== expected) fail("FILE_SIZE");
+  return content;
+}
+
+/** SHA-256 of some bytes as lowercase hex. */
+export function skillFileSha256(content: Uint8Array): Promise<string> {
+  return sha256(content);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -286,11 +326,17 @@ function manifestFiles(
 /** Validates and hashes a complete local bundle without selecting any storage path from input. */
 export async function validateLocalSkillVersion(
   input: LocalSkillVersionInput,
+  /**
+   * `computeDigest` checks everything but the supplied fingerprint and returns
+   * the one the files and manifest make: a draft is checked and published that
+   * way, because its author never computes a fingerprint.
+   */
+  options: { readonly computeDigest?: boolean } = {},
 ): Promise<ValidatedSkillVersion> {
   if (!Number.isSafeInteger(input.revision) || input.revision < 1) {
     fail("REVISION");
   }
-  if (!DIGEST.test(input.digest)) fail("DIGEST");
+  if (!options.computeDigest && !DIGEST.test(input.digest)) fail("DIGEST");
   const entryPath = normalizePath(input.entryPath);
   if (!isRecord(input.manifest)) fail("MANIFEST_SCHEMA");
   if (input.manifest.schemaVersion !== 1) fail("MANIFEST_SCHEMA");
@@ -388,7 +434,9 @@ export async function validateLocalSkillVersion(
     fail("MANIFEST_BYTES");
   }
   const digest = await sha256(new TextEncoder().encode(canonical));
-  if (digest !== input.digest) fail("MANIFEST_DIGEST");
+  if (!options.computeDigest && digest !== input.digest) {
+    fail("MANIFEST_DIGEST");
+  }
   return {
     skillId: input.id,
     revision: input.revision,
