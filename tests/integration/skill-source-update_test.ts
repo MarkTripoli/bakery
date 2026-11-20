@@ -171,7 +171,14 @@ Deno.test("a skill from a source is checked against it file by file, and nothing
 
     // Before it has a source, there is nothing to check.
     const local = await owner("POST", `/v1/skills/${skill.id}/source-update`);
-    assertEquals(local.status, 409, await local.clone().text());
+    const localText = await local.text();
+    assertEquals(local.status, 409, localText);
+    // Named by its reason, so a skill with no remote source cannot slip on to the
+    // next refusal (no completed import) and still answer 409.
+    assertEquals(
+      (JSON.parse(localText) as { reason?: string }).reason,
+      "skill_has_no_remote_source",
+    );
 
     const sourceResponse = await f.post(f.ownerCookie, "/v1/skill-sources", {
       sourceType: "git",
