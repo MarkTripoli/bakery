@@ -884,16 +884,22 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "167d6f712103081750c763063a1e49225738407d",
+    "4e1f1fdf68726693d0b8c36cf23a94ac453512c5",
   ];
   const approvedDigest =
-    "sha256:b8bea11bca15c54a979229df6b59fc683205cc6823898b4f040675a61890bb43";
+    "sha256:660c073c94ec90ef4f5d0eab198277a5bd0ef45bf99c869092157b96ae4852ac";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
     // Displaced by the #72 memory current-revision projection re-bind: the same
-    // fields on a later main (#69 changed other contracts).
+    // fields on a later main (#723 changed other contracts).
+    "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1",
+    // The same #57 merge from Bakery change before main moved again (#724): the
+    // digest follows the tree, so the earlier one no longer authorises it.
+    "sha256:468a1fc65fc3b08483d56cf8108a2d8cb76241bab428558a44b78b723a0d8a53",
+    // Displaced by the #57 merge from Bakery re-bind: PullRequest gains required
+    // mayMerge and mergeMethod, on top of the #69 memberships display name.
     "sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926",
     // Displaced by the #69 memberships display name re-bind: the same field on a
     // later main (#715 and #722 changed other contracts).
