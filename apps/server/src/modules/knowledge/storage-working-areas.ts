@@ -20,6 +20,9 @@ import { requireCommandMetadata, StandardError } from "@bakery/contracts/http";
 import { appendAudit } from "@bakery/persistence/event-audit";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { attributeAction } from "../auth/application/action-attribution.ts";
+import { type AgentWrite, storageAuditActor } from "./agent-file-scope.ts";
+import { agentFileWriteFor, refuseAgentPath } from "./agent-file-guard.ts";
 import { sha256Bytes } from "./bytes.ts";
 import {
   type CursorBinding,
@@ -610,17 +613,51 @@ async function audit(
     operation: string;
     entryId: string;
     details: Record<string, unknown>;
+    /** The allowed agent write, or null for a person's own request. */
+    agent?: AgentWrite | null;
   },
 ): Promise<void> {
+  // The same actor keys for a person and an agent (O50, R1): the principal,
+  // the token, the attempt, the agent session and the grant, null where they
+  // do not apply, so one reader reads both.
+  const actor = storageAuditActor(
+    attributeAction(context, input.principalId),
+    input.agent ?? null,
+  );
   await appendAudit(tx, {
     organizationId: input.organizationId,
     principalId: input.principalId,
+    agentSessionId: actor.agentSessionId,
     operation: input.operation,
     resourceType: "storage_entry",
     resourceId: input.entryId,
     requestId: context.requestId,
     traceId: context.traceId,
-    details: input.details,
+    details: { ...input.details, actor },
+  });
+}
+
+/**
+ * An agent's mv or rm writes the folder the entry leaves, so it needs a write
+ * grant there too: a read grant never deletes (section 17.6). Null for a
+ * person's own request.
+ */
+async function agentLeaves(
+  tx: PgTransactionClient,
+  context: ActionContext,
+  organizationId: string,
+  principalId: string,
+  entry: Row,
+): Promise<AgentWrite | null> {
+  if (context.agentSession === undefined) return null;
+  const parent = entry.parent_id === null
+    ? undefined
+    : await lockEntry(tx, organizationId, entry.parent_id);
+  if (!parent) notFound();
+  return await agentFileWriteFor(tx, context, {
+    organizationId,
+    principalId,
+    target: parent,
   });
 }
 
@@ -709,6 +746,7 @@ export type PutInput = Readonly<{
 export async function putStorageFile(context: ActionContext, input: PutInput) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
+  refuseAgentPath(context, input.path);
   await prepareTree(tx, organizationId, principalId);
   const { parent, name, nameKey } = await writableParent(
     tx,
@@ -716,6 +754,12 @@ export async function putStorageFile(context: ActionContext, input: PutInput) {
     principalId,
     input.path,
   );
+  const agent = await agentFileWriteFor(tx, context, {
+    organizationId,
+    principalId,
+    target: parent,
+    rawPath: input.path,
+  });
   const limits = await readStorageLimits(tx, organizationId);
   const bytes = await putBytes(tx, organizationId, principalId, input);
   if (bytes.sizeBytes > limits.maxFileBytes) {
@@ -777,6 +821,7 @@ export async function putStorageFile(context: ActionContext, input: PutInput) {
     principalId,
     operation: "storageFiles.put",
     entryId: entry.id,
+    agent,
     details: {
       created,
       sha256: bytes.sha256,
@@ -794,6 +839,7 @@ export async function createStorageFolder(
 ) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
+  refuseAgentPath(context, input.path);
   await prepareTree(tx, organizationId, principalId);
   const { parent, name, nameKey } = await writableParent(
     tx,
@@ -801,6 +847,12 @@ export async function createStorageFolder(
     principalId,
     input.path,
   );
+  const agent = await agentFileWriteFor(tx, context, {
+    organizationId,
+    principalId,
+    target: parent,
+    rawPath: input.path,
+  });
   const existing = await childAt(tx, organizationId, parent.id, nameKey);
   if (existing) {
     if (existing.kind !== "folder") conflict("name_taken");
@@ -818,6 +870,7 @@ export async function createStorageFolder(
     principalId,
     operation: "storageFolders.create",
     entryId: entry.id,
+    agent,
     details: { parentId: parent.id },
   });
   return await project(tx, organizationId, entry.id);
@@ -877,6 +930,7 @@ export async function copyStorageEntry(
 ) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
+  refuseAgentPath(context, input.destinationPath);
   await prepareTree(tx, organizationId, principalId);
   const source = await visibleEntry(
     tx,
@@ -892,6 +946,12 @@ export async function copyStorageEntry(
     principalId,
     input.destinationPath,
   );
+  const agent = await agentFileWriteFor(tx, context, {
+    organizationId,
+    principalId,
+    target: parent,
+    rawPath: input.destinationPath,
+  });
   const limits = await readStorageLimits(tx, organizationId);
   const bytes = await currentBytes(tx, organizationId, source);
   if (await childAt(tx, organizationId, parent.id, nameKey)) {
@@ -923,6 +983,7 @@ export async function copyStorageEntry(
     principalId,
     operation: "storageEntries.copy",
     entryId: entry.id,
+    agent,
     details: { sourceId: source.id, sha256: bytes.sha256 },
   });
   return await project(tx, organizationId, entry.id);
@@ -966,6 +1027,7 @@ export async function moveStorageEntry(
 ) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
+  refuseAgentPath(context, input.destinationPath);
   await prepareTree(tx, organizationId, principalId);
   const entry = await visibleEntry(
     tx,
@@ -977,12 +1039,20 @@ export async function moveStorageEntry(
   const refusal = changeRefusal(area(entry));
   if (refusal) refuse(refusal);
   requireExpectedVersion(context, entry);
+  // A move is a write in both folders: the one it leaves and the one it enters.
+  await agentLeaves(tx, context, organizationId, principalId, entry);
   const { parent, name, nameKey } = await writableParent(
     tx,
     organizationId,
     principalId,
     input.destinationPath,
   );
+  const agent = await agentFileWriteFor(tx, context, {
+    organizationId,
+    principalId,
+    target: parent,
+    rawPath: input.destinationPath,
+  });
   const ids = (await subtree(tx, organizationId, entry.id)).map((row) =>
     row.id
   );
@@ -1028,6 +1098,7 @@ export async function moveStorageEntry(
     principalId,
     operation: "storageEntries.move",
     entryId: entry.id,
+    agent,
     details: { fromParentId: entry.parent_id, toParentId: parent.id },
   });
   return await project(tx, organizationId, entry.id);
@@ -1051,6 +1122,13 @@ export async function trashStorageEntry(context: ActionContext) {
   const refusal = changeRefusal(area(entry));
   if (refusal) refuse(refusal);
   requireExpectedVersion(context, entry);
+  const agent = await agentLeaves(
+    tx,
+    context,
+    organizationId,
+    principalId,
+    entry,
+  );
   await tx.query(
     "update bakery.storage_entries" +
       " set trash_parent_id = parent_id, trash_name = name, parent_id = $3," +
@@ -1064,6 +1142,7 @@ export async function trashStorageEntry(context: ActionContext) {
     principalId,
     operation: "storageEntries.trash",
     entryId: entry.id,
+    agent,
     details: { fromParentId: entry.parent_id },
   });
   return await project(tx, organizationId, entry.id);

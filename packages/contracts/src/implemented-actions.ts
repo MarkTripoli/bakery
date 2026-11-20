@@ -653,6 +653,8 @@ export const StorageImplementedAction = Object.freeze(
     StorageTrashList: "storageTrash.list",
     StorageSettingsGet: "storageSettings.get",
     StorageSettingsPut: "storageSettings.put",
+    AgentFileGrantsCreate: "agentFileGrants.create",
+    AgentFileGrantsRevoke: "agentFileGrants.revoke",
     StorageRootsList: "storageRoots.list",
     StorageFolderEntriesList: "storageFolderEntries.list",
     StorageFileVersionsList: "storageFileVersions.list",
