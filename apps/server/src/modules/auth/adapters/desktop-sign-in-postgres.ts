@@ -362,7 +362,21 @@ export async function exchangeDesktopSignIn(
         await audit(DesktopSignInAuditOperation.Refuse, { reason });
         return { kind: "refused", reason } as const;
       };
+      // The code is checked first: only its holder may change the request's
+      // state, so a caller that knows just the request id cannot revoke the
+      // issued sign-in or spoil a pending one.
+      const codeMatches = row.codeHash !== null && isOneTimeCode(input.code) &&
+        constantTimeEqual(await sha256Hex(input.code), row.codeHash);
       const refusal = exchangeRefusalFor(row, input.clientId, now);
+      if (refusal && !codeMatches) {
+        return {
+          kind: "refused",
+          reason: refusal.burn ? DesktopSignInRefusal.Mismatch : refusal.reason,
+        };
+      }
+      if (!codeMatches) {
+        return { kind: "refused", reason: DesktopSignInRefusal.Mismatch };
+      }
       if (refusal) {
         if (refusal.revokeIssued && row.sessionId) {
           const revoked = await transaction.query(
@@ -378,9 +392,7 @@ export async function exchangeDesktopSignIn(
           ? await spend(refusal.reason)
           : { kind: "refused", reason: refusal.reason };
       }
-      const secretsMatch = row.codeHash !== null &&
-        isOneTimeCode(input.code) && isCodeVerifier(input.codeVerifier) &&
-        constantTimeEqual(await sha256Hex(input.code), row.codeHash) &&
+      const secretsMatch = isCodeVerifier(input.codeVerifier) &&
         await pkceMatches(input.codeVerifier, row.codeChallenge);
       if (!secretsMatch || row.providerUserId === null) {
         return await spend(DesktopSignInRefusal.Mismatch);

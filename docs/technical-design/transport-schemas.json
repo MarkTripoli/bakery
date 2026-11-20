@@ -12175,7 +12175,7 @@
         }
       ],
       "rules": [
-        "One attempt per confirmed request: a wrong code, verifier or client spends it. A second exchange of a used request is refused and ends the sign-in the first exchange issued.",
+        "One attempt per confirmed request: with the right code, a wrong verifier or client spends it, and a second exchange of a used request is refused and ends the sign-in the first exchange issued. A wrong code is refused and changes nothing, so knowing the request id alone cannot end or spoil a sign-in.",
         "Refusals the app can tell apart carry a STATE_CONFLICT reason: desktop_sign_in_expired, desktop_sign_in_used, desktop_sign_in_cancelled, desktop_sign_in_pending or desktop_sign_in_mismatch. An unknown request is RESOURCE_NOT_FOUND."
       ],
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."

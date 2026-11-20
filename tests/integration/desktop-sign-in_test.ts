@@ -129,6 +129,34 @@ Deno.test("a handoff code is single-use and its replay ends the sign-in it issue
   });
 });
 
+Deno.test("a wrong code changes nothing: no replay revoke, no burn of a pending sign-in", async () => {
+  await withFixture(async (f) => {
+    const issued = await signInDesktop(f, f.developerCookie);
+    const replay = await exchangeDesktopSignIn(f, issued.id, {
+      code: "A".repeat(43),
+      codeVerifier: issued.verifier,
+    });
+    assertEquals((await refusalOf(replay)).reason, "desktop_sign_in_used");
+    const me = await f.app.fetch(bearerGet("/v1/me", issued.credential));
+    assertEquals(me.status, 200);
+
+    const started = await startDesktopSignIn(f);
+    const code = await codeFromDonePage(
+      await answerDesktopPage(f, f.developerCookie, started.id, "continue"),
+    );
+    const guess = await exchangeDesktopSignIn(f, started.id, {
+      code: "A".repeat(43),
+      codeVerifier: "x".repeat(64),
+    });
+    assertEquals((await refusalOf(guess)).reason, "desktop_sign_in_mismatch");
+    const real = await exchangeDesktopSignIn(f, started.id, {
+      code,
+      codeVerifier: started.verifier,
+    });
+    assertEquals(real.status, 201);
+  });
+});
+
 Deno.test("an expired request is refused on the page and at the exchange", async () => {
   await withFixture(async (f) => {
     const started = await startDesktopSignIn(f);
