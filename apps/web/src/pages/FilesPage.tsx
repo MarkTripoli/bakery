@@ -215,70 +215,112 @@ export function FilesPage({ path }: { readonly path: string }) {
           )
           : (
             <UI.Stack gap="standard">
-              <UI.DataTable<StorageFolderItem>
-                caption={translate("files.table.caption")}
-                captionHidden
-                variant={phone ? "sheetList" : "ruled"}
-                inset="edge"
-                rows={[...rows]}
-                state="ready"
-                getRowKey={(row) => row.id}
-                getRowAttributes={(row) => ({
-                  "data-entry-id": row.id,
-                  ...(row.id === selected?.id
-                    ? { "data-selected": "true" }
-                    : {}),
-                })}
-                columns={atTop
-                  ? [
-                    {
-                      id: "name",
-                      width: "34%",
-                      header: translate("files.table.name"),
-                      cell: name,
-                    },
-                    {
-                      id: "what",
-                      header: translate("files.table.whatIsHere"),
-                      cell: (row) => {
-                        const key = rootNoteKey(row);
-                        return key === null
-                          ? null
-                          : <UI.Text variant="muted">{translate(key)}</UI.Text>;
-                      },
-                    },
-                  ]
-                  : [
-                    {
-                      id: "name",
-                      width: "46%",
-                      header: translate("files.table.name"),
-                      cell: name,
-                    },
-                    {
-                      id: "kind",
-                      header: translate("files.table.kind"),
-                      cell: (row) => row.kind === "folder"
-                        ? translate("files.kind.folder")
-                        : row.kindName ?? "",
-                    },
-                    {
-                      id: "size",
-                      align: "end",
-                      header: translate("files.table.size"),
-                      cell: size,
-                    },
-                    {
-                      id: "changed",
-                      header: translate("files.table.changed"),
-                      cell: (row) =>
-                        formatDate(new Date(row.updatedAt), locale, {
-                          dateStyle: "medium",
-                          timeZone,
-                        }),
-                    },
-                  ]}
-              />
+              {phone
+                ? (
+                  <UI.Stack
+                    gap="none"
+                    role="list"
+                    aria-label={translate("files.table.caption")}
+                  >
+                    {rows.map((row) => (
+                      <div
+                        key={row.id}
+                        role="listitem"
+                        data-entry-id={row.id}
+                      >
+                        <UI.StackedRow title={name(row)}>
+                          <UI.Text variant="caption">
+                            {atTop
+                              ? (() => {
+                                const key = rootNoteKey(row);
+                                return key === null ? "" : translate(key);
+                              })()
+                              : [
+                                row.kind === "folder"
+                                  ? translate("files.kind.folder")
+                                  : row.kindName ?? "",
+                                row.kind === "file" ? size(row) : "",
+                                formatDate(new Date(row.updatedAt), locale, {
+                                  dateStyle: "medium",
+                                  timeZone,
+                                }),
+                              ].filter((part) => part !== "").join(" · ")}
+                          </UI.Text>
+                        </UI.StackedRow>
+                      </div>
+                    ))}
+                  </UI.Stack>
+                )
+                : (
+                  <UI.DataTable<StorageFolderItem>
+                    caption={translate("files.table.caption")}
+                    captionHidden
+                    variant="ruled"
+                    inset="edge"
+                    rows={[...rows]}
+                    state="ready"
+                    getRowKey={(row) => row.id}
+                    getRowAttributes={(row) => ({
+                      "data-entry-id": row.id,
+                      ...(row.id === selected?.id
+                        ? { "data-selected": "true" }
+                        : {}),
+                    })}
+                    columns={atTop
+                      ? [
+                        {
+                          id: "name",
+                          width: "34%",
+                          header: translate("files.table.name"),
+                          cell: name,
+                        },
+                        {
+                          id: "what",
+                          header: translate("files.table.whatIsHere"),
+                          cell: (row) => {
+                            const key = rootNoteKey(row);
+                            return key === null
+                              ? null
+                              : (
+                                <UI.Text variant="muted">
+                                  {translate(key)}
+                                </UI.Text>
+                              );
+                          },
+                        },
+                      ]
+                      : [
+                        {
+                          id: "name",
+                          width: "46%",
+                          header: translate("files.table.name"),
+                          cell: name,
+                        },
+                        {
+                          id: "kind",
+                          header: translate("files.table.kind"),
+                          cell: (row) => row.kind === "folder"
+                            ? translate("files.kind.folder")
+                            : row.kindName ?? "",
+                        },
+                        {
+                          id: "size",
+                          align: "end",
+                          header: translate("files.table.size"),
+                          cell: size,
+                        },
+                        {
+                          id: "changed",
+                          header: translate("files.table.changed"),
+                          cell: (row) =>
+                            formatDate(new Date(row.updatedAt), locale, {
+                              dateStyle: "medium",
+                              timeZone,
+                            }),
+                        },
+                      ]}
+                  />
+                )}
               {!atTop && entries.isFetchNextPageError
                 ? (
                   <UI.AlertBanner tone="error">
