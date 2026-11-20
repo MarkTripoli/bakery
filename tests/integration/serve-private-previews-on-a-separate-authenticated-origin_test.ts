@@ -27,6 +27,7 @@ type PreviewBody = {
   status: string;
   stopReason: string | null;
   stoppedBy: string | null;
+  stoppedByName: string | null;
   stoppedAt: string | null;
   expiresAt: string;
   routeKey?: unknown;
@@ -517,6 +518,12 @@ Deno.test("stopping a preview ends it for everyone and every open session", () =
     const body = await stopped.json() as PreviewBody;
     assertEquals([body.status, body.stopReason], ["stopped", "person"]);
     assertEquals(body.stoppedBy, fixture.principalId);
+    // The name is the stopper's display name as the organization has it now.
+    const named = await fixture.pgDatabase.query<{ display_name: string }>(
+      "select display_name from bakery.principals where id = $1",
+      [fixture.principalId],
+    );
+    assertEquals(body.stoppedByName, named.rows[0].display_name);
     assert(body.stoppedAt !== null);
     const revoked = await fixture.pgDatabase.query(
       `select (select revoked_at is not null from bakery.preview_grants where id = $1) as grant,

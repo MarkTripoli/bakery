@@ -15,6 +15,7 @@ const base: RunPreviewResponse = {
   status: "ready",
   stopReason: null,
   stoppedBy: null,
+  stoppedByName: null,
   stoppedAt: null,
   expiresAt: "2026-11-20T12:00:00.000Z",
   createdAt: "2026-11-20T10:00:00.000Z",
@@ -37,31 +38,44 @@ Deno.test("the card is absent without a preview and otherwise says exactly what 
     status: RunPreviewResponse["status"],
     stopReason: RunPreviewResponse["stopReason"],
     stoppedBy: string | null = null,
+    stoppedByName: string | null = null,
   ) =>
     previewCardState({
       ...base,
       status,
       stopReason,
       stoppedBy,
+      stoppedByName,
       stoppedAt: at,
     }, true);
-  assertEquals(stopped("stopped", "person", "someone"), {
+  assertEquals(stopped("stopped", "person", "someone", "Dana Rivera"), {
     kind: "stopped",
     reason: "person",
     at,
     by: "someone",
+    byName: "Dana Rivera",
+  });
+  // A person who can no longer be named is still a person's stop.
+  assertEquals(stopped("stopped", "person", "gone"), {
+    kind: "stopped",
+    reason: "person",
+    at,
+    by: "gone",
+    byName: null,
   });
   assertEquals(stopped("stopped", "run_cancelled"), {
     kind: "stopped",
     reason: "run_cancelled",
     at,
     by: null,
+    byName: null,
   });
   assertEquals(stopped("stopped", "replaced"), {
     kind: "stopped",
     reason: "replaced",
     at,
     by: null,
+    byName: null,
   });
   assertEquals(stopped("stopped", "machine_lost"), { kind: "lost", at });
   assertEquals(stopped("expired", "time_limit"), {
@@ -101,7 +115,7 @@ Deno.test("time left, commit and session length are plain", () => {
   assertEquals(minutesLeft("2026-11-20T11:30:01.000Z", now), 1);
   assertEquals(minutesLeft("2026-11-20T11:00:00.000Z", now), 0);
   assertEquals(minutesLeft("not a time", now), 0);
-  assertEquals(shortSha(base.headSha), "aaaaaaaa");
+  assertEquals(shortSha(base.headSha), "aaaaaaa");
   assertEquals(sessionLength(3600), { unit: "hour", count: 1 });
   assertEquals(sessionLength(7200), { unit: "hour", count: 2 });
   assertEquals(sessionLength(86_400), { unit: "hour", count: 24 });

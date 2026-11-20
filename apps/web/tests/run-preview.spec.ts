@@ -63,7 +63,20 @@ const run = {
   createdAt: stamp,
   updatedAt: stamp,
   version: 1,
-  budgetSummary: { installation: null, run: null },
+  budgetSummary: {
+    installation: null,
+    run: {
+      scope: "run",
+      runId,
+      periodStart: null,
+      periodEnd: null,
+      limitUsd: "10",
+      reservedUsd: "0",
+      settledUsd: "1",
+      availableUsd: "9",
+      unknownCount: 0,
+    },
+  },
 };
 
 type Preview = {
@@ -81,6 +94,7 @@ type Preview = {
     | "time_limit"
     | "replaced";
   stoppedBy: string | null;
+  stoppedByName: string | null;
   stoppedAt: string | null;
   expiresAt: string;
   createdAt: string;
@@ -88,8 +102,13 @@ type Preview = {
   version: number;
 };
 
+// Stills pin the clock (BAKERY_STILL_FIXED=1, with -g on the still tests) so
+// every state reads the same time on desktop and phone. Timer tests never do.
+const FIXED = Date.parse("2026-11-20T09:00:00.000Z");
+const pinned = process.env.BAKERY_STILL_FIXED === "1";
+const now = () => (pinned ? FIXED : Date.now());
 const inMinutes = (minutes: number) =>
-  new Date(Date.now() + minutes * 60_000).toISOString();
+  new Date(now() + minutes * 60_000).toISOString();
 const ago = (minutes: number) => inMinutes(-minutes);
 
 const preview = (change: Partial<Preview> = {}): Preview => ({
@@ -100,6 +119,7 @@ const preview = (change: Partial<Preview> = {}): Preview => ({
   status: "ready",
   stopReason: null,
   stoppedBy: null,
+  stoppedByName: null,
   stoppedAt: null,
   expiresAt: inMinutes(90),
   createdAt: ago(10),
@@ -115,6 +135,7 @@ type World = {
   grantSeconds: number;
   stopped: number;
   accessCalls: number;
+  stopStatus: number;
 };
 
 async function prepare(page: Page, initial: Partial<World> = {}) {
@@ -125,12 +146,14 @@ async function prepare(page: Page, initial: Partial<World> = {}) {
     grantSeconds: 30,
     stopped: 0,
     accessCalls: 0,
+    stopStatus: 201,
     ...initial,
   };
   await page.route(
     "**/v1/**",
     (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
   );
+  if (pinned) await page.clock.setFixedTime(new Date(FIXED));
   await mockAuthenticatedSession(page);
   await page.route(
     `**/v1/tasks/${taskId}`,
@@ -196,7 +219,7 @@ async function prepare(page: Page, initial: Partial<World> = {}) {
         grant: "G".repeat(43),
         exchangeUrl: EXCHANGE,
         previewUrl: "http://preview-0123456789.localhost:8789/",
-        expiresAt: new Date(Date.now() + world.grantSeconds * 1000)
+        expiresAt: new Date(now() + world.grantSeconds * 1000)
           .toISOString(),
         sessionSeconds: 3600,
       },
@@ -204,11 +227,21 @@ async function prepare(page: Page, initial: Partial<World> = {}) {
   });
   await page.route(`**/v1/previews/${previewId}/stop`, (route) => {
     world.stopped += 1;
+    if (world.stopStatus !== 201) {
+      return route.fulfill({
+        status: world.stopStatus,
+        json: {
+          type: "about:blank",
+          title: "Conflict",
+          status: world.stopStatus,
+        },
+      });
+    }
     world.current = preview({
       status: "stopped",
       stopReason: "person",
       stoppedBy: MOCK_PRINCIPAL_ID,
-      stoppedAt: new Date().toISOString(),
+      stoppedAt: new Date(now()).toISOString(),
       version: 2,
     });
     return route.fulfill({ status: 201, json: world.current });
@@ -241,7 +274,7 @@ test("a running preview names its commit, says it is not a release, and offers P
     .toBeVisible();
   await expect(card(page).getByText("Running", { exact: true })).toBeVisible();
   await expect(card(page).getByTestId("run-preview-identity")).toHaveText(
-    "Commit 01234567 · not released",
+    "Commit 0123456 · not released",
   );
   await expect(card(page).getByTestId("run-preview-body")).toHaveText(
     "The app the agent is working on, as it runs now. It opens in a new tab on a separate address that cannot reach your Bakery account.",
@@ -353,10 +386,25 @@ const REASONS: {
       status: "stopped",
       stopReason: "person",
       stoppedBy: "00000000-0000-4000-8000-000000000999",
+      stoppedByName: "Dana Rivera",
       stoppedAt: ago(5),
     },
     badge: "Stopped",
-    text: /^Stopped by a teammate at /,
+    text: /^Stopped by Dana Rivera at /,
+    tabs: true,
+  },
+  {
+    // The person has since left: no name to show, so none is invented.
+    name: "stopped by someone no longer known",
+    change: {
+      status: "stopped",
+      stopReason: "person",
+      stoppedBy: "00000000-0000-4000-8000-000000000998",
+      stoppedByName: null,
+      stoppedAt: ago(5),
+    },
+    badge: "Stopped",
+    text: /^Stopped at /,
     tabs: true,
   },
   {
@@ -386,7 +434,7 @@ const REASONS: {
     },
     badge: "Not reachable",
     text:
-      /The machine running this preview stopped answering at .*\. The preview is offline\. If the run continues on another machine, a new preview appears here\./,
+      /The machine running this preview stopped answering at .*\.\s*The preview is offline\. If the run continues on another machine, a new preview appears here\./,
     tabs: false,
   },
   {
@@ -435,14 +483,21 @@ for (const reason of REASONS) {
         .toHaveCount(0);
     } else {
       await expect(card(page).getByRole("button")).toHaveCount(0);
+      // The not-reachable card already says a new preview may appear.
       await expect(
         card(page).getByText(
           "A new preview appears here when the agent starts the app again.",
         ),
-      ).toBeVisible();
+      ).toHaveCount(reason.name === "the machine was lost" ? 0 : 1);
       await expect(
         card(page).getByText("Open tabs of this preview no longer load."),
       ).toHaveCount(reason.tabs ? 1 : 0);
+    }
+    if (reason.name === "starting") {
+      await still(page, "run-preview-starting", card(page));
+    }
+    if (reason.name === "the run was cancelled") {
+      await still(page, "run-preview-cancelled", card(page));
     }
     if (reason.name === "the machine was lost") {
       await still(page, "run-preview-lost", card(page));
@@ -493,11 +548,29 @@ test("a preview that could not be opened says so and can be tried again", async 
   await expect(card(page).getByRole("button", { name: "Prepare preview" }))
     .toBeEnabled();
   expect(world.accessCalls).toBe(1);
+  await still(page, "run-preview-open-failed", card(page));
   // It tries again, and this time the grant comes.
   world.accessStatus = 201;
   await card(page).getByRole("button", { name: "Prepare preview" }).click();
   await expect(card(page).getByRole("button", { name: "Open preview" }))
     .toBeVisible();
+});
+
+test("a stop that fails says so, keeps the preview running and can be tried again", async ({ page }) => {
+  const world = await prepare(page, { stopStatus: 409 });
+  await page.goto(`/tasks/${taskId}`);
+  await card(page).getByRole("button", { name: "Stop preview" }).click();
+  await expect(
+    card(page).getByText("The preview could not be stopped. Try again."),
+  ).toBeVisible();
+  await expect(card(page).getByText("Running", { exact: true })).toBeVisible();
+  await expect(card(page).getByRole("button", { name: "Stop preview" }))
+    .toBeEnabled();
+  expect(world.stopped).toBe(1);
+  await still(page, "run-preview-stop-failed", card(page));
+  world.stopStatus = 201;
+  await card(page).getByRole("button", { name: "Stop preview" }).click();
+  await expect(card(page).getByText("Stopped", { exact: true })).toBeVisible();
 });
 
 test("a grant that is not used in its 30 seconds is dropped and the card says to prepare again", async ({ page }) => {
@@ -514,6 +587,7 @@ test("a grant that is not used in its 30 seconds is dropped and the card says to
   await expect(card(page).getByRole("button", { name: "Open preview" }))
     .toHaveCount(0);
   await expect(page.locator(`input[value="${"G".repeat(43)}"]`)).toHaveCount(0);
+  await still(page, "run-preview-link-expired", card(page));
 });
 
 test("a preview that reaches its time limit while the page is open changes without a reload", async ({ page }) => {
@@ -546,6 +620,7 @@ test("when the live reads drop the card says it is checking and Open stays off u
   await expect(card(page).getByTestId("run-preview-checking")).toHaveText(
     "Checking whether this is still running…",
   );
+  await still(page, "run-preview-checking", card(page));
   const prepareButton = card(page).getByRole("button", {
     name: "Prepare preview",
   });

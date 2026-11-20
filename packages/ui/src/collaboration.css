@@ -1245,6 +1245,11 @@
   gap: var(--space-3);
   padding: var(--space-5) var(--space-6);
 }
+/* On a phone the pane's sections sit in the page's own column, which already
+   has its gutter: the section adds none, so it lines up with the text above. */
+.ui-task-detail__transcript .ui-pane-section {
+  padding-inline: var(--space-0);
+}
 .ui-pane-section[data-state="ruled"] {
   border-block-end: var(--border-default) solid var(--color-border);
 }

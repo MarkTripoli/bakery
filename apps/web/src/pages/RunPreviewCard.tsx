@@ -273,7 +273,7 @@ export function RunPreviewCardView(props: RunPreviewCardViewProps) {
                 : (
                   <>
                     <UI.Button
-                      variant={open.kind === "opened" ? "outline" : "default"}
+                      variant={open.kind === "opened" ? "outline" : "primary"}
                       data-testid="run-preview-prepare"
                       disabled={openDisabledReason !== null}
                       aria-describedby={openDisabledReason === null
