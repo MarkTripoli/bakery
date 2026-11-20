@@ -131,6 +131,15 @@ Deno.test("the probe launcher refuses anything but one UUID", async () => {
       `a line forwards the caller's argv: ${line.trim()}`,
     );
   }
+  // `--collect` retires a unit when it exits, and nothing else does. Without it
+  // a probe killed for its wall clock or its memory leaves a failed unit behind
+  // for ever -- one per hostile upload -- until someone runs `reset-failed`. It
+  // is one word in the invocation and its absence passes every other test here,
+  // because the harness resets its own units, so it is pinned explicitly.
+  assert(
+    commands.includes('systemd-run --collect "$@"'),
+    "the units are collected when they exit",
+  );
   // The worker is pinned by path; no caller chooses what runs.
   assert(commands.includes('"$deno" run --cached-only --no-prompt'));
   assert(commands.includes('"$worker"'));
