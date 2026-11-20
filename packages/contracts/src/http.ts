@@ -777,6 +777,7 @@ export function createNormalizedCommandMetadata(
     [
       "emailSettings.put",
       "integrationAppRegistrations.put",
+      "mcpToolClassifications.put",
       "scopeProfiles.put",
       "skillStorageSettings.put",
       "storageFiles.put",
