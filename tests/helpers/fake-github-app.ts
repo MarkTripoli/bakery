@@ -1726,6 +1726,8 @@ export function createFakeGitHubApp(
     merge_commit_sha: pull.mergedSha ?? fakeCommitSha(),
     created_at: "2026-10-01T00:00:00Z",
     updated_at: pull.updatedAt,
+    closed_at: pull.state === "closed" ? pull.updatedAt : null,
+    merged_at: pull.merged ? pull.updatedAt : null,
     head: { label: "o:feature", ref: "feature", sha: pull.headSha },
     base: { label: "o:main", ref: "main", sha: pull.baseSha },
   });

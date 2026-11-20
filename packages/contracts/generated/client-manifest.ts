@@ -6319,7 +6319,7 @@ export const clientManifest = {
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -6342,7 +6342,7 @@ export const clientManifest = {
         "INVALID_CURSOR",
         "UNPROCESSABLE"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {

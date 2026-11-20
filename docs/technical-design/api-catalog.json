@@ -6775,7 +6775,8 @@
         "RESOURCE_NOT_FOUND",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",
@@ -6796,7 +6797,8 @@
         "MALFORMED_REQUEST",
         "INVALID_CURSOR",
         "UNPROCESSABLE"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Observation",

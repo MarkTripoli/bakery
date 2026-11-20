@@ -7050,7 +7050,7 @@
         "MALFORMED_REQUEST",
         "UNPROCESSABLE"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -7073,7 +7073,7 @@
         "INVALID_CURSOR",
         "UNPROCESSABLE"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -30007,6 +30007,18 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -30110,6 +30122,18 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -236258,7 +236282,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:15034c51a5b706d85f509825e8e47ad788817a6e5765ecdb084e708ed2231e74",
+  "compatibilityDigest": "sha256:e6e8e0957eaf495752774a92129a30110adec59994d1a4a5eb72a61811828ab3",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

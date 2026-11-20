@@ -21,8 +21,13 @@ import {
   placements,
   type PullRequestFact,
   revisionOf,
+  sortKey,
   sourceState,
 } from "../../apps/server/src/modules/delivery/metrics.ts";
+import {
+  decodeCursor,
+  encodeCursor,
+} from "../../apps/server/src/platform/cursor.ts";
 import { lifecycleFacts } from "../../apps/server/src/modules/integrations/pull-request-lifecycle.ts";
 
 const t = (iso: string) => new Date(iso);
@@ -264,4 +269,28 @@ Deno.test("a source is connected, stale or disconnected, never silently zero", (
     state: "disconnected",
     since: null,
   });
+});
+
+Deno.test("the drilldown cursor round-trips a known and an unknown placed time", async () => {
+  const binding = {
+    action: "metrics.sources",
+    principalId: crypto.randomUUID(),
+    organizationId: crypto.randomUUID(),
+    ordering: "countedAt:asc,id:asc",
+    filters: "{}",
+    schemaVersion: 1,
+  };
+  const known = placements(MetricKey.Merged, [A], june)[0];
+  const unknown =
+    placements(MetricKey.Merged, [pr("u", { status: "merged" })], june)[0];
+  for (const p of [known, unknown]) {
+    const [createdAt] = sortKey(p);
+    const id = crypto.randomUUID();
+    const cursor = await encodeCursor("secret", binding, { createdAt, id });
+    assertEquals(
+      (await decodeCursor("secret", cursor, binding))?.createdAt,
+      createdAt,
+    );
+  }
+  assert(sortKey(known)[0] < sortKey(unknown)[0]);
 });

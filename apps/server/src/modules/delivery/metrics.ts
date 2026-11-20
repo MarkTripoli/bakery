@@ -716,9 +716,17 @@ export async function getMetricSeries(
   };
 }
 
+/** The cursor time of a placement; an unknown one sorts after every known. */
+const UNKNOWN_TIME = "9999-12-31T23:59:59.999999Z";
+function cursorTime(p: Placement): string {
+  return p.countedAt === null
+    ? UNKNOWN_TIME
+    : p.countedAt.toISOString().replace("Z", "000Z");
+}
+
 /** The keyset order of metrics.sources: placed time, unknown last, then id. */
-function sortKey(p: Placement): [number, string] {
-  return [p.countedAt?.getTime() ?? Number.MAX_SAFE_INTEGER, p.fact.id];
+export function sortKey(p: Placement): [string, string] {
+  return [cursorTime(p), p.fact.id];
 }
 
 /** metrics.sources */
@@ -758,10 +766,10 @@ export function createMetricSourcesLister(secret: string) {
     const rows = placements(input.metric, facts, window).sort((a, b) => {
       const [at, ai] = sortKey(a);
       const [bt, bi] = sortKey(b);
-      return at - bt || ai.localeCompare(bi);
+      return at < bt ? -1 : at > bt ? 1 : ai < bi ? -1 : ai > bi ? 1 : 0;
     });
     const after = position
-      ? [position.position as number, position.id] as const
+      ? [String(position.createdAt), position.id] as const
       : null;
     const start = after === null ? 0 : rows.findIndex((p) => {
       const [t, id] = sortKey(p);
@@ -788,8 +796,7 @@ export function createMetricSourcesLister(secret: string) {
       })),
       nextCursor: more && last
         ? await encodeCursor(secret, binding, {
-          position: sortKey(last)[0],
-          iteration: 0,
+          createdAt: sortKey(last)[0],
           id: last.fact.id,
         })
         : null,

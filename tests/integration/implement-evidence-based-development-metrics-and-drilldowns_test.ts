@@ -1,0 +1,342 @@
+/**
+ * #46 against Postgres and the real routes: lifecycle facts from provider
+ * reads (duplicates, reordering, reopen), metrics.get and metrics.sources
+ * over them, tenancy (a foreign organization's pull requests never count)
+ * and authorization before aggregation (a guest is refused).
+ */
+
+import { assert, assertEquals } from "@std/assert";
+import { withPgTransaction } from "@bakery/persistence/postgres";
+import { observePullRequest } from "../../apps/server/src/modules/integrations/pull-requests.ts";
+import {
+  enabledConnection,
+  type GitHubAppFixture,
+  openGitHubAppFixture,
+} from "../helpers/github-app-registration.ts";
+import { fakeRepositories } from "../helpers/fake-github-app.ts";
+import { call, orgHeader } from "../helpers/account-settings.ts";
+
+const SHA = "0123456789abcdef0123456789abcdef01234567";
+type Json = Record<string, unknown>;
+
+async function seedRepository(
+  f: GitHubAppFixture,
+  organizationId: string,
+  connectionId: string,
+  providerRepoId: string,
+) {
+  const principalId = (await f.pgDatabase.query<{ id: string }>(
+    `select principal_id as id from bakery.organization_memberships
+      where organization_id = $1 order by created_at, id limit 1`,
+    [organizationId],
+  )).rows[0]!.id;
+  const applicationId = crypto.randomUUID();
+  const repositoryId = crypto.randomUUID();
+  const conversationId = crypto.randomUUID();
+  const taskId = crypto.randomUUID();
+  await f.pgDatabase.query(
+    "insert into bakery.applications (id,organization_id,slug,name) values ($1,$2,$3,'Metrics App')",
+    [applicationId, organizationId, "metrics-" + applicationId],
+  );
+  await f.pgDatabase.query(
+    `insert into bakery.repositories (id, organization_id, application_id,
+       integration_connection_id, provider_repo_id, owner, name,
+       default_branch, version)
+     values ($1,$2,$3,$4,$5,'acme','widgets','main',1)`,
+    [repositoryId, organizationId, applicationId, connectionId, providerRepoId],
+  );
+  await f.pgDatabase.query(
+    "insert into bakery.conversations (id,organization_id,application_id,title,created_by) values ($1,$2,$3,'c',$4)",
+    [conversationId, organizationId, applicationId, principalId],
+  );
+  await f.pgDatabase.query(
+    `insert into bakery.tasks (id,organization_id,application_id,conversation_id,
+       title,task_type,status,priority,created_by)
+     values ($1,$2,$3,$4,'Metrics task','feature','active',50,$5)`,
+    [taskId, organizationId, applicationId, conversationId, principalId],
+  );
+  return { repositoryId, taskId };
+}
+
+async function seedPullRequest(
+  f: GitHubAppFixture,
+  organizationId: string,
+  repo: { repositoryId: string; taskId: string },
+  number: number,
+) {
+  const id = crypto.randomUUID();
+  await f.pgDatabase.query(
+    `insert into bakery.pull_requests (id,organization_id,task_id,repository_id,
+       provider_number,url,head_sha,base_sha,status,version)
+     values ($1,$2,$3,$4,$5,$6,$7,$7,'open',1)`,
+    [
+      id,
+      organizationId,
+      repo.taskId,
+      repo.repositoryId,
+      number,
+      "https://github.com/acme/widgets/pull/" + number,
+      SHA,
+    ],
+  );
+  return id;
+}
+
+function read(
+  organizationId: string,
+  number: number,
+  over: Partial<Parameters<typeof observePullRequest>[2]> = {},
+): Parameters<typeof observePullRequest>[2] {
+  return {
+    organizationId,
+    number,
+    state: "open",
+    merged: false,
+    url: "https://github.com/acme/widgets/pull/" + number,
+    headSha: SHA,
+    baseSha: SHA,
+    mergedSha: null,
+    providerUpdatedAt: new Date("2026-06-01T12:00:00Z"),
+    observedStartedAt: new Date(),
+    openedAt: new Date("2026-06-01T12:00:00Z"),
+    closedAt: null,
+    mergedAt: null,
+    additions: null,
+    deletions: null,
+    changedFiles: null,
+    ...over,
+  };
+}
+
+function observe(
+  f: GitHubAppFixture,
+  repositoryId: string,
+  observation: Parameters<typeof observePullRequest>[2],
+) {
+  return withPgTransaction(
+    f.pgDatabase,
+    (tx) => observePullRequest(tx, repositoryId, observation),
+  );
+}
+
+async function get(f: GitHubAppFixture, path: string, organizationId?: string) {
+  return await call(f, "GET", path, f.adminCookie, {
+    headers: orgHeader(organizationId ?? f.organizationId),
+  });
+}
+
+async function ok(response: Response): Promise<Json> {
+  const text = await response.text();
+  assertEquals(response.status, 200, text);
+  return JSON.parse(text) as Json;
+}
+
+const june = "from=2026-06-01T00:00:00Z&to=2026-07-01T00:00:00Z&resolution=day";
+const sum = (series: Json) =>
+  (series.points as { value: number | null }[]).reduce(
+    (s, p) => s + (p.value ?? 0),
+    0,
+  );
+
+Deno.test("lifecycle facts dedupe, a reopen is one pull request, and the June numbers add up", async () => {
+  const f = await openGitHubAppFixture();
+  try {
+    const { connectionId, selected } = await enabledConnection(f, {
+      repositories: fakeRepositories(1, ["admin"]),
+      selected: 1,
+    });
+    const repo = await seedRepository(
+      f,
+      f.organizationId,
+      connectionId,
+      selected[0].external_id,
+    );
+    const a = await seedPullRequest(f, f.organizationId, repo, 1);
+    const b = await seedPullRequest(f, f.organizationId, repo, 2);
+
+    // A: merged June 3, read twice (a webhook delivered twice), then an
+    // older open read arrives late.
+    const mergedRead = read(f.organizationId, 1, {
+      state: "closed",
+      merged: true,
+      mergedSha: SHA,
+      providerUpdatedAt: new Date("2026-06-03T12:00:00Z"),
+      closedAt: new Date("2026-06-03T12:00:00Z"),
+      mergedAt: new Date("2026-06-03T12:00:00Z"),
+      additions: 5,
+      deletions: 2,
+      changedFiles: 1,
+    });
+    assertEquals(await observe(f, repo.repositoryId, mergedRead), "written");
+    assertEquals(
+      await observe(f, repo.repositoryId, {
+        ...mergedRead,
+        observedStartedAt: new Date(),
+      }),
+      "unchanged",
+    );
+    assertEquals(
+      await observe(f, repo.repositoryId, read(f.organizationId, 1)),
+      "stale",
+    );
+
+    // B: opened June 1, closed June 5, reopened June 10.
+    await observe(f, repo.repositoryId, read(f.organizationId, 2));
+    await observe(
+      f,
+      repo.repositoryId,
+      read(f.organizationId, 2, {
+        state: "closed",
+        providerUpdatedAt: new Date("2026-06-05T00:00:00Z"),
+        closedAt: new Date("2026-06-05T00:00:00Z"),
+      }),
+    );
+    await observe(
+      f,
+      repo.repositoryId,
+      read(f.organizationId, 2, {
+        providerUpdatedAt: new Date("2026-06-10T00:00:00Z"),
+      }),
+    );
+
+    const facts = await f.pgDatabase.query<
+      { pull_request_id: string; kind: string }
+    >(
+      `select pull_request_id, kind from bakery.pull_request_transitions
+        where organization_id = $1 order by pull_request_id, effective_at, kind`,
+      [f.organizationId],
+    );
+    assertEquals(
+      facts.rows.filter((r) => r.pull_request_id === a).map((r) => r.kind),
+      ["opened", "merged"],
+    );
+    assertEquals(
+      facts.rows.filter((r) => r.pull_request_id === b).map((r) => r.kind),
+      ["opened", "closed", "reopened"],
+    );
+    const stored = (await f.pgDatabase.query<{ merged_at: Date | null }>(
+      "select merged_at from bakery.pull_requests where id = $1",
+      [a],
+    )).rows[0];
+    assertEquals(stored.merged_at?.toISOString(), "2026-06-03T12:00:00.000Z");
+
+    const opened = await ok(
+      await get(f, "/v1/metrics?metric=prs.opened&" + june),
+    );
+    assertEquals(sum(opened), 2);
+    assertEquals(opened.unit, "count");
+    assertEquals(opened.sampleCount, 2);
+    assert(String(opened.measurementRevision).startsWith("prs.opened@"));
+    assertEquals(opened.hiddenCount, 0);
+    assertEquals(
+      (opened.repositories as Json[]).map((r) => r.repositoryId),
+      [repo.repositoryId],
+    );
+    assert(typeof opened.lastSyncAt === "string");
+
+    const merged = await ok(
+      await get(f, "/v1/metrics?metric=prs.merged&" + june),
+    );
+    assertEquals(sum(merged), 1);
+    const closed = await ok(
+      await get(f, "/v1/metrics?metric=prs.closedUnmerged&" + june),
+    );
+    // B was closed, then reopened: it is open now, not a final close.
+    assertEquals(sum(closed), 0);
+    const lines = await ok(
+      await get(f, "/v1/metrics?metric=prs.changedLines&" + june),
+    );
+    assertEquals(sum(lines), 7);
+    const rate = await ok(
+      await get(f, "/v1/metrics?metric=prs.mergeRate&" + june),
+    );
+    assertEquals(rate.missingReasons, [{ reason: "still_open", count: 1 }]);
+
+    // The records behind prs.opened, one per page.
+    const first = await ok(
+      await get(
+        f,
+        "/v1/metrics/sources?metric=prs.opened&limit=1&" +
+          june.replace("&resolution=day", ""),
+      ),
+    );
+    assertEquals((first.items as Json[]).length, 1);
+    assert(typeof first.nextCursor === "string");
+    const second = await ok(
+      await get(
+        f,
+        "/v1/metrics/sources?metric=prs.opened&limit=1&" +
+          june.replace("&resolution=day", "") + "&cursor=" +
+          encodeURIComponent(first.nextCursor as string),
+      ),
+    );
+    assertEquals(second.nextCursor, null);
+    assertEquals(
+      [...(first.items as Json[]), ...(second.items as Json[])]
+        .map((r) => r.id).sort(),
+      [a, b].sort(),
+    );
+  } finally {
+    await f.finish();
+  }
+});
+
+Deno.test("another organization's pull requests never count, and a guest is refused before aggregation", async () => {
+  const f = await openGitHubAppFixture();
+  try {
+    const created = await call(f, "POST", "/v1/organizations", f.adminCookie, {
+      body: {
+        name: "Other Org",
+        slug: "other-" + crypto.randomUUID().slice(0, 8),
+      },
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+    });
+    assertEquals(created.status, 201, await created.clone().text());
+    const other = (await created.json() as { id: string }).id;
+    // No connection in that organization: any id (no foreign key) reads as
+    // a disconnected source.
+    const foreign = await seedRepository(f, other, crypto.randomUUID(), "999");
+    await seedPullRequest(f, other, foreign, 7);
+    await observe(f, foreign.repositoryId, read(other, 7));
+
+    // In my organization: nothing, and naming the foreign repository adds nothing.
+    for (
+      const path of [
+        "/v1/metrics?metric=prs.opened&" + june,
+        "/v1/metrics?metric=prs.opened&repositoryId=" + foreign.repositoryId +
+        "&" + june,
+      ]
+    ) {
+      const mine = await ok(await get(f, path));
+      assertEquals(mine.sampleCount, 0);
+      assertEquals(
+        (mine.repositories as Json[]).some((r) =>
+          r.repositoryId === foreign.repositoryId
+        ),
+        false,
+      );
+    }
+    // In the other organization it counts.
+    const theirs = await ok(
+      await get(f, "/v1/metrics?metric=prs.opened&" + june, other),
+    );
+    assertEquals(sum(theirs), 1);
+
+    await f.pgDatabase.query(
+      "update bakery.organization_memberships set role = 'guest' where organization_id = $1",
+      [other],
+    );
+    const refused = await get(
+      f,
+      "/v1/metrics?metric=prs.opened&" + june,
+      other,
+    );
+    assert(
+      refused.status === 403 || refused.status === 404,
+      String(refused.status),
+    );
+    await refused.body?.cancel();
+  } finally {
+    await f.finish();
+  }
+});
