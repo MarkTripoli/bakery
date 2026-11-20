@@ -11,7 +11,7 @@ import { DEMO_WEBM } from "./helpers/media-fixtures.ts";
  * the browser plays it from `/v1/storage/files/<id>/content?organizationId=`.
  * It proves the route authenticates a media element (which cannot send the
  * organization header), answers a Range request with 206 and a Content-Range,
- * decodes a real frame, and answers a second range when the player seeks.
+ * decodes a real frame, and keeps playing when the player seeks.
  */
 const enabled = process.env.BAKERY_REAL_API === "1";
 const ADMIN_EMAIL = process.env.BAKERY_REAL_EMAIL?.trim().toLowerCase() ||
@@ -111,8 +111,7 @@ test.describe("files video against the real API", () => {
     )
       .toBe(true);
 
-    // Seeking asks for another range and still plays.
-    const before = contentResponses.length;
+    // Seeking inside the loaded clip still plays, and no range is refused.
     await player.evaluate((element) => {
       (element as HTMLVideoElement).currentTime = 1.5;
     });
@@ -122,7 +121,6 @@ test.describe("files video against the real API", () => {
     await expect.poll(() =>
       player.evaluate((element) => (element as HTMLVideoElement).currentTime)
     ).toBeGreaterThanOrEqual(1.5);
-    expect(contentResponses.length).toBeGreaterThanOrEqual(before);
     expect(
       contentResponses.filter((entry) => entry.range !== null).every((entry) =>
         entry.status === 206
