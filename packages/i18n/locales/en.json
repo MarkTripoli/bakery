@@ -1228,7 +1228,7 @@
   "organizationStorage.agent.heading": "Agent steps",
   "organizationStorage.agent.description": "How much one agent step may write before Bakery stops it.",
   "organizationStorage.field.stepBytes.label": "Most a step may write",
-  "organizationStorage.field.stepBytes.help": "Total size of the files one step writes. Leave empty to use 2 GB.",
+  "organizationStorage.field.stepBytes.help": "Total size of the files one step writes. Leave empty to use 2,048 MB (2 GB).",
   "organizationStorage.field.stepFiles.label": "Most files a step may write",
   "organizationStorage.field.stepFiles.help": "Counts every file a step creates or changes. Leave empty to use 2,000.",
   "organizationStorage.field.versions.label": "Versions kept per file",
