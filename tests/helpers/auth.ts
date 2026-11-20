@@ -694,6 +694,12 @@ export async function deleteAlertChannelRows(
       where created_by in (${principals}) or updated_by in (${principals})`,
     values,
   );
+  // A rule an administrator changed names that principal; the rule stays.
+  await pgDatabase.query(
+    `update bakery.alert_rules set updated_by = null
+      where updated_by in (${principals})`,
+    values,
+  );
   const stray = await pgDatabase.query<{ id: string }>(
     `select distinct secret_id as id from bakery.secret_versions
       where created_by in (${principals})
