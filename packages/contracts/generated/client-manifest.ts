@@ -5710,6 +5710,27 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/files/facts",
+      "action": "files.facts",
+      "access": "Developer",
+      "permission": "artifact:read",
+      "input": "FileFactQuery",
+      "output": "Page<FileFact>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Library",
       "method": "GET",
       "path": "/v1/files/library",
@@ -15958,6 +15979,7 @@ export const clientManifest = {
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
+            "files.facts",
             "files.library",
             "artifacts.get",
             "artifacts.create",
@@ -26075,6 +26097,20 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Searches the organization's file tree and its read-only library mirror by name, path, kind, media type, producer and a metadata fact, newest first. Only files and library items the caller may read are returned, and nothing of another organization is ever counted or listed."
+    },
+    "FileFactQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "Restricts the list to one kind: the artifact type of the files whose facts are listed. Omit it to list the facts of every kind the caller can read. FileFactQuery.kind must contain at least 1 characters. FileFactQuery.kind must contain at most 64 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists the facts files carry, by kind: each fact key with each string value it holds on the current version of a file the caller may read, and how many files hold it. It is the source for the file search's fact filter (files.search factKey and factValue). Until kind validators publish typed facts, a version's metadata is where its facts live."
     },
     "LibraryFolderQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40176,6 +40212,7 @@ export const clientManifest = {
                   "worker.invokeTool",
                   "artifacts.list",
                   "files.search",
+                  "files.facts",
                   "files.library",
                   "artifacts.get",
                   "artifacts.create",
@@ -59625,6 +59662,7 @@ export const clientManifest = {
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
+            "files.facts",
             "files.library",
             "artifacts.get",
             "artifacts.create",
@@ -89716,6 +89754,101 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of FileSearchHit."
+    },
+    "Page<FileFact>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The artifact type of the files that hold the fact."
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The metadata key, at most 100 characters."
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "One value the key holds on the current version of at least one such file, at most 500 characters; an empty value is not listed."
+              },
+              "files": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many files of this kind the caller may read hold this key with this value on their current version."
+              }
+            },
+            "required": [
+              "kind",
+              "key",
+              "value",
+              "files"
+            ],
+            "additionalProperties": false,
+            "description": "One fact a kind of file carries: a metadata key and one string value it holds on the current version of some files the caller may read, with the number of those files. Pass key and value to files.search as factKey and factValue, and kind as kind, to list the files."
+          },
+          "description": "FileFact items in this cursor page. Page<FileFact>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<FileFact>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<FileFact>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<FileFact>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<FileFact>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of FileFact."
     },
     "Page<LibraryEntry>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
