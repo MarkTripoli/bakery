@@ -4,8 +4,8 @@
 # The probe reads bytes that a person uploaded, so it may not run in the server
 # process: a malformed file must cost a subprocess, not the service. This
 # launcher starts the fixed probe worker in a systemd transient unit with a
-# memory cap, a CPU quota, a wall-clock limit, a private network namespace and a
-# read-only view of the filesystem. It ignores its environment and every other
+# memory cap, a CPU quota, a wall-clock limit, a private network namespace and,
+# where the host can apply it, a read-only view of the filesystem. It ignores its environment and every other
 # argument: the only input it accepts is one lower-case UUID to name the unit,
 # plus an optional `--spool-dir=<absolute path>` naming the one directory
 # outside the repository the unit may read. Exit 64 on anything else.
@@ -114,9 +114,10 @@ worker="$here/../../apps/server/src/modules/knowledge/probe-worker.ts"
 [ -f "$worker" ] || exit 70
 # Deno resolves a bare specifier and its lockfile from the working directory, so
 # a unit that starts in $HOME cannot find either: the worker exits 226 before it
-# reads a byte. The unit is pinned to the repository root, which is also the
-# directory ProtectSystem=strict makes read-only, so the pinned path is not
-# writable by the thing reading a stranger's file.
+# reads a byte. The unit is pinned to the repository root. `ProtectSystem=strict`
+# is declared to make that directory read-only, but a user manager that cannot
+# set up the mount runs it writable and says so only in the journal, so the
+# server asks a canary question rather than trusting the property.
 repo_root=$(cd "$here/../.." && pwd -P) || exit 70
 
 # The properties are accumulated rather than written as one long `exec` line so

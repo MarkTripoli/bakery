@@ -23,6 +23,9 @@
  *   some other way.
  */
 
+import { randomUUID } from "node:crypto";
+import { lstat, mkdir, open, rm } from "node:fs/promises";
+
 /** The spool could not be used; the caller reports `sandbox-unavailable`. */
 export class SpoolUnavailableError extends Error {
   constructor(readonly reason: "missing" | "unwritable" | "no-space") {
@@ -59,20 +62,14 @@ export async function spoolBlob(options: {
   if (before === null || !before.isDirectory) {
     throw new SpoolUnavailableError("missing");
   }
-  const path = `${
-    options.dir.replace(/\/+$/, "")
-  }/probe-${crypto.randomUUID()}.blob`;
-  let file: Deno.FsFile;
+  const path = `${options.dir.replace(/\/+$/, "")}/probe-${randomUUID()}.blob`;
+  let file: Awaited<ReturnType<typeof open>>;
   try {
     // Exclusive creation: a spool directory shared with anything else must not
     // let a pre-made path turn this write into an append to someone else's file.
-    file = await Deno.open(path, {
-      createNew: true,
-      write: true,
-      mode: 0o600,
-    });
+    file = await open(path, "wx", 0o600);
   } catch (error) {
-    if (error instanceof Deno.errors.PermissionDenied) {
+    if ((error as NodeJS.ErrnoException).code === "EACCES") {
       throw new SpoolUnavailableError("unwritable");
     }
     throw error;
@@ -82,32 +79,34 @@ export async function spoolBlob(options: {
     if (released) return;
     released = true;
     try {
-      await Deno.remove(path);
+      await rm(path);
     } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) throw error;
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   };
   try {
-    await file.write(options.bytes);
+    await file.writeFile(options.bytes);
     return { path, release };
   } catch (error) {
     await release();
     throw error;
   } finally {
-    file.close();
+    await file.close();
   }
 }
 
-async function lstatOrNull(path: string): Promise<Deno.FileInfo | null> {
+async function lstatOrNull(
+  path: string,
+): Promise<Awaited<ReturnType<typeof lstat>> | null> {
   try {
-    return await Deno.lstat(path);
+    return await lstat(path);
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return null;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
 }
 
 /** Creates the spool directory so a deployment can start clean. */
 export async function ensureSpoolDir(dir: string): Promise<void> {
-  await Deno.mkdir(dir, { recursive: true, mode: 0o700 });
+  await mkdir(dir, { recursive: true, mode: 0o700 });
 }

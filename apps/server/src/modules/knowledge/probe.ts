@@ -20,6 +20,8 @@
  *   compared with the blob row before the child is started: a 900 MB file is
  *   described as too large by the server, which costs it nothing.
  */
+import { type ChildProcess, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import type { PgDatabase } from "../../platform/database.ts";
 import {
   ARTIFACT_PROBE_MAX_BYTES,
@@ -38,8 +40,11 @@ export const ARTIFACT_PROBE_UNIT_PROPERTIES: readonly string[] = Object.freeze([
   // The unit must start where Deno can resolve the worker's imports and its
   // lockfile: a bare specifier is resolved from the working directory, not from
   // the module's path, so a unit that starts in $HOME fails with 226 before it
-  // reads a byte. The value is the repository root, which the launcher computes
-  // and which ProtectSystem=strict also makes read-only.
+  // reads a byte. The value is the repository root, which the launcher computes.
+  // `ProtectSystem=strict` is declared to make it read-only, but a host whose
+  // user manager cannot set up the mount runs it writable and says so only in
+  // the journal -- which is why `sandboxHoldsFilesystem` asks instead of
+  // assuming.
   "--property=WorkingDirectory=@REPO_ROOT@",
   `--property=MemoryMax=${ARTIFACT_PROBE_MEMORY_MAX_BYTES}`,
   "--property=MemorySwapMax=0",
@@ -100,21 +105,23 @@ export type ArtifactProbeOptions = Readonly<{
    * `sandbox-unavailable`, never a description produced some other way.
    */
   spoolDir?: string;
+  /**
+   * How long a "not sealed" preflight answer is believed before the host is
+   * asked again. Tests set it to 0 to re-ask immediately; production uses the
+   * module's own window.
+   */
+  preflightRetryMs?: number;
 }>;
 
 async function readBounded(
-  stream: ReadableStream<Uint8Array>,
+  stream: AsyncIterable<Uint8Array>,
 ): Promise<{ bytes: Uint8Array; overflow: boolean }> {
-  const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
   let overflow = false;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  for await (const value of stream) {
     if (size + value.byteLength > FRAME_LIMIT) {
       overflow = true;
-      await reader.cancel().catch(() => {});
       break;
     }
     chunks.push(value);
@@ -159,17 +166,22 @@ async function runLauncher(
   timeoutMs: number,
   spoolDir?: string,
 ): Promise<LauncherExchange> {
-  let child: Deno.ChildProcess;
+  let child: ChildProcess;
   try {
-    child = new Deno.Command(launcherPath, {
-      args: [
-        crypto.randomUUID(),
+    child = spawn(
+      launcherPath,
+      [
+        randomUUID(),
         ...(spoolDir === undefined ? [] : [`--spool-dir=${spoolDir}`]),
       ],
-      stdin: "piped",
-      stdout: "piped",
-      stderr: "null",
-    }).spawn();
+      {
+        stdio: ["pipe", "pipe", "ignore"],
+        // Its own process group, so the kill below reaches the launcher and
+        // anything it started: a grandchild holding the pipes open would
+        // otherwise keep this waiting for ever.
+        detached: true,
+      },
+    );
   } catch {
     // The launcher could not be started at all: a missing file or a host with
     // no systemd. Either way nothing ran, so nothing was measured.
@@ -182,31 +194,42 @@ async function runLauncher(
     };
   }
 
-  const writer = child.stdin.getWriter();
-  await writer.write(new TextEncoder().encode(JSON.stringify(request))).catch(
-    () => {},
+  // `spawn` reports a missing launcher as an event, not a throw, and an exit
+  // that never comes must not hang the caller: both settle this promise.
+  const exited = new Promise<{ code: number | null; signal: string | null }>(
+    (resolve) => {
+      child.once("error", () => resolve({ code: null, signal: null }));
+      child.once("exit", (code, signal) => resolve({ code, signal }));
+    },
   );
-  await writer.close().catch(() => {});
+
+  child.stdin?.on("error", () => {});
+  child.stdin?.end(JSON.stringify(request));
 
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
     try {
-      // Signals reach the launcher's own process group, so a child of the
-      // launcher cannot outlive it and keep the pipes open. `child.status` is
-      // what this awaits, and it stays pending while a grandchild holds stdout.
-      child.kill("SIGKILL");
+      if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
     } catch {
-      // The child may already have exited.
+      // The group may already be gone; the process itself may not be.
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // The child may already have exited.
+      }
     }
   }, timeoutMs);
 
   try {
     // Race the child against its own budget: a launcher whose grandchild holds
-    // the pipes open would otherwise keep `child.status` pending for ever, and
-    // the timer above would have changed nothing.
+    // the pipes open would otherwise keep the exit pending for ever, and the
+    // timer above would have changed nothing.
     const elapsed = await Promise.race([
-      Promise.all([readBounded(child.stdout), child.status]).then((
+      Promise.all([
+        readBounded(child.stdout ?? (async function* () {})()),
+        exited,
+      ]).then((
         [out, st],
       ) => ({
         out,
@@ -227,7 +250,11 @@ async function runLauncher(
       };
     }
     return {
-      code: elapsed.st.code,
+      // A unit killed by a signal has no exit code of its own; 137 is what the
+      // shell and systemd report for SIGKILL, and the memory refusal is read
+      // from it.
+      code: elapsed.st.code ??
+        (elapsed.st.signal === "SIGKILL" ? 137 : null),
       bytes: elapsed.out.bytes,
       overflow: elapsed.out.overflow,
       timedOut,
@@ -272,7 +299,25 @@ const SANDBOX_SETUP_FAILURES: readonly number[] = Object.freeze([69, 218, 226]);
  * learn the same thing. `forgetSandboxPreflight` exists for tests, which need
  * to ask twice in one process.
  */
-const preflight = new Map<string, Promise<boolean>>();
+/**
+ * How long a "not sealed" answer is believed before the host is asked again.
+ *
+ * A sealed answer is a property of the machine and is kept for the process. An
+ * unsealed one may be a bad minute -- a bus that was restarting, a unit that
+ * lost a race -- and caching it for the process lifetime would disable probing
+ * until the server restarted. Meanwhile the answer stays fail-closed: every
+ * probe in the window is refused, and the window is short.
+ */
+const PREFLIGHT_RETRY_MS = 30_000;
+
+type PreflightEntry = {
+  readonly promise: Promise<boolean>;
+  /** Undefined while the question is still being asked. */
+  sealed?: boolean;
+  askedAt: number;
+};
+
+const preflight = new Map<string, PreflightEntry>();
 
 /** Test-only: drops the cached answers so the next call asks the host again. */
 export function forgetSandboxPreflight(): void {
@@ -286,14 +331,33 @@ function cachedPreflight(
 ): Promise<boolean> {
   const launcherPath = options.launcherPath ?? SERVER_ARTIFACT_PROBE_LAUNCHER;
   const timeoutMs = options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS;
+  const retryMs = options.preflightRetryMs ?? PREFLIGHT_RETRY_MS;
   // Both seals are properties of the machine, so both are cached per process,
   // and the question is part of the key: a host can hold one and not the other.
   const key = `${question}\u0000${launcherPath}\u0000${timeoutMs}`;
+  const now = Date.now();
   const cached = preflight.get(key);
-  if (cached !== undefined) return cached;
-  const answer = ask(launcherPath, timeoutMs);
-  preflight.set(key, answer);
-  return answer;
+  if (cached !== undefined) {
+    // Sealed is kept. Unsealed is kept only for the retry window, and an answer
+    // still in flight is shared rather than asked twice.
+    if (cached.sealed === true) return cached.promise;
+    if (cached.sealed === undefined) return cached.promise;
+    if (now - cached.askedAt < retryMs) return cached.promise;
+  }
+  const entry: PreflightEntry = {
+    promise: ask(launcherPath, timeoutMs),
+    askedAt: now,
+  };
+  entry.promise.then((sealed) => {
+    // Only the entry that is still current may record its answer: a slow first
+    // ask must not overwrite a newer one.
+    if (preflight.get(key) === entry) {
+      entry.sealed = sealed;
+      entry.askedAt = Date.now();
+    }
+  }).catch(() => {});
+  preflight.set(key, entry);
+  return entry.promise;
 }
 
 export function sandboxHoldsNetwork(
@@ -437,27 +501,48 @@ export async function probeArtifactBytes(
   input: ArtifactProbeInput,
   options: ArtifactProbeOptions = {},
 ): Promise<ArtifactProbeResult> {
+  return (await probeArtifactAttempt(input, options)).result;
+}
+
+/** The same attempt, with the answer's subject kept for the caller that stores. */
+export async function probeArtifactAttempt(
+  input: ArtifactProbeInput,
+  options: ArtifactProbeOptions = {},
+): Promise<ProbeAttempt> {
   // A size the server already knows is decided before anything else: it needs
   // no sandbox to answer, it reads nothing, and "too large" is a more useful
   // answer than "no sandbox" for a file nobody was going to read anyway.
   if (input.sizeBytes > ARTIFACT_PROBE_MAX_BYTES) {
-    return refused("too-large", ARTIFACT_PROBE_MAX_BYTES);
+    return {
+      result: refused("too-large", ARTIFACT_PROBE_MAX_BYTES),
+      about: "file",
+    };
   }
   // Fail closed before the file is touched: if the sandbox is not sealed on
   // this host, the answer is about the host, not the bytes, and the bytes are
   // never handed to a process that could reach the network with them.
   if (!(await sandboxHoldsNetwork(options))) {
-    return refused("sandbox-unavailable");
+    return { result: refused("sandbox-unavailable"), about: "host" };
   }
   // Both seals, in the same order, for the same reason: a writable sandbox
   // reading a stranger's file can leave something behind, and the spool copy is
   // exactly the file it would be positioned to overwrite.
   if (!(await sandboxHoldsFilesystem(options))) {
-    return refused("sandbox-unavailable");
+    return { result: refused("sandbox-unavailable"), about: "host" };
   }
 
   const resolved = await resolveInput(input, options);
-  if ("refused" in resolved) return resolved.refused;
+  if ("refused" in resolved) {
+    // A size the server already knew is a fact about the file; a spool it could
+    // not use is a fact about the host.
+    return {
+      result: resolved.refused,
+      about: resolved.refused.status === "refused" &&
+          resolved.refused.code === "too-large"
+        ? "file"
+        : "host",
+    };
+  }
   try {
     return await readFrame(resolved.path, input.sizeBytes, options);
   } finally {
@@ -467,11 +552,26 @@ export async function probeArtifactBytes(
   }
 }
 
+/**
+ * What a probe attempt answered, and what the answer is about.
+ *
+ * `about` is the difference between a fact worth keeping and an afternoon worth
+ * forgetting. A refusal about the FILE -- too large, unreadable, malformed bytes
+ * -- is true tomorrow and is stored. A refusal about the HOST -- a timeout, a
+ * launcher that exited non-zero, a frame that did not parse, a sandbox that
+ * could not be asked -- says nothing about the bytes, and storing it would turn
+ * one bad minute into a permanent verdict on a healthy file.
+ */
+type ProbeAttempt = {
+  readonly result: ArtifactProbeResult;
+  readonly about: "file" | "host";
+};
+
 async function readFrame(
   path: string,
   sizeBytes: number,
   options: ArtifactProbeOptions,
-): Promise<ArtifactProbeResult> {
+): Promise<ProbeAttempt> {
   const exchange = await runLauncher(
     { path, sizeBytes },
     options.launcherPath ?? SERVER_ARTIFACT_PROBE_LAUNCHER,
@@ -480,23 +580,49 @@ async function readFrame(
     // directory that holds it. Passing the path without the grant would produce
     // an `unreadable` answer for a file that is perfectly fine, so the two
     // travel together.
-    path.startsWith(options.spoolDir ?? "\u0000")
+    // The trailing separator matters: `/var/lib/bakery-evil` is not inside
+    // `/var/lib/bakery`, and a prefix test without it would grant the first
+    // while naming the second.
+    options.spoolDir !== undefined &&
+      path.startsWith(`${options.spoolDir}/`)
       ? options.spoolDir
       : undefined,
   );
   if (exchange.late || exchange.timedOut) {
-    return refused("timeout", options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS);
+    return {
+      result: refused(
+        "timeout",
+        options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS,
+      ),
+      about: "host",
+    };
   }
-  if (exchange.code === null) return refused("sandbox-unavailable");
+  if (exchange.overflow) {
+    // The worker wrote more than the bound and this side stopped reading on
+    // purpose. That is a defect in this code, not a property of the file, and it
+    // is decided before the exit code: a child killed by the broken pipe has no
+    // code of its own, and reading that as "the host could not run the probe"
+    // would hide the flood behind a host fault.
+    return { result: refused("malformed"), about: "host" };
+  }
+  if (exchange.code === null) {
+    return { result: refused("sandbox-unavailable"), about: "host" };
+  }
   if (SANDBOX_SETUP_FAILURES.includes(exchange.code)) {
-    return refused("sandbox-unavailable");
+    return { result: refused("sandbox-unavailable"), about: "host" };
   }
   if (exchange.code === 137) {
-    return refused("memory", ARTIFACT_PROBE_MEMORY_MAX_BYTES);
+    // The unit was killed for using too much memory, which the file's own size
+    // and shape caused: that is a fact about the bytes, and it is kept.
+    return {
+      result: refused("memory", ARTIFACT_PROBE_MEMORY_MAX_BYTES),
+      about: "file",
+    };
   }
-  if (exchange.overflow) return refused("malformed");
   if (exchange.code !== 0 || exchange.bytes.byteLength === 0) {
-    return refused("unreadable");
+    // The launcher or the worker failed without answering. Nothing was learned
+    // about the bytes, so nothing is stored about them.
+    return { result: refused("unreadable"), about: "host" };
   }
   try {
     const parsed = ArtifactProbeFrameSchema.safeParse(
@@ -504,10 +630,10 @@ async function readFrame(
     );
     // A frame that does not match the schema is this code's defect, not the
     // file's, and saying so is more useful than a confident wrong answer.
-    if (!parsed.success) return refused("malformed");
-    return parsed.data.result;
+    if (!parsed.success) return { result: refused("malformed"), about: "host" };
+    return { result: parsed.data.result, about: "file" };
   } catch {
-    return refused("unreadable");
+    return { result: refused("unreadable"), about: "host" };
   }
 }
 
@@ -536,7 +662,12 @@ export async function probeBlob(
     const stored = await readBlobProbe(database, input);
     if (stored !== null) return stored.result;
   }
-  const result = await probeArtifactBytes(input, options);
-  await writeBlobProbe(database, { ...input, result });
-  return result;
+  const attempt = await probeArtifactAttempt(input, options);
+  // Only a refusal about the file is stored. A timeout, a launcher exit or any
+  // other host-side answer is this attempt's, not the blob's: storing it would
+  // make one bad minute a permanent verdict on a healthy file.
+  if (attempt.about === "file") {
+    await writeBlobProbe(database, { ...input, result: attempt.result });
+  }
+  return attempt.result;
 }

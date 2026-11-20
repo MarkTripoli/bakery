@@ -119,6 +119,67 @@ Deno.test("a host's bad afternoon is not written as a property of the file", asy
   });
 });
 
+Deno.test("a timeout or a launcher exit is not stored as a fact about the file", async () => {
+  // The reviewer's finding: a probe that timed out, or a launcher that exited
+  // without answering, was written to blob_probes as `unreadable` -- a permanent
+  // verdict on a healthy file, produced by one bad minute on the host. Only a
+  // refusal about the FILE is stored; a host-side answer is this attempt's.
+  await withWorkerFixture(async (fixture) => {
+    const blobId = await seedBlob(fixture, "host fault");
+    const dir = await Deno.makeTempDir({ prefix: "bakery-host-fault-" });
+    const cases: Array<[string, string, number]> = [
+      // A launcher that never answers: the server's own budget expires.
+      ["slow", "sleep 30", 200],
+      // A launcher that exits non-zero without a frame.
+      ["exit", "exit 3", 5_000],
+      // A launcher that exits zero with nothing on stdout.
+      ["silent", ":", 5_000],
+    ];
+    for (const [name, body, timeoutMs] of cases) {
+      forgetSandboxPreflight();
+      const launcher = await writeStub(dir, name, {
+        probe: body,
+      });
+      const result = await probeBlob(fixture.pgDatabase, {
+        organizationId: fixture.organizationId,
+        blobId,
+        path: `${dir}/blob.bin`,
+        sizeBytes: 16,
+      }, { launcherPath: launcher, timeoutMs });
+      assertEquals(result.status, "refused", name);
+      assertEquals(
+        await readBlobProbe(fixture.pgDatabase, {
+          organizationId: fixture.organizationId,
+          blobId,
+        }),
+        null,
+        `${name}: a host fault must not be stored`,
+      );
+    }
+    // And a refusal about the file still is, so the rule is not "store nothing".
+    forgetSandboxPreflight();
+    const unreadable = await writeStub(dir, "unreadable", {
+      probe:
+        `printf '%s' '{"result":{"status":"refused","code":"unreadable"}}'`,
+    });
+    const stored = await probeBlob(fixture.pgDatabase, {
+      organizationId: fixture.organizationId,
+      blobId,
+      path: `${dir}/blob.bin`,
+      sizeBytes: 16,
+    }, { launcherPath: unreadable });
+    assertEquals(stored, { status: "refused", code: "unreadable" });
+    assertEquals(
+      (await readBlobProbe(fixture.pgDatabase, {
+        organizationId: fixture.organizationId,
+        blobId,
+      }))?.result,
+      { status: "refused", code: "unreadable" },
+    );
+    await Deno.remove(dir, { recursive: true });
+  });
+});
+
 Deno.test("one blob has one answer, and the second write replaces the first", async () => {
   await withWorkerFixture(async (fixture) => {
     const blobId = await seedBlob(fixture, "probe twice");
