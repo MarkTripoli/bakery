@@ -131,6 +131,8 @@ export type IntegrationClientCredentials =
   ClientOutputMap["IntegrationClientCredentials"];
 export type IntegrationClientCredentialsPut =
   ClientInputMap["IntegrationClientCredentialsPut"];
+export type StorageSettings = ClientOutputMap["StorageSettings"];
+export type StorageSettingsPut = ClientInputMap["StorageSettingsPut"];
 export type SkillStorageSettings = ClientOutputMap["SkillStorageSettings"];
 export type SkillStorageSettingsPut = ClientInputMap["SkillStorageSettingsPut"];
 export type SkillStorageVerification =
@@ -1218,6 +1220,21 @@ export type BakeryApiClient = {
     readonly get: (
       signal?: AbortSignal,
     ) => Promise<ApiResult<InstallationCapabilities>>;
+  };
+  readonly storageSettings: {
+    /** `GET /v1/storage/settings`: the organization's storage limits and how much of the quota is used. */
+    readonly get: (options: {
+      readonly organizationId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<StorageSettings>>;
+    /** `PUT /v1/storage/settings`: replace every limit; `version` 0 is the first save and sends no If-Match. */
+    readonly put: (options: {
+      readonly organizationId: string;
+      readonly input: StorageSettingsPut;
+      readonly version: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<StorageSettings>>;
   };
   readonly usage: {
     /** `GET /v1/usage`: the installation's usage summary (administrators only). */
@@ -3807,6 +3824,40 @@ export function createBakeryApiClient({
             ok: true,
             data: await client.actions["installation.capabilities"]({}, {
               signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    storageSettings: {
+      async get(options) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(options.organizationId).actions[
+              "storageSettings.get"
+            ]({}, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async put(options) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(options.organizationId).actions[
+              "storageSettings.put"
+            ](options.input, {
+              // The first save has no version yet and refuses an If-Match.
+              ...(options.version === 0
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
             }),
           };
         } catch (error) {
