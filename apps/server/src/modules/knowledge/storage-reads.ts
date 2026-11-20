@@ -224,6 +224,63 @@ function listed(row: ListedRow, path: string) {
   };
 }
 
+/**
+ * The file a version belongs to, from the version id alone: a working-area
+ * version (bakery.storage_file_versions) or a work item document's artifact
+ * version. The file must be readable by the caller under the same rule as the
+ * other reads; anything else, another organization's id included, is 404.
+ */
+export async function readStorageFileByVersion(
+  context: ActionContext,
+  reader: StorageReader,
+) {
+  const { transaction: tx, organizationId, principalId } =
+    requireWorkTransaction(context);
+  const versionId = context.params.id;
+  if (!versionId || !UUID.test(versionId)) notFound();
+  const found = await tx.query<
+    { entry_id: string; revision: number; current: boolean }
+  >(
+    "select wv.entry_id, wv.revision," +
+      " (e.current_version_id = wv.id) as current" +
+      " from bakery.storage_file_versions wv" +
+      " join bakery.storage_entries e" +
+      " on e.organization_id = wv.organization_id and e.id = wv.entry_id" +
+      " where wv.organization_id = $1 and wv.id = $2" +
+      " union all" +
+      " select e.id as entry_id, av.revision," +
+      " (a.current_version_id = av.id) as current" +
+      " from bakery.artifact_versions av" +
+      " join bakery.artifacts a" +
+      " on a.organization_id = av.organization_id and a.id = av.artifact_id" +
+      " join bakery.storage_entries e" +
+      " on e.organization_id = a.organization_id and e.artifact_id = a.id" +
+      " where av.organization_id = $1 and av.id = $2" +
+      " limit 1",
+    [organizationId, versionId],
+  );
+  const hit = found.rows[0];
+  if (!hit) notFound();
+  const file = await readableEntry(
+    tx,
+    organizationId,
+    principalId,
+    reader,
+    hit.entry_id,
+  );
+  if (file.kind !== "file") notFound();
+  const listedRow = await tx.query<ListedRow>(
+    LISTED_SELECT + " where e.organization_id = $1 and e.id = $2",
+    [organizationId, file.id],
+  );
+  return {
+    file: listed(listedRow.rows[0], file.path),
+    versionId,
+    revision: Number(hit.revision),
+    isCurrent: hit.current === true,
+  };
+}
+
 /** The top-level folders the caller sees (one page, never continued). */
 export async function listStorageRoots(
   context: ActionContext,

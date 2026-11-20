@@ -59,6 +59,40 @@ async function addMember(fixture: Fixture) {
   };
 }
 
+/** Removes a member addMember seeded, so later files bootstrap a fresh install. */
+async function removeMember(
+  fixture: Fixture,
+  other: Awaited<ReturnType<typeof addMember>>,
+) {
+  await fixture.pgDatabase.query(
+    "delete from bakery.organization_memberships where organization_id = $1 and principal_id = $2",
+    [fixture.organizationId, other.principalId],
+  );
+  // The member's personal folder is owned by them; remove it first.
+  await fixture.pgDatabase.query(
+    "delete from bakery.storage_entries where organization_id = $1 and owner_id = $2 and parent_id is not null and kind = 'folder' and system_key like 'user:%:%'",
+    [fixture.organizationId, other.principalId],
+  );
+  await fixture.pgDatabase.query(
+    "delete from bakery.storage_entries where organization_id = $1 and owner_id = $2",
+    [fixture.organizationId, other.principalId],
+  );
+  await fixture.pgDatabase.query(
+    'delete from public.session where "userId" = $1',
+    [other.providerUserId],
+  );
+  await fixture.pgDatabase.query(
+    "delete from bakery.principals where id = $1",
+    [other.principalId],
+  );
+  await fixture.pgDatabase.query(
+    'delete from public."user" where id = $1',
+    [
+      other.providerUserId,
+    ],
+  );
+}
+
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 type Json = Record<string, unknown>;
 
@@ -347,32 +381,87 @@ Deno.test("another organization cannot read an entry; another member cannot see 
       );
       assertEquals(listed.map((item) => item.name), [other.principalId]);
     } finally {
-      await fixture.pgDatabase.query(
-        "delete from bakery.organization_memberships where organization_id = $1 and principal_id = $2",
-        [fixture.organizationId, other.principalId],
+      await removeMember(fixture, other);
+    }
+  }));
+
+Deno.test("a version id opens its file: revision, current flag, and 404 for anyone who cannot read it", () =>
+  withWorkerFixture(async (fixture) => {
+    let file = await ok(await put(fixture, "/shared/source.md", "first"));
+    file = await ok(
+      await put(fixture, "/shared/source.md", "second", {
+        ifMatch: file.version as number,
+      }),
+    );
+    const versions = items(
+      await ok(
+        await call(
+          fixture,
+          "GET",
+          "/v1/storage/files/" + file.id + "/versions",
+        ),
+      ),
+    );
+    const [current, older] = versions;
+    const at = (id: unknown) => "/v1/storage/file-versions/" + id;
+
+    const old = await ok(await call(fixture, "GET", at(older.id)));
+    assertEquals(
+      [old.versionId, old.revision, old.isCurrent],
+      [older.id, 1, false],
+    );
+    const shown = old.file as Json;
+    assertEquals(
+      [shown.id, shown.path, shown.kind, shown.sizeBytes],
+      [file.id, "/shared/source.md", "file", 6],
+    );
+    const now = await ok(await call(fixture, "GET", at(current.id)));
+    assertEquals([now.revision, now.isCurrent], [2, true]);
+
+    await status(await call(fixture, "GET", at(crypto.randomUUID())), 404);
+    // The router rejects a malformed id before the handler, as on every route.
+    await status(await call(fixture, "GET", at("not-a-uuid")), 400);
+
+    // Another organization: the same id is not found there.
+    const foreign = await createWorkerScope(fixture, "storage-445-v", fixture);
+    try {
+      await status(
+        await call(fixture, "GET", at(older.id), {
+          organizationId: foreign.organizationId,
+        }),
+        404,
       );
-      // The member's personal folder is owned by them; remove it first.
-      await fixture.pgDatabase.query(
-        "delete from bakery.storage_entries where organization_id = $1 and owner_id = $2 and parent_id is not null and kind = 'folder' and system_key like 'user:%:%'",
-        [fixture.organizationId, other.principalId],
+    } finally {
+      await closeWorkerOrganization(fixture.pgDatabase, foreign.organizationId);
+    }
+
+    // Another member: a version of my personal file does not exist for them.
+    const mine = await ok(
+      await put(
+        fixture,
+        "/users/" + fixture.principalId + "/uploads/note.md",
+        "private",
+      ),
+    );
+    const mineVersions = items(
+      await ok(
+        await call(
+          fixture,
+          "GET",
+          "/v1/storage/files/" + mine.id + "/versions",
+        ),
+      ),
+    );
+    await ok(await call(fixture, "GET", at(mineVersions[0].id)));
+    const other = await addMember(fixture);
+    try {
+      await status(
+        await call(fixture, "GET", at(mineVersions[0].id), {
+          cookie: other.cookie,
+        }),
+        404,
       );
-      await fixture.pgDatabase.query(
-        "delete from bakery.storage_entries where organization_id = $1 and owner_id = $2",
-        [fixture.organizationId, other.principalId],
-      );
-      await fixture.pgDatabase.query(
-        'delete from public.session where "userId" = $1',
-        [other.providerUserId],
-      );
-      await fixture.pgDatabase.query(
-        "delete from bakery.principals where id = $1",
-        [other.principalId],
-      );
-      await fixture.pgDatabase.query(
-        'delete from public."user" where id = $1',
-        [
-          other.providerUserId,
-        ],
-      );
+    } finally {
+      await removeMember(fixture, other);
     }
   }));
