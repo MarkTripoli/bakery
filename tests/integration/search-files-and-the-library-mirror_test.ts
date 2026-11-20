@@ -12,6 +12,7 @@ import {
 } from "../helpers/durable-questions.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
 import {
+  createFileFactsHandler,
   createFileSearchHandler,
   createLibraryFolderHandler,
   listLibraryFolder,
@@ -107,12 +108,37 @@ async function search(
   fixture: Fixture,
   seed: Seed,
   input: Record<string, unknown>,
-  options: { library?: boolean; scopes?: Scopes } = {},
+  options: { library?: boolean; scopes?: Scopes; admin?: boolean } = {},
 ) {
   const handler = createFileSearchHandler(
     SECRET,
     () => options.library ?? true,
+    () => options.admin ?? true,
   );
+  return await withPgTransaction(fixture.pgDatabase, (transaction) =>
+    handler(
+      {
+        authority: {
+          organizationId: seed.organizationId,
+          subject: { principalId: seed.principalId },
+        },
+        transaction,
+        ...(options.scopes === undefined
+          ? {}
+          : { sessionScopes: options.scopes }),
+      } as unknown as ActionContext,
+      input as never,
+    ));
+}
+
+/** Runs the real facts list against the real database as a given caller. */
+async function facts(
+  fixture: Fixture,
+  seed: Seed,
+  input: Record<string, unknown> = {},
+  options: { scopes?: Scopes; admin?: boolean } = {},
+) {
+  const handler = createFileFactsHandler(() => options.admin ?? true);
   return await withPgTransaction(fixture.pgDatabase, (transaction) =>
     handler(
       {
@@ -307,6 +333,12 @@ Deno.test("AC: the library mirror lists published items at /library/<section>/<s
     ]);
     // A disabled skill and a workflow with no version in use are not published.
     assert(all.items.every((hit) => hit.source === "library"));
+    // A library hit carries the id of the catalog item it mirrors, so a page can
+    // open the item itself; a file hit has none.
+    assert(
+      all.items.every((hit) => typeof hit.itemId === "string"),
+      "every library hit carries its catalog item's id",
+    );
     assert(
       all.items.every((hit) => hit.entryId === null && hit.versionId === null),
     );
@@ -432,7 +464,10 @@ Deno.test("AC: the /library folder lists only sections that have a published ite
     const empty = await withPgTransaction(
       fixture.pgDatabase,
       (transaction) =>
-        listLibraryFolder(transaction, { organizationId: seed.organizationId }),
+        listLibraryFolder(transaction, {
+          organizationId: seed.organizationId,
+          principalId: seed.principalId,
+        }),
     );
     // A new organization may already hold built-in library items, so every
     // count below is relative to this baseline.
@@ -442,6 +477,7 @@ Deno.test("AC: the /library folder lists only sections that have a published ite
         (transaction) =>
           listLibraryFolder(transaction, {
             organizationId: seed.organizationId,
+            principalId: seed.principalId,
             section,
           }),
       ))?.length ?? 0;
@@ -460,6 +496,7 @@ Deno.test("AC: the /library folder lists only sections that have a published ite
         (transaction) =>
           listLibraryFolder(transaction, {
             organizationId: seed.organizationId,
+            principalId: seed.principalId,
             ...(section === undefined ? {} : { section }),
           }),
       );
@@ -496,6 +533,7 @@ Deno.test("AC: the /library folder lists only sections that have a published ite
       (transaction) =>
         listLibraryFolder(transaction, {
           organizationId: other.organizationId,
+          principalId: other.principalId,
           section: "workflows",
         }),
     );
@@ -586,6 +624,7 @@ Deno.test("AC: the /library section list never shows another organization's sect
         (transaction) =>
           listLibraryFolder(transaction, {
             organizationId: seed.organizationId,
+            principalId: seed.principalId,
           }),
       ))?.map((child) => child.name) ?? [];
 
@@ -740,4 +779,244 @@ Deno.test("AC: /v1/files/library needs library:read, and an agent session the li
     await assertRejects(() => call(["artifacts.read"]));
     assert((await call(["library.read"])).items.length > 0);
     assert((await call(undefined)).items.length > 0);
+  }));
+
+Deno.test("AC: a library entry carries its catalog item's id, and a personal skill is listed to its owner only", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "library-personal");
+    const colleague = await addMember(fixture, seed, "library-personal-b");
+    const org = seed.organizationId;
+    const mine = crypto.randomUUID();
+    const theirs = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.skills
+         (id, organization_id, slug, name, enabled, scope, owner_principal_id)
+       values ($1, $2, 'lp-mine', 'LP Mine', true, 'personal', $3),
+              ($4, $2, 'lp-theirs', 'LP Theirs', true, 'personal', $5),
+              ($6, $2, 'lp-shared', 'LP Shared', true, 'organization', null)`,
+      [
+        mine,
+        org,
+        seed.principalId,
+        theirs,
+        colleague.principalId,
+        crypto.randomUUID(),
+      ],
+    );
+    const list = (principalId: string) =>
+      withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          listLibraryFolder(transaction, {
+            organizationId: org,
+            principalId,
+            section: "skills",
+          }),
+      );
+    const asOwner = await list(seed.principalId);
+    const asColleague = await list(colleague.principalId);
+    const slugs = (entries: typeof asOwner) =>
+      (entries ?? []).map((entry) => entry.path.split("/").at(-1));
+    assert(slugs(asOwner).includes("lp-mine"), "the owner sees their own");
+    assert(slugs(asOwner).includes("lp-shared"));
+    assert(
+      !slugs(asOwner).includes("lp-theirs"),
+      "a colleague's personal skill is not listed",
+    );
+    assert(slugs(asColleague).includes("lp-theirs"));
+    assert(
+      !slugs(asColleague).includes("lp-mine"),
+      "the owner's personal skill is not listed to a colleague",
+    );
+    // Each item carries the id of the catalog row it mirrors; a folder has none.
+    const ownMirror = (asOwner ?? []).find((entry) =>
+      entry.path.endsWith("/lp-mine")
+    );
+    assertEquals(ownMirror?.id, mine);
+    const sections = await withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        listLibraryFolder(transaction, {
+          organizationId: org,
+          principalId: seed.principalId,
+        }),
+    );
+    assert(
+      sections?.every((entry) => entry.type === "folder" && entry.id === null),
+    );
+    // A search through the mirror hides it too.
+    const found = await search(
+      fixture,
+      { ...seed, principalId: colleague.principalId } as Seed,
+      { query: "lp " },
+    );
+    const foundNames = found.items.map((hit) => hit.name);
+    assert(foundNames.includes("LP Theirs"));
+    assert(!foundNames.includes("LP Mine"), "search does not reveal it either");
+    assert(foundNames.includes("LP Shared"));
+  }));
+
+Deno.test("AC: the facts list gives each key and value by kind with its file count, within the caller's reach", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "facts-mine");
+    const other = await seedOrganization(fixture, "facts-theirs");
+    const taskId = await seedTask(fixture, seed);
+    await file(fixture, seed, taskId, {
+      name: "a.md",
+      kind: "plan",
+      metadata: { risk: "high", team: "web" },
+    });
+    await file(fixture, seed, taskId, {
+      name: "b.md",
+      kind: "plan",
+      metadata: { risk: "high" },
+    });
+    await file(fixture, seed, taskId, {
+      name: "c.md",
+      kind: "plan",
+      metadata: { risk: "low" },
+    });
+    await file(fixture, seed, taskId, {
+      name: "d.json",
+      kind: "report",
+      metadata: { risk: "low" },
+    });
+    await file(fixture, seed, taskId, { name: "e.png", kind: "image" });
+    const theirTask = await seedTask(fixture, other);
+    await file(fixture, other, theirTask, {
+      name: "x.md",
+      kind: "plan",
+      metadata: { secret: "yes" },
+    });
+
+    const rows = (await facts(fixture, seed)).items.map((row) =>
+      [row.kind, row.key, row.value, row.files].join("|")
+    );
+    assertEquals(rows, [
+      "plan|risk|high|2",
+      "plan|risk|low|1",
+      "plan|team|web|1",
+      "report|risk|low|1",
+    ]);
+    // One kind.
+    assertEquals(
+      (await facts(fixture, seed, { kind: "report" })).items.map((row) =>
+        row.key
+      ),
+      ["risk"],
+    );
+    assertEquals((await facts(fixture, seed, { kind: "image" })).items, []);
+    // Nothing of another organization, and theirs is theirs.
+    assert(!rows.some((row) => row.includes("secret")));
+    assertEquals(
+      (await facts(fixture, other)).items.map((row) => row.key),
+      ["secret"],
+    );
+    // An agent session needs the artifacts.read scope.
+    assertEquals(
+      (await facts(fixture, seed, {}, { scopes: ["library.read"] })).items,
+      [],
+    );
+    assertEquals(
+      (await facts(fixture, seed, {}, { scopes: ["artifacts.read"] })).items
+        .length,
+      4,
+    );
+  }));
+
+Deno.test("AC: the facts list leaves out /system for anyone but an Admin, and is bounded", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "facts-system");
+    const taskId = await seedTask(fixture, seed);
+    const open = await file(fixture, seed, taskId, {
+      name: "open.md",
+      kind: "plan",
+      metadata: { visible: "yes" },
+    });
+    const hidden = await file(fixture, seed, taskId, {
+      name: "hidden.md",
+      kind: "plan",
+      metadata: { audit: "internal" },
+    });
+    void open;
+    // Move one file under the /system folder.
+    // The organization may already have its /system folder; use it if so.
+    const existing = await fixture.pgDatabase.query<{ id: string }>(
+      `select id from bakery.storage_entries
+        where organization_id = $1 and parent_id is null and name_key = 'system'`,
+      [seed.organizationId],
+    );
+    const rootId = existing.rows[0]?.id ?? (await fixture.pgDatabase.query<
+      { id: string }
+    >(
+      `insert into bakery.storage_entries
+         (organization_id, name, name_key, kind, policy, system_key)
+       values ($1, 'system', 'system', 'folder', 'system', 'system') returning id`,
+      [seed.organizationId],
+    )).rows[0].id;
+    await fixture.pgDatabase.query(
+      "update bakery.storage_entries set parent_id = $3 where organization_id = $1 and artifact_id = $2",
+      [seed.organizationId, hidden.artifactId, rootId],
+    );
+    const keys = async (admin: boolean) =>
+      (await facts(fixture, seed, {}, { admin })).items.map((row) => row.key)
+        .sort();
+    assertEquals(await keys(true), ["audit", "visible"]);
+    assertEquals(await keys(false), ["visible"]);
+
+    // At most 50 keys of a kind, however many a file carries.
+    const many = Object.fromEntries(
+      Array.from(
+        { length: 60 },
+        (_, n) => ["key-" + String(n).padStart(2, "0"), "v"],
+      ),
+    );
+    await file(fixture, seed, taskId, {
+      name: "many.md",
+      kind: "wide",
+      metadata: many,
+    });
+    const wide = (await facts(fixture, seed, { kind: "wide" })).items;
+    assertEquals(wide.length, 50);
+    assertEquals(wide[0].key, "key-00");
+  }));
+
+Deno.test("AC: GET /v1/files/facts serves the contract and needs the file read permission", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "facts-route");
+    const taskId = await seedTask(fixture, seed);
+    await file(fixture, seed, taskId, {
+      name: "r.md",
+      kind: "plan",
+      metadata: { risk: "high" },
+    });
+    const response = await request(fixture, seed, "/v1/files/facts?kind=plan");
+    assertEquals(response.status, 200, await response.clone().text());
+    assertEquals(await response.json(), {
+      items: [{ kind: "plan", key: "risk", value: "high", files: 1 }],
+      nextCursor: null,
+    });
+    // A member whose role cannot read files cannot list their facts.
+    const blocked = await addMember(fixture, seed, "no-files", "guest");
+    const roleId = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.organization_roles
+         (id, organization_id, key, name, permissions, created_by_principal_id)
+       values ($1, $2, 'no-files', 'No files', $3, $4)`,
+      [roleId, seed.organizationId, ["library:read"], seed.principalId],
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.organization_memberships set custom_role_id = $3
+        where organization_id = $1 and principal_id = $2`,
+      [seed.organizationId, blocked.principalId, roleId],
+    );
+    const denied = await request(
+      fixture,
+      { cookie: blocked.cookie, organizationId: seed.organizationId },
+      "/v1/files/facts",
+    );
+    assert(
+      denied.status === 403 || denied.status === 404,
+      String(denied.status),
+    );
   }));

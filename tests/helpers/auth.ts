@@ -158,6 +158,10 @@ export async function openAuthFixture(options: {
   backupDestinationResolver?: Parameters<
     typeof createApp
   >[0]["backupDestinationResolver"];
+  /** Telemetry destinations the Monitoring routes manage; tests share a fan-out. */
+  telemetryDestinations?: Parameters<
+    typeof createApp
+  >[0]["telemetryDestinations"];
   /** Extra runtime environment, such as the server budget policy. */
   env?: Record<string, string>;
 } = {}) {
@@ -273,6 +277,7 @@ export async function openAuthFixture(options: {
       backupDestinationProbe: options.backupDestinationProbe,
       backupDestinationResolver: options.backupDestinationResolver,
       emailSend: options.emailSend,
+      telemetryDestinations: options.telemetryDestinations,
     });
     const originalFetch = app.fetch.bind(app);
     app.fetch = (
