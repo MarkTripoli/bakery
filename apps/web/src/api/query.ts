@@ -1,4 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import type { MembershipPage } from "./access-client.ts";
 import type {
   AgentDefinitionResponse,
   AgentVersionResponse,
@@ -76,8 +77,12 @@ import type {
   TaskListResponse,
   TaskRepositoryListResponse,
   TaskResponse,
+  TicketRequestViewListResponse,
+  TicketRoutingRuleSetResponse,
+  TicketSourceLabelListResponse,
   TicketSourceListResponse,
   TicketSourceResponse,
+  TicketTaskLinkListResponse,
   UserPreferences,
   UserProfile,
   WorkerComponentListResponse,
@@ -212,6 +217,139 @@ export function ticketSourcesListQueryOptions(
         }),
       );
     },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The organization's members with the names they go by, so "started by" can name a person. */
+export function organizationMembersQueryOptions(
+  client: Pick<BakeryApiClient, "access">,
+  scope: ApiScope,
+) {
+  return queryOptions<MembershipPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "organizationMemberships.list", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.access.members.list({
+          organizationId: requireOrganization(scope),
+          limit: 100,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The work started from one issue, newest first: progress, who started it, the repositories it went to. */
+export function ticketRequestsQueryOptions(
+  client: Pick<BakeryApiClient, "tickets">,
+  scope: ApiScope,
+  externalTicketId: string,
+) {
+  return queryOptions<TicketRequestViewListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "ticketRequests.list", {
+      externalTicketId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.tickets.requests({
+          organizationId: requireOrganization(scope),
+          externalTicketId,
+          limit: 25,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every task linked to one issue, with how Bakery's note on the issue is doing. */
+export function ticketLinksByIssueQueryOptions(
+  client: Pick<BakeryApiClient, "tickets">,
+  scope: ApiScope,
+  externalTicketId: string,
+) {
+  return queryOptions<TicketTaskLinkListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "ticketTaskLinks.list", {
+      externalTicketId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.tickets.links({
+          organizationId: requireOrganization(scope),
+          externalTicketId,
+          limit: 100,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every issue one task is linked to (the task page's "From issue"). */
+export function ticketLinksByTaskQueryOptions(
+  client: Pick<BakeryApiClient, "tickets">,
+  scope: ApiScope,
+  taskId: string,
+) {
+  return queryOptions<TicketTaskLinkListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "ticketTaskLinks.list", { taskId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.tickets.links({
+          organizationId: requireOrganization(scope),
+          taskId,
+          limit: 100,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The labels GitHub lists for a repository, read live (a failure is a 503, not an empty list). */
+export function ticketSourceLabelsQueryOptions(
+  client: Pick<BakeryApiClient, "tickets">,
+  scope: ApiScope,
+  sourceId: string,
+) {
+  return queryOptions<TicketSourceLabelListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "ticketSources.labels", { sourceId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.tickets.labels({
+          organizationId: requireOrganization(scope),
+          sourceId,
+          limit: 100,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Which labels send an issue to which repository. */
+export function ticketRoutingRulesQueryOptions(
+  client: Pick<BakeryApiClient, "tickets">,
+  scope: ApiScope,
+  sourceId: string,
+) {
+  return queryOptions<TicketRoutingRuleSetResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "ticketRoutingRules.get", { sourceId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.tickets.routingRules({
+          organizationId: requireOrganization(scope),
+          sourceId,
+          signal,
+        }),
+      ),
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });
