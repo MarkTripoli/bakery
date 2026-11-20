@@ -73,6 +73,15 @@ export const EVENT_SCOPES: Readonly<
     assertQuery: `select 1 from bakery.worker_hosts
         where organization_id = $1 and id = $2`,
   }),
+  // Every remembered-fact change of the organization, as content-free
+  // invalidation signals. The id is the organization itself (assertScope) and
+  // only someone who may read memory may subscribe (assertScopeAccess). Its
+  // events reach it by their type, not by a column: see MEMORY_EVENT_TYPES.
+  memory: Object.freeze({
+    eventColumn: "organization_id",
+    taskColumn: "id",
+    assertQuery: `select 1 where $1::uuid = $2::uuid`,
+  }),
   // One person's inbox signal. The id is a principal and only that principal
   // may subscribe to it (assertScope); it carries no task state to snapshot.
   inbox: Object.freeze({
@@ -85,12 +94,26 @@ export const EVENT_SCOPES: Readonly<
 });
 
 /**
+ * The signals of remembered facts (#72). They are kept out of every other
+ * scope, whatever columns they carry, and delivered only through the `memory`
+ * scope, so a reader of a repository's or task's activity learns nothing of
+ * them unless they may read memory.
+ */
+export const MEMORY_EVENT_TYPES: readonly string[] = Object.freeze([
+  "memories.created",
+  "memories.updated",
+  "memory.revised",
+  "memory.source_changed",
+]);
+
+/**
  * Who may read the events stream for these scopes. `event:read` opens every
- * scope (each still checked by assertScope). Without it, a current human
- * member with a system role may still connect, but only to subscribe to their
- * own inbox: it returns false, and the caller then refuses every other scope
- * with assertInboxOnlyScope, so the inbox exception never widens into
- * application, task or conversation activity.
+ * scope except `memory` (each still checked by assertScope). Without it, a
+ * current human member with a system role may still connect, but only to
+ * subscribe to their own inbox (and, holding `memory:read`, to the memory
+ * signals): it returns false, and the caller then refuses every other scope
+ * with assertScopeAccess, so these exceptions never widen into application,
+ * task or conversation activity.
  */
 export function assertEventAccess(
   actor: OrganizationActor,
@@ -104,14 +127,41 @@ export function assertEventAccess(
   }
 }
 
-/**
- * The scope check for a subscriber without event:read: only their own inbox.
- * Any other scope answers exactly like one that does not exist.
- */
-export function assertInboxOnlyScope(scope: SyncScope): void {
-  if (scope.type !== "inbox") {
-    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+/** What one connected member may subscribe to, read fresh from their current roles. */
+export type ScopeAccess = {
+  /** `event:read`: every scope but memory. */
+  readonly fullAccess: boolean;
+  /** `memory:read`: the memory scope, with or without `event:read`. */
+  readonly memoryRead: boolean;
+};
+
+/** Reads both permissions once; a caller who is not a member is refused outright. */
+export function readScopeAccess(actor: OrganizationActor): ScopeAccess {
+  const fullAccess = assertEventAccess(actor);
+  try {
+    authorize(actor, "memory:read", { action: "events.connect" });
+    return { fullAccess, memoryRead: true };
+  } catch (denied) {
+    if (!isOrganizationMember(actor)) throw denied;
+    return { fullAccess, memoryRead: false };
   }
+}
+
+/**
+ * The scope check for a subscriber. An inbox is open to any member (assertScope
+ * then requires it to be their own); the memory scope needs `memory:read`
+ * whatever else they hold; every other scope needs `event:read`. A refusal
+ * answers exactly like a scope that does not exist.
+ */
+export function assertScopeAccess(
+  access: ScopeAccess,
+  scope: SyncScope,
+): void {
+  if (scope.type === "inbox") return;
+  const allowed = scope.type === "memory"
+    ? access.memoryRead
+    : access.fullAccess;
+  if (!allowed) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
 }
 
 /**
@@ -133,6 +183,7 @@ export async function assertScope(
   ) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
+  // The memory scope is the organization's own: its id is the organization.
   const result = await transaction.query(
     EVENT_SCOPES[scope.type].assertQuery,
     [organizationId, scope.id],
@@ -196,8 +247,11 @@ export async function readScopedEvents(
     worker_enrollment: [],
     worker: [],
     inbox: [],
+    memory: [],
   };
   for (const scope of scopes) idsByType[scope.type].push(scope.id);
+  // Memory signals travel only through the memory scope.
+  const memoryTypes = idsByType.memory.length > 0 ? MEMORY_EVENT_TYPES : [];
   const events = await transaction.query<EventRow>(
     `select id, organization_sequence::text as sequence, event_type,
         schema_version, created_at as occurred_at, application_id,
@@ -208,13 +262,19 @@ export async function readScopedEvents(
          and organization_sequence > $3::bigint
          and organization_sequence <= $4::bigint
          and (
-           application_id = any($2::uuid[])
-           or repository_id = any($5::uuid[])
-           or task_id = any($6::uuid[])
-           or conversation_id = any($7::uuid[])
-           or worker_enrollment_id = any($8::uuid[])
-           or worker_host_id = any($9::uuid[])
-           or recipient_id = any($11::uuid[])
+           (
+             (
+               application_id = any($2::uuid[])
+               or repository_id = any($5::uuid[])
+               or task_id = any($6::uuid[])
+               or conversation_id = any($7::uuid[])
+               or worker_enrollment_id = any($8::uuid[])
+               or worker_host_id = any($9::uuid[])
+               or recipient_id = any($11::uuid[])
+             )
+             and event_type <> all($12::text[])
+           )
+           or event_type = any($13::text[])
          )
        order by bakery.domain_events.organization_sequence asc
        limit $10`,
@@ -230,6 +290,8 @@ export async function readScopedEvents(
       idsByType.worker,
       limit,
       idsByType.inbox,
+      MEMORY_EVENT_TYPES,
+      memoryTypes,
     ],
   );
   return events.rows;

@@ -596,6 +596,9 @@ Deno.test("memory promotion, correction history and conflicts through the real r
       () => case13(fixture),
     );
   } finally {
-    await fixture.fixture.close();
+    // The shared fixture's own close, which also resets the database. Closing
+    // only its inner auth fixture left this test's nine users behind, and every
+    // later test that opens the auth fixture refused the database as ambiguous.
+    await fixture.close();
   }
 });

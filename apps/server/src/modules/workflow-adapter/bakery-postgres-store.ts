@@ -2120,8 +2120,8 @@ export function createBakeryPostgresWorkflowRepository(options: {
             : null,
           requestedBy: row.requestedBy,
           runId: row.runId,
-          secretRef: typeof value.secretRef === "string"
-            ? value.secretRef
+          identityRef: typeof value.identityRef === "string"
+            ? value.identityRef
             : null,
         });
         const requirements = repositoryExecutionRequirements(

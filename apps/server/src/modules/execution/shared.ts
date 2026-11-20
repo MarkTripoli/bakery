@@ -130,6 +130,8 @@ type ExecutionRouteOptions = {
   telemetry?: ExecutionTelemetry;
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
+  /** The session middleware that also accepts access tokens, for file reads only; see the artifact resource routes. */
+  tokenSession?: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   secret: string;
   budget?: BudgetRuntimeConfig;

@@ -2572,3 +2572,259 @@ Deno.test("a removed install does not remember an update, and a draft version is
     );
     assertEquals(row.rows[0].f, null);
   }));
+
+Deno.test("a state read says how big each saved item is, and the write answers with it too", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    const put = (key: string, value: unknown) =>
+      call(fixture, `/v1/plugin-installs/${install.id}/state/settings/${key}`, {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key,
+          schemaVersion: 1,
+          value,
+          expectedCasVersion: 0,
+        },
+      });
+    const small = await put("small", { a: 1 });
+    assertEquals(small.status, 200, await small.clone().text());
+    const big = await put("big", { text: "x".repeat(5000) });
+    assertEquals(big.status, 200, await big.clone().text());
+    // The write answers with the size of what it stored.
+    assert((await big.json()).sizeBytes > 5000);
+
+    // The read gives each item's size and last-saved time without the caller
+    // having to hold the value to measure it, and the size is what Postgres
+    // stores, not something a caller supplied.
+    const listed = await (await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}/state`,
+      { method: "GET" },
+    )).json();
+    const stored = await fixture.pgDatabase.query<
+      { key: string; size: string }
+    >(
+      `select key, octet_length(value::text)::text as size
+         from bakery.plugin_state
+        where organization_id = $1 and plugin_install_id = $2`,
+      [fixture.organizationId, install.id],
+    );
+    const expected = new Map(
+      stored.rows.map((row) => [row.key, Number(row.size)]),
+    );
+    assertEquals(listed.items.length, 2);
+    for (
+      const item of listed.items as {
+        key: string;
+        sizeBytes: number;
+        updatedAt: string;
+      }[]
+    ) {
+      assertEquals(item.sizeBytes, expected.get(item.key));
+      assert(!Number.isNaN(Date.parse(item.updatedAt)));
+    }
+    assert(
+      listed.items.find((item: { key: string }) => item.key === "big")
+        .sizeBytes >
+        listed.items.find((item: { key: string }) => item.key === "small")
+          .sizeBytes,
+    );
+  }));
+
+Deno.test("each install lists only its own saved items, and a size counts bytes, not characters", () =>
+  withPluginFixture(async (fixture, store) => {
+    const install = async () => {
+      const published = await publishInstallable(fixture, store);
+      return await (await call(fixture, "/v1/plugin-installs", {
+        method: "POST",
+        body: {
+          packageId: published.packageId,
+          versionId: published.versionId,
+          scope: "organization",
+        },
+      })).json() as { id: string };
+    };
+    const first = await install();
+    const second = await install();
+    assert(first.id !== second.id);
+    const put = async (installId: string, key: string, value: unknown) => {
+      const response = await call(
+        fixture,
+        `/v1/plugin-installs/${installId}/state/settings/${key}`,
+        {
+          method: "PUT",
+          body: {
+            namespace: "settings",
+            key,
+            schemaVersion: 1,
+            value,
+            expectedCasVersion: 0,
+          },
+        },
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+    };
+    // The same key in both installs, so a query that ignored the install would
+    // return the other install's row under a name the first one also has.
+    await put(first.id, "shared", { who: "first" });
+    await put(first.id, "only-first", { n: 1 });
+    await put(second.id, "shared", { who: "second", pad: "p".repeat(300) });
+    await put(second.id, "only-second", { n: 2 });
+    // Three bytes more than characters would be: "é" is two bytes.
+    const accented = "é".repeat(1000);
+    await put(second.id, "accented", { text: accented });
+
+    type Item = {
+      key: string;
+      pluginInstallId: string;
+      sizeBytes: number;
+    };
+    const itemsOf = async (
+      installId: string,
+      path: "state" | "state-items",
+    ) => {
+      const response = await call(
+        fixture,
+        `/v1/plugin-installs/${installId}/${path}`,
+        { method: "GET" },
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+      return (await response.json()).items as Item[];
+    };
+    for (const path of ["state-items", "state"] as const) {
+      const ofFirst = await itemsOf(first.id, path);
+      const ofSecond = await itemsOf(second.id, path);
+      assertEquals(ofFirst.map((item) => item.key).sort(), [
+        "only-first",
+        "shared",
+      ], path);
+      assertEquals(ofSecond.map((item) => item.key).sort(), [
+        "accented",
+        "only-second",
+        "shared",
+      ], path);
+      assert(ofFirst.every((item) => item.pluginInstallId === first.id), path);
+      assert(
+        ofSecond.every((item) => item.pluginInstallId === second.id),
+        path,
+      );
+      // The size of the shared key is the size of this install's own value.
+      const sharedFirst = ofFirst.find((item) => item.key === "shared")!;
+      const sharedSecond = ofSecond.find((item) => item.key === "shared")!;
+      assert(sharedSecond.sizeBytes > sharedFirst.sizeBytes + 250, path);
+    }
+    // The size is bytes: a thousand two-byte characters is over two thousand.
+    const stored = await fixture.pgDatabase.query<{ size: string }>(
+      `select octet_length(value::text)::text as size
+         from bakery.plugin_state
+        where organization_id = $1 and plugin_install_id = $2
+          and key = 'accented'`,
+      [fixture.organizationId, second.id],
+    );
+    const bytes = Number(stored.rows[0].size);
+    assert(bytes > 2000, `stored ${bytes}`);
+    assert(bytes > JSON.stringify({ text: accented }).length);
+    for (const path of ["state-items", "state"] as const) {
+      const item = (await itemsOf(second.id, path)).find((entry) =>
+        entry.key === "accented"
+      )!;
+      assertEquals(item.sizeBytes, bytes, path);
+    }
+  }));
+
+Deno.test("the values-free state read carries no saved value, pages, and is authorized like the full read", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const ownerCookie = await inviteColleague(fixture, "developer");
+    const owner = asCookie(fixture, ownerCookie);
+    const installed = await (await owner("/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "personal",
+      },
+    })).json();
+    const secret = "TOPSECRET-SAVED-VALUE";
+    for (const key of ["one", "two"]) {
+      const put = await owner(
+        `/v1/plugin-installs/${installed.id}/state/settings/${key}`,
+        {
+          method: "PUT",
+          body: {
+            namespace: "settings",
+            key,
+            schemaVersion: 1,
+            value: { secret, key },
+            expectedCasVersion: 0,
+          },
+        },
+      );
+      assertEquals(put.status, 200, await put.clone().text());
+    }
+
+    // The owner reads what is saved, and the response holds no value anywhere:
+    // not as a field and not as text.
+    const itemsPath = `/v1/plugin-installs/${installed.id}/state-items`;
+    const response = await owner(itemsPath, { method: "GET" });
+    assertEquals(response.status, 200, await response.clone().text());
+    const text = await response.text();
+    assert(!text.includes(secret), "a saved value must not be in the response");
+    const page = JSON.parse(text) as {
+      items: Record<string, unknown>[];
+      nextCursor: string | null;
+    };
+    assertEquals(page.items.length, 2);
+    for (const item of page.items) {
+      assertEquals(Object.keys(item).sort(), [
+        "createdAt",
+        "id",
+        "key",
+        "namespace",
+        "pluginInstallId",
+        "sizeBytes",
+        "updatedAt",
+      ]);
+      assert(!("value" in item));
+      assert((item.sizeBytes as number) > 0);
+    }
+
+    // It pages, and a cursor from it belongs to it alone.
+    const first = await (await owner(`${itemsPath}?limit=1`, {
+      method: "GET",
+    })).json();
+    assertEquals(first.items.length, 1);
+    assert(first.nextCursor !== null);
+    const second = await (await owner(
+      `${itemsPath}?limit=1&cursor=${encodeURIComponent(first.nextCursor)}`,
+      { method: "GET" },
+    )).json();
+    assertEquals(second.items.length, 1);
+    assert(second.items[0].id !== first.items[0].id);
+    const crossed = await owner(
+      `/v1/plugin-installs/${installed.id}/state?limit=1&cursor=${
+        encodeURIComponent(first.nextCursor)
+      }`,
+      { method: "GET" },
+    );
+    assertEquals(crossed.status, 400, await crossed.clone().text());
+
+    // Authorized like the full read: another member, an Admin even, gets not
+    // found for somebody else's personal install, never the metadata.
+    const colleague = asCookie(
+      fixture,
+      await inviteColleague(fixture, "admin"),
+    );
+    const refused = await colleague(itemsPath, { method: "GET" });
+    assertEquals(refused.status, 404, await refused.clone().text());
+    assert(!(await refused.text()).includes("sizeBytes"));
+  }));
