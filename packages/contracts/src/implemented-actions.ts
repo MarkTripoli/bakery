@@ -650,6 +650,7 @@ export const DraftImplementedAction = Object.freeze(
     CheckpointGet: "draftCheckpoints.get",
     Slice: "draftSlices.get",
     Edit: "drafts.edit",
+    Rollover: "drafts.rollover",
     PublicationCreate: "draftPublications.create",
     PublicationGet: "draftPublications.get",
     SuggestionCreate: "draftSuggestions.create",
@@ -731,6 +732,8 @@ export const backupImplementedActions = Object.freeze(
 export const TelemetryDestinationImplementedAction = Object.freeze(
   {
     TelemetryDestinationsList: "telemetryDestinations.list",
+    TelemetryDestinationsGet: "telemetryDestinations.get",
+    TelemetryDestinationsDropped: "telemetryDestinations.dropped",
     TelemetryDestinationsCreate: "telemetryDestinations.create",
     TelemetryDestinationsUpdate: "telemetryDestinations.update",
     TelemetryDestinationsDelete: "telemetryDestinations.delete",

@@ -53,6 +53,17 @@ export type PreparedDraftOpen = {
   text: string;
 };
 
+export type PreparedDraftRollover = {
+  kind: "candidate";
+  draftId: string;
+  epoch: number;
+  checkpointId: string;
+  artifactId: string;
+  publishedVersionId: string;
+  text: string;
+  textDigest: string;
+};
+
 export type PreparedDraftEdit = {
   kind: "candidate";
   draftId: string;
@@ -335,6 +346,136 @@ export async function commitDraftOpen(
     [organizationId, draftId, checkpointId],
   );
   return await readDraft(transaction, organizationId, draftId);
+}
+
+/**
+ * First pass of an epoch rollover (#38): the epoch and checkpoint the caller
+ * names must still be the draft's current ones, and that checkpoint must
+ * already be published, so the closed epoch ends in a frozen, bounded version.
+ * An exact retry of a roll that happened returns the draft instead.
+ */
+export async function prepareDraftRollover(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  draftId: string,
+  input: { epoch: number; checkpointId: string },
+): Promise<PreparedDraftRollover | DraftRead> {
+  const scope = await loadDraftScope(transaction, organizationId, draftId);
+  // An exact retry of a roll that already happened (a lost response): the draft
+  // is one epoch on, and its opening checkpoint carries the text of the
+  // published checkpoint this call names. Answer with the draft as it is now.
+  if (scope.epoch === input.epoch + 1) {
+    const rolled = await transaction.query(
+      `select 1
+         from bakery.artifact_draft_publications p
+         join bakery.artifact_draft_checkpoints closed
+           on closed.organization_id=p.organization_id
+          and closed.id=p.checkpoint_id and closed.epoch=$4
+         join bakery.artifact_draft_checkpoints opened
+           on opened.organization_id=p.organization_id
+          and opened.draft_id=p.draft_id and opened.epoch=$5
+          and opened.server_sequence=0
+          and opened.text_digest=closed.text_digest
+        where p.organization_id=$1 and p.draft_id=$2 and p.checkpoint_id=$3`,
+      [organizationId, draftId, input.checkpointId, input.epoch, scope.epoch],
+    );
+    if (rolled.rows.length > 0) {
+      return await readDraft(transaction, organizationId, draftId);
+    }
+  }
+  if (
+    scope.epoch !== input.epoch ||
+    scope.current_checkpoint_id !== input.checkpointId
+  ) throw new StandardError({ code: "PRECONDITION_FAILED" });
+  const published = (await transaction.query<{
+    artifact_version_id: string;
+    text_content: string;
+    text_digest: string;
+  }>(
+    `select p.artifact_version_id,c.text_content,c.text_digest
+       from bakery.artifact_draft_publications p
+       join bakery.artifact_draft_checkpoints c
+         on c.organization_id=p.organization_id and c.id=p.checkpoint_id
+      where p.organization_id=$1 and p.draft_id=$2 and p.checkpoint_id=$3`,
+    [organizationId, draftId, input.checkpointId],
+  )).rows[0];
+  if (!published) {
+    throw new StandardError({
+      code: "PRECONDITION_FAILED",
+      detail: "Publish the current checkpoint before rolling the epoch over.",
+    });
+  }
+  return {
+    kind: "candidate",
+    draftId,
+    epoch: scope.epoch,
+    checkpointId: input.checkpointId,
+    artifactId: scope.artifact_id,
+    publishedVersionId: published.artifact_version_id,
+    text: published.text_content,
+    textDigest: published.text_digest,
+  };
+}
+
+/**
+ * Second pass: the new epoch begins at sequence 0 with a fresh document built
+ * from the published text, so no old-epoch update can merge into it. The draft
+ * lock is held, so the epoch and current checkpoint are checked again.
+ */
+export async function commitDraftRollover(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  preparation: PreparedDraftRollover,
+  candidate: DraftCandidate,
+): Promise<DraftRead> {
+  const scope = await loadDraftScope(
+    transaction,
+    organizationId,
+    preparation.draftId,
+    true,
+  );
+  if (
+    scope.epoch !== preparation.epoch ||
+    scope.current_checkpoint_id !== preparation.checkpointId
+  ) throw new StaleDraftCandidateError();
+  if (
+    candidate.text !== preparation.text ||
+    candidate.textDigest !== preparation.textDigest ||
+    candidate.state.length === 0 ||
+    candidate.state.length > DRAFT_LIMITS.stateBytes
+  ) throw new StandardError({ code: "INTERNAL" });
+  await lockRetainedArtifactVersion(
+    transaction,
+    organizationId,
+    preparation.artifactId,
+    preparation.publishedVersionId,
+  );
+  const nextEpoch = preparation.epoch + 1;
+  const checkpointId = crypto.randomUUID();
+  await transaction.query(
+    `insert into bakery.artifact_draft_checkpoints (
+       id,organization_id,draft_id,epoch,server_sequence,state,frontiers,
+       text_content,text_digest
+     ) values ($1,$2,$3,$4,0,$5,$6,$7,$8)`,
+    [
+      checkpointId,
+      organizationId,
+      preparation.draftId,
+      nextEpoch,
+      candidate.state,
+      candidate.frontiers,
+      candidate.text,
+      candidate.textDigest,
+    ],
+  );
+  await transaction.query(
+    `update bakery.artifact_drafts
+        set epoch=$3,current_checkpoint_id=$4,server_sequence=0,
+            updated_at=current_timestamp
+      where organization_id=$1 and id=$2`,
+    [organizationId, preparation.draftId, nextEpoch, checkpointId],
+  );
+  return await readDraft(transaction, organizationId, preparation.draftId);
 }
 
 /** Why a guarded draft edit was refused (#71): carried as the problem reason. */
@@ -733,9 +874,9 @@ export async function readDraft(
             checkpoint_id,actor_id,request_digest,update_digest,text_digest,
             committed_at
        from bakery.artifact_draft_receipts
-      where organization_id=$1 and draft_id=$2
+      where organization_id=$1 and draft_id=$2 and epoch=$3
       order by server_sequence asc limit 100`,
-    [organizationId, draftId],
+    [organizationId, draftId, row.epoch],
   );
   return {
     id: row.id,

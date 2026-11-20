@@ -118,6 +118,19 @@ export function drainDecision(input: {
 
 type SwitchRow = { state: string; leaseExpiresAt: Date; now: Date };
 
+/** The switch row while it holds the installation, read with the database clock; otherwise null. */
+async function activeSwitch(
+  transaction: Pick<PgTransactionClient, "query">,
+): Promise<SwitchRow | null> {
+  const result = await transaction.query<SwitchRow>(
+    `select state, lease_expires_at as "leaseExpiresAt",
+            clock_timestamp() as "now"
+       from bakery.installation_maintenance where id = true`,
+  );
+  const row = result.rows[0];
+  return row && maintenanceIsActive(row, row.now) ? row : null;
+}
+
 /**
  * The shared guard. Call it first in the transaction of every entry point that
  * starts or changes work; it reads the switch with the database clock and, when
@@ -128,15 +141,21 @@ type SwitchRow = { state: string; leaseExpiresAt: Date; now: Date };
 export async function assertNotQuiesced(
   transaction: Pick<PgTransactionClient, "query">,
 ): Promise<void> {
-  const result = await transaction.query<SwitchRow>(
-    `select state, lease_expires_at as "leaseExpiresAt",
-            clock_timestamp() as "now"
-       from bakery.installation_maintenance where id = true`,
-  );
-  const row = result.rows[0];
-  if (!row || !maintenanceIsActive(row, row.now)) return;
+  const row = await activeSwitch(transaction);
+  if (row === null) return;
   throw new StandardError({
     code: "INSTALLATION_QUIESCED",
     params: { retryAfterSeconds: maintenanceRetryAfter(row, row.now) },
   });
+}
+
+/**
+ * Whether the installation is held right now. For a background consumer that
+ * must not count a refusal as an attempt: it leaves the work exactly as it is
+ * and lets a later pass pick it up, instead of throwing. Reads only.
+ */
+export async function isQuiesced(
+  transaction: Pick<PgTransactionClient, "query">,
+): Promise<boolean> {
+  return (await activeSwitch(transaction)) !== null;
 }

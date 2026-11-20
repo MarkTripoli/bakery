@@ -884,16 +884,29 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "8d403f1221dc327bbb871c1eebc0b41b99b31619",
+    "e321e76af1ce1933149b3345d832e98295ccc364",
   ];
   const approvedDigest =
-    "sha256:f205f790c66ad591202d7da4957c395bad2968ef87bcc58045c7670057d9fb7f";
+    "sha256:8e68e8856af05cf093594afce7f54f58b31f1ee7e41065c23fcfeea17847cd05";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #64 slice B quiesce re-bind onto main 8d403f122: main's own approval, kept unchanged.
+    // Displaced by the #64 slice B quiesce re-bind onto main e321e76af: main's own approval, kept unchanged.
+    "sha256:1f25130262c7f1a06b80a55cf63474047fd0dbd37cf8234a0898539354af3c69",
+    // Displaced by the #70 slice 2 re-bind onto main 064ca6fd: main's own approval, then this PR's previous one, kept unchanged.
+    "sha256:8a47341c72a1ca31d7f92cd3abdcfe15f9276ecca081f9947301907b1b16ee7b",
+    "sha256:4c7ce0ae4caa534c2ceec4f5b125ffe45a2e213b8f9d484be0365ab13c20c517",
+    // Displaced by the #739 cursor wording fix: this PR's previous approval, kept unchanged.
+    "sha256:ea083571589f6da83d51efd60ecc88fbd387f29186d2f2c3bc01a7b685481c53",
+    // Displaced by the #739 re-bind onto main 8d403f12: main's own approval (#57 merge-queue reads), kept unchanged.
     "sha256:af4c0cec80238c9475b30cfa542fdfbf918f4f1b892a86332649bd1a90474480",
+    // Displaced by the #739 re-bind onto main 8d403f12: this PR's previous approval, kept unchanged.
+    "sha256:78b2f8ca7fbaddc4dad1b5aa7aa413fc35aa31bfd8480a2839765308b1d021f2",
+    // Displaced by the #739 re-bind onto main 49a52678: this PR's previous approval, kept unchanged.
+    "sha256:b6340fefd73f1155f0b70b57f61530f9a538d482b7816f4588851b78f52c1123",
+    // Displaced by the #739 provider re-bind onto main 168b504d: this PR's previous approval, kept unchanged.
+    "sha256:a2990005fe2611b63e5122a6bea9699a1d73c4030c7f11b2c4e1cfe541674f77",
     // Displaced by the #57 merge-queue reads re-bind onto main 536ca2f6 (#788 merged): this PR's previous approval, kept unchanged.
     "sha256:5e6cbf87fc5f188cc0b7baf0b42f9b86c72229e09937616145eabbbb79c8f48c",
     // Displaced by the #57 merge-queue reads re-bind onto main 2de7c9744: main's own approval, kept unchanged.

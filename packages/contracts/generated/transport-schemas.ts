@@ -9487,6 +9487,27 @@ const transportSchemas = {
       ],
       "description": "Bounded UTF-16 slice coordinates used to obtain text and opaque stable Loro cursors from a retained authorized checkpoint."
     },
+    "DraftRollover": {
+      "fields": [
+        {
+          "name": "epoch",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 2147483647
+          },
+          "description": "Draft epoch being closed, as last read from drafts.get; a call naming any other epoch fails without changing the draft."
+        },
+        {
+          "name": "checkpointId",
+          "type": "uuid",
+          "required": true,
+          "description": "The draft's current checkpoint, which must already be published as an artifact version; the new epoch starts from exactly this text."
+        }
+      ],
+      "description": "Closes the draft's current epoch and opens the next one from the published current checkpoint. Old-epoch edits can no longer be applied and stay available as proposals for reconciliation. No actor, organization or content can be supplied by the caller."
+    },
     "DraftEdit": {
       "fields": [
         {
@@ -10556,6 +10577,15 @@ const transportSchemas = {
           "description": "Which kind of destination this is, as listed by telemetryDestinations.list (for example otlp for OpenTelemetry); it decides which values the destination needs and which measurements it can receive."
         },
         {
+          "name": "provider",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "The provider the person chose in the Add destination chooser: a key from the list's providers whose kind is this destination's kind. Omitted means the kind's default provider. It is a label and cannot be changed later."
+        },
+        {
           "name": "name",
           "type": "string",
           "required": true,
@@ -10591,7 +10621,7 @@ const transportSchemas = {
       ],
       "rules": [
         "Installation administrator with a browser session; access tokens are refused. Idempotency-Key is required.",
-        "An unknown kind, a missing required value or a value the kind refuses answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 20 destinations exist; one more answers 409 STATE_CONFLICT. Storing a secret value with no secrets key configured answers 409 STATE_CONFLICT and stores nothing."
+        "An unknown kind, a missing required value or a value the kind refuses answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 200 destinations exist; one more answers 409 STATE_CONFLICT. A provider that is unknown, or belongs to another kind, answers 422 UNPROCESSABLE naming the provider field. Storing a secret value with no secrets key configured answers 409 STATE_CONFLICT and stores nothing."
       ],
       "description": "Adds a telemetry destination: a place Bakery sends the measurements it takes, with its own queue, its own settings and encrypted credentials."
     },
@@ -10642,6 +10672,110 @@ const transportSchemas = {
         "Installation administrator with a browser session. Idempotency-Key and a strong If-Match with the destination's version are required (428 when missing, 412 when stale)."
       ],
       "description": "Changes a telemetry destination's name, on or off state, measurements or settings; the stored secret is replaced only when a new one is supplied."
+    },
+    "TelemetryDestinationListQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page of this list, bound to the same search, state, kind and provider filters and to the caller; pass it back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Most destinations returned in one page; defaults to 25 and cannot exceed 100."
+        },
+        {
+          "name": "search",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Text to look for in the destination's name, ignoring case; omitted means every name."
+        },
+        {
+          "name": "state",
+          "type": "enum",
+          "enum": [
+            "working",
+            "not_tested_yet",
+            "failing",
+            "dropping_data",
+            "off"
+          ],
+          "required": false,
+          "description": "Only destinations in this state now; omitted means every state."
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 63
+          },
+          "description": "Only destinations of this kind, named by an identifier from the list's kinds; omitted means every kind."
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Only destinations added for this provider, named by a key from the list's providers; omitted means every provider."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, offset and skip. The order is failing, then dropping_data, then everything else by name ignoring case, then id; a cursor is good only with the same search, state, kind and provider."
+      ],
+      "description": "Filters and the page window for the Monitoring destination list; an unknown state or a malformed cursor is rejected."
+    },
+    "TelemetryDestinationDroppedQuery": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The destination whose drop reports are read; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page of this destination's drop reports; pass it back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Most drop reports returned in one page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Newest first by report id; reject page, offset and skip."
+      ],
+      "description": "Page window for the reports of records Bakery could not deliver to one destination."
     },
     "TelemetryDestinationTest": {
       "fields": [
@@ -21381,7 +21515,8 @@ const transportSchemas = {
         "version",
         "budgetSummary",
         "blockedReason",
-        "blockingTasks"
+        "blockingTasks",
+        "waitingOnModel"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -21407,7 +21542,8 @@ const transportSchemas = {
         "version": "integer",
         "budgetSummary": "RunBudgetSummary",
         "blockedReason": "string|null",
-        "blockingTasks": "RunBlockingTask[]"
+        "blockingTasks": "RunBlockingTask[]",
+        "waitingOnModel": "boolean"
       },
       "description": "Kind-aware safe run projection. Workflow runs retain task and workflow ownership; skill imports expose null workflow owners and one registered source owner.",
       "nullableFields": [
@@ -21431,13 +21567,15 @@ const transportSchemas = {
         "skillSourceId",
         "workspaceBaseSha",
         "blockedReason",
-        "blockingTasks"
+        "blockingTasks",
+        "waitingOnModel"
       ],
       "computedFields": {
         "budgetSummary": "Join budget_accounts + outstanding reservations for this run and the applicable installation period under one consistent read snapshot.",
         "workspaceBaseSha": "Base commit reported by the first completed harness step of this run: the step's output baseSha when it is a git SHA, else null. Read from run_steps joined to jobs by harness action; never written to workflow_runs.",
         "blockedReason": "snapshot.admission.reason of the run while status is blocked; null otherwise.",
-        "blockingTasks": "task_dependencies of the run's task joined to tasks of the same organization whose status is not completed, only while blockedReason is dependency_incomplete."
+        "blockingTasks": "task_dependencies of the run's task joined to tasks of the same organization whose status is not completed, only while blockedReason is dependency_incomplete.",
+        "waitingOnModel": "True when a live job of a non-terminal run is pinned to an active provider route with an open incident that the step has not been continued past; the same rule as routeContinuations.list."
       },
       "fieldDescriptions": {
         "id": "Stable UUID identifying the run record.",
@@ -21463,7 +21601,8 @@ const transportSchemas = {
         "kind": "Discriminator selecting task-owned workflow execution or source-owned skill import behavior.",
         "skillSourceId": "Registered source UUID for skill import runs; null for workflow runs.",
         "blockedReason": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses.",
-        "blockingTasks": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses."
+        "blockingTasks": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses.",
+        "waitingOnModel": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses."
       },
       "fieldBounds": {
         "blockingTasks": {
@@ -26171,7 +26310,7 @@ const transportSchemas = {
         "resetRequired": "Whether the client must discard its local state and request a fresh snapshot.",
         "retainedFrom": "Earliest retained event sequence that can be used to establish a fresh sync position.",
         "retryWithoutAfter": "Whether the client should retry the sync request without its after cursor.",
-        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, rollover_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
         "existingResourceId": "Identifier of the existing resource a 409 STATE_CONFLICT points the caller to instead of creating another: for reason workflow_copy_exists, the listed definition already copied from that source version. Absent for every other problem."
       }
     },
@@ -30259,6 +30398,7 @@ const transportSchemas = {
       "fields": [
         "id",
         "kind",
+        "provider",
         "name",
         "enabled",
         "measurements",
@@ -30279,6 +30419,7 @@ const transportSchemas = {
       "fieldTypes": {
         "id": "uuid",
         "kind": "string",
+        "provider": "string",
         "name": "string",
         "enabled": "boolean",
         "measurements": "string[]",
@@ -30308,6 +30449,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "id": "Stable UUID of the destination.",
         "kind": "Which kind of destination this is, for example otlp.",
+        "provider": "Which provider the destination was added for, one of the keys in the list's providers (opentelemetry, grafana, datadog, honeycomb or sentry). It is a label chosen when the destination is added, never worked out from its name or address; destinations saved before it existed read as the default provider of their kind.",
         "name": "Name shown in the list and in alerts.",
         "enabled": "Whether the destination receives measurements now.",
         "measurements": "The kinds of measurement it receives: cost, durations, results, skills, health, errors.",
@@ -30330,19 +30472,86 @@ const transportSchemas = {
       "fields": [
         "kinds",
         "measurements",
-        "destinations"
+        "destinations",
+        "destinationLimit",
+        "nextCursor",
+        "total",
+        "stateCounts",
+        "providers"
       ],
       "fieldTypes": {
         "kinds": "json[]",
         "measurements": "json[]",
-        "destinations": "json[]"
+        "destinations": "json[]",
+        "destinationLimit": "integer",
+        "nextCursor": "string|null",
+        "total": "integer",
+        "stateCounts": "json",
+        "providers": "json[]"
       },
-      "nullableFields": [],
-      "description": "Everything the Monitoring page needs about destinations in one read: the kinds the server can deliver to with their fields, the six kinds of measurement, and the destinations that exist (at most 20) with their state.",
+      "nullableFields": [
+        "nextCursor"
+      ],
+      "description": "Everything the Monitoring list needs in one read: the kinds the server can deliver to with their fields, the six kinds of measurement, one page of the destinations that match the search and filters, and the counts the page's notice and filters show.",
       "fieldDescriptions": {
         "kinds": "Each kind of destination: its identifier, label, fields (name, label, help, secret, required), the measurements it can take and why any it cannot take is unavailable.",
         "measurements": "The six kinds of measurement, each with its identifier, label and one line of help.",
-        "destinations": "The destinations, oldest first, each shaped as a TelemetryDestination."
+        "destinations": "This page of destinations, each shaped as a TelemetryDestination: failing first, then dropping_data, then the rest by name ignoring case.",
+        "destinationLimit": "The most destinations an installation can have; creating one past it is refused with destination_limit.",
+        "nextCursor": "Opaque token for the next page with the same filters, or null on the last page.",
+        "total": "How many destinations match the search and filters, across every page.",
+        "stateCounts": "How many destinations are in each state with no search or filter applied: an object with all, working, not_tested_yet, failing, dropping_data and off.",
+        "providers": "The providers a destination can be added for, for the Add destination chooser: key, name, one plain sentence (description), the kind it uses and the values filled in when it is chosen (prefill, by field name)."
+      }
+    },
+    "TelemetryDestinationDetail": {
+      "fields": [
+        "destination",
+        "kind",
+        "provider",
+        "measurements"
+      ],
+      "fieldTypes": {
+        "destination": "json",
+        "kind": "json|null",
+        "provider": "json|null",
+        "measurements": "json[]"
+      },
+      "nullableFields": [
+        "kind",
+        "provider"
+      ],
+      "description": "One destination with what its page needs to show and edit it: the destination, the description of its kind and the measurement list.",
+      "fieldDescriptions": {
+        "destination": "The destination shaped as a TelemetryDestination, with its live state.",
+        "kind": "The description of the destination's kind (identifier, label, fields, measurements it can take), or null when the server no longer has that kind installed.",
+        "provider": "The destination's provider as the list's providers describe it (key, name, description, kind, prefill), or null when the server no longer knows that provider.",
+        "measurements": "The six kinds of measurement, each with its identifier, label and one line of help."
+      }
+    },
+    "TelemetryDestinationDropped": {
+      "fields": [
+        "items",
+        "nextCursor",
+        "droppedTotal",
+        "droppedSince"
+      ],
+      "fieldTypes": {
+        "items": "json[]",
+        "nextCursor": "string|null",
+        "droppedTotal": "integer",
+        "droppedSince": "timestamp|null"
+      },
+      "nullableFields": [
+        "nextCursor",
+        "droppedSince"
+      ],
+      "description": "One page of the reports of records Bakery could not deliver to a destination, newest first. Bakery keeps how many were lost, when and why, never the records themselves, and only the last 200 reports in memory, so a restart empties the list.",
+      "fieldDescriptions": {
+        "items": "This page of reports, each with id (counts up from 1 since the server started), at (UTC time), reason (queue_full, send_failed or shutdown) and count (records lost in that report).",
+        "nextCursor": "Opaque token for the next, older page, or null on the last page.",
+        "droppedTotal": "Records dropped for this destination since the server started, the same number as the destination's dropped.",
+        "droppedSince": "When the first of them was dropped, or null when none were."
       }
     },
     "TelemetryDestinationTestResult": {
@@ -32049,6 +32258,31 @@ const transportSchemas = {
         "ineligibleReason": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
       }
     },
+    "RouteContinuationSource": {
+      "fields": [
+        "provider",
+        "model",
+        "harness",
+        "billingRoute",
+        "health"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "provider": "string",
+        "model": "string",
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "billingRoute": "enum(subscription|api_metered|local)",
+        "health": "enum(healthy|degraded|open|unverified)"
+      },
+      "description": "The route a stalled step is pinned to and waiting on, described well enough to name it to a person: which agent harness, which model of which provider, and how its spend is paid.",
+      "fieldDescriptions": {
+        "provider": "Provider key the source route sends to.",
+        "model": "Model identifier the source route pins; the model the step is waiting on.",
+        "harness": "Harness path (agent) the step runs on: pi, claude_code, codex or mastra.",
+        "billingRoute": "How the source route's spend is paid: subscription, api_metered or local.",
+        "health": "The source route's current circuit state: open while its incident is an outage, degraded while it still serves some work."
+      }
+    },
     "RouteContinuationOffer": {
       "fields": [
         "runStepId",
@@ -32056,11 +32290,16 @@ const transportSchemas = {
         "incidentId",
         "incidentGeneration",
         "sourceRouteId",
+        "source",
+        "reason",
+        "since",
+        "nextCheckAt",
         "runVersion",
         "estimatedIncrementalCost",
         "targets"
       ],
       "nullableFields": [
+        "nextCheckAt",
         "estimatedIncrementalCost"
       ],
       "fieldTypes": {
@@ -32069,6 +32308,10 @@ const transportSchemas = {
         "incidentId": "uuid",
         "incidentGeneration": "integer",
         "sourceRouteId": "uuid",
+        "source": "RouteContinuationSource",
+        "reason": "enum(rate_limited|credential_invalid|quota_exhausted|transport_failure|provider_error|timeout)",
+        "since": "timestamp",
+        "nextCheckAt": "timestamp|null",
         "runVersion": "integer",
         "estimatedIncrementalCost": "decimalString|null",
         "targets": "RouteContinuationTarget[]"
@@ -32080,6 +32323,10 @@ const transportSchemas = {
         "incidentId": "UUID of the open incident the step is stalled behind.",
         "incidentGeneration": "The incident's generation when this offer was made; a submission carrying a lower or different generation is stale.",
         "sourceRouteId": "UUID of the route the step is currently pinned to, whose incident this is.",
+        "source": "What the step is waiting on: the source route's provider, model, harness, billing route and health, so the card can name it without a second read.",
+        "reason": "Why the source route's incident is open, as the last failure classified it: rate_limited, credential_invalid, quota_exhausted, transport_failure, provider_error or timeout.",
+        "since": "When the incident the step is waiting behind was opened.",
+        "nextCheckAt": "When the source route is next checked, or null when no check is scheduled.",
         "runVersion": "The run's version when this offer was made, so a submission can be refused if the run changed in between.",
         "estimatedIncrementalCost": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice.",
         "targets": "Every other route of the organization, each marked eligible or not with the reason."
@@ -36565,6 +36812,7 @@ const transportSchemas = {
       "bakery_draftCheckpoints_get",
       "bakery_draftSlices_get",
       "bakery_drafts_edit",
+      "bakery_drafts_rollover",
       "bakery_draftPublications_create",
       "bakery_draftPublications_get",
       "bakery_draftSuggestions_create",

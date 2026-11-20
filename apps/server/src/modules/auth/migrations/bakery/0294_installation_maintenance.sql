@@ -1,7 +1,8 @@
 -- Installation maintenance (issue #64 slice B): the one switch a backup holds
 -- while it takes a consistent snapshot. While it is draining or quiesced the
--- server admits no new work (runs, webhook deliveries, imports, worker claims,
--- collection) and answers a retryable 503 INSTALLATION_QUIESCED instead.
+-- server admits no new work (runs, imports, worker claims, collection) and
+-- answers a retryable 503 INSTALLATION_QUIESCED instead. A webhook delivery is
+-- accepted and stored, and its routes wait until the hold ends.
 --
 -- One row per installation (id is always true). Only the host backup runner
 -- sets it, in TypeScript, for the backup run it holds. The switch is
