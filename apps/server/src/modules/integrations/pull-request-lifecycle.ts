@@ -117,7 +117,8 @@ export async function recordPullRequestLifecycle(
         set opened_at = coalesce(opened_at, $3),
             merged_at = coalesce(merged_at, $4),
             closed_at = case when merged_at is not null then closed_at
-              else $5 end,
+              when $10::boolean then null
+              else coalesce($5, closed_at) end,
             additions = coalesce($6, additions),
             deletions = coalesce($7, deletions),
             changed_files = coalesce($8, changed_files),
@@ -134,6 +135,7 @@ export async function recordPullRequestLifecycle(
       deletions,
       changedFiles,
       coverage,
+      read.state === "open",
     ],
   );
   for (const fact of lifecycleFacts(input.previousStatus, read)) {

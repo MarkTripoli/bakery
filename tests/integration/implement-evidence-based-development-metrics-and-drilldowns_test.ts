@@ -465,3 +465,56 @@ Deno.test("a later read without totals or merge time does not erase what is know
     await f.finish();
   }
 });
+
+Deno.test("a closed read without a close time keeps the stored one; a reopen clears it", async () => {
+  const f = await openGitHubAppFixture();
+  try {
+    const { connectionId, selected } = await enabledConnection(f, {
+      repositories: fakeRepositories(1, ["admin"]),
+      selected: 1,
+    });
+    const repo = await seedRepository(
+      f,
+      f.organizationId,
+      connectionId,
+      selected[0].external_id,
+    );
+    const id = await seedPullRequest(f, f.organizationId, repo, 1);
+    const closedAt = async () =>
+      (await f.pgDatabase.query<{ closed_at: Date | null }>(
+        "select closed_at from bakery.pull_requests where id = $1",
+        [id],
+      )).rows[0].closed_at?.toISOString() ?? null;
+    const closedRead = read(f.organizationId, 1, {
+      state: "closed",
+      merged: false,
+      providerUpdatedAt: new Date("2026-06-03T12:00:00Z"),
+      closedAt: new Date("2026-06-03T12:00:00Z"),
+      mergedAt: null,
+    });
+    assertEquals(await observe(f, repo.repositoryId, closedRead), "written");
+    assertEquals(await closedAt(), "2026-06-03T12:00:00.000Z");
+    // The same closed state read again later, without a close time.
+    await observe(f, repo.repositoryId, {
+      ...closedRead,
+      closedAt: null,
+      observedStartedAt: new Date(Date.now() + 1000),
+    });
+    assertEquals(await closedAt(), "2026-06-03T12:00:00.000Z");
+    // A reopen is the only read that clears it.
+    await observe(
+      f,
+      repo.repositoryId,
+      read(f.organizationId, 1, {
+        state: "open",
+        merged: false,
+        providerUpdatedAt: new Date("2026-06-04T12:00:00Z"),
+        closedAt: null,
+        mergedAt: null,
+      }),
+    );
+    assertEquals(await closedAt(), null);
+  } finally {
+    await f.finish();
+  }
+});
