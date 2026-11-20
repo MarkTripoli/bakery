@@ -320,7 +320,7 @@ async function runControlCapabilitiesAction(
   return await readRunControlCapabilities(transaction, organizationId, runId);
 }
 
-async function runControlAction(
+export async function runControlAction(
   context: ActionContext,
   input: RunControlInput,
 ): Promise<RunOutput> {

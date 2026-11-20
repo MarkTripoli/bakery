@@ -525,6 +525,26 @@ export const workflowImplementedActions = Object.freeze(
 );
 
 /**
+ * Batches (#58): a bounded run of issues in one repository. A supervisor's record
+ * over ordinary ticket requests; it starts nothing the existing admission would not.
+ */
+export const BatchImplementedAction = Object.freeze(
+  {
+    BatchesList: "batches.list",
+    BatchesGet: "batches.get",
+    BatchesCreate: "batches.create",
+    BatchesPause: "batches.pause",
+    BatchesResume: "batches.resume",
+    BatchesStop: "batches.stop",
+    BatchesStartNext: "batches.startNext",
+    BatchesFinish: "batches.finish",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const batchImplementedActions = Object.freeze(
+  Object.values(BatchImplementedAction),
+);
+
+/**
  * MCP server definitions (#434): the shared, organization-scoped record of what a
  * remote server is. Connections, discovery and classification are separate groups
  * as they land; the runtime registry and this list stay equal at every commit.
@@ -685,6 +705,25 @@ export const skillStorageImplementedActions = Object.freeze(
   Object.values(SkillStorageImplementedAction),
 );
 
+export const BackupImplementedAction = Object.freeze(
+  {
+    BackupsList: "backups.list",
+    BackupsStatus: "backups.status",
+    BackupsStart: "backups.start",
+    BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
+    BackupScheduleGet: "backupSchedule.get",
+    BackupSchedulePut: "backupSchedule.put",
+    BackupOffsiteGet: "backupOffsite.get",
+    BackupOffsitePut: "backupOffsite.put",
+    BackupOffsiteVerify: "backupOffsite.verify",
+    BackupRunnerSettings: "backupRunner.settings",
+    BackupRunnerClaim: "backupRunner.claim",
+    BackupRunnerReport: "backupRunner.report",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const backupImplementedActions = Object.freeze(
+  Object.values(BackupImplementedAction),
+);
 export const TelemetryDestinationImplementedAction = Object.freeze(
   {
     TelemetryDestinationsList: "telemetryDestinations.list",
@@ -696,6 +735,20 @@ export const TelemetryDestinationImplementedAction = Object.freeze(
 );
 export const telemetryDestinationImplementedActions = Object.freeze(
   Object.values(TelemetryDestinationImplementedAction),
+);
+
+export const AlertChannelImplementedAction = Object.freeze(
+  {
+    AlertChannelsList: "alertChannels.list",
+    AlertChannelsCreate: "alertChannels.create",
+    AlertChannelsUpdate: "alertChannels.update",
+    AlertChannelsDelete: "alertChannels.delete",
+    AlertChannelsTest: "alertChannels.test",
+    AlertChannelsRotateSecret: "alertChannels.rotateSecret",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const alertChannelImplementedActions = Object.freeze(
+  Object.values(AlertChannelImplementedAction),
 );
 
 export const BlobUploadImplementedAction = Object.freeze(
@@ -729,6 +782,7 @@ export const StorageImplementedAction = Object.freeze(
     StorageFileUsesList: "storageFileUses.list",
     StorageFilesContent: "storageFiles.content",
     StorageFilesByVersion: "storageFiles.byVersion",
+    StorageFilesPin: "storageFiles.pin",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const storageImplementedActions = Object.freeze(
@@ -882,10 +936,13 @@ export const implementedActions = Object.freeze(
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
+    ...backupImplementedActions,
     ...telemetryDestinationImplementedActions,
+    ...alertChannelImplementedActions,
     ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
+    ...batchImplementedActions,
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
     ...memoryImplementedActions,

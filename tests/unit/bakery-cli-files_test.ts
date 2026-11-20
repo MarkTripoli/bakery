@@ -43,6 +43,7 @@ const item = (
   mediaType: kind === "file" ? "text/markdown" : null,
   sizeBytes: kind === "file" ? 8 : null,
   artifactId: null,
+  pinned: false,
   contentRemoved: false,
   updatedAt: "2026-11-02T10:00:00.000Z",
   ...extra,
@@ -114,6 +115,17 @@ function fakeServer(options: { digest?: string; problem?: number } = {}) {
             }),
         );
       }
+      if (path === `/v1/storage/files/${PLAN}/pin` && init?.method === "PUT") {
+        const { pinned } = JSON.parse(String(init.body)) as { pinned: boolean };
+        return Promise.resolve(json({
+          id: id(77),
+          pinned,
+          pinnedAt: pinned ? "2026-11-20T10:00:00.000Z" : null,
+          pinnedBy: pinned ? id(40) : null,
+          version: 5,
+          unpinEligible: !pinned,
+        }));
+      }
       if (path === `/v1/storage/folders/${USER_HOME}/entries`) {
         return Promise.resolve(json({
           items: [item(HOME_NOTE, `/users/${id(40)}/todo.md`, "file")],
@@ -123,7 +135,10 @@ function fakeServer(options: { digest?: string; problem?: number } = {}) {
       if (path === `/v1/storage/folders/${WEB}/entries`) {
         return Promise.resolve(json({
           items: [
-            item(PLAN, "/projects/web/plan.md", "file", { sizeBytes: 8 }),
+            item(PLAN, "/projects/web/plan.md", "file", {
+              sizeBytes: 8,
+              artifactId: id(77),
+            }),
             item(NOTES, "/projects/web/notes.bin", "file", {
               mediaType: "application/octet-stream",
               sizeBytes: 2048,
@@ -613,4 +628,57 @@ Deno.test("versions: an agent's version names the agent and the person, never th
     madeBy({ ...base, makerKind: "person" } as Parameters<typeof madeBy>[0]),
     "Ada",
   );
+});
+
+Deno.test("stat shows whether a file is pinned", async () => {
+  const result = await bakery(["files", "stat", "/projects/web/plan.md"]);
+  assert(result.lines.some((line) => /^Pinned\s+no$/.test(line)));
+});
+
+Deno.test("pin and unpin set the pin on the file by its id, with the token, and say what happened", async () => {
+  const pinned = await bakery(["files", "pin", "/projects/web/plan.md"]);
+  assertEquals(pinned.code, 0);
+  assertEquals(pinned.lines, ["Pinned /projects/web/plan.md"]);
+  const call = pinned.seen.find((entry) => entry.method === "PUT")!;
+  assertEquals(call.path, `/v1/storage/files/${PLAN}/pin`);
+  assertEquals(call.headers.get("authorization"), `Bearer ${TOKEN}`);
+  assertEquals(call.headers.get("bakery-organization-id"), ORG);
+  assert(
+    (call.headers.get("idempotency-key") ?? "") !== "",
+    "a pin is a command: it carries an Idempotency-Key",
+  );
+  const unpinned = await bakery(["files", "unpin", "/projects/web/plan.md"]);
+  assertEquals(unpinned.code, 0);
+  assertEquals(unpinned.lines, [
+    "Unpinned /projects/web/plan.md (an expired version may now be collected)",
+  ]);
+  const json = await bakery([
+    "files",
+    "pin",
+    "/projects/web/plan.md",
+    "--json",
+  ]);
+  assertEquals(JSON.parse(json.lines.join("\n")).pinned, true);
+});
+
+Deno.test("pin refuses a working-area file, a folder and a revision before asking the server", async () => {
+  const working = await bakery(["files", "pin", "/projects/web/notes.bin"]);
+  assertEquals(working.code, 1);
+  assert(/working-area file/.test(working.errors.join(" ")));
+  assert(working.seen.every((entry) => entry.method !== "PUT"));
+  const folder = await bakery(["files", "pin", "/projects/web"]);
+  assertEquals(folder.code, 1);
+  const revision = await bakery(["files", "pin", "/projects/web/plan.md@1"]);
+  assertEquals(revision.code, 1);
+  assert(/not on one revision/.test(revision.errors.join(" ")));
+  assert(revision.seen.every((entry) => entry.method !== "PUT"));
+});
+
+Deno.test("a refused pin says why in words", async () => {
+  const forbidden = await bakery(
+    ["files", "pin", "/projects/web/plan.md"],
+    fakeServer({ problem: 403 }),
+  );
+  assertEquals(forbidden.code, 1);
+  assert(/access/.test(forbidden.errors.join(" ")));
 });
