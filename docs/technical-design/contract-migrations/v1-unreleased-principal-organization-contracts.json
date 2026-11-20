@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "8bfc768ae1d064339b8cb7a7c56ab5b038fb3738"
+    "b6307002a2978e10e83d7b28d2a676866b90080c"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:1d7133085eff0d482e491d930a1b7694b6a1fbf69f234617daa140f7fc5b24b7",
-  "reason": "#46 development metrics re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8bfc768ae1d064339b8cb7a7c56ab5b038fb3738: MetricsQuery.metric changes from a free string to an allowlisted enum of metric keys and gains an optional repositoryId; MetricSeries gains required provenance fields (unit, cohort, sample and missing counts with reasons, measurement revision, last sync, completeness, hidden count, per-repository source state, task summary); MetricPoint gains unknownReason; metrics.sources is a new action. The breaking drift is the enum constraint on metric and the newly required response fields; no route or status code is removed. The approval it displaced at sha256:5f21fc22924aa26340da277a3d286d70b5517b8bde6fb02c1e53b453a917491e is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:69c0243b9bd49da8b9278b63702507e0bdaac7fd701731cd4ec39ed1372ab67a",
+  "reason": "#46 development metrics re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main b6307002a2978e10e83d7b28d2a676866b90080c: the breaking drift is unchanged (MetricsQuery and the metrics read contracts from #746).",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "8bfc768ae1d064339b8cb7a7c56ab5b038fb3738"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1d7133085eff0d482e491d930a1b7694b6a1fbf69f234617daa140f7fc5b24b7",
+      "reason": "#46 development metrics re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8bfc768ae1d064339b8cb7a7c56ab5b038fb3738: MetricsQuery.metric changes from a free string to an allowlisted enum of metric keys and gains an optional repositoryId; MetricSeries gains required provenance fields (unit, cohort, sample and missing counts with reasons, measurement revision, last sync, completeness, hidden count, per-repository source state, task summary); MetricPoint gains unknownReason; metrics.sources is a new action. The breaking drift is the enum constraint on metric and the newly required response fields; no route or status code is removed. The approval it displaced at sha256:5f21fc22924aa26340da277a3d286d70b5517b8bde6fb02c1e53b453a917491e is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "c0afffaa276d15d62a0c2dc68190e757490c02b1"
