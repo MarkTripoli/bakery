@@ -4137,9 +4137,10 @@ const transportSchemas = {
             "conversation",
             "worker_enrollment",
             "worker",
-            "inbox"
+            "inbox",
+            "memory"
           ],
-          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
+          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it. \"memory\" is events-only too: its id must be the organization's own id, only a caller who may read memory may subscribe (anyone else is told it does not exist), and it carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals, which no other scope delivers; snapshots reject it."
         },
         {
           "name": "scopeId",
@@ -21980,6 +21981,7 @@ const transportSchemas = {
         "confidence",
         "expiresAt",
         "createdBy",
+        "createdByName",
         "createdAt",
         "updatedAt",
         "version"
@@ -22000,7 +22002,8 @@ const transportSchemas = {
         "version": "integer",
         "reason": "string|null",
         "sourceName": "string|null",
-        "sourceRevision": "integer|null"
+        "sourceRevision": "integer|null",
+        "createdByName": "string|null"
       },
       "nullableFields": [
         "supersedesId",
@@ -22008,7 +22011,8 @@ const transportSchemas = {
         "reason",
         "sourceArtifactVersionId",
         "sourceName",
-        "sourceRevision"
+        "sourceRevision",
+        "createdByName"
       ],
       "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
@@ -22027,7 +22031,8 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version used when updating the record.",
         "reason": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking.",
         "sourceName": "Name of the artifact whose version this revision cites, so a reader sees which document it came from without a second read. Null unless sourceState is available or deleted: a reader who cannot read artifact versions, or a version that cannot be found, is never given a name.",
-        "sourceRevision": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null."
+        "sourceRevision": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null.",
+        "createdByName": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
       },
       "optionalFields": [
         "reason"
@@ -24636,12 +24641,12 @@ const transportSchemas = {
         "id"
       ],
       "fieldTypes": {
-        "type": "enum(application|repository|task|conversation|inbox)",
+        "type": "enum(application|repository|task|conversation|inbox|memory)",
         "id": "uuid"
       },
-      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, or the caller's own inbox) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time.",
+      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, the caller's own inbox, or the organization's remembered-fact signals) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time.",
       "fieldDescriptions": {
-        "type": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals.",
+        "type": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals.",
         "id": "Stable UUID identifying the scope record."
       }
     },

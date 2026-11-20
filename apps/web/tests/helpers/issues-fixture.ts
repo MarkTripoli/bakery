@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
   MOCK_PRINCIPAL_ID,
@@ -199,6 +199,18 @@ export type Options = {
     | "gone"
     | "alreadyRunning";
 };
+
+/**
+ * Turns a list filter on. A click before the page is ready does nothing, so
+ * the filter's being on is what is waited for, not the click.
+ */
+export async function chooseFilter(page: Page, name: string) {
+  const radio = page.getByRole("radio", { name });
+  await expect(async () => {
+    await radio.click({ force: true });
+    await expect(radio).toBeChecked({ timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
+}
 
 /** Stubs the session, the role, the sources and the issues; returns the requests seen. */
 export async function issuesFixture(page: Page, options: Options = {}) {

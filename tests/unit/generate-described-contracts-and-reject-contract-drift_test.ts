@@ -884,16 +884,28 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "dd04161d9c178f90553b2e7b086c18bb5f848203",
+    "c0afffaa276d15d62a0c2dc68190e757490c02b1",
   ];
   const approvedDigest =
-    "sha256:8f13900a664e97c69caa28ca9c2d4855d57374d7e8db6a0c5d37721d9603a819";
+    "sha256:5f21fc22924aa26340da277a3d286d70b5517b8bde6fb02c1e53b453a917491e";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #400 S2 plan admission re-bind onto main dd04161d9: main's own approval, kept unchanged.
+    // Displaced by the #400 S2 plan admission re-bind onto main c0afffaa2 (#741 merged): main's own approval, then this PR's previous approval, kept unchanged.
+    "sha256:e57de0de36c4f5a4aea4e34f5c1bffcd3c9ab0ea5823cd8137a28bafb2f24154",
+    "sha256:8f13900a664e97c69caa28ca9c2d4855d57374d7e8db6a0c5d37721d9603a819",
+    // Displaced when main moved again (#737 merged): the digest follows the tree.
+    "sha256:68f8ed103f00f5939c295ca6fcdff4841ce299aa7adcbd10581d3a765d89d59a",
+    // Displaced when main moved again (#733 merged): the digest follows the tree.
+    "sha256:c2c9891d5d6ddcc2922c2874222e3d3d0b214119102017d39890e121da2df574",
+    // Displaced by the #72 live updates re-bind onto main a1df1217 (#740 and #742 merged): main's own
+    // approval, then this PR's earlier approvals, newest first.
     "sha256:1e96091b9990086d17c09e0bae292465d0f9ce34f5b698b29d9fceb229246276",
+    "sha256:fb10887d4b159377b43b00903e72e8942c1804bb621ee75e18d5a3d40487193e",
+    "sha256:52694c6c5c85601fc23bab0a2989c1d8cb4d422e0d44a7a73af72447e6c1ee70",
+    "sha256:28b92c05eb6628790f55b608b89bda867f863b3476c3acf0e11e6aa5c9793eb2",
+    "sha256:4bbd1def5f3a695bbb5f56ab36ef532ae64f6e9b501575f15d5f89167ccd0c9f",
     // Displaced by the #42 skill copy re-bind onto main 04c3fa8ff: main's own approval, kept unchanged.
     "sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96",
     // Displaced by the #72 memory re-bind onto main 4bd35c217 (#728 merged): main's own

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import type { MemoryEntryResponse } from "../../api/client.ts";
@@ -56,6 +56,18 @@ export function MemoryFactActions(
   const [failure, setFailure] = useState<Failure | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const opener = useRef<HTMLElement | null>(null);
+  // Wordings this page made itself, so only someone else's correction is announced.
+  const mine = useRef(new Set<string>());
+  const seenRevision = useRef(entry.currentRevisionId);
+  const [changedByOther, setChangedByOther] = useState(false);
+  useEffect(() => {
+    if (entry.currentRevisionId === seenRevision.current) return;
+    seenRevision.current = entry.currentRevisionId;
+    if (
+      entry.currentRevisionId !== null &&
+      !mine.current.has(entry.currentRevisionId)
+    ) setChangedByOther(true);
+  }, [entry.currentRevisionId]);
   // One key per intent: a retry of the same change reuses it, a new change does not.
   const intent = useRef<string | null>(null);
   const key = () => (intent.current ??= crypto.randomUUID());
@@ -92,6 +104,8 @@ export function MemoryFactActions(
   const change = async (status: "active" | "retired", done: Notice) => {
     setBusy(true);
     setFailure(null);
+    // Starting a change ends the "corrected while open" notice.
+    setChangedByOther(false);
     try {
       const result = await api.updateMemory({
         organizationId,
@@ -129,6 +143,7 @@ export function MemoryFactActions(
     intent.current = null;
     setFailure(null);
     setNotice(null);
+    setChangedByOther(false);
     setTried(false);
     setDraft({
       content: latest.current.currentRevision?.body ?? "",
@@ -171,6 +186,7 @@ export function MemoryFactActions(
         idempotencyKey: key(),
       });
       if (!made.ok) throw made.error;
+      mine.current.add(made.data.id);
       saved = true;
       intent.current = null;
       if (approve) {
@@ -266,6 +282,20 @@ export function MemoryFactActions(
         </UI.Toast>
       )}
       {failureNotice}
+      {changedByOther
+        ? (
+          <UI.InlineNotice
+            tone={correcting === null ? "information" : "warning"}
+            data-testid="memory-changed-by-other"
+          >
+            {translate(
+              (correcting === null
+                ? "library.memory.live.corrected"
+                : "library.memory.refusal.stale") as never,
+            )}
+          </UI.InlineNotice>
+        )
+        : null}
       {actions.approve && correcting === null
         ? (
           <UI.Text variant="muted">

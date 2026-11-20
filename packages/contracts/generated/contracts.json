@@ -30722,9 +30722,10 @@
                   "conversation",
                   "worker_enrollment",
                   "worker",
-                  "inbox"
+                  "inbox",
+                  "memory"
                 ],
-                "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
+                "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it. \"memory\" is events-only too: its id must be the organization's own id, only a caller who may read memory may subscribe (anyone else is told it does not exist), and it carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals, which no other scope delivers; snapshots reject it."
               }
             },
             {
@@ -52651,9 +52652,10 @@
                 "conversation",
                 "worker_enrollment",
                 "worker",
-                "inbox"
+                "inbox",
+                "memory"
               ],
-              "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
+              "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it. \"memory\" is events-only too: its id must be the organization's own id, only a caller who may read memory may subscribe (anyone else is told it does not exist), and it carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals, which no other scope delivers; snapshots reject it."
             },
             "scopeId": {
               "type": "string",
@@ -101240,6 +101242,20 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Principal who created the record."
             },
+            "createdByName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "MemoryRevision.createdByName may be null in this transport value."
+            },
             "createdAt": {
               "type": "string",
               "format": "date-time",
@@ -101272,6 +101288,7 @@
             "confidence",
             "expiresAt",
             "createdBy",
+            "createdByName",
             "createdAt",
             "updatedAt",
             "version"
@@ -142985,6 +143002,20 @@
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                             "description": "Principal who created the record."
                           },
+                          "createdByName": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 65536,
+                                "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "MemoryRevision.createdByName may be null in this transport value."
+                          },
                           "createdAt": {
                             "type": "string",
                             "format": "date-time",
@@ -143017,6 +143048,7 @@
                           "confidence",
                           "expiresAt",
                           "createdBy",
+                          "createdByName",
                           "createdAt",
                           "updatedAt",
                           "version"
@@ -143392,6 +143424,20 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "Principal who created the record."
                   },
+                  "createdByName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "MemoryRevision.createdByName may be null in this transport value."
+                  },
                   "createdAt": {
                     "type": "string",
                     "format": "date-time",
@@ -143424,6 +143470,7 @@
                   "confidence",
                   "expiresAt",
                   "createdBy",
+                  "createdByName",
                   "createdAt",
                   "updatedAt",
                   "version"
@@ -160307,6 +160354,20 @@
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                       "description": "Principal who created the record."
                     },
+                    "createdByName": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "MemoryRevision.createdByName may be null in this transport value."
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time",
@@ -160339,6 +160400,7 @@
                     "confidence",
                     "expiresAt",
                     "createdBy",
+                    "createdByName",
                     "createdAt",
                     "updatedAt",
                     "version"
@@ -196395,9 +196457,10 @@
                             "repository",
                             "task",
                             "conversation",
-                            "inbox"
+                            "inbox",
+                            "memory"
                           ],
-                          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                         },
                         "id": {
                           "type": "string",
@@ -197896,9 +197959,10 @@
                           "repository",
                           "task",
                           "conversation",
-                          "inbox"
+                          "inbox",
+                          "memory"
                         ],
-                        "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                        "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                       },
                       "id": {
                         "type": "string",
@@ -203453,9 +203517,10 @@
                 "repository",
                 "task",
                 "conversation",
-                "inbox"
+                "inbox",
+                "memory"
               ],
-              "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+              "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
             },
             "id": {
               "type": "string",
@@ -203469,7 +203534,7 @@
             "id"
           ],
           "additionalProperties": false,
-          "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, or the caller's own inbox) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
+          "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, the caller's own inbox, or the organization's remembered-fact signals) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
         },
         "Problem": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -237085,7 +237150,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:8c0f40865a61c2b72d37a087d03041339c14331e5829f4a18f398b2bd46b6167",
+  "compatibilityDigest": "sha256:5f21fc22924aa26340da277a3d286d70b5517b8bde6fb02c1e53b453a917491e",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -247890,9 +247955,10 @@
             "conversation",
             "worker_enrollment",
             "worker",
-            "inbox"
+            "inbox",
+            "memory"
           ],
-          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
+          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it. \"memory\" is events-only too: its id must be the organization's own id, only a caller who may read memory may subscribe (anyone else is told it does not exist), and it carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals, which no other scope delivers; snapshots reject it."
         },
         "scopeId": {
           "type": "string",
@@ -296637,6 +296703,20 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Principal who created the record."
         },
+        "createdByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryRevision.createdByName may be null in this transport value."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -296669,6 +296749,7 @@
         "confidence",
         "expiresAt",
         "createdBy",
+        "createdByName",
         "createdAt",
         "updatedAt",
         "version"
@@ -338520,6 +338601,20 @@
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                         "description": "Principal who created the record."
                       },
+                      "createdByName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MemoryRevision.createdByName may be null in this transport value."
+                      },
                       "createdAt": {
                         "type": "string",
                         "format": "date-time",
@@ -338552,6 +338647,7 @@
                       "confidence",
                       "expiresAt",
                       "createdBy",
+                      "createdByName",
                       "createdAt",
                       "updatedAt",
                       "version"
@@ -338929,6 +339025,20 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Principal who created the record."
               },
+              "createdByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryRevision.createdByName may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -338961,6 +339071,7 @@
               "confidence",
               "expiresAt",
               "createdBy",
+              "createdByName",
               "createdAt",
               "updatedAt",
               "version"
@@ -355870,6 +355981,20 @@
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                   "description": "Principal who created the record."
                 },
+                "createdByName": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MemoryRevision.createdByName may be null in this transport value."
+                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time",
@@ -355902,6 +356027,7 @@
                 "confidence",
                 "expiresAt",
                 "createdBy",
+                "createdByName",
                 "createdAt",
                 "updatedAt",
                 "version"
@@ -391990,9 +392116,10 @@
                         "repository",
                         "task",
                         "conversation",
-                        "inbox"
+                        "inbox",
+                        "memory"
                       ],
-                      "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                      "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                     },
                     "id": {
                       "type": "string",
@@ -393493,9 +393620,10 @@
                       "repository",
                       "task",
                       "conversation",
-                      "inbox"
+                      "inbox",
+                      "memory"
                     ],
-                    "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+                    "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
                   },
                   "id": {
                     "type": "string",
@@ -399056,9 +399184,10 @@
             "repository",
             "task",
             "conversation",
-            "inbox"
+            "inbox",
+            "memory"
           ],
-          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals."
+          "description": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals; or memory, whose id must be the organization's own id, open only to a caller who may read memory, and which carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals."
         },
         "id": {
           "type": "string",
@@ -399072,7 +399201,7 @@
         "id"
       ],
       "additionalProperties": false,
-      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, or the caller's own inbox) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
+      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, the caller's own inbox, or the organization's remembered-fact signals) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time."
     },
     "Problem": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -33,10 +33,12 @@ export function memoryBadgeTone(
  * history is read here.
  */
 export function MemoryFactSheet(
-  { canManage, entry, onClose, phone, repositoryName }: {
+  { canManage, entry, onClose, onOpenSource, phone, repositoryName }: {
     readonly canManage: boolean;
     readonly entry: MemoryEntryResponse;
     readonly onClose: () => void;
+    /** Opens the source document at its cited version (a path in this app). */
+    readonly onOpenSource: (href: string) => void;
     readonly phone: boolean;
     readonly repositoryName: string | null;
   },
@@ -71,14 +73,46 @@ export function MemoryFactSheet(
       new Date(iso),
     );
 
+  // The cited version opens in the files browser; only an available source has
+  // a version this reader may open (the id is null for no access).
+  const sourceVersionId = current?.sourceArtifactVersionId ?? null;
+  const sourceHref = source.kind === "available" && sourceVersionId !== null
+    ? `/files/versions/${sourceVersionId}`
+    : null;
+  const sourceText = source.kind === "available"
+    ? translate("library.memory.source.boxAvailable" as never, {
+      name: source.name,
+      version: source.revision,
+    })
+    : "";
   const sourceBox = source.kind === "available"
     ? (
-      <UI.Text data-testid="memory-source">
-        {translate("library.memory.source.boxAvailable" as never, {
-          name: source.name,
-          version: source.revision,
-        })}
-      </UI.Text>
+      <UI.Stack gap="tight" data-testid="memory-source">
+        {sourceHref === null ? <UI.Text>{sourceText}</UI.Text> : (
+          <>
+            <UI.Text>
+              <UI.Link
+                variant="sentence"
+                href={sourceHref}
+                onClick={(event) => {
+                  // Let a modified click (new tab) go to the browser.
+                  if (
+                    event.metaKey || event.ctrlKey || event.shiftKey ||
+                    event.button !== 0
+                  ) return;
+                  event.preventDefault();
+                  onOpenSource(sourceHref);
+                }}
+              >
+                {sourceText}
+              </UI.Link>
+            </UI.Text>
+            <UI.Text variant="muted">
+              {translate("library.memory.source.exactVersion" as never)}
+            </UI.Text>
+          </>
+        )}
+      </UI.Stack>
     )
     : (
       <UI.InlineNotice
@@ -199,6 +233,12 @@ export function MemoryFactSheet(
                         `library.memory.badge.${stateBadge}` as never,
                       )
                       : translate("library.memory.fact.earlier" as never),
+                    revision.createdByName === null ||
+                      revision.createdByName === undefined
+                      ? null
+                      : translate("library.memory.fact.by" as never, {
+                        name: revision.createdByName,
+                      }),
                     date(revision.createdAt),
                     revision.reason === null ||
                       revision.reason === undefined
