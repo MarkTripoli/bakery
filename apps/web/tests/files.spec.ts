@@ -319,6 +319,46 @@ for (
       await expect(page.getByRole("link", { name: "docs" })).toBeVisible();
     });
 
+    test("the Library copy is read only: sections, then a table of what the Library holds", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto("/files");
+      await page.getByTestId("files-page").getByRole("link", {
+        name: "Library",
+        exact: true,
+      }).click();
+      await expect(page).toHaveURL(/\/files\/library$/);
+      await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+      await expect(page.getByText("This folder is a copy of the Library."))
+        .toBeVisible();
+      await expect(page.getByText(/To change an item, open it in the Library/))
+        .toBeVisible();
+      await page.getByTestId("files-page").getByRole("link", {
+        name: "Workflows",
+        exact: true,
+      }).click();
+      await expect(page).toHaveURL(/\/files\/library\/workflows$/);
+      await expect(
+        page.getByText(/To change a workflow, open it in the Library/),
+      )
+        .toBeVisible();
+      await expect(page.getByText("Ship a change")).toBeVisible();
+      await expect(page.getByText(/^Workflow( ·|$)/).first()).toBeVisible();
+      // Nothing under /library can be changed: no rename, move, upload or delete.
+      await expect(
+        page.getByRole("button", { name: /Rename|Move|Upload|Delete/ }),
+      ).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "files-library");
+      await page.getByRole("button", { name: "Open the Library" }).click();
+      await expect(page).toHaveURL(/\/library$/);
+    });
+
+    test("a Library folder that does not exist says so", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto("/files/library/nothing");
+      await expect(page.getByText("This folder was not found")).toBeVisible();
+    });
+
     test("Clear filters resets the filters and keeps the typed text", async ({ page }) => {
       test.skip(viewport.name !== "phone");
       await filesFixture(page);

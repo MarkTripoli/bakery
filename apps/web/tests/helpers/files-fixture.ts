@@ -375,20 +375,58 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
   );
   await page.route(
     (url) => url.pathname === "/v1/files/library",
-    (route) =>
-      json(
-        route,
-        page_([
-          { slug: "plan", name: "Plan" },
-          { slug: "review", name: "Review" },
-        ].map((entry) => ({
-          type: "item",
-          path: `/library/kinds/${entry.slug}`,
-          name: entry.name,
-          kind: "kind",
-          createdAt: STAMP,
-        }))),
-      ),
+    (route) => {
+      const path = new URL(route.request().url()).searchParams.get("path") ??
+        "/library";
+      const item = (
+        section: string,
+        slug: string,
+        name: string,
+        kind: string,
+      ) => ({
+        type: "item",
+        path: `/library/${section}/${slug}`,
+        name,
+        kind,
+        createdAt: STAMP,
+      });
+      const sections: Record<string, unknown[]> = {
+        "/library/kinds": [
+          item("kinds", "plan", "Plan", "kind"),
+          item("kinds", "review", "Review", "kind"),
+        ],
+        "/library/workflows": [
+          item("workflows", "ship", "Ship a change", "workflow"),
+          item("workflows", "triage", "Triage issues", "workflow"),
+        ],
+        "/library/agents": [item("agents", "coder", "Coder", "agent")],
+        "/library": ["workflows", "agents"].map((slug) => ({
+          type: "folder",
+          path: `/library/${slug}`,
+          name: slug,
+          kind: null,
+          createdAt: null,
+        })),
+      };
+      const entries = sections[path];
+      if (entries === undefined) {
+        return route.fulfill({
+          status: 404,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "about:blank",
+            title: "Not Found",
+            status: 404,
+            code: "RESOURCE_NOT_FOUND",
+            retryable: false,
+            detail: "not found",
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
+      }
+      return json(route, page_(entries));
+    },
   );
   await page.route(
     (url) => url.pathname === "/v1/principals",

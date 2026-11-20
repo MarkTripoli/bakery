@@ -15,6 +15,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { FileDetails, type FileTab } from "./files/FileDetails.tsx";
+import { isLibraryPath, LibraryFilesPage } from "./files/LibraryFilesPage.tsx";
 import {
   FileSearchControls,
   FileSearchResults,
@@ -30,8 +31,14 @@ import {
   sizeParts,
 } from "./files/files-state.ts";
 
-/** The files browser (#445): the top folders, or one folder's entries. */
+/** The files browser (#445): the top folders, one folder's entries, or the Library copy. */
 export function FilesPage({ path }: { readonly path: string }) {
+  return isLibraryPath(path)
+    ? <LibraryFilesPage path={path} />
+    : <StorageFilesPage path={path} />;
+}
+
+function StorageFilesPage({ path }: { readonly path: string }) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();

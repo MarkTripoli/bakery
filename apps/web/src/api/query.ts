@@ -3277,6 +3277,36 @@ export function fileKindsQueryOptions(
   });
 }
 
+/** One folder of the Library copy under Files, page by page. */
+export function fileLibraryEntriesQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  path: string,
+) {
+  return infiniteQueryOptions<
+    LibraryPage,
+    ApiFailure,
+    { pages: LibraryPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "files.library.folder", { path }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.files.library(
+          requireOrganization(scope),
+          path,
+          pageParam === null ? undefined : pageParam,
+          signal,
+        ),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 /** Who can have made a file: the organization's people, workers and service accounts. */
 export function filePeopleQueryOptions(
   client: Pick<BakeryApiClient, "principals">,
