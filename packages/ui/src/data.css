@@ -2194,8 +2194,10 @@
    number alone. */
 .ui-stat-tile[data-selected="true"] {
   border-radius: var(--radius-control);
-  /* An inset ring: it marks the tile without changing its size or its place. */
-  box-shadow: inset 0 0 0 var(--border-emphasis) var(--color-border-strong);
+  /* A ring just outside the tile: it marks it without changing its size or its
+     place, and leaves the text clear of the line. */
+  outline: var(--border-emphasis) solid var(--color-border-strong);
+  outline-offset: var(--space-1);
 }
 @media (pointer: coarse) {
   .ui-stat-tile__action {
