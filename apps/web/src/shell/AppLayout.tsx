@@ -44,6 +44,7 @@ import {
   ORGANIZATIONS_PATH,
   SIGN_OUT_PATH,
 } from "../app/auth-required.tsx";
+import { ORGANIZATION_STORAGE_PATH } from "../app/auth-paths.ts";
 import { useThemePreference } from "../app/server-presentation.tsx";
 import { useSession } from "../app/session-context.tsx";
 import {
@@ -315,6 +316,10 @@ function useAccountActions() {
         id: "organization-settings",
         label: translate("shell.navigation.organizationSettings"),
       },
+      {
+        id: "organization-storage",
+        label: translate("shell.navigation.organizationStorage"),
+      },
       ...(installation.isSuccess
         ? [{
           id: "installation-settings",
@@ -332,6 +337,8 @@ function useAccountActions() {
         void choose(nextTheme);
       } else if (id === "organization-settings") {
         void navigate({ to: ORGANIZATION_SETTINGS_PATH });
+      } else if (id === "organization-storage") {
+        void navigate({ to: ORGANIZATION_STORAGE_PATH });
       } else if (id === "installation-settings") {
         void navigate({ to: "/installation/settings" });
       } else if (id === "switch-organization") {
@@ -463,7 +470,8 @@ function ShellSidebar(
           <UI.WorkspaceSwitcher
             items={account.items.filter((item) =>
               item.id === "switch-organization" ||
-              item.id === "organization-settings"
+              item.id === "organization-settings" ||
+              item.id === "organization-storage"
             )}
             label={translate("shell.navigation.switchOrganization")}
             onSelect={account.onSelect}
@@ -516,6 +524,9 @@ function usePageTitle(pathname: string): string | undefined {
   ) return translate("shell.states.settingsTitle");
   if (pathname === ORGANIZATION_SETTINGS_PATH) {
     return translate("shell.navigation.organizationSettings");
+  }
+  if (pathname === ORGANIZATION_STORAGE_PATH) {
+    return translate("shell.navigation.organizationStorage");
   }
   return undefined;
 }

@@ -12,6 +12,7 @@ import {
 import {
   CONTEXT_EXTRACTOR_VERSION,
   projectArtifactVersion,
+  referenceProjection,
   verifyCitation,
 } from "../../apps/server/src/modules/knowledge/context-projection.ts";
 
@@ -300,4 +301,20 @@ Deno.test("a hostile window cannot make a rule run away", () => {
     performance.now() - started < 2_000,
     "redaction of a 65 KB hostile window took too long",
   );
+});
+
+Deno.test("a reference says why it has no content: binary, no PDF extractor, or a failed window", () => {
+  const limit = (mediaType: string, options = {}) =>
+    referenceProjection({ ...entry, mediaType }, options).limit;
+  assertEquals(limit("image/png"), "binary_media");
+  assertEquals(limit("application/zip"), "binary_media");
+  assertEquals(limit("application/pdf"), "no_text_extractor");
+  // A text version that has no window is a failed extraction, not an empty file.
+  assertEquals(limit("text/plain"), "extraction_failed");
+  assertEquals(
+    limit("application/pdf", { limit: "extraction_failed" }),
+    "extraction_failed",
+  );
+  // A window carries text, so it carries no limit.
+  assertEquals(project("hello").limit, null);
 });
