@@ -80,6 +80,8 @@ export type InstallationIntegrationsScreenProps = {
   readonly onReload: () => void;
   readonly onDismissOutcome: () => void;
   readonly existingApp: ExistingAppForm;
+  /** Provider OAuth client credential sections, rendered below the GitHub App area. */
+  readonly providerCredentials?: ReactNode;
   /** The object storage section, rendered below the GitHub App area. */
   readonly storage?: ReactNode;
 };
@@ -131,6 +133,7 @@ export function InstallationIntegrationsScreen(
     onReload,
     onDismissOutcome,
     existingApp,
+    providerCredentials,
     storage,
   }: InstallationIntegrationsScreenProps,
 ) {
@@ -428,6 +431,7 @@ export function InstallationIntegrationsScreen(
           )
           : null}
       </UI.IntegrationAppRegistration>
+      {providerCredentials}
       {storage}
     </UI.SettingsContent>
   );

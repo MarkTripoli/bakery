@@ -39,6 +39,7 @@ import type {
   InstallationSettings,
   InstallationStatus,
   IntegrationAppRegistration,
+  IntegrationClientCredentials,
   IntegrationConnection,
   IntegrationResource,
   MemoryEntryResponse,
@@ -1755,6 +1756,25 @@ export function integrationAppRegistrationQueryOptions(
     ),
     queryFn: async ({ signal }) =>
       unwrap(await client.integrationAppRegistrations.get(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function integrationClientCredentialsQueryOptions(
+  client: Pick<BakeryApiClient, "integrationClientCredentials">,
+  scope: ApiScope,
+  provider: string,
+) {
+  return queryOptions<IntegrationClientCredentials, ApiFailure>({
+    queryKey: protectedQueryKey(
+      scope,
+      "integrationClientCredentials.get",
+      { provider },
+    ),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.integrationClientCredentials.get({ provider, signal }),
+      ),
     retry: retryNetworkOnce,
   });
 }

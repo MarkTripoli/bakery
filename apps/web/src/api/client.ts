@@ -113,6 +113,10 @@ export type IntegrationAppRegistrationBegin =
   ClientInputMap["IntegrationAppRegistrationBegin"];
 export type IntegrationAppRegistrationPut =
   ClientInputMap["IntegrationAppRegistrationPut"];
+export type IntegrationClientCredentials =
+  ClientOutputMap["IntegrationClientCredentials"];
+export type IntegrationClientCredentialsPut =
+  ClientInputMap["IntegrationClientCredentialsPut"];
 export type SkillStorageSettings = ClientOutputMap["SkillStorageSettings"];
 export type SkillStorageSettingsPut = ClientInputMap["SkillStorageSettingsPut"];
 export type SkillStorageVerification =
@@ -1196,6 +1200,28 @@ export type BakeryApiClient = {
       readonly idempotencyKey: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<IntegrationAppRegistration>>;
+  };
+  /**
+   * Provider OAuth client credentials, per provider (#410); installation
+   * administrators only. A result never carries the secret.
+   */
+  readonly integrationClientCredentials: {
+    /** `GET /v1/integration-client-credentials/{provider}`: configured or not, the client ID, when the secret was saved. */
+    readonly get: (options: {
+      readonly provider: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<IntegrationClientCredentials>>;
+    /**
+     * `PUT /v1/integration-client-credentials/{provider}`: registers the pair, or
+     * replaces it when `version` is set. The input carries a write-only secret.
+     */
+    readonly put: (options: {
+      readonly provider: string;
+      readonly input: IntegrationClientCredentialsPut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<IntegrationClientCredentials>>;
   };
   /** Installation skill object storage; administrators only, never a secret in a result. */
   readonly skillStorage: {
@@ -3734,6 +3760,40 @@ export function createBakeryApiClient({
             ok: true,
             data: await client.actions["integrationAppRegistrations.put"](
               options.input,
+              {
+                ...(options.version === undefined
+                  ? {}
+                  : { ifMatch: versionEtag(options.version) }),
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    integrationClientCredentials: {
+      async get(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["integrationClientCredentials.get"]({
+              provider: options.provider,
+            }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async put(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["integrationClientCredentials.put"](
+              { provider: options.provider, ...options.input },
               {
                 ...(options.version === undefined
                   ? {}
