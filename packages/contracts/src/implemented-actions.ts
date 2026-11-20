@@ -626,6 +626,24 @@ export const secretsImplementedActions = Object.freeze(
   Object.values(SecretsImplementedAction),
 );
 
+/**
+ * The provider-neutral OAuth client credentials (#410).
+ *
+ * One installation-level get and put for every provider whose manifest asks for
+ * `client-credentials`, so adding a provider adds no operation. The put is a
+ * session-only command that is idempotent and version-guarded once credentials
+ * exist, and the secret it takes is never returned.
+ */
+export const IntegrationClientCredentialsImplementedAction = Object.freeze(
+  {
+    IntegrationClientCredentialsGet: "integrationClientCredentials.get",
+    IntegrationClientCredentialsPut: "integrationClientCredentials.put",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const integrationClientCredentialsImplementedActions = Object.freeze(
+  Object.values(IntegrationClientCredentialsImplementedAction),
+);
+
 export const SkillStorageImplementedAction = Object.freeze(
   {
     SkillStorageSettingsGet: "skillStorageSettings.get",
@@ -793,6 +811,7 @@ export const implementedActions = Object.freeze(
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
+    ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
     ...blobUploadImplementedActions,

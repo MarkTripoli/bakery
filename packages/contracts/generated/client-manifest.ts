@@ -7394,6 +7394,63 @@ export const clientManifest = {
     {
       "group": "Installation administration",
       "method": "GET",
+      "path": "/v1/integration-client-credentials/{provider}",
+      "action": "integrationClientCredentials.get",
+      "access": "Installation administrator",
+      "permission": "installationSetting:read",
+      "input": "IntegrationProviderPath",
+      "output": "IntegrationClientCredentials",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "INTERNAL",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/integration-client-credentials/{provider}",
+      "action": "integrationClientCredentials.put",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "IntegrationClientCredentialsPut",
+      "output": "IntegrationClientCredentials",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once credentials are registered",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE",
+        "INTERNAL",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
       "path": "/v1/installation/skill-storage",
       "action": "skillStorageSettings.get",
       "access": "Installation administrator",
@@ -16091,6 +16148,8 @@ export const clientManifest = {
             "integrationAppRegistrations.get",
             "integrationAppRegistrations.begin",
             "integrationAppRegistrations.put",
+            "integrationClientCredentials.get",
+            "integrationClientCredentials.put",
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
@@ -17979,9 +18038,10 @@ export const clientManifest = {
             "conversation",
             "worker_enrollment",
             "worker",
-            "inbox"
+            "inbox",
+            "memory"
           ],
-          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
+          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it. \"memory\" is events-only too: its id must be the organization's own id, only a caller who may read memory may subscribe (anyone else is told it does not exist), and it carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals, which no other scope delivers; snapshots reject it."
         },
         "scopeId": {
           "type": "string",
@@ -21787,6 +21847,53 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Query parameters for listing this organization's cached external ticket snapshots; results reflect the last synchronized state, not a live provider fetch."
     },
+    "TicketTaskLinkQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "externalTicketId": {
+          "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "taskId": {
+          "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "role": {
+          "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed.",
+          "type": "string",
+          "enum": [
+            "primary",
+            "reference"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it. TicketTaskLinkQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted. TicketTaskLinkQuery.limit must be at least 1. TicketTaskLinkQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
+    },
+    "TicketTaskLinkNoteSync": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
+    },
     "TicketReadinessCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -25443,155 +25550,45 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     },
-    "RouteContinuationAdmit": {
+    "AgentFileGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "runStepId": {
+        "workflowId": {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the stalled run step to continue, as named by the offer."
+          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
         },
-        "incidentId": {
+        "folderId": {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the incident the offer was made for. If that incident has recovered, been superseded or is not the route's current one, the submission is stale and commits nothing."
+          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
         },
-        "incidentGeneration": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 9007199254740991,
-          "description": "The incident generation the offer named. A different generation means the line moved on and the submission is stale. RouteContinuationAdmit.incidentGeneration must be at least 1."
-        },
-        "targetRouteId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the route to continue on, one the offer marked eligible."
-        },
-        "runVersion": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 9007199254740991,
-          "description": "The run version the offer named. If the run changed since, the submission is refused as a failed precondition and nothing is committed. RouteContinuationAdmit.runVersion must be at least 1."
-        }
-      },
-      "required": [
-        "runStepId",
-        "incidentId",
-        "incidentGeneration",
-        "targetRouteId",
-        "runVersion"
-      ],
-      "additionalProperties": false,
-      "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
-    },
-    "TicketTaskLinkQuery": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "externalTicketId": {
-          "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404.",
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "taskId": {
-          "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404.",
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "role": {
-          "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed.",
+        "access": {
           "type": "string",
           "enum": [
-            "primary",
-            "reference"
-          ]
+            "read",
+            "write"
+          ],
+          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
         },
-        "cursor": {
-          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it. TicketTaskLinkQuery.cursor must contain at most 512 UTF-8 bytes.",
+        "expiresAt": {
           "type": "string",
-          "maxLength": 65536,
-          "x-utf8-max-bytes": 512
-        },
-        "limit": {
-          "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted. TicketTaskLinkQuery.limit must be at least 1. TicketTaskLinkQuery.limit must be at most 100.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "additionalProperties": false,
-      "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
-    },
-    "TicketRequestQuery": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "externalTicketId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
-        },
-        "cursor": {
-          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it. TicketRequestQuery.cursor must contain at most 512 UTF-8 bytes.",
-          "type": "string",
-          "maxLength": 65536,
-          "x-utf8-max-bytes": 512
-        },
-        "limit": {
-          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted. TicketRequestQuery.limit must be at least 1. TicketRequestQuery.limit must be at most 100.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
         }
       },
       "required": [
-        "externalTicketId"
+        "workflowId",
+        "folderId",
+        "access",
+        "expiresAt"
       ],
       "additionalProperties": false,
-      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
-    },
-    "TicketSourceLabelQuery": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
-        },
-        "cursor": {
-          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim. TicketSourceLabelQuery.cursor must contain at most 512 UTF-8 bytes.",
-          "type": "string",
-          "maxLength": 65536,
-          "x-utf8-max-bytes": 512
-        },
-        "limit": {
-          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer. TicketSourceLabelQuery.limit must be at least 1. TicketSourceLabelQuery.limit must be at most 100.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "additionalProperties": false,
-      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
-    },
-    "TicketTaskLinkNoteSync": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false,
-      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
+      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
     },
     "AgentPowerGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -25686,6 +25683,210 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
+    },
+    "IntegrationProviderPath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Provider slug the installation setting belongs to, as the provider registry names it (for example linear). Only a provider whose manifest asks for client credentials is served. IntegrationProviderPath.provider must contain at most 64 characters."
+        }
+      },
+      "required": [
+        "provider"
+      ],
+      "additionalProperties": false,
+      "description": "Names the integration provider a client-credentials setting is read for."
+    },
+    "IntegrationClientCredentialsPut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The OAuth application's client ID, as the provider shows it. It is not a secret and is shown back to installation administrators. IntegrationClientCredentialsPut.clientId must contain at most 200 characters."
+        },
+        "clientSecret": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "The OAuth application's client secret. Write-only: it is sealed under the installation key and never returned; saving always replaces the stored secret with this one."
+        }
+      },
+      "required": [
+        "clientId",
+        "clientSecret"
+      ],
+      "additionalProperties": false,
+      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. Both fields are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree."
+    },
+    "TicketRequestQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "externalTicketId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it. TicketRequestQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted. TicketRequestQuery.limit must be at least 1. TicketRequestQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "externalTicketId"
+      ],
+      "additionalProperties": false,
+      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
+    },
+    "TicketSourceLabelQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim. TicketSourceLabelQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer. TicketSourceLabelQuery.limit must be at least 1. TicketSourceLabelQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
+    },
+    "PasswordResetLinkCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
+        }
+      },
+      "required": [
+        "principalId"
+      ],
+      "additionalProperties": false,
+      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
+    },
+    "PasswordResetRedemption": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest. PasswordResetRedemption.token must contain at most 256 characters."
+        },
+        "newPassword": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage. PasswordResetRedemption.newPassword must contain at most 1024 characters."
+        }
+      },
+      "required": [
+        "token",
+        "newPassword"
+      ],
+      "additionalProperties": false,
+      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
+    "McpToolClassificationPut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "effectClass": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+        },
+        "effectKeyArgument": {
+          "description": "McpToolClassificationPut.effectKeyArgument may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares. McpToolClassificationPut.effectKeyArgument must contain at most 128 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "pairedReadTool": {
+          "description": "McpToolClassificationPut.pairedReadTool may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened. McpToolClassificationPut.pairedReadTool must contain at most 128 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "effectClass"
+      ],
+      "additionalProperties": false,
+      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "McpUseGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
+        }
+      },
+      "required": [
+        "workflowId"
+      ],
+      "additionalProperties": false,
+      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
     },
     "GroupCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -25900,114 +26101,6 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Removes one person's mention-granted access to one conversation under compare-and-set on the grant version."
     },
-    "PasswordResetLinkCreate": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "principalId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
-        }
-      },
-      "required": [
-        "principalId"
-      ],
-      "additionalProperties": false,
-      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
-    },
-    "PasswordResetRedemption": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "token": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256,
-          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest. PasswordResetRedemption.token must contain at most 256 characters."
-        },
-        "newPassword": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 1024,
-          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage. PasswordResetRedemption.newPassword must contain at most 1024 characters."
-        }
-      },
-      "required": [
-        "token",
-        "newPassword"
-      ],
-      "additionalProperties": false,
-      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
-    },
-    "MergeAttemptQuery": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "pullRequestId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
-        },
-        "cursor": {
-          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. MergeAttemptQuery.cursor must contain at most 512 UTF-8 bytes.",
-          "type": "string",
-          "maxLength": 65536,
-          "x-utf8-max-bytes": 512
-        },
-        "limit": {
-          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. MergeAttemptQuery.limit must be at least 1. MergeAttemptQuery.limit must be at most 100.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "required": [
-        "pullRequestId"
-      ],
-      "additionalProperties": false,
-      "description": "Filters for listing one pull request's merge attempts, newest first."
-    },
-    "MergeEntryQuery": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "repositoryId": {
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "pullRequestId": {
-          "description": "Restrict results to this tracked pull request's merge entries.",
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "runId": {
-          "description": "Restrict results to the merge entries admitted for this run, so a page can read one run's entry without listing a whole repository's queue.",
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "cursor": {
-          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. MergeEntryQuery.cursor must contain at most 512 UTF-8 bytes.",
-          "type": "string",
-          "maxLength": 65536,
-          "x-utf8-max-bytes": 512
-        },
-        "limit": {
-          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. MergeEntryQuery.limit must be at least 1. MergeEntryQuery.limit must be at most 100.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "additionalProperties": false,
-      "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
-    },
     "FileSearchQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -26124,58 +26217,6 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
-    },
-    "RunRequestCreate": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "recipientId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
-        },
-        "intent": {
-          "type": "string",
-          "enum": [
-            "fyi",
-            "review",
-            "approve",
-            "answer",
-            "take_over"
-          ],
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
-        },
-        "stepKey": {
-          "description": "The step the request concerns, or omitted for the run as a whole. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "note": {
-          "description": "Optional one line shown to the person asked. RunRequestCreate.note must contain at most 280 characters.",
-          "type": "string",
-          "maxLength": 280
-        },
-        "neededBy": {
-          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days.",
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-        },
-        "questionId": {
-          "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires.",
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        }
-      },
-      "required": [
-        "recipientId",
-        "intent"
-      ],
-      "additionalProperties": false,
-      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
     },
     "StorageFilePut": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -26305,6 +26346,58 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
     },
+    "RunRequestCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "recipientId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "fyi",
+            "review",
+            "approve",
+            "answer",
+            "take_over"
+          ],
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+        },
+        "stepKey": {
+          "description": "The step the request concerns, or omitted for the run as a whole. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "note": {
+          "description": "Optional one line shown to the person asked. RunRequestCreate.note must contain at most 280 characters.",
+          "type": "string",
+          "maxLength": 280
+        },
+        "neededBy": {
+          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "questionId": {
+          "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "recipientId",
+        "intent"
+      ],
+      "additionalProperties": false,
+      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+    },
     "StorageFileContentQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -26326,111 +26419,72 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
     },
-    "McpToolClassificationPut": {
+    "MergeAttemptQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "effectClass": {
+        "pullRequestId": {
           "type": "string",
-          "enum": [
-            "read",
-            "write_idempotent",
-            "write_reconcilable",
-            "write_opaque"
-          ],
-          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
         },
-        "effectKeyArgument": {
-          "description": "McpToolClassificationPut.effectKeyArgument may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 128,
-              "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares. McpToolClassificationPut.effectKeyArgument must contain at most 128 characters."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
+        "cursor": {
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. MergeAttemptQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
         },
-        "pairedReadTool": {
-          "description": "McpToolClassificationPut.pairedReadTool may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 128,
-              "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened. McpToolClassificationPut.pairedReadTool must contain at most 128 characters."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
+        "limit": {
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. MergeAttemptQuery.limit must be at least 1. MergeAttemptQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
         }
       },
       "required": [
-        "effectClass"
+        "pullRequestId"
       ],
       "additionalProperties": false,
-      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+      "description": "Filters for listing one pull request's merge attempts, newest first."
     },
-    "McpUseGrantCreate": {
+    "MergeEntryQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "workflowId": {
+        "repositoryId": {
+          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
           "type": "string",
           "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "pullRequestId": {
+          "description": "Restrict results to this tracked pull request's merge entries.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "runId": {
+          "description": "Restrict results to the merge entries admitted for this run, so a page can read one run's entry without listing a whole repository's queue.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "cursor": {
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. MergeEntryQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. MergeEntryQuery.limit must be at least 1. MergeEntryQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
         }
       },
-      "required": [
-        "workflowId"
-      ],
       "additionalProperties": false,
-      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
-    },
-    "AgentFileGrantCreate": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "workflowId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
-        },
-        "folderId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
-        },
-        "access": {
-          "type": "string",
-          "enum": [
-            "read",
-            "write"
-          ],
-          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
-        }
-      },
-      "required": [
-        "workflowId",
-        "folderId",
-        "access",
-        "expiresAt"
-      ],
-      "additionalProperties": false,
-      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
+      "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
     },
     "DesktopSignInStart": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -26516,6 +26570,51 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+    },
+    "RouteContinuationAdmit": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runStepId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the stalled run step to continue, as named by the offer."
+        },
+        "incidentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the incident the offer was made for. If that incident has recovered, been superseded or is not the route's current one, the submission is stale and commits nothing."
+        },
+        "incidentGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The incident generation the offer named. A different generation means the line moved on and the submission is stale. RouteContinuationAdmit.incidentGeneration must be at least 1."
+        },
+        "targetRouteId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the route to continue on, one the offer marked eligible."
+        },
+        "runVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The run version the offer named. If the run changed since, the submission is refused as a failed precondition and nothing is committed. RouteContinuationAdmit.runVersion must be at least 1."
+        }
+      },
+      "required": [
+        "runStepId",
+        "incidentId",
+        "incidentGeneration",
+        "targetRouteId",
+        "runVersion"
+      ],
+      "additionalProperties": false,
+      "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
     },
     "MetricSourcesQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40322,6 +40421,8 @@ export const clientManifest = {
                   "integrationAppRegistrations.get",
                   "integrationAppRegistrations.begin",
                   "integrationAppRegistrations.put",
+                  "integrationClientCredentials.get",
+                  "integrationClientCredentials.put",
                   "skillStorageSettings.get",
                   "skillStorageSettings.put",
                   "skillStorageSettings.verify",
@@ -41171,6 +41272,20 @@ export const clientManifest = {
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                         "description": "Principal who created the record."
                       },
+                      "createdByName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MemoryRevision.createdByName may be null in this transport value."
+                      },
                       "createdAt": {
                         "type": "string",
                         "format": "date-time",
@@ -41203,6 +41318,7 @@ export const clientManifest = {
                       "confidence",
                       "expiresAt",
                       "createdBy",
+                      "createdByName",
                       "createdAt",
                       "updatedAt",
                       "version"
@@ -41580,6 +41696,20 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Principal who created the record."
               },
+              "createdByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryRevision.createdByName may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -41612,6 +41742,7 @@ export const clientManifest = {
               "confidence",
               "expiresAt",
               "createdBy",
+              "createdByName",
               "createdAt",
               "updatedAt",
               "version"
@@ -59740,6 +59871,8 @@ export const clientManifest = {
             "integrationAppRegistrations.get",
             "integrationAppRegistrations.begin",
             "integrationAppRegistrations.put",
+            "integrationClientCredentials.get",
+            "integrationClientCredentials.put",
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
@@ -60409,6 +60542,20 @@ export const clientManifest = {
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                   "description": "Principal who created the record."
                 },
+                "createdByName": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MemoryRevision.createdByName may be null in this transport value."
+                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time",
@@ -60441,6 +60588,7 @@ export const clientManifest = {
                 "confidence",
                 "expiresAt",
                 "createdBy",
+                "createdByName",
                 "createdAt",
                 "updatedAt",
                 "version"
@@ -60758,6 +60906,20 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Principal who created the record."
         },
+        "createdByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryRevision.createdByName may be null in this transport value."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -60790,6 +60952,7 @@ export const clientManifest = {
         "confidence",
         "expiresAt",
         "createdBy",
+        "createdByName",
         "createdAt",
         "updatedAt",
         "version"
@@ -66462,388 +66625,6 @@ export const clientManifest = {
           ]
         }
       }
-    },
-    "Page<MetricSource>": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "items": {
-          "maxItems": 100,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "pullRequest",
-                  "task"
-                ],
-                "description": "pullRequest for pull request metrics, task for task metrics."
-              },
-              "id": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Bakery id of the pull request or task, for linking to it."
-              },
-              "repositoryId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Repository of a pull request; null for a task."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.repositoryId may be null in this transport value."
-              },
-              "taskId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Task the pull request delivers."
-              },
-              "providerNumber": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Pull request number on the provider; null for a task."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.providerNumber may be null in this transport value."
-              },
-              "url": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Provider page of a pull request; null for a task."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.url may be null in this transport value."
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "open",
-                  "closed",
-                  "merged",
-                  "delivered"
-                ],
-                "description": "A pull request's state (open, closed, merged); delivered for a task."
-              },
-              "openedAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "Provider time it was opened; null when unread."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.openedAt may be null in this transport value."
-              },
-              "mergedAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "Provider time it was merged; null unless merged."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.mergedAt may be null in this transport value."
-              },
-              "closedAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "Provider time it was last closed; null while open."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.closedAt may be null in this transport value."
-              },
-              "countedAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "The provider time this metric places it at (opened, merged or closed time); null when unknown."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.countedAt may be null in this transport value."
-              },
-              "value": {
-                "anyOf": [
-                  {
-                    "type": "number",
-                    "description": "Its own contribution in the series unit (1 for counts, hours, lines, or 1/0 merged for merge rate); null is unknown."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.value may be null in this transport value."
-              },
-              "missingReason": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "no_opened_time",
-                      "no_merged_time",
-                      "no_closed_time",
-                      "no_diff_totals",
-                      "still_open"
-                    ],
-                    "description": "Why this record's value is unknown and it was left out of the number; null when it counted."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.missingReason may be null in this transport value."
-              },
-              "title": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "The task's title; null for a pull request."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.title may be null in this transport value."
-              },
-              "requestedAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "When the task's first run was admitted; null for a pull request."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.requestedAt may be null in this transport value."
-              },
-              "deliveredAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "When the task reached its delivery point; null for a pull request."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.deliveredAt may be null in this transport value."
-              },
-              "deliveryPoint": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "merged_pull_request",
-                      "completed_run"
-                    ],
-                    "description": "Which delivery point the task reached; null for a pull request."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.deliveryPoint may be null in this transport value."
-              },
-              "waits": {
-                "anyOf": [
-                  {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "category": {
-                          "type": "string",
-                          "enum": [
-                            "agentWorking",
-                            "queue",
-                            "review",
-                            "person",
-                            "blocked",
-                            "unaccounted"
-                          ],
-                          "description": "agentWorking: an agent attempt ran; queue: a job was ready and not yet claimed; review: the independent review step ran; person: an approval, question or request waited for a person; blocked: blocked time, not recorded yet; unaccounted: lead time no recorded interval covers. Where intervals overlap, person wins, then review, agent and queue."
-                        },
-                        "hours": {
-                          "anyOf": [
-                            {
-                              "type": "number",
-                              "description": "Hours in this category; null when unknown."
-                            },
-                            {
-                              "type": "null",
-                              "description": "Null indicates that the value is unavailable."
-                            }
-                          ],
-                          "description": "MetricWaitShare.hours may be null in this transport value."
-                        },
-                        "unknownReason": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "enum": [
-                                "not_recorded"
-                              ],
-                              "description": "not_recorded when Bakery keeps no history for this category (blocked); null otherwise."
-                            },
-                            {
-                              "type": "null",
-                              "description": "Null indicates that the value is unavailable."
-                            }
-                          ],
-                          "description": "MetricWaitShare.unknownReason may be null in this transport value."
-                        }
-                      },
-                      "required": [
-                        "category",
-                        "hours",
-                        "unknownReason"
-                      ],
-                      "additionalProperties": false,
-                      "description": "Where the task's lead time went; null for a pull request. Each array item follows this format."
-                    },
-                    "description": "Where the task's lead time went; null for a pull request."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MetricSource.waits may be null in this transport value."
-              }
-            },
-            "required": [
-              "kind",
-              "id",
-              "repositoryId",
-              "taskId",
-              "providerNumber",
-              "url",
-              "status",
-              "openedAt",
-              "mergedAt",
-              "closedAt",
-              "countedAt",
-              "value",
-              "missingReason",
-              "title",
-              "requestedAt",
-              "deliveredAt",
-              "deliveryPoint",
-              "waits"
-            ],
-            "additionalProperties": false,
-            "description": "One record behind a metric: a pull request with its lifecycle times, or a delivered task with its lead time and where it went. Its value is its own contribution; a null value is unknown and was left out of the number."
-          },
-          "description": "MetricSource items in this cursor page. Page<MetricSource>.items must contain at most 100 items."
-        },
-        "nextCursor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 512,
-              "description": "Opaque continuation cursor value."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that no continuation page remains."
-            }
-          ],
-          "description": "Opaque continuation cursor, or null at the end."
-        },
-        "prevCursor": {
-          "description": "Page<MetricSource>.prevCursor may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MetricSource>.prevCursor must contain at most 512 UTF-8 bytes.",
-              "x-utf8-max-bytes": 512
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        },
-        "highwater": {
-          "description": "Page<MetricSource>.highwater may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^(?:0|[1-9][0-9]*)$",
-              "description": "Page<MetricSource>.highwater is a bounded decimal string.",
-              "x-bigint-minimum": "0"
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        }
-      },
-      "required": [
-        "items",
-        "nextCursor"
-      ],
-      "additionalProperties": false,
-      "description": "Cursor page of MetricSource."
     },
     "Problem": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -77013,6 +76794,156 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Acknowledges that integrationDiscoveries.create queued a resource-discovery scan for one connection; status is always queued at receipt time, so watch the connection's resources list or the discovery-completed event for the actual outcome."
+    },
+    "TicketPreviewResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The ticket source the preview evaluated."
+        },
+        "policyRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The saved policy revision at evaluation time. A draft is judged against the source as it is at this revision and would advance it once saved."
+        },
+        "draft": {
+          "type": "boolean",
+          "description": "True when the request carried a draft policy and the answer describes it; false when it describes the saved policy."
+        },
+        "evaluatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Server time the evaluation ran; the answer describes the issues as the provider returned them just before it."
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "wouldStart": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Issues whose every check passes and whose label asks for work to start. TicketPreviewCounts.wouldStart must be at least 0."
+            },
+            "planOnly": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Issues whose every check passes and whose label asks only for a plan. TicketPreviewCounts.planOnly must be at least 0."
+            },
+            "held": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Issues carrying the hold label; the hold wins over every other label. TicketPreviewCounts.held must be at least 0."
+            },
+            "blocked": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Issues that are not held and fail or wait on at least one check; each one's reasons say which. TicketPreviewCounts.blocked must be at least 0."
+            }
+          },
+          "required": [
+            "wouldStart",
+            "planOnly",
+            "held",
+            "blocked"
+          ],
+          "additionalProperties": false,
+          "description": "Totals over issues, one bucket per issue."
+        },
+        "issues": {
+          "maxItems": 25,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "The issue number on the provider. TicketPreviewIssue.number must be at least 1."
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The issue title as read, or null when the issue could not be read (gone, moved or a pull request)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketPreviewIssue.title may be null in this transport value."
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "would_start",
+                  "plan_only",
+                  "held",
+                  "blocked"
+                ],
+                "description": "would_start or plan_only when every check passes (by the label's intent), held when the hold label is present, blocked otherwise."
+              },
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "ready",
+                  "waiting",
+                  "rejected"
+                ],
+                "description": "The readiness verdict the evaluation produced: ready when every check passes, rejected when any check rejects, waiting otherwise."
+              },
+              "reasons": {
+                "maxItems": 12,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Distinct TicketReasonCode values of the checks that did not pass, in check order; empty when the verdict is ready. Each array item follows this format."
+                },
+                "description": "Distinct TicketReasonCode values of the checks that did not pass, in check order; empty when the verdict is ready. TicketPreviewIssue.reasons must contain at most 12 items."
+              }
+            },
+            "required": [
+              "number",
+              "title",
+              "outcome",
+              "verdict",
+              "reasons"
+            ],
+            "additionalProperties": false,
+            "description": "One entry per evaluated issue in provider list order (or in the order of filters.numbers), at most 25. Each array item follows this format."
+          },
+          "description": "One entry per evaluated issue in provider list order (or in the order of filters.numbers), at most 25. TicketPreviewResult.issues must contain at most 25 items."
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Issues that were read but could not be evaluated, for example one whose read failed mid-page; they are in no count. TicketPreviewResult.skipped must be at least 0."
+        }
+      },
+      "required": [
+        "sourceId",
+        "policyRevision",
+        "draft",
+        "evaluatedAt",
+        "counts",
+        "issues",
+        "skipped"
+      ],
+      "additionalProperties": false,
+      "description": "What ticketSources.preview computed for one ticket source: how each evaluated issue would be judged under the saved or draft policy, and the totals. Nothing behind it is stored, so a second preview evaluates again from fresh provider reads."
     },
     "TicketOperationReceipt": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -87592,6 +87523,188 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "One note left for a workflow step that had not started, with who left it and when; the step's agent receives it once with its input."
     },
+    "AgentFileGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Immutable id of the workflow whose agent sessions the grant covers."
+        },
+        "folderId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The storage folder granted; the grant covers it and everything under it."
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write"
+          ],
+          "description": "read, or write (which includes the destructive verbs mv and rm)."
+        },
+        "grantedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Person who made the grant."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant stops working; judged at the time of each write."
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When a person revoked the grant; null while it stands."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "AgentFileGrant.revokedAt may be null in this transport value."
+        },
+        "revokedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Person who revoked the grant; null while it stands."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "AgentFileGrant.revokedBy may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant was made."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version a revoke must name in If-Match."
+        }
+      },
+      "required": [
+        "id",
+        "workflowId",
+        "folderId",
+        "access",
+        "grantedBy",
+        "expiresAt",
+        "revokedAt",
+        "revokedBy",
+        "createdAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn."
+    },
+    "AgentPowerGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the grant."
+        },
+        "power": {
+          "type": "string",
+          "enum": [
+            "decide",
+            "run_control",
+            "run_start",
+            "steer",
+            "steer_reviewer"
+          ],
+          "description": "The power granted: decide, run_control, run_start, steer or steer_reviewer."
+        },
+        "workflowId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "AgentPowerGrant.workflowId may be null in this transport value."
+        },
+        "accessTokenId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Seat (access token) the grant is limited to; null for any agent session of the named workflow."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "AgentPowerGrant.accessTokenId may be null in this transport value."
+        },
+        "grantedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Person who made the grant."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant was made."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version a revoke must name in If-Match."
+        }
+      },
+      "required": [
+        "id",
+        "power",
+        "workflowId",
+        "accessTokenId",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both."
+    },
     "RouteContinuationOffers": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -87768,152 +87881,70 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "The route continuations a run is waiting on: one offer per step that is pinned to a route with an open incident and has not already been continued for that incident. Empty when nothing is stalled. It is a read of current state, never a decision: nothing is admitted, paused or charged by reading it."
     },
-    "RouteContinuation": {
+    "IntegrationClientCredentials": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "id": {
+        "provider": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID of this continuation."
+          "maxLength": 65536,
+          "description": "Provider slug these credentials belong to."
         },
-        "runId": {
+        "configured": {
+          "type": "boolean",
+          "description": "True once a client ID and secret have been saved for this provider."
+        },
+        "clientId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The registered client ID, or null while nothing is registered."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationClientCredentials.clientId may be null in the safe projection."
+        },
+        "clientSecretSavedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp at which the current client secret was saved, or null while nothing is registered. A secret is never shown, so this is how an administrator tells it was replaced."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationClientCredentials.clientSecretSavedAt may be null in the safe projection."
+        },
+        "callbackUrl": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the run the step belongs to."
+          "format": "uri",
+          "description": "The URL to enter in the provider's OAuth application as its callback, derived from this installation's public address."
         },
-        "runStepId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the step that was continued."
-        },
-        "jobId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the step's job that was moved (the earliest, when a step has several live jobs; all were moved)."
-        },
-        "incidentId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the incident the choice was made against."
-        },
-        "incidentGeneration": {
+        "version": {
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
-          "description": "Generation of that incident when the choice was admitted."
-        },
-        "sourceRouteId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the route the step was pinned to."
-        },
-        "targetRouteId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the route it now runs on."
-        },
-        "previousPin": {
-          "type": "object",
-          "properties": {
-            "provider": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Provider key the step sends to."
-            },
-            "model": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Model identifier the step runs."
-            },
-            "billingRoute": {
-              "type": "string",
-              "enum": [
-                "api",
-                "subscription"
-              ],
-              "description": "Billing route the step's spend follows: api or subscription."
-            },
-            "billingAccountId": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Provider billing account the step's spend is attributed to."
-            }
-          },
-          "required": [
-            "provider",
-            "model",
-            "billingRoute",
-            "billingAccountId"
-          ],
-          "additionalProperties": false,
-          "description": "The provider, model, billing route and billing account the step had before."
-        },
-        "newPin": {
-          "type": "object",
-          "properties": {
-            "provider": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Provider key the step sends to."
-            },
-            "model": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Model identifier the step runs."
-            },
-            "billingRoute": {
-              "type": "string",
-              "enum": [
-                "api",
-                "subscription"
-              ],
-              "description": "Billing route the step's spend follows: api or subscription."
-            },
-            "billingAccountId": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Provider billing account the step's spend is attributed to."
-            }
-          },
-          "required": [
-            "provider",
-            "model",
-            "billingRoute",
-            "billingAccountId"
-          ],
-          "additionalProperties": false,
-          "description": "The provider, model, billing route and billing account the step has now."
-        },
-        "admittedAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp at which the continuation was admitted."
+          "description": "Registration version: 0 while nothing is registered, then the optimistic-concurrency value to send as If-Match when replacing the credentials."
         }
       },
       "required": [
-        "id",
-        "runId",
-        "runStepId",
-        "jobId",
-        "incidentId",
-        "incidentGeneration",
-        "sourceRouteId",
-        "targetRouteId",
-        "previousPin",
-        "newPin",
-        "admittedAt"
+        "provider",
+        "configured",
+        "clientId",
+        "clientSecretSavedAt",
+        "callbackUrl",
+        "version"
       ],
       "additionalProperties": false,
-      "description": "The record that a stalled step was continued on another route. The old attempt is fenced, the job is queued again on the new pin, and the step's one budget reservation is re-priced in place, so no second reservation exists and none is left held. Both the pin the step had and the pin it now has are kept."
+      "description": "Whether an integration provider's OAuth client credentials are registered on this installation, which client ID, when the secret was last saved, and the callback URL to give the provider. The secret itself is never part of it. Version is 0 until credentials are saved and is the If-Match value for the next save."
     },
     "TicketRequestView": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -88702,157 +88733,232 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of TicketSourceLabel."
     },
-    "TicketPreviewResult": {
+    "PasswordResetLinkIssued": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "sourceId": {
+        "id": {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The ticket source the preview evaluated."
+          "description": "Stable UUID of the reset link record, as the audit trail names it."
         },
-        "policyRevision": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "The saved policy revision at evaluation time. A draft is judged against the source as it is at this revision and would advance it once saved."
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel."
         },
-        "draft": {
-          "type": "boolean",
-          "description": "True when the request carried a draft policy and the answer describes it; false when it describes the saved policy."
-        },
-        "evaluatedAt": {
+        "expiresAt": {
           "type": "string",
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "Server time the evaluation ran; the answer describes the issues as the provider returned them just before it."
+          "description": "UTC timestamp one hour after issue, after which the link no longer works."
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again."
+    },
+    "McpToolClassification": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "toolName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The tool's name in the pinned snapshot."
         },
-        "counts": {
-          "type": "object",
-          "properties": {
-            "wouldStart": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 9007199254740991,
-              "description": "Issues whose every check passes and whose label asks for work to start. TicketPreviewCounts.wouldStart must be at least 0."
-            },
-            "planOnly": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 9007199254740991,
-              "description": "Issues whose every check passes and whose label asks only for a plan. TicketPreviewCounts.planOnly must be at least 0."
-            },
-            "held": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 9007199254740991,
-              "description": "Issues carrying the hold label; the hold wins over every other label. TicketPreviewCounts.held must be at least 0."
-            },
-            "blocked": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 9007199254740991,
-              "description": "Issues that are not held and fail or wait on at least one check; each one's reasons say which. TicketPreviewCounts.blocked must be at least 0."
-            }
-          },
-          "required": [
-            "wouldStart",
-            "planOnly",
-            "held",
-            "blocked"
+        "effectClass": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
           ],
-          "additionalProperties": false,
-          "description": "Totals over issues, one bucket per issue."
+          "description": "The class in force: the Admin's, or write_opaque when unclassified."
         },
-        "issues": {
-          "maxItems": 25,
+        "classified": {
+          "type": "boolean",
+          "description": "True once an Admin has classified this tool."
+        },
+        "effectKeyArgument": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
+        },
+        "pairedReadTool": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
+        },
+        "classifiedAgainstCurrentSnapshot": {
+          "type": "boolean",
+          "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
+        },
+        "classifiedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the classification, or null when unclassified."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpToolClassification.classifiedAt may be null in the safe projection."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+        }
+      },
+      "required": [
+        "toolName",
+        "effectClass",
+        "classified",
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAgainstCurrentSnapshot",
+        "classifiedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it."
+    },
+    "McpToolClassificationList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "number": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 9007199254740991,
-                "description": "The issue number on the provider. TicketPreviewIssue.number must be at least 1."
+              "toolName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The tool's name in the pinned snapshot."
               },
-              "title": {
+              "effectClass": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "write_idempotent",
+                  "write_reconcilable",
+                  "write_opaque"
+                ],
+                "description": "The class in force: the Admin's, or write_opaque when unclassified."
+              },
+              "classified": {
+                "type": "boolean",
+                "description": "True once an Admin has classified this tool."
+              },
+              "effectKeyArgument": {
                 "anyOf": [
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "The issue title as read, or null when the issue could not be read (gone, moved or a pull request)."
+                    "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
                   },
                   {
                     "type": "null",
-                    "description": "Null indicates that the value is unavailable."
+                    "description": "Null indicates that the projected value is unavailable."
                   }
                 ],
-                "description": "TicketPreviewIssue.title may be null in this transport value."
+                "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
               },
-              "outcome": {
-                "type": "string",
-                "enum": [
-                  "would_start",
-                  "plan_only",
-                  "held",
-                  "blocked"
+              "pairedReadTool": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
                 ],
-                "description": "would_start or plan_only when every check passes (by the label's intent), held when the hold label is present, blocked otherwise."
+                "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
               },
-              "verdict": {
-                "type": "string",
-                "enum": [
-                  "ready",
-                  "waiting",
-                  "rejected"
+              "classifiedAgainstCurrentSnapshot": {
+                "type": "boolean",
+                "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
+              },
+              "classifiedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp of the classification, or null when unclassified."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
                 ],
-                "description": "The readiness verdict the evaluation produced: ready when every check passes, rejected when any check rejects, waiting otherwise."
+                "description": "McpToolClassification.classifiedAt may be null in the safe projection."
               },
-              "reasons": {
-                "maxItems": 12,
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "maxLength": 65536,
-                  "description": "Distinct TicketReasonCode values of the checks that did not pass, in check order; empty when the verdict is ready. Each array item follows this format."
-                },
-                "description": "Distinct TicketReasonCode values of the checks that did not pass, in check order; empty when the verdict is ready. TicketPreviewIssue.reasons must contain at most 12 items."
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
               }
             },
             "required": [
-              "number",
-              "title",
-              "outcome",
-              "verdict",
-              "reasons"
+              "toolName",
+              "effectClass",
+              "classified",
+              "effectKeyArgument",
+              "pairedReadTool",
+              "classifiedAgainstCurrentSnapshot",
+              "classifiedAt",
+              "version"
             ],
             "additionalProperties": false,
-            "description": "One entry per evaluated issue in provider list order (or in the order of filters.numbers), at most 25. Each array item follows this format."
+            "description": "The snapshot's tools with their classifications. Each array item follows this format."
           },
-          "description": "One entry per evaluated issue in provider list order (or in the order of filters.numbers), at most 25. TicketPreviewResult.issues must contain at most 25 items."
-        },
-        "skipped": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Issues that were read but could not be evaluated, for example one whose read failed mid-page; they are in no count. TicketPreviewResult.skipped must be at least 0."
+          "description": "The snapshot's tools with their classifications."
         }
       },
       "required": [
-        "sourceId",
-        "policyRevision",
-        "draft",
-        "evaluatedAt",
-        "counts",
-        "issues",
-        "skipped"
+        "items"
       ],
       "additionalProperties": false,
-      "description": "What ticketSources.preview computed for one ticket source: how each evaluated issue would be judged under the saved or draft policy, and the totals. Nothing behind it is stored, so a second preview evaluates again from fresh provider reads."
+      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered."
     },
-    "AgentPowerGrant": {
+    "McpUseGrant": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
@@ -88862,77 +88968,163 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID identifying the grant."
         },
-        "power": {
+        "connectionId": {
           "type": "string",
-          "enum": [
-            "decide",
-            "run_control",
-            "run_start",
-            "steer",
-            "steer_reviewer"
-          ],
-          "description": "The power granted: decide, run_control, run_start, steer or steer_reviewer."
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The personal connection the grant covers."
         },
         "workflowId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "AgentPowerGrant.workflowId may be null in this transport value."
-        },
-        "accessTokenId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Seat (access token) the grant is limited to; null for any agent session of the named workflow."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "AgentPowerGrant.accessTokenId may be null in this transport value."
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow the grant lets use the connection."
         },
         "grantedBy": {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Person who made the grant."
+          "description": "The owner who granted it."
         },
         "createdAt": {
           "type": "string",
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "When the grant was made."
+          "description": "UTC timestamp when the grant was made."
         },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Optimistic-concurrency version a revoke must name in If-Match."
+        "revokedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the grant was revoked, or null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpUseGrant.revokedAt may be null in the safe projection."
+        },
+        "revokedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The principal who revoked it, or null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpUseGrant.revokedBy may be null in the safe projection."
         }
       },
       "required": [
         "id",
-        "power",
+        "connectionId",
         "workflowId",
-        "accessTokenId",
         "grantedBy",
         "createdAt",
-        "version"
+        "revokedAt",
+        "revokedBy"
       ],
       "additionalProperties": false,
-      "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both."
+      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record."
+    },
+    "McpUseGrantList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the grant."
+              },
+              "connectionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The personal connection the grant covers."
+              },
+              "workflowId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The workflow the grant lets use the connection."
+              },
+              "grantedBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The owner who granted it."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the grant was made."
+              },
+              "revokedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when the grant was revoked, or null while it is live."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "McpUseGrant.revokedAt may be null in the safe projection."
+              },
+              "revokedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The principal who revoked it, or null while it is live."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "McpUseGrant.revokedBy may be null in the safe projection."
+              }
+            },
+            "required": [
+              "id",
+              "connectionId",
+              "workflowId",
+              "grantedBy",
+              "createdAt",
+              "revokedAt",
+              "revokedBy"
+            ],
+            "additionalProperties": false,
+            "description": "The connection's grants, newest first. Each array item follows this format."
+          },
+          "description": "The connection's grants, newest first."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant."
     },
     "Group": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -89782,211 +89974,6 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of ConversationAccessGrant."
     },
-    "PasswordResetLinkIssued": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID of the reset link record, as the audit trail names it."
-        },
-        "url": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 65536,
-          "description": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel."
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp one hour after issue, after which the link no longer works."
-        }
-      },
-      "required": [
-        "id",
-        "url",
-        "expiresAt"
-      ],
-      "additionalProperties": false,
-      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again."
-    },
-    "Page<MergeAttempt>": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "items": {
-          "maxItems": 100,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID identifying the merge attempt record."
-              },
-              "pullRequestId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID linking this attempt to the pull request it merges."
-              },
-              "providerNumber": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "GitHub's pull request number for the attempt."
-              },
-              "repositoryId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID linking this attempt to the repository it merges into."
-              },
-              "baseBranch": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Target branch the merge was dispatched against."
-              },
-              "expectedHeadSha": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Head commit the caller verified and the attempt was dispatched against."
-              },
-              "state": {
-                "type": "string",
-                "enum": [
-                  "merged",
-                  "refused",
-                  "unknown"
-                ],
-                "description": "Outcome of the attempt: merged, refused, or unknown while a lost provider answer waits for reconciliation."
-              },
-              "providerStatus": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "GitHub's HTTP status for a refused or merged answer; null when no provider call was made or the answer was lost."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MergeAttempt.providerStatus may be null in this transport value."
-              },
-              "mergedSha": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Commit GitHub reports for a merged attempt; null otherwise."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MergeAttempt.mergedSha may be null in this transport value."
-              },
-              "createdAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC timestamp when the attempt was recorded."
-              },
-              "settledAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "UTC timestamp when an unknown attempt was settled by reconciliation; null while unknown."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "MergeAttempt.settledAt may be null in this transport value."
-              }
-            },
-            "required": [
-              "id",
-              "pullRequestId",
-              "providerNumber",
-              "repositoryId",
-              "baseBranch",
-              "expectedHeadSha",
-              "state",
-              "providerStatus",
-              "mergedSha",
-              "createdAt",
-              "settledAt"
-            ],
-            "additionalProperties": false,
-            "description": "One recorded merge attempt: the exact head it was dispatched against, the outcome, and the provider status or merged commit when GitHub answered."
-          },
-          "description": "MergeAttempt items in this cursor page. Page<MergeAttempt>.items must contain at most 100 items."
-        },
-        "nextCursor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 512,
-              "description": "Opaque continuation cursor value."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that no continuation page remains."
-            }
-          ],
-          "description": "Opaque continuation cursor, or null at the end."
-        },
-        "prevCursor": {
-          "description": "Page<MergeAttempt>.prevCursor may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MergeAttempt>.prevCursor must contain at most 512 UTF-8 bytes.",
-              "x-utf8-max-bytes": 512
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        },
-        "highwater": {
-          "description": "Page<MergeAttempt>.highwater may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^(?:0|[1-9][0-9]*)$",
-              "description": "Page<MergeAttempt>.highwater is a bounded decimal string.",
-              "x-bigint-minimum": "0"
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        }
-      },
-      "required": [
-        "items",
-        "nextCursor"
-      ],
-      "additionalProperties": false,
-      "description": "Cursor page of MergeAttempt."
-    },
     "Page<FileSearchHit>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -90410,464 +90397,6 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of LibraryEntry."
-    },
-    "RunRequest": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID of the request."
-        },
-        "runId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The run the request is on."
-        },
-        "stepKey": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "The step it concerns, or null for the run as a whole."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "RunRequest.stepKey may be null in this transport value."
-        },
-        "intent": {
-          "type": "string",
-          "enum": [
-            "fyi",
-            "review",
-            "approve",
-            "answer",
-            "take_over"
-          ],
-          "description": "What was asked for."
-        },
-        "recipient": {
-          "type": "object",
-          "properties": {
-            "principalId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable principal UUID."
-            },
-            "displayName": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "The person's saved display name."
-            }
-          },
-          "required": [
-            "principalId",
-            "displayName"
-          ],
-          "additionalProperties": false,
-          "description": "The person asked, frozen when the request was made."
-        },
-        "askedBy": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "principalId": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Stable principal UUID."
-                },
-                "displayName": {
-                  "type": "string",
-                  "maxLength": 65536,
-                  "description": "The person's saved display name."
-                }
-              },
-              "required": [
-                "principalId",
-                "displayName"
-              ],
-              "additionalProperties": false,
-              "description": "The person who asked, or null when the asker no longer exists."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "RunRequest.askedBy may be null in this transport value."
-        },
-        "askedByKind": {
-          "type": "string",
-          "enum": [
-            "person",
-            "agent",
-            "workflow"
-          ],
-          "description": "Whether a person, an agent or a workflow's own step asked."
-        },
-        "note": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "The optional one-line note, or null."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "RunRequest.note may be null in this transport value."
-        },
-        "neededBy": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "The optional deadline, or null."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "RunRequest.neededBy may be null in this transport value."
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "open",
-            "answered",
-            "handled",
-            "expired",
-            "withdrawn"
-          ],
-          "description": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn."
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC time the request expires; silence never approves."
-        },
-        "ownerFallback": {
-          "type": "boolean",
-          "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
-        },
-        "fallbackForName": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Who was meant when ownerFallback is true, otherwise null."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "RunRequest.fallbackForName may be null in this transport value."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC time the request was made."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC time it last changed."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Optimistic-concurrency version used as If-Match."
-        },
-        "questionId": {
-          "description": "RunRequest.questionId may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "The approval or question the request asks about, or null when it asks for none."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        }
-      },
-      "required": [
-        "id",
-        "runId",
-        "stepKey",
-        "intent",
-        "recipient",
-        "askedBy",
-        "askedByKind",
-        "note",
-        "neededBy",
-        "status",
-        "expiresAt",
-        "ownerFallback",
-        "fallbackForName",
-        "createdAt",
-        "updatedAt",
-        "version"
-      ],
-      "additionalProperties": false,
-      "description": "A request: one person asked for one thing on one run, with how it stands."
-    },
-    "RunRequests": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "requests": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID of the request."
-              },
-              "runId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "The run the request is on."
-              },
-              "stepKey": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "The step it concerns, or null for the run as a whole."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "RunRequest.stepKey may be null in this transport value."
-              },
-              "intent": {
-                "type": "string",
-                "enum": [
-                  "fyi",
-                  "review",
-                  "approve",
-                  "answer",
-                  "take_over"
-                ],
-                "description": "What was asked for."
-              },
-              "recipient": {
-                "type": "object",
-                "properties": {
-                  "principalId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable principal UUID."
-                  },
-                  "displayName": {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "The person's saved display name."
-                  }
-                },
-                "required": [
-                  "principalId",
-                  "displayName"
-                ],
-                "additionalProperties": false,
-                "description": "The person asked, frozen when the request was made."
-              },
-              "askedBy": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "principalId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Stable principal UUID."
-                      },
-                      "displayName": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "The person's saved display name."
-                      }
-                    },
-                    "required": [
-                      "principalId",
-                      "displayName"
-                    ],
-                    "additionalProperties": false,
-                    "description": "The person who asked, or null when the asker no longer exists."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "RunRequest.askedBy may be null in this transport value."
-              },
-              "askedByKind": {
-                "type": "string",
-                "enum": [
-                  "person",
-                  "agent",
-                  "workflow"
-                ],
-                "description": "Whether a person, an agent or a workflow's own step asked."
-              },
-              "note": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "The optional one-line note, or null."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "RunRequest.note may be null in this transport value."
-              },
-              "neededBy": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "The optional deadline, or null."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "RunRequest.neededBy may be null in this transport value."
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "open",
-                  "answered",
-                  "handled",
-                  "expired",
-                  "withdrawn"
-                ],
-                "description": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn."
-              },
-              "expiresAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC time the request expires; silence never approves."
-              },
-              "ownerFallback": {
-                "type": "boolean",
-                "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
-              },
-              "fallbackForName": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Who was meant when ownerFallback is true, otherwise null."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "RunRequest.fallbackForName may be null in this transport value."
-              },
-              "createdAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC time the request was made."
-              },
-              "updatedAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC time it last changed."
-              },
-              "version": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "Optimistic-concurrency version used as If-Match."
-              },
-              "questionId": {
-                "description": "RunRequest.questionId may be null in this transport value.",
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "The approval or question the request asks about, or null when it asks for none."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ]
-              }
-            },
-            "required": [
-              "id",
-              "runId",
-              "stepKey",
-              "intent",
-              "recipient",
-              "askedBy",
-              "askedByKind",
-              "note",
-              "neededBy",
-              "status",
-              "expiresAt",
-              "ownerFallback",
-              "fallbackForName",
-              "createdAt",
-              "updatedAt",
-              "version"
-            ],
-            "additionalProperties": false,
-            "description": "Requests in newest-first order; bounded to the most recent fifty. Each array item follows this format."
-          },
-          "description": "Requests in newest-first order; bounded to the most recent fifty."
-        }
-      },
-      "required": [
-        "requests"
-      ],
-      "additionalProperties": false,
-      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first."
     },
     "StorageEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -91630,6 +91159,595 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
     },
+    "Page<SkillUseGrant>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the grant."
+              },
+              "skillId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the personal skill the grant is for."
+              },
+              "skillVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
+              },
+              "workflowId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the workflow the skill was attached to."
+              },
+              "workflowName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name of that workflow, so the owner can recognise it."
+              },
+              "stepPath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "JSON Pointer of the step in the workflow definition that uses the skill."
+              },
+              "grantedBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Person who confirmed the grant, always the skill owner."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the grant was made."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version a stop must name in If-Match."
+              }
+            },
+            "required": [
+              "id",
+              "skillId",
+              "skillVersionId",
+              "workflowId",
+              "workflowName",
+              "stepPath",
+              "grantedBy",
+              "createdAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both."
+          },
+          "description": "SkillUseGrant items in this cursor page. Page<SkillUseGrant>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<SkillUseGrant>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillUseGrant>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<SkillUseGrant>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<SkillUseGrant>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of SkillUseGrant."
+    },
+    "RunRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the request."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The run the request is on."
+        },
+        "stepKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The step it concerns, or null for the run as a whole."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.stepKey may be null in this transport value."
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "fyi",
+            "review",
+            "approve",
+            "answer",
+            "take_over"
+          ],
+          "description": "What was asked for."
+        },
+        "recipient": {
+          "type": "object",
+          "properties": {
+            "principalId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable principal UUID."
+            },
+            "displayName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The person's saved display name."
+            }
+          },
+          "required": [
+            "principalId",
+            "displayName"
+          ],
+          "additionalProperties": false,
+          "description": "The person asked, frozen when the request was made."
+        },
+        "askedBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable principal UUID."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The person's saved display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "The person who asked, or null when the asker no longer exists."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.askedBy may be null in this transport value."
+        },
+        "askedByKind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "agent",
+            "workflow"
+          ],
+          "description": "Whether a person, an agent or a workflow's own step asked."
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The optional one-line note, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.note may be null in this transport value."
+        },
+        "neededBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The optional deadline, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.neededBy may be null in this transport value."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "answered",
+            "handled",
+            "expired",
+            "withdrawn"
+          ],
+          "description": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the request expires; silence never approves."
+        },
+        "ownerFallback": {
+          "type": "boolean",
+          "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
+        },
+        "fallbackForName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Who was meant when ownerFallback is true, otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.fallbackForName may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the request was made."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time it last changed."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used as If-Match."
+        },
+        "questionId": {
+          "description": "RunRequest.questionId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The approval or question the request asks about, or null when it asks for none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "stepKey",
+        "intent",
+        "recipient",
+        "askedBy",
+        "askedByKind",
+        "note",
+        "neededBy",
+        "status",
+        "expiresAt",
+        "ownerFallback",
+        "fallbackForName",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "A request: one person asked for one thing on one run, with how it stands."
+    },
+    "RunRequests": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the request."
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The run the request is on."
+              },
+              "stepKey": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The step it concerns, or null for the run as a whole."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.stepKey may be null in this transport value."
+              },
+              "intent": {
+                "type": "string",
+                "enum": [
+                  "fyi",
+                  "review",
+                  "approve",
+                  "answer",
+                  "take_over"
+                ],
+                "description": "What was asked for."
+              },
+              "recipient": {
+                "type": "object",
+                "properties": {
+                  "principalId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable principal UUID."
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The person's saved display name."
+                  }
+                },
+                "required": [
+                  "principalId",
+                  "displayName"
+                ],
+                "additionalProperties": false,
+                "description": "The person asked, frozen when the request was made."
+              },
+              "askedBy": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "principalId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable principal UUID."
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The person's saved display name."
+                      }
+                    },
+                    "required": [
+                      "principalId",
+                      "displayName"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The person who asked, or null when the asker no longer exists."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.askedBy may be null in this transport value."
+              },
+              "askedByKind": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "agent",
+                  "workflow"
+                ],
+                "description": "Whether a person, an agent or a workflow's own step asked."
+              },
+              "note": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The optional one-line note, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.note may be null in this transport value."
+              },
+              "neededBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "The optional deadline, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.neededBy may be null in this transport value."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "answered",
+                  "handled",
+                  "expired",
+                  "withdrawn"
+                ],
+                "description": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn."
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the request expires; silence never approves."
+              },
+              "ownerFallback": {
+                "type": "boolean",
+                "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
+              },
+              "fallbackForName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Who was meant when ownerFallback is true, otherwise null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.fallbackForName may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the request was made."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time it last changed."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used as If-Match."
+              },
+              "questionId": {
+                "description": "RunRequest.questionId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The approval or question the request asks about, or null when it asks for none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "runId",
+              "stepKey",
+              "intent",
+              "recipient",
+              "askedBy",
+              "askedByKind",
+              "note",
+              "neededBy",
+              "status",
+              "expiresAt",
+              "ownerFallback",
+              "fallbackForName",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "Requests in newest-first order; bounded to the most recent fifty. Each array item follows this format."
+          },
+          "description": "Requests in newest-first order; bounded to the most recent fifty."
+        }
+      },
+      "required": [
+        "requests"
+      ],
+      "additionalProperties": false,
+      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first."
+    },
     "Page<StorageFolderItem>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -92107,601 +92225,6 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of StorageFileVersion."
     },
-    "Page<StorageFileUse>": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "items": {
-          "maxItems": 100,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Id of the run's input pin."
-              },
-              "workItemId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "The work item the run worked on."
-              },
-              "workItemTitle": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "That work item's title."
-              },
-              "runId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "The run that used the file."
-              },
-              "inputName": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "The run input that named the file by its storage path; null when the input named the version directly. Pins are per run, so no step is recorded."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "StorageFileUse.inputName may be null in this transport value."
-              },
-              "versionId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "The artifact version the run pinned."
-              },
-              "revision": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "That version's number, for 'used version n'."
-              },
-              "usedAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "When the run was admitted and pinned the version."
-              }
-            },
-            "required": [
-              "id",
-              "workItemId",
-              "workItemTitle",
-              "runId",
-              "inputName",
-              "versionId",
-              "revision",
-              "usedAt"
-            ],
-            "additionalProperties": false,
-            "description": "One run that used a storage-tree file: the run pinned one of the file's versions as an input when it was admitted, and keeps that version even if the file changes or is deleted."
-          },
-          "description": "StorageFileUse items in this cursor page. Page<StorageFileUse>.items must contain at most 100 items."
-        },
-        "nextCursor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 512,
-              "description": "Opaque continuation cursor value."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that no continuation page remains."
-            }
-          ],
-          "description": "Opaque continuation cursor, or null at the end."
-        },
-        "prevCursor": {
-          "description": "Page<StorageFileUse>.prevCursor may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageFileUse>.prevCursor must contain at most 512 UTF-8 bytes.",
-              "x-utf8-max-bytes": 512
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        },
-        "highwater": {
-          "description": "Page<StorageFileUse>.highwater may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^(?:0|[1-9][0-9]*)$",
-              "description": "Page<StorageFileUse>.highwater is a bounded decimal string.",
-              "x-bigint-minimum": "0"
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        }
-      },
-      "required": [
-        "items",
-        "nextCursor"
-      ],
-      "additionalProperties": false,
-      "description": "Cursor page of StorageFileUse."
-    },
-    "McpToolClassification": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "toolName": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "The tool's name in the pinned snapshot."
-        },
-        "effectClass": {
-          "type": "string",
-          "enum": [
-            "read",
-            "write_idempotent",
-            "write_reconcilable",
-            "write_opaque"
-          ],
-          "description": "The class in force: the Admin's, or write_opaque when unclassified."
-        },
-        "classified": {
-          "type": "boolean",
-          "description": "True once an Admin has classified this tool."
-        },
-        "effectKeyArgument": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
-        },
-        "pairedReadTool": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
-        },
-        "classifiedAgainstCurrentSnapshot": {
-          "type": "boolean",
-          "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
-        },
-        "classifiedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp of the classification, or null when unclassified."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "McpToolClassification.classifiedAt may be null in the safe projection."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
-        }
-      },
-      "required": [
-        "toolName",
-        "effectClass",
-        "classified",
-        "effectKeyArgument",
-        "pairedReadTool",
-        "classifiedAgainstCurrentSnapshot",
-        "classifiedAt",
-        "version"
-      ],
-      "additionalProperties": false,
-      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it."
-    },
-    "McpToolClassificationList": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "toolName": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "The tool's name in the pinned snapshot."
-              },
-              "effectClass": {
-                "type": "string",
-                "enum": [
-                  "read",
-                  "write_idempotent",
-                  "write_reconcilable",
-                  "write_opaque"
-                ],
-                "description": "The class in force: the Admin's, or write_opaque when unclassified."
-              },
-              "classified": {
-                "type": "boolean",
-                "description": "True once an Admin has classified this tool."
-              },
-              "effectKeyArgument": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the projected value is unavailable."
-                  }
-                ],
-                "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
-              },
-              "pairedReadTool": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the projected value is unavailable."
-                  }
-                ],
-                "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
-              },
-              "classifiedAgainstCurrentSnapshot": {
-                "type": "boolean",
-                "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
-              },
-              "classifiedAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "UTC timestamp of the classification, or null when unclassified."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the projected value is unavailable."
-                  }
-                ],
-                "description": "McpToolClassification.classifiedAt may be null in the safe projection."
-              },
-              "version": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
-              }
-            },
-            "required": [
-              "toolName",
-              "effectClass",
-              "classified",
-              "effectKeyArgument",
-              "pairedReadTool",
-              "classifiedAgainstCurrentSnapshot",
-              "classifiedAt",
-              "version"
-            ],
-            "additionalProperties": false,
-            "description": "The snapshot's tools with their classifications. Each array item follows this format."
-          },
-          "description": "The snapshot's tools with their classifications."
-        }
-      },
-      "required": [
-        "items"
-      ],
-      "additionalProperties": false,
-      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered."
-    },
-    "McpUseGrant": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the grant."
-        },
-        "connectionId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The personal connection the grant covers."
-        },
-        "workflowId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The workflow the grant lets use the connection."
-        },
-        "grantedBy": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The owner who granted it."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the grant was made."
-        },
-        "revokedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the grant was revoked, or null while it is live."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "McpUseGrant.revokedAt may be null in the safe projection."
-        },
-        "revokedBy": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "The principal who revoked it, or null while it is live."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "McpUseGrant.revokedBy may be null in the safe projection."
-        }
-      },
-      "required": [
-        "id",
-        "connectionId",
-        "workflowId",
-        "grantedBy",
-        "createdAt",
-        "revokedAt",
-        "revokedBy"
-      ],
-      "additionalProperties": false,
-      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record."
-    },
-    "McpUseGrantList": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID identifying the grant."
-              },
-              "connectionId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "The personal connection the grant covers."
-              },
-              "workflowId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "The workflow the grant lets use the connection."
-              },
-              "grantedBy": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "The owner who granted it."
-              },
-              "createdAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC timestamp when the grant was made."
-              },
-              "revokedAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "UTC timestamp when the grant was revoked, or null while it is live."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the projected value is unavailable."
-                  }
-                ],
-                "description": "McpUseGrant.revokedAt may be null in the safe projection."
-              },
-              "revokedBy": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "The principal who revoked it, or null while it is live."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the projected value is unavailable."
-                  }
-                ],
-                "description": "McpUseGrant.revokedBy may be null in the safe projection."
-              }
-            },
-            "required": [
-              "id",
-              "connectionId",
-              "workflowId",
-              "grantedBy",
-              "createdAt",
-              "revokedAt",
-              "revokedBy"
-            ],
-            "additionalProperties": false,
-            "description": "The connection's grants, newest first. Each array item follows this format."
-          },
-          "description": "The connection's grants, newest first."
-        }
-      },
-      "required": [
-        "items"
-      ],
-      "additionalProperties": false,
-      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant."
-    },
-    "AgentFileGrant": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId."
-        },
-        "workflowId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Immutable id of the workflow whose agent sessions the grant covers."
-        },
-        "folderId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The storage folder granted; the grant covers it and everything under it."
-        },
-        "access": {
-          "type": "string",
-          "enum": [
-            "read",
-            "write"
-          ],
-          "description": "read, or write (which includes the destructive verbs mv and rm)."
-        },
-        "grantedBy": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Person who made the grant."
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "When the grant stops working; judged at the time of each write."
-        },
-        "revokedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "When a person revoked the grant; null while it stands."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "AgentFileGrant.revokedAt may be null in this transport value."
-        },
-        "revokedBy": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Person who revoked the grant; null while it stands."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "AgentFileGrant.revokedBy may be null in this transport value."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "When the grant was made."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Optimistic-concurrency version a revoke must name in If-Match."
-        }
-      },
-      "required": [
-        "id",
-        "workflowId",
-        "folderId",
-        "access",
-        "grantedBy",
-        "expiresAt",
-        "revokedAt",
-        "revokedBy",
-        "createdAt",
-        "version"
-      ],
-      "additionalProperties": false,
-      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn."
-    },
     "StorageFileAtVersion": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -92887,6 +92410,313 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "The storage-tree file a version belongs to, found from the version id alone, with that version's number: what a link to one saved version (for example a memory's source) opens."
     },
+    "Page<StorageFileUse>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Id of the run's input pin."
+              },
+              "workItemId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The work item the run worked on."
+              },
+              "workItemTitle": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "That work item's title."
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The run that used the file."
+              },
+              "inputName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The run input that named the file by its storage path; null when the input named the version directly. Pins are per run, so no step is recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileUse.inputName may be null in this transport value."
+              },
+              "versionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The artifact version the run pinned."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "That version's number, for 'used version n'."
+              },
+              "usedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the run was admitted and pinned the version."
+              }
+            },
+            "required": [
+              "id",
+              "workItemId",
+              "workItemTitle",
+              "runId",
+              "inputName",
+              "versionId",
+              "revision",
+              "usedAt"
+            ],
+            "additionalProperties": false,
+            "description": "One run that used a storage-tree file: the run pinned one of the file's versions as an input when it was admitted, and keeps that version even if the file changes or is deleted."
+          },
+          "description": "StorageFileUse items in this cursor page. Page<StorageFileUse>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<StorageFileUse>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageFileUse>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<StorageFileUse>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<StorageFileUse>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of StorageFileUse."
+    },
+    "Page<MergeAttempt>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the merge attempt record."
+              },
+              "pullRequestId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this attempt to the pull request it merges."
+              },
+              "providerNumber": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "GitHub's pull request number for the attempt."
+              },
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this attempt to the repository it merges into."
+              },
+              "baseBranch": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Target branch the merge was dispatched against."
+              },
+              "expectedHeadSha": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Head commit the caller verified and the attempt was dispatched against."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "merged",
+                  "refused",
+                  "unknown"
+                ],
+                "description": "Outcome of the attempt: merged, refused, or unknown while a lost provider answer waits for reconciliation."
+              },
+              "providerStatus": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "GitHub's HTTP status for a refused or merged answer; null when no provider call was made or the answer was lost."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MergeAttempt.providerStatus may be null in this transport value."
+              },
+              "mergedSha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Commit GitHub reports for a merged attempt; null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MergeAttempt.mergedSha may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the attempt was recorded."
+              },
+              "settledAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when an unknown attempt was settled by reconciliation; null while unknown."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MergeAttempt.settledAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "pullRequestId",
+              "providerNumber",
+              "repositoryId",
+              "baseBranch",
+              "expectedHeadSha",
+              "state",
+              "providerStatus",
+              "mergedSha",
+              "createdAt",
+              "settledAt"
+            ],
+            "additionalProperties": false,
+            "description": "One recorded merge attempt: the exact head it was dispatched against, the outcome, and the provider status or merged commit when GitHub answered."
+          },
+          "description": "MergeAttempt items in this cursor page. Page<MergeAttempt>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<MergeAttempt>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MergeAttempt>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<MergeAttempt>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<MergeAttempt>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of MergeAttempt."
+    },
     "DesktopSignInStarted": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -92947,137 +92777,6 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The desktop app's credential, returned once. The app keeps it in the system secret store and sends it as an Authorization bearer value."
-    },
-    "Page<SkillUseGrant>": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "items": {
-          "maxItems": 100,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID identifying the grant."
-              },
-              "skillId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID of the personal skill the grant is for."
-              },
-              "skillVersionId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
-              },
-              "workflowId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID of the workflow the skill was attached to."
-              },
-              "workflowName": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Display name of that workflow, so the owner can recognise it."
-              },
-              "stepPath": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "JSON Pointer of the step in the workflow definition that uses the skill."
-              },
-              "grantedBy": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Person who confirmed the grant, always the skill owner."
-              },
-              "createdAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "When the grant was made."
-              },
-              "version": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "Optimistic-concurrency version a stop must name in If-Match."
-              }
-            },
-            "required": [
-              "id",
-              "skillId",
-              "skillVersionId",
-              "workflowId",
-              "workflowName",
-              "stepPath",
-              "grantedBy",
-              "createdAt",
-              "version"
-            ],
-            "additionalProperties": false,
-            "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both."
-          },
-          "description": "SkillUseGrant items in this cursor page. Page<SkillUseGrant>.items must contain at most 100 items."
-        },
-        "nextCursor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 512,
-              "description": "Opaque continuation cursor value."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that no continuation page remains."
-            }
-          ],
-          "description": "Opaque continuation cursor, or null at the end."
-        },
-        "prevCursor": {
-          "description": "Page<SkillUseGrant>.prevCursor may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillUseGrant>.prevCursor must contain at most 512 UTF-8 bytes.",
-              "x-utf8-max-bytes": 512
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        },
-        "highwater": {
-          "description": "Page<SkillUseGrant>.highwater may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^(?:0|[1-9][0-9]*)$",
-              "description": "Page<SkillUseGrant>.highwater is a bounded decimal string.",
-              "x-bigint-minimum": "0"
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        }
-      },
-      "required": [
-        "items",
-        "nextCursor"
-      ],
-      "additionalProperties": false,
-      "description": "Cursor page of SkillUseGrant."
     },
     "WorkflowVersionSkills": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -93211,6 +92910,535 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Every skill the steps of one workflow version name, ordered by step then skill version, with whether each can be used now. The same read serves a draft and a published version."
+    },
+    "RouteContinuation": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of this continuation."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the run the step belongs to."
+        },
+        "runStepId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the step that was continued."
+        },
+        "jobId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the step's job that was moved (the earliest, when a step has several live jobs; all were moved)."
+        },
+        "incidentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the incident the choice was made against."
+        },
+        "incidentGeneration": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Generation of that incident when the choice was admitted."
+        },
+        "sourceRouteId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the route the step was pinned to."
+        },
+        "targetRouteId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the route it now runs on."
+        },
+        "previousPin": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider key the step sends to."
+            },
+            "model": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Model identifier the step runs."
+            },
+            "billingRoute": {
+              "type": "string",
+              "enum": [
+                "api",
+                "subscription"
+              ],
+              "description": "Billing route the step's spend follows: api or subscription."
+            },
+            "billingAccountId": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider billing account the step's spend is attributed to."
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "billingRoute",
+            "billingAccountId"
+          ],
+          "additionalProperties": false,
+          "description": "The provider, model, billing route and billing account the step had before."
+        },
+        "newPin": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider key the step sends to."
+            },
+            "model": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Model identifier the step runs."
+            },
+            "billingRoute": {
+              "type": "string",
+              "enum": [
+                "api",
+                "subscription"
+              ],
+              "description": "Billing route the step's spend follows: api or subscription."
+            },
+            "billingAccountId": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider billing account the step's spend is attributed to."
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "billingRoute",
+            "billingAccountId"
+          ],
+          "additionalProperties": false,
+          "description": "The provider, model, billing route and billing account the step has now."
+        },
+        "admittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp at which the continuation was admitted."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "runStepId",
+        "jobId",
+        "incidentId",
+        "incidentGeneration",
+        "sourceRouteId",
+        "targetRouteId",
+        "previousPin",
+        "newPin",
+        "admittedAt"
+      ],
+      "additionalProperties": false,
+      "description": "The record that a stalled step was continued on another route. The old attempt is fenced, the job is queued again on the new pin, and the step's one budget reservation is re-priced in place, so no second reservation exists and none is left held. Both the pin the step had and the pin it now has are kept."
+    },
+    "Page<MetricSource>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "pullRequest",
+                  "task"
+                ],
+                "description": "pullRequest for pull request metrics, task for task metrics."
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Bakery id of the pull request or task, for linking to it."
+              },
+              "repositoryId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Repository of a pull request; null for a task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.repositoryId may be null in this transport value."
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Task the pull request delivers."
+              },
+              "providerNumber": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Pull request number on the provider; null for a task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.providerNumber may be null in this transport value."
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Provider page of a pull request; null for a task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.url may be null in this transport value."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "closed",
+                  "merged",
+                  "delivered"
+                ],
+                "description": "A pull request's state (open, closed, merged); delivered for a task."
+              },
+              "openedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "Provider time it was opened; null when unread."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.openedAt may be null in this transport value."
+              },
+              "mergedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "Provider time it was merged; null unless merged."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.mergedAt may be null in this transport value."
+              },
+              "closedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "Provider time it was last closed; null while open."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.closedAt may be null in this transport value."
+              },
+              "countedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "The provider time this metric places it at (opened, merged or closed time); null when unknown."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.countedAt may be null in this transport value."
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Its own contribution in the series unit (1 for counts, hours, lines, or 1/0 merged for merge rate); null is unknown."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.value may be null in this transport value."
+              },
+              "missingReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "no_opened_time",
+                      "no_merged_time",
+                      "no_closed_time",
+                      "no_diff_totals",
+                      "still_open"
+                    ],
+                    "description": "Why this record's value is unknown and it was left out of the number; null when it counted."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.missingReason may be null in this transport value."
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The task's title; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.title may be null in this transport value."
+              },
+              "requestedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the task's first run was admitted; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.requestedAt may be null in this transport value."
+              },
+              "deliveredAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the task reached its delivery point; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.deliveredAt may be null in this transport value."
+              },
+              "deliveryPoint": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "merged_pull_request",
+                      "completed_run"
+                    ],
+                    "description": "Which delivery point the task reached; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.deliveryPoint may be null in this transport value."
+              },
+              "waits": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "agentWorking",
+                            "queue",
+                            "review",
+                            "person",
+                            "blocked",
+                            "unaccounted"
+                          ],
+                          "description": "agentWorking: an agent attempt ran; queue: a job was ready and not yet claimed; review: the independent review step ran; person: an approval, question or request waited for a person; blocked: blocked time, not recorded yet; unaccounted: lead time no recorded interval covers. Where intervals overlap, person wins, then review, agent and queue."
+                        },
+                        "hours": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "description": "Hours in this category; null when unknown."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "MetricWaitShare.hours may be null in this transport value."
+                        },
+                        "unknownReason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "not_recorded"
+                              ],
+                              "description": "not_recorded when Bakery keeps no history for this category (blocked); null otherwise."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "MetricWaitShare.unknownReason may be null in this transport value."
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "hours",
+                        "unknownReason"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Where the task's lead time went; null for a pull request. Each array item follows this format."
+                    },
+                    "description": "Where the task's lead time went; null for a pull request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.waits may be null in this transport value."
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "repositoryId",
+              "taskId",
+              "providerNumber",
+              "url",
+              "status",
+              "openedAt",
+              "mergedAt",
+              "closedAt",
+              "countedAt",
+              "value",
+              "missingReason",
+              "title",
+              "requestedAt",
+              "deliveredAt",
+              "deliveryPoint",
+              "waits"
+            ],
+            "additionalProperties": false,
+            "description": "One record behind a metric: a pull request with its lifecycle times, or a delivered task with its lead time and where it went. Its value is its own contribution; a null value is unknown and was left out of the number."
+          },
+          "description": "MetricSource items in this cursor page. Page<MetricSource>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<MetricSource>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MetricSource>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<MetricSource>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<MetricSource>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of MetricSource."
     }
   }
 } as const;
