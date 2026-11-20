@@ -258,6 +258,16 @@ Deno.test("an observer reads only the granted session's own messages, never the 
       ),
       404,
     );
+    // Removing the observer's access takes the feed away at once.
+    await o.fixture.pgDatabase.query(
+      `update bakery.run_access_grants set revoked_at = now()
+        where organization_id = $1 and run_id = $2 and principal_id = $3`,
+      [o.fixture.organizationId, o.run.runId, o.guest.principalId],
+    );
+    assertEquals(
+      await o.as(o.guest.cookie, "GET", `/v1/sessions/${o.buildSession}/feed`),
+      404,
+    );
     // Someone with standing access sees what they always saw: the whole
     // conversation, unchanged.
     const all = await bodies(developer.cookie, o.buildSession);
