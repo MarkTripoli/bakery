@@ -1,7 +1,8 @@
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import * as UI from "@bakery/ui";
 import type { MessageKey } from "@bakery/i18n";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { CopyValueButton } from "../pages/CopyValueButton.tsx";
 
 /** Longest client ID and secret the server accepts. */
 export const CLIENT_ID_MAX = 200;
@@ -88,10 +89,9 @@ export function ProviderCredentialsSection(
   const { translate, locale, timeZone } = useI18n();
   const key = (suffix: string) =>
     `integrations.${provider}.credentials.${suffix}` as MessageKey;
-  const ids = { clientId: useId(), clientSecret: useId(), callback: useId() };
+  const ids = { clientId: useId(), clientSecret: useId() };
   const [replacing, setReplacing] = useState(false);
   const [attempted, setAttempted] = useState(false);
-  const [copied, setCopied] = useState(false);
   const saving = status === "saving";
   const configured = saved?.configured === true;
   const showForm = !configured || replacing;
@@ -112,21 +112,6 @@ export function ProviderCredentialsSection(
     onSubmit();
     setReplacing(false);
     setAttempted(false);
-  };
-  // "Copied" goes back to "Copy" after a moment, so the button is never stuck.
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-  const copy = async () => {
-    if (!saved) return;
-    try {
-      await navigator.clipboard.writeText(saved.callbackUrl);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
   };
   const reveal = {
     show: translate("settings.storage.show"),
@@ -229,43 +214,35 @@ export function ProviderCredentialsSection(
                     onSubmit={submit}
                   >
                     <UI.Stack gap="standard">
-                      <UI.Field
-                        hint={translate(key("callbackHint"))}
-                        htmlFor={ids.callback}
-                        label={translate(
-                          "settings.integrations.credentials.callbackLabel",
-                        )}
-                      >
-                        <UI.Inline>
-                          <UI.TextInput
-                            autoComplete="off"
-                            id={ids.callback}
-                            name="callbackUrl"
-                            onChange={() => undefined}
-                            readOnly
-                            type="text"
-                            value={saved.callbackUrl}
-                          />
-                          <UI.Button
-                            onClick={copy}
-                            type="button"
-                            variant="secondary"
-                          >
-                            {translate(
-                              copied
-                                ? "settings.integrations.credentials.copied"
-                                : "settings.integrations.credentials.copy",
+                      <UI.Stack gap="compact">
+                        <UI.DescriptionList>
+                          <UI.DescriptionItem
+                            action={
+                              <CopyValueButton
+                                label={translate(
+                                  "settings.integrations.credentials.copyCallback",
+                                )}
+                                value={saved.callbackUrl}
+                              />
+                            }
+                            description={
+                              <UI.DataText
+                                data-testid={`${provider}-callback-url`}
+                                state="wrapped"
+                                variant="code"
+                              >
+                                {saved.callbackUrl}
+                              </UI.DataText>
+                            }
+                            title={translate(
+                              "settings.integrations.credentials.callbackLabel",
                             )}
-                          </UI.Button>
-                          <UI.VisuallyHidden role="status">
-                            {copied
-                              ? translate(
-                                "settings.integrations.credentials.copied",
-                              )
-                              : ""}
-                          </UI.VisuallyHidden>
-                        </UI.Inline>
-                      </UI.Field>
+                          />
+                        </UI.DescriptionList>
+                        <UI.Text variant="muted">
+                          {translate(key("callbackHint"))}
+                        </UI.Text>
+                      </UI.Stack>
                       <UI.Field
                         error={idMissing
                           ? translate(

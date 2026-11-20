@@ -4800,10 +4800,9 @@
   "settings.integrations.credentials.clientIdRequired": "⟦Ëñŧëŕ ŧĥë çļïëñŧ ÏÐ. ŧëšŧ⟧",
   "settings.integrations.credentials.clientSecretRequired": "⟦Ëñŧëŕ ŧĥë çļïëñŧ šëçŕëŧ. ŧëšŧ ç⟧",
   "settings.integrations.credentials.callbackLabel": "⟦Çàļļƀàçķ ÛŔĻ ŧë⟧",
-  "settings.integrations.credentials.copy": "⟦Çôþÿ⟧",
-  "settings.integrations.credentials.copied": "⟦Çôþïëð…⟧",
   "settings.integrations.credentials.save": "⟦Šàṽë⟧",
   "settings.integrations.credentials.replace": "⟦Ŕëþļàçë ðëŧàïļš ŧëš⟧",
   "settings.integrations.credentials.cancel": "⟦Çàñçëļ…⟧",
-  "settings.integrations.credentials.tooLong": "⟦Ûšë àŧ ɱôšŧ {limit} çĥàŕàçŧëŕš. ŧëšŧ çôþ⟧"
+  "settings.integrations.credentials.tooLong": "⟦Ûšë àŧ ɱôšŧ {limit} çĥàŕàçŧëŕš. ŧëšŧ çôþ⟧",
+  "settings.integrations.credentials.copyCallback": "⟦Çôþÿ çàļļƀàçķ ÛŔĻ ŧëš⟧"
 }

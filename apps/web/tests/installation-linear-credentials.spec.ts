@@ -113,6 +113,7 @@ const section = (page: Page) => page.getByTestId("linear-credentials");
 const form = (page: Page) => page.getByTestId("linear-credentials-form");
 const field = (page: Page, name: string) =>
   form(page).locator(`input[name="${name}"]`);
+const callbackUrl = (page: Page) => page.getByTestId("linear-callback-url");
 const save = (page: Page) => form(page).getByRole("button", { name: "Save" });
 
 test.describe("Linear credentials on installation settings", () => {
@@ -130,13 +131,34 @@ test.describe("Linear credentials on installation settings", () => {
       "https://linear.app/settings/api",
     );
     await expect(guide).toHaveAttribute("target", "_blank");
-    await expect(field(page, "callbackUrl")).toHaveValue(CALLBACK);
-    await expect(field(page, "callbackUrl")).toHaveAttribute("readonly", "");
+    await expect(callbackUrl(page)).toHaveText(CALLBACK);
     await expect(field(page, "clientId")).toHaveValue("");
     await expect(field(page, "clientSecret")).toHaveAttribute(
       "type",
       "password",
     );
+  });
+
+  test("the callback URL is shown in full, wraps instead of cutting, and Copy puts all of it on the clipboard", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    // A long address, as a real deployment has: it must stay readable by eye.
+    const longCallback = `https://bakery.example/${
+      "deployment-path/".repeat(8)
+    }v1/integration-auth/linear/callback`;
+    await fixture(page, { ...unregistered, callbackUrl: longCallback });
+    await page.goto(INSTALLATION_PATH);
+    const value = callbackUrl(page);
+    await expect(value).toHaveText(longCallback);
+    // No ellipsis and no horizontal scroll: the value wraps inside its box.
+    const overflow = await value.evaluate((element) => ({
+      clipped: element.scrollWidth > element.clientWidth + 1,
+      ellipsis: getComputedStyle(element).textOverflow === "ellipsis",
+    }));
+    expect(overflow).toEqual({ clipped: false, ellipsis: false });
+    await section(page).getByRole("button", { name: "Copy callback URL" })
+      .click();
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe(longCallback);
   });
 
   test("both fields are required and say so under the field", async ({ page }) => {
