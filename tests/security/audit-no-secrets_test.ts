@@ -17,6 +17,7 @@ Deno.test("no audit row produced by an auth mutation carries a secret", async ()
     secretsKey: key.secretsKey,
     githubAppClient: key.githubAppClient,
     skillStorageProbe: key.skillStorageProbe,
+    backupDestinationProbe: key.backupDestinationProbe,
   });
   try {
     const rows = await runAuditMatrix(f);

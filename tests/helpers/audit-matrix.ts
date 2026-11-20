@@ -107,6 +107,9 @@ export async function matrixSecretsKey() {
     githubAppClient: matrixGitHub.client,
     /** No audit case reaches a storage provider: the probe answers verified. */
     skillStorageProbe: () => Promise.resolve("verified" as const),
+    /** Nor does one reach a backup bucket: the destination test answers verified. */
+    backupDestinationProbe: () =>
+      Promise.resolve({ outcome: "verified" as const, detail: null }),
     remove: () => Deno.remove(directory, { recursive: true }),
   };
 }
@@ -747,6 +750,92 @@ export async function runAuditMatrix(
           f,
           "POST",
           "/v1/installation/backups",
+          f.adminCookie,
+          { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "backupSchedule.put",
+      failure: () =>
+        call(f, "PUT", "/v1/installation/backup-schedule", developer, {
+          body: {
+            enabled: true,
+            interval: "daily",
+            timeOfDayUtc: "03:00",
+            daysToKeep: 30,
+          },
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "PUT",
+          "/v1/installation/backup-schedule",
+          f.adminCookie,
+          {
+            body: {
+              enabled: true,
+              interval: "daily",
+              timeOfDayUtc: "03:00",
+              daysToKeep: 30,
+            },
+            headers: { "Idempotency-Key": key() },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      // Saves first so the test below has a destination to send to.
+      operation: "backupOffsite.put",
+      failure: () =>
+        call(f, "PUT", "/v1/installation/backup-offsite", developer, {
+          body: {
+            endpoint: "http://127.0.0.1:9000",
+            region: "us-east-1",
+            bucket: "audit-matrix-bucket",
+            accessKeyId: "audit-matrix-access",
+            secretAccessKey: "audit-matrix-secret",
+          },
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "PUT",
+          "/v1/installation/backup-offsite",
+          f.adminCookie,
+          {
+            body: {
+              endpoint: "http://127.0.0.1:9000",
+              region: "us-east-1",
+              bucket: "audit-matrix-bucket",
+              accessKeyId: "audit-matrix-access",
+              secretAccessKey: "audit-matrix-secret",
+            },
+            headers: { "Idempotency-Key": key() },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "backupOffsite.verify",
+      failure: () =>
+        call(
+          f,
+          "POST",
+          "/v1/installation/backup-offsite/verification",
+          developer,
+          { body: {}, headers: { "Idempotency-Key": key() } },
+        ),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/installation/backup-offsite/verification",
           f.adminCookie,
           { body: {}, headers: { "Idempotency-Key": key() } },
         ),
