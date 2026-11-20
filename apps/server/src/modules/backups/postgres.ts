@@ -308,7 +308,7 @@ async function materializeScheduledRun(
  * lease. A live claim elsewhere means nothing to do; a lapsed claim is taken
  * over, which resets its report sequence so the old holder's late reports are
  * refused (its lease token no longer matches). One backup at a time is held by
- * the unique indexes in 0273, not by a trigger.
+ * the unique indexes in 0277, not by a trigger.
  */
 export async function claimRun(
   transaction: PgTransactionClient,
