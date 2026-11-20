@@ -190,6 +190,20 @@ def sign_in_to_waiting(path, prefix):
     return opened["url"] if opened else None
 
 
+_cookie = None
+
+
+def session_cookie():
+    """Signs in on the web once and keeps the session, as a browser does: the server rate-limits
+    password sign-ins, and a person does not retype their password for every sign-in of the app."""
+    global _cookie
+    if _cookie is None:
+        status, cookie = browser_session()
+        check("the person signs in on the web, once", status == 200 and cookie != "", f"status {status}")
+        _cookie = cookie
+    return _cookie
+
+
 def phase_cold_sign_in():
     p = os.path.join(OUT, "a-cold")
     clear_store()
@@ -200,9 +214,7 @@ def phase_cold_sign_in():
           wait_window(p, "browser_did_not_open") is not None)
     if not url:
         return
-    status, cookie = browser_session()
-    check("[cold] the person signs in on the web", status == 200 and cookie != "", f"status {status}")
-    link = confirm(request_id_of(url), cookie)
+    link = confirm(request_id_of(url), session_cookie())
     check("[cold] the browser's done page links back to the app", bool(link and link.startswith("bakery://auth/callback?code=")))
     if not link:
         return
@@ -237,7 +249,7 @@ def phase_cancel_then_late_answer():
     url = sign_in_to_waiting(p, "[cancel]")
     check("[cancel] Cancel returns to the sign-in window", (press(p, "cancel") or True) and wait_window(p, "sign_in", after=2) is not None)
     if url:
-        _, cookie = browser_session()
+        cookie = session_cookie()
         link = confirm(request_id_of(url), cookie)
         deliver(link)
         check("[cancel] a late answer says it did not come from this app",
@@ -257,7 +269,7 @@ def phase_bogus_answers():
     check("[bogus] an answer before the person has confirmed leaves the app waiting",
           views(p)[-1][0] in ("waiting", "finishing") and all(not v[0].startswith("refusal") for v in views(p)), str(views(p)))
     if url:
-        _, cookie = browser_session()
+        cookie = session_cookie()
         link = confirm(request_id_of(url), cookie)
         deliver("bakery://auth/callback?code=" + "y" * 43)
         check("[bogus] a wrong answer after confirming says it did not come from this app",
@@ -274,7 +286,7 @@ def phase_server_down_then_try_again():
     url = sign_in_to_waiting(p, "[down]")
     if not url:
         return
-    _, cookie = browser_session()
+    cookie = session_cookie()
     link = confirm(request_id_of(url), cookie)
     check("[down] the server stops", server_flag("stop"))
     deliver(link)
@@ -301,7 +313,7 @@ def phase_ended_sign_in():
     check("[ended] signing in again stays in the dialog", wait_window(p, "waiting", dialog=True) is not None)
     url = (wait_effect(p, "open_browser") or {}).get("url")
     if url:
-        _, cookie = browser_session()
+        cookie = session_cookie()
         deliver(confirm(request_id_of(url), cookie))
         check("[ended] and returns to the app, out of the dialog", wait_window(p, "app", dialog=False, timeout=40) is not None)
         check("[ended] the new sign-in is stored", stored().startswith("bkd_"))
@@ -317,7 +329,7 @@ def phase_no_keyring():
     start_app(p, bus=bus)
     url = sign_in_to_waiting(p, "[no keyring]")
     if url:
-        _, cookie = browser_session()
+        cookie = session_cookie()
         deliver(confirm(request_id_of(url), cookie), bus=bus)
         check("[no keyring] the app says it could not save the sign-in",
               wait_window(p, "refusal:no_keyring", timeout=40) is not None)

@@ -125,7 +125,13 @@ function panelNode(panel, window) {
   };
 }
 
+let rendered = "";
+
 export function render(view, { keepFocus = false } = {}) {
+  // The same view again changes nothing on screen: leave it, so focus stays where it is.
+  const fingerprint = JSON.stringify(view);
+  if (fingerprint === rendered && !keepFocus) return;
+  rendered = fingerprint;
   current = view;
   root.replaceChildren();
   if (!view.panel) {

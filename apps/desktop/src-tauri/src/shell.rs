@@ -37,6 +37,9 @@ pub struct Shell {
     client: Client,
     store: Arc<dyn SecretStore>,
     state: Mutex<State>,
+    /// The last view sent to the page: a view that changed nothing is not announced again, so the
+    /// page does not redraw and lose the person's keyboard focus for no reason.
+    last_view: Mutex<Option<View>>,
     /// A fixed state shown for design review and the stills: nothing is sent anywhere.
     previewing: bool,
     report_to: Option<PathBuf>,
@@ -70,6 +73,7 @@ impl Shell {
                 credential: None,
                 serial: 0,
             }),
+            last_view: Mutex::new(None),
             previewing,
             report_to: std::env::var("BAKERY_DESKTOP_REPORT")
                 .ok()
@@ -96,6 +100,13 @@ impl Shell {
 
     fn push(&self) {
         let v = self.current_view();
+        {
+            let mut last = self.last_view.lock().unwrap();
+            if last.as_ref() == Some(&v) {
+                return;
+            }
+            *last = Some(v.clone());
+        }
         self.report("view", json!({ "window": v.window, "dialog": v.dialog }));
         let _ = self.app.emit("view", v);
     }
