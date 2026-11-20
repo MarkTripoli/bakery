@@ -8,10 +8,12 @@ import { assertEquals } from "@std/assert";
 import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 import { claimAssignment } from "./worker-execution/scenarios.ts";
 import {
+  adminRequest,
   registeredWorker,
   seedFundedModelJob,
   type WorkerFixture,
   workerRequest,
+  type WorkerScope,
 } from "./worker-execution.ts";
 
 export type Json = Record<string, unknown>;
@@ -136,19 +138,13 @@ export function post(
   );
 }
 
+/** A person's read: the signed-in admin of `scope` (this fixture's organization by default). */
 export function person(
   fixture: WorkerFixture,
   path: string,
-  organizationId?: string,
+  scope: WorkerScope = fixture,
 ) {
-  return fixture.app.fetch(
-    new Request(fixture.config.publicBaseUrl + path, {
-      headers: {
-        cookie: fixture.adminCookie,
-        "bakery-organization-id": organizationId ?? fixture.organizationId,
-      },
-    }),
-  );
+  return adminRequest(fixture, path, undefined, { method: "GET", scope });
 }
 
 export async function body(response: Response): Promise<Json> {

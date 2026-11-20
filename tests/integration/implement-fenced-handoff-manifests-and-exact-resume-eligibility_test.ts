@@ -137,7 +137,7 @@ Deno.test("another organization cannot read a manifest", () =>
       const read = await person(
         fixture,
         "/v1/handoff-manifests/" + record.id,
-        foreign.organizationId,
+        foreign,
       );
       assertEquals(read.status, 404);
       await read.body?.cancel();
