@@ -1184,9 +1184,24 @@ const issueSettingsDetailRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+/** `?file=<id>&tab=versions|uses`: the file whose details are open, and its tab. */
+function validateFilesSearch(
+  search: Record<string, unknown>,
+): { file?: string; tab?: "versions" | "uses" } {
+  return {
+    ...(typeof search.file === "string" && search.file !== ""
+      ? { file: search.file }
+      : {}),
+    ...(search.tab === "versions" || search.tab === "uses"
+      ? { tab: search.tab }
+      : {}),
+  };
+}
+
 const filesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/files",
+  validateSearch: validateFilesSearch,
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <FilesPage path="" />,
@@ -1196,6 +1211,7 @@ const filesRoute = createRoute({
 const filesPathRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/files/$",
+  validateSearch: validateFilesSearch,
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (

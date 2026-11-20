@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { formatDate, formatNumber } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
@@ -12,7 +12,8 @@ import {
 import { useShellViewport } from "../app/responsive.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
+import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
+import { FileDetails, type FileTab } from "./files/FileDetails.tsx";
 import { filesHref, rootNoteKey, sizeParts } from "./files/files-state.ts";
 
 /** The files browser (#445): the top folders, or one folder's entries. */
@@ -39,6 +40,36 @@ export function FilesPage({ path }: { readonly path: string }) {
     enabled: ready && folder !== null,
   });
 
+  const search = useSearch({ strict: false }) as {
+    file?: string;
+    tab?: FileTab;
+  };
+  const tab: FileTab = search.tab === "versions" || search.tab === "uses"
+    ? search.tab
+    : "details";
+  const setSearch = (
+    next: { file?: string | undefined; tab?: "versions" | "uses" | undefined },
+  ) => {
+    const merged = {
+      file: search.file,
+      tab: search.tab === "details" ? undefined : search.tab,
+      ...next,
+    };
+    const query: { file?: string; tab?: "versions" | "uses" } = {};
+    if (merged.file !== undefined) query.file = merged.file;
+    if (merged.tab !== undefined) query.tab = merged.tab;
+    if (atTop) {
+      void navigate({ to: "/files", search: query, replace: true });
+    } else {
+      void navigate({
+        to: "/files/$",
+        params: { _splat: path.slice(1) },
+        search: query,
+        replace: true,
+      });
+    }
+  };
+
   const open = (target: string) =>
     void navigate({ to: "/files/$", params: { _splat: target.slice(1) } });
   const goTop = () => void navigate({ to: "/files" });
@@ -62,7 +93,18 @@ export function FilesPage({ path }: { readonly path: string }) {
           {nameOf(item)}
         </UI.Link>
       )
-      : <UI.Text>{nameOf(item)}</UI.Text>;
+      : (
+        <UI.Link
+          href={`?file=${item.id}`}
+          variant="quiet"
+          onClick={(event) => {
+            event.preventDefault();
+            setSearch({ file: item.id, tab: undefined });
+          }}
+        >
+          {nameOf(item)}
+        </UI.Link>
+      );
 
   const size = (item: StorageFolderItem) => {
     if (item.kind === "folder" || item.sizeBytes === null) {
@@ -97,10 +139,35 @@ export function FilesPage({ path }: { readonly path: string }) {
   const rows = atTop
     ? roots.data?.items ?? []
     : entries.data?.pages.flatMap((page) => page.items) ?? [];
+  const selected = search.file === undefined
+    ? null
+    : rows.find((row) => row.id === search.file && row.kind === "file") ??
+      null;
+  const detailsPanel = selected === null ? null : (
+    <FileDetails
+      file={selected}
+      tab={tab}
+      onTab={(next) =>
+        setSearch({ tab: next === "details" ? undefined : next })}
+      onClose={() => setSearch({ file: undefined, tab: undefined })}
+    />
+  );
 
   return (
     <>
       <ShellActiveNavigation id="files" />
+      {detailsPanel !== null && !phone
+        ? (
+          <ShellSlot name="inspector">
+            <UI.InspectorPanel
+              label={translate("files.details.label")}
+              variant="column"
+            >
+              {detailsPanel}
+            </UI.InspectorPanel>
+          </ShellSlot>
+        )
+        : null}
       <UI.Stack gap="spacious" data-testid="files-page">
         <UI.PageHeader
           variant="list"
@@ -137,6 +204,8 @@ export function FilesPage({ path }: { readonly path: string }) {
           )
           : loading
           ? <UI.Text role="status">{translate("files.loading")}</UI.Text>
+          : detailsPanel !== null && phone
+          ? detailsPanel
           : rows.length === 0
           ? (
             <UI.EmptyState
@@ -154,7 +223,12 @@ export function FilesPage({ path }: { readonly path: string }) {
                 rows={[...rows]}
                 state="ready"
                 getRowKey={(row) => row.id}
-                getRowAttributes={(row) => ({ "data-entry-id": row.id })}
+                getRowAttributes={(row) => ({
+                  "data-entry-id": row.id,
+                  ...(row.id === selected?.id
+                    ? { "data-selected": "true" }
+                    : {}),
+                })}
                 columns={atTop
                   ? [
                     {
@@ -184,10 +258,9 @@ export function FilesPage({ path }: { readonly path: string }) {
                     {
                       id: "kind",
                       header: translate("files.table.kind"),
-                      cell: (row) =>
-                        row.kind === "folder"
-                          ? translate("files.kind.folder")
-                          : row.kindName ?? "",
+                      cell: (row) => row.kind === "folder"
+                        ? translate("files.kind.folder")
+                        : row.kindName ?? "",
                     },
                     {
                       id: "size",
