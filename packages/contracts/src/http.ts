@@ -35,6 +35,12 @@ export const FAULTS = {
   AUTH_FORBIDDEN: [403, false, "auth-forbidden"],
   RESOURCE_NOT_FOUND: [404, false, "resource-not-found"],
   ARTIFACT_CONTENT_EXPIRED: [410, false, "artifact-content-expired"],
+  // The stored bytes are not the bytes the version recorded (#437). This is not
+  // a missing file and must never be reported as one: the version is intact and
+  // its record is intact, and what is stored under it hashes to something else.
+  // A reader refuses to serve it, and the page that asked shows that the file
+  // does not match its record rather than an error it cannot explain.
+  ARTIFACT_CONTENT_MISMATCH: [409, false, "artifact-content-mismatch"],
   // Declared in the transport schema and unused until now. A range the server
   // will not serve for this object: the bytes exist and the range is valid, but
   // serving it would cost more than the server is willing to spend. 416 is the
@@ -791,6 +797,7 @@ export function createNormalizedCommandMetadata(
     [
       "emailSettings.put",
       "integrationAppRegistrations.put",
+      "integrationClientCredentials.put",
       "mcpToolClassifications.put",
       "scopeProfiles.put",
       "skillStorageSettings.put",
