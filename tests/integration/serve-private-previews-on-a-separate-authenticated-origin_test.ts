@@ -267,6 +267,11 @@ Deno.test("a route key held by another attempt is a conflict, not a takeover", (
 Deno.test("the access grant is exchangeable for seconds while the session length is separate", () =>
   withWorkerFixture(async (fixture) => {
     const { preview } = await openPreview(fixture, "preview-grant");
+    const issued: {
+      grantId: string;
+      secret: string;
+      sessionSeconds: number;
+    }[] = [];
     for (const sessionSeconds of [undefined, 60, 86_400]) {
       const before = Date.now();
       const response = await person(
@@ -287,6 +292,11 @@ Deno.test("the access grant is exchangeable for seconds while the session length
       const body = await response.json();
       assertEquals(body.grant.length, 43);
       assertEquals(body.sessionSeconds, sessionSeconds ?? 3600);
+      issued.push({
+        grantId: body.grantId,
+        secret: body.grant,
+        sessionSeconds: body.sessionSeconds,
+      });
       assertEquals(
         body.exchangeUrl,
         `${previewOrigin}/running-preview/exchange`,
@@ -321,12 +331,36 @@ Deno.test("the access grant is exchangeable for seconds while the session length
       body: JSON.stringify({ sessionSeconds: 86_401 }),
     });
     assertEquals(tooLong.status >= 400 && tooLong.status < 500, true);
-    const audit = await fixture.pgDatabase.query(
+    // Exactly one audit row per issued grant, naming the grant id, session
+    // length and nothing secret: the one-use secret is never written down.
+    const audit = await fixture.pgDatabase.query<
+      { resource_id: string; details: Record<string, unknown> }
+    >(
+      `select resource_id, details from bakery.audit_events
+        where organization_id = $1 and operation = 'previews.access'
+        order by created_at`,
+      [fixture.organizationId],
+    );
+    assertEquals(audit.rows.length, issued.length);
+    for (const grant of issued) {
+      const rows = audit.rows.filter((row) =>
+        row.details.grantId === grant.grantId
+      );
+      assertEquals(rows.length, 1, grant.grantId);
+      assertEquals(rows[0].resource_id, preview.id);
+      assertEquals(rows[0].details.sessionSeconds, grant.sessionSeconds);
+      assertEquals(
+        JSON.stringify(rows[0].details).includes(grant.secret),
+        false,
+      );
+    }
+    // And nowhere else in any audit row either.
+    const leaked = await fixture.pgDatabase.query(
       `select count(*)::int as n from bakery.audit_events
         where organization_id = $1 and details::text like '%' || $2 || '%'`,
-      [fixture.organizationId, "grant"],
+      [fixture.organizationId, issued[0].secret],
     );
-    assertEquals(audit.rows[0].n >= 0, true);
+    assertEquals(leaked.rows[0].n, 0);
   }, options));
 
 Deno.test("the preview is read as what it is now, not as what it was registered as", () =>
