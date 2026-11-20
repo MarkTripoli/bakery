@@ -39,6 +39,41 @@ async fn press_button(
     Ok(())
 }
 
+/// What the page found out when it tried things the policy must refuse. Only written to the report
+/// the test harness asks for; it does nothing otherwise.
+#[tauri::command]
+fn probe_result(shell: State<Arc<Shell>>, result: serde_json::Value) {
+    shell.report("probe", result);
+}
+
+/// For the stills and the policy test: size the window as asked and, when asked, try the things the
+/// policy must refuse. Neither is reachable unless the harness sets its environment variable.
+fn test_hooks(app: &tauri::App, shell: &Arc<Shell>, server: &str) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    if let Ok(size) = std::env::var("BAKERY_DESKTOP_SIZE") {
+        if let Some((w, h)) = size
+            .split_once('x')
+            .and_then(|(w, h)| Some((w.parse::<f64>().ok()?, h.parse::<f64>().ok()?)))
+        {
+            let _ = window.set_size(tauri::LogicalSize::new(w, h));
+        }
+    }
+    if std::env::var("BAKERY_DESKTOP_CSP_PROBE").is_ok() {
+        let script = include_str!("probe.js").replace("__SERVER__", server);
+        let window = window.clone();
+        let shell = Arc::clone(shell);
+        tauri::async_runtime::spawn(async move {
+            // Let the page load and show its window first.
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            if window.eval(&script).is_err() {
+                shell.report("probe", json!({ "error": "could not run the probe" }));
+            }
+        });
+    }
+}
+
 /// A `bakery://` address the operating system handed over. Only a sign-in answer is acted on.
 fn handle_link(shell: &Arc<Shell>, raw: &str) {
     shell.report("link", json!({ "received": true }));
@@ -51,6 +86,13 @@ fn handle_link(shell: &Arc<Shell>, raw: &str) {
 }
 
 fn main() {
+    // For the harness: print the named states the stills are taken of, and stop.
+    if std::env::var("BAKERY_DESKTOP_LIST_PREVIEWS").is_ok() {
+        for name in bakery_desktop_core::view::PREVIEWS {
+            println!("{name}");
+        }
+        return;
+    }
     let server = std::env::var("BAKERY_SERVER").unwrap_or_else(|_| "http://127.0.0.1:8000".into());
     let mut context = tauri::generate_context!();
     // The window may connect only to itself and to the one server configured, over HTTP and
@@ -65,7 +107,11 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_view, press_button])
+        .invoke_handler(tauri::generate_handler![
+            get_view,
+            press_button,
+            probe_result
+        ])
         .setup(move |app| {
             let shell = Shell::new(
                 app.handle().clone(),
@@ -73,6 +119,7 @@ fn main() {
                 Arc::new(store::Keyring),
             );
             app.manage(Arc::clone(&shell));
+            test_hooks(app, &shell, &server);
             shell.report(
                 "app_started",
                 json!({ "os": std::env::consts::OS, "arch": std::env::consts::ARCH }),
