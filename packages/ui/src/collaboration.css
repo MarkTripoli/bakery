@@ -1250,6 +1250,12 @@
 .ui-task-detail__transcript .ui-pane-section {
   padding-inline: var(--space-0);
 }
+.ui-task-detail__transcript .ui-session-pane__header {
+  padding-inline: var(--space-0);
+}
+.ui-task-detail__transcript .ui-session-pane__body > :not(.ui-run-timeline--steps) {
+  margin-inline: var(--space-0);
+}
 .ui-pane-section[data-state="ruled"] {
   border-block-end: var(--border-default) solid var(--color-border);
 }

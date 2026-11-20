@@ -153,7 +153,7 @@ async function prepare(page: Page, initial: Partial<World> = {}) {
     "**/v1/**",
     (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
   );
-  if (pinned) await page.clock.setFixedTime(new Date(FIXED));
+  if (pinned) await page.clock.install({ time: new Date(FIXED) });
   await mockAuthenticatedSession(page);
   await page.route(
     `**/v1/tasks/${taskId}`,
@@ -177,7 +177,9 @@ async function prepare(page: Page, initial: Partial<World> = {}) {
         resourceState: {},
         highwater: "0",
         events: [],
-        nextCursor: null,
+        nextCursor: new URL(route.request().url()).searchParams.has("after")
+          ? null
+          : "cursor-0",
         resetRequired: false,
       },
     }));
@@ -592,7 +594,7 @@ test("a grant that is not used in its 30 seconds is dropped and the card says to
 
 test("a preview that reaches its time limit while the page is open changes without a reload", async ({ page }) => {
   const world = await prepare(page, {
-    current: preview({ expiresAt: new Date(Date.now() + 3000).toISOString() }),
+    current: preview({ expiresAt: new Date(now() + 3000).toISOString() }),
   });
   await page.goto(`/tasks/${taskId}`);
   await expect(card(page).getByText("Running", { exact: true })).toBeVisible({
@@ -602,8 +604,8 @@ test("a preview that reaches its time limit while the page is open changes witho
   world.current = preview({
     status: "expired",
     stopReason: "time_limit",
-    stoppedAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() - 1000).toISOString(),
+    stoppedAt: new Date(now()).toISOString(),
+    expiresAt: new Date(now() - 1000).toISOString(),
   });
   await expect(card(page).getByText("Ended", { exact: true })).toBeVisible({
     timeout: 15_000,

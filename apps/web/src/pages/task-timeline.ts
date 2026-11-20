@@ -75,6 +75,8 @@ export function runTimelineEvents(
   steps: readonly RunStep[],
   t: Translator,
   page: { first: boolean; last: boolean } = { first: true, last: true },
+  /** How a time reads for the person; without it the record's own text shows. */
+  formatTime: (iso: string) => string = (iso) => iso,
 ): UI.RunTimelineEvent[] {
   const events: UI.RunTimelineEvent[] = [];
   if (page.first) {
@@ -89,6 +91,7 @@ export function runTimelineEvents(
           // blocked run takes no controls and never starts by itself here.
           reason: t("tasks.timeline.blockedDependency"),
           time: run.updatedAt,
+          timeLabel: formatTime(run.updatedAt),
         }
         : {
           id: `${run.id}:queued`,
@@ -96,6 +99,7 @@ export function runTimelineEvents(
           status: run.status === "queued" ? "queued" : "complete",
           title: t("tasks.timeline.queued"),
           time: run.createdAt,
+          timeLabel: formatTime(run.createdAt),
         },
     );
   }
@@ -114,6 +118,9 @@ export function runTimelineEvents(
         ? t(budgetKey)
         : undefined,
       time: step.finishedAt ?? step.startedAt ?? step.createdAt,
+      timeLabel: formatTime(
+        step.finishedAt ?? step.startedAt ?? step.createdAt,
+      ),
       status: STEP_STATUS[step.status],
     });
   }
@@ -134,6 +141,7 @@ export function runTimelineEvents(
           : "tasks.timeline.terminal.canceled",
       ),
       time: run.finishedAt ?? run.updatedAt,
+      timeLabel: formatTime(run.finishedAt ?? run.updatedAt),
     });
   }
   return events;
