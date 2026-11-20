@@ -233931,10 +233931,9 @@
                     "destination_refused",
                     "destination_unreachable",
                     "key_missing",
-                    "runner_error",
-                    "runner_lost"
+                    "runner_error"
                   ],
-                  "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, runner_error, or runner_lost when the runner stopped reporting. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+                  "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                 },
                 {
                   "type": "null",
@@ -234140,10 +234139,9 @@
                           "destination_refused",
                           "destination_unreachable",
                           "key_missing",
-                          "runner_error",
-                          "runner_lost"
+                          "runner_error"
                         ],
-                        "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, runner_error, or runner_lost when the runner stopped reporting. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+                        "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                       },
                       {
                         "type": "null",
@@ -256881,7 +256879,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:bfdd9746a29fa7eeb1c93080a93a8e3a0d88ab75914728fb8fe1c7153483b949",
+  "compatibilityDigest": "sha256:8389b2c2dadbad67676926f87e0436903a24e8e7101267cd94a5dfb70d853915",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -445806,10 +445804,9 @@
                 "destination_refused",
                 "destination_unreachable",
                 "key_missing",
-                "runner_error",
-                "runner_lost"
+                "runner_error"
               ],
-              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, runner_error, or runner_lost when the runner stopped reporting. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
             },
             {
               "type": "null",
@@ -446015,10 +446012,9 @@
                       "destination_refused",
                       "destination_unreachable",
                       "key_missing",
-                      "runner_error",
-                      "runner_lost"
+                      "runner_error"
                     ],
-                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, runner_error, or runner_lost when the runner stopped reporting. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                   },
                   {
                     "type": "null",
