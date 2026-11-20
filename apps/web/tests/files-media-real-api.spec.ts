@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
 import { DEMO_WEBM } from "./helpers/media-fixtures.ts";
@@ -48,6 +49,7 @@ test.describe("files video against the real API", () => {
         "bakery-organization-id": organizationId!,
         origin,
         "content-type": "application/json",
+        "idempotency-key": randomUUID(),
       },
       data: {
         path: `/shared/${name}`,
