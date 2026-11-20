@@ -792,9 +792,11 @@ jobs:
     # guarantee: the pool mixes AMD and Intel x64 hosts with ARM64 runners, so
     # heavy lanes budget for the slowest host and stay arch-neutral
     # (learnings/heavy-lane-label-is-pool-not-cpu.xml). A lane whose reference
-    # data is architecture-specific adds the `X64` label (the paper parity
-    # lanes below: their K-0 baselines are `linux-x64` rasters).
-    runs-on: [self-hosted, linux, bakery-heavy]
+    # data or fixtures are architecture-specific adds the `X64` label: the paper
+    # parity lanes below (K-0 baselines are `linux-x64` rasters) and this one
+    # (the integration suite fails on ARM64 runners: onboarding answers 500 and
+    # the release manifest has no ARM64 build).
+    runs-on: [self-hosted, linux, bakery-heavy, X64]
     env:
       BAKERY_TEST_DATABASE_RESET_CONFIRMATION: RESET_BAKERY_TEST_DATABASE
       BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET: "1"
