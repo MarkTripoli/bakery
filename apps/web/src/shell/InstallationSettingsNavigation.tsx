@@ -30,6 +30,13 @@ export function InstallationSettingsNavigation(
         href: "/installation/settings",
         label: translate("settings.installation.title"),
       }, {
+        // Below the settings it reports on, above the audit trail: usage is
+        // what the installation spent, and an administrator looking for it
+        // looks here first.
+        id: "installation-usage",
+        href: "/installation/usage",
+        label: translate("installation.usage.title"),
+      }, {
         id: "installation-audit",
         href: "/installation/audit",
         label: translate("settings.audit.section"),

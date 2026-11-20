@@ -1551,6 +1551,13 @@
       "frames": []
     },
     {
+      "routeId": "organization-storage",
+      "path": "/organization/storage",
+      "status": "no-mock",
+      "rationale": "Storage settings page (how full storage is, the limits and retention, saved with a compare-and-swap version). The design is the UX design comment on issue 447 (settings mock at design-447/storage-settings); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition plus UsageMeter, and covered by the organization-storage spec.",
+      "frames": []
+    },
+    {
       "routeId": "artifact-retrieval",
       "path": "/tasks/$taskId/artifacts/$artifactId",
       "status": "baselined",
@@ -5191,6 +5198,20 @@
       "path": "/notifications",
       "status": "no-mock",
       "rationale": "Notification inbox page (NotificationsPage). No Paper artboard depicts a notifications list: the shipped design is design-ux's UX design comment on issue #455 (comment 6961347054), which specifies the bell, the popover and this page, and supersedes Paper as the source of truth for this surface.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-usage",
+      "path": "/installation/usage",
+      "status": "no-mock",
+      "rationale": "The installation usage page (#75) is designed by design-ux on #75 (revision 2, mock at pr-evidence design-75/v2/usage.png); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "delivery",
+      "path": "/delivery",
+      "status": "no-mock",
+      "rationale": "The Delivery page (#75) is designed by design-ux on #75 (revision 3 and its two later changes, mocks at pr-evidence design-75/v3/); Paper has no frame for it.",
       "frames": []
     }
   ]

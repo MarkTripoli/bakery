@@ -109,9 +109,10 @@ Deno.test("a registry refuses two adapters for one kind and lists them in order"
 });
 
 Deno.test("every record the server emits maps to the kinds it carries, and an unmapped one to none", () => {
-  // usage.settled holds only the attempt id and job.completed no duration, so
-  // neither carries cost or durations yet.
-  assertEquals(measurementsOf(usage), []);
+  // usage.settled carries token counts, which is the usage span under an
+  // attempt; no record holds an amount in money or a duration yet, so cost and
+  // durations are still not sent.
+  assertEquals(measurementsOf(usage), ["results"]);
   assertEquals(measurementsOf(completed), ["results"]);
   assertEquals(measurementsOf(sample), ["health"]);
   assertEquals(measurementsOf(unknown), []);
@@ -411,9 +412,9 @@ Deno.test("a destination receives only the kinds it was told to, and an off one 
     [usage, completed, sample, unknown],
     new AbortController().signal,
   );
-  await until(() => got.results.length === 1 && got.health.length === 1);
+  await until(() => got.results.length === 2 && got.health.length === 1);
   await new Promise((resolve) => setTimeout(resolve, 30));
-  assertEquals(got.results, ["job.completed"]);
+  assertEquals(got.results, ["usage.settled", "job.completed"]);
   assertEquals(got.health, ["metrics"]);
   assertEquals(got.off, []);
   assertEquals(fanout.states().get("o")?.state, "off");

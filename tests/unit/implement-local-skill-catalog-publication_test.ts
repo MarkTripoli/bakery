@@ -258,6 +258,17 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0271_telemetry_destinations",
       "0274_evaluation_batches",
       "0276_skill_drafts",
+      "0277_backups",
+      "0279_batches",
+      "0282_artifact_extracts",
+      "0285_step_write_set",
+      "0286_step_write_limits",
+      "0287_step_read_set",
+      "0288_alert_channels",
+      "0290_attempt_traceparent",
+      "0291_handoff_manifests",
+      "0292_handoff_continuations",
+      "0293_backup_settings",
     ],
   );
 });

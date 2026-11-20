@@ -62,6 +62,7 @@ import {
   InstallationBreadcrumbs,
 } from "./shell/SettingsShellSlots.tsx";
 import { OrganizationSettingsPage } from "./pages/OrganizationSettingsPage.tsx";
+import { OrganizationStoragePage } from "./pages/OrganizationStoragePage.tsx";
 import {
   InstallationIntegrationsPage,
   parseRegistrationOutcome,
@@ -86,6 +87,8 @@ import {
 import { ConnectionPage } from "./pages/integrations/ConnectionPage.tsx";
 import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
+import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
+import { DeliveryPage } from "./pages/DeliveryPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
 import { SettingsIndexPage } from "./pages/SettingsIndexPage.tsx";
 import { ProfilePage } from "./pages/ProfilePage.tsx";
@@ -208,6 +211,24 @@ export const routeCoverage = [
       "stale",
       "offline",
       "long-copy",
+    ],
+  },
+  {
+    id: "delivery",
+    path: "/delivery",
+    classification: "production",
+    // Not a fifth kind of failure: `partial` is the page with figures and a
+    // note that some records are missing, and `degraded` is a source that
+    // stopped, whose figures are unknown rather than zero.
+    states: [
+      "loading",
+      "default",
+      "partial",
+      "degraded",
+      "stale",
+      "empty",
+      "error",
+      "forbidden",
     ],
   },
   {
@@ -603,6 +624,23 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "installation-usage",
+    path: "/installation/usage",
+    classification: "production",
+    // `unknown` is not a fifth kind of failure: it is the state where the
+    // records exist but Bakery cannot say how complete they are, and the page
+    // must still render figures with that warning rather than an error.
+    states: [
+      "loading",
+      "default",
+      "partial",
+      "degraded",
+      "empty",
+      "error",
+      "forbidden",
+    ],
+  },
+  {
     id: "installation-audit",
     path: "/installation/audit",
     classification: "production",
@@ -711,6 +749,21 @@ export const routeCoverage = [
       "ready",
       "default",
       "long-copy",
+      "error",
+      "forbidden",
+      "conflict",
+      "offline",
+      "reconnecting",
+    ],
+  },
+  {
+    id: "organization-storage",
+    path: "/organization/storage",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "default",
       "error",
       "forbidden",
       "conflict",
@@ -1257,6 +1310,15 @@ function validateFilesSearch(
   };
 }
 
+const deliveryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/delivery",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <DeliveryPage />,
+  errorComponent: ProtectedRouteError,
+});
+
 const filesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/files",
@@ -1566,6 +1628,15 @@ const organizationSettingsRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const organizationStorageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/organization/storage",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: OrganizationStoragePage,
+  errorComponent: ProtectedRouteError,
+});
+
 const installationSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/installation/settings",
@@ -1596,6 +1667,19 @@ const installationIntegrationsRoute = createRoute({
       <InstallationIntegrationsPage outcome={githubAppRegistration ?? null} />
     );
   },
+  errorComponent: ProtectedRouteError,
+});
+
+const installationUsageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/usage",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.usage.title">
+      <InstallationUsagePage />
+    </InstallationBreadcrumbs>
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -2438,7 +2522,10 @@ const routeTree = rootRoute.addChildren([
   invitationRoute,
   organizationsRoute,
   organizationSettingsRoute,
+  organizationStorageRoute,
   installationSettingsRoute,
+  installationUsageRoute,
+  deliveryRoute,
   installationAuditRoute,
   installationIntegrationsRoute,
   organizationAccessRoute,

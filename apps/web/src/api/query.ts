@@ -48,6 +48,10 @@ import type {
   MemoryRevisionResponse,
   MergeAttemptListResponse,
   MessageListResponse,
+  MetricSeries,
+  MetricSourcePage,
+  MetricSourcesQuery,
+  MetricsQuery,
   NotificationCountResponse,
   NotificationCursorQuery,
   NotificationListResponse,
@@ -88,6 +92,7 @@ import type {
   StorageFileVersionPage,
   StorageFolderItem,
   StorageFolderPage,
+  StorageSettings,
   SyncQuery,
   SyncResponse,
   TaskCursorQuery,
@@ -100,6 +105,8 @@ import type {
   TicketSourceListResponse,
   TicketSourceResponse,
   TicketTaskLinkListResponse,
+  UsageQuery,
+  UsageSummary,
   UserPreferences,
   UserProfile,
   WorkerComponentListResponse,
@@ -1547,6 +1554,25 @@ export function userPreferencesQueryOptions(
   });
 }
 
+/** The organization's storage limits and how much of its quota is used. */
+export function storageSettingsQueryOptions(
+  client: Pick<BakeryApiClient, "storageSettings">,
+  scope: ApiScope,
+) {
+  return queryOptions<StorageSettings, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "storageSettings.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.storageSettings.get({
+          organizationId: requireOrganization(scope),
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 export function organizationQueryOptions(
   client: Pick<BakeryApiClient, "organizations">,
   scope: ApiScope,
@@ -1731,6 +1757,86 @@ export function scimConnectionQueryOptions(
       );
     },
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * One delivery metric over one window and repository.
+ *
+ * Window, repository and metric are all in the key: two windows are two
+ * answers, and a cache that served the old period's figure under the new
+ * period's heading would be a wrong number with a right label.
+ */
+export function metricSeriesQueryOptions(
+  client: Pick<BakeryApiClient, "metrics">,
+  scope: ApiScope,
+  query: MetricsQuery,
+) {
+  return queryOptions<MetricSeries, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "metrics.get", { ...query }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.metrics.get({
+          organizationId: requireOrganization(scope),
+          query,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The records behind one metric, newest placed first, a page at a time. */
+export function metricSourcesQueryOptions(
+  client: Pick<BakeryApiClient, "metrics">,
+  scope: ApiScope,
+  query: Omit<MetricSourcesQuery, "cursor">,
+) {
+  return infiniteQueryOptions<
+    MetricSourcePage,
+    ApiFailure,
+    { pages: MetricSourcePage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "metrics.sources", { ...query }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.metrics.sources({
+          organizationId: requireOrganization(scope),
+          query: {
+            ...query,
+            ...(pageParam === null ? {} : { cursor: pageParam }),
+          },
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The installation's usage summary for one window and provider filter.
+ *
+ * The window is in the key because two periods are two answers, and a cache
+ * that answered the new period with the old figures would show a wrong number
+ * under a right heading. `undefined` provider means "all", which is the
+ * server's own default for the field.
+ */
+export function usageSummaryQueryOptions(
+  client: Pick<BakeryApiClient, "usage">,
+  scope: ApiScope,
+  query: UsageQuery,
+) {
+  return queryOptions<UsageSummary, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "usage.list", { ...query }),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.usage.list({ query, signal })),
     retry: retryNetworkOnce,
   });
 }

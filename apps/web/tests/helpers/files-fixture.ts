@@ -91,6 +91,7 @@ export type Entry = {
   updatedAt?: string;
   artifactId?: number | null;
   contentRemoved?: boolean;
+  pinned?: boolean;
 };
 
 export type Version = {
@@ -98,8 +99,9 @@ export type Version = {
   isCurrent: boolean;
   sizeBytes: number;
   contentRemoved?: boolean;
-  makerKind?: "person" | "step";
+  makerKind?: "person" | "step" | "agent";
   makerName?: string | null;
+  agentName?: string | null;
   stepName?: string | null;
   workItemTitle?: string | null;
 };
@@ -272,6 +274,26 @@ export const VERSIONS: Version[] = [
   },
 ];
 
+/** An agent's version with no person recorded, beside one with no agent name. */
+export const AGENT_NO_PERSON_VERSIONS: Version[] = [
+  {
+    revision: 2,
+    isCurrent: true,
+    sizeBytes: 4200,
+    makerKind: "agent",
+    makerName: null,
+    agentName: "Reviewer",
+  },
+  {
+    revision: 1,
+    isCurrent: false,
+    sizeBytes: 3900,
+    makerKind: "agent",
+    makerName: null,
+    agentName: null,
+  },
+];
+
 export const USES: Use[] = [
   {
     id: 1,
@@ -327,6 +349,7 @@ const item = (entry: Entry) => ({
   artifactId: entry.artifactId === undefined || entry.artifactId === null
     ? null
     : uuid(entry.artifactId),
+  pinned: entry.pinned ?? false,
   contentRemoved: entry.contentRemoved ?? false,
   updatedAt: entry.updatedAt ?? STAMP,
 });
@@ -424,7 +447,8 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           runId: version.makerKind === "step" ? uuid(601) : null,
           workItemId: version.makerKind === "step" ? uuid(602) : null,
           workItemTitle: version.workItemTitle ?? null,
-          sessionId: null,
+          sessionId: version.makerKind === "agent" ? uuid(603) : null,
+          agentName: version.agentName ?? null,
         }))),
       );
     },

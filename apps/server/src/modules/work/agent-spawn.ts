@@ -353,6 +353,7 @@ export async function recordAgentSpawn(
     organizationId: facts.organizationId,
     principalId: facts.principalId,
     operation: "runs.spawn.agent",
+    agentSessionId: facts.admission.sessionId,
     resourceType: "workflow_run",
     resourceId: facts.runId,
     requestId: context.requestId,
