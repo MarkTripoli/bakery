@@ -75,6 +75,7 @@ function decide(
     manifest?: HandoffManifest;
     session?: SourceSession | null;
     historyAuthorized?: boolean;
+    effectsSettled?: boolean;
     sourceHostId?: string;
   } = {},
 ) {
@@ -85,6 +86,7 @@ function decide(
     session: input.session === undefined ? session() : input.session,
     sourceHostId: input.sourceHostId ?? HOST,
     historyAuthorized: input.historyAuthorized ?? true,
+    effectsSettled: input.effectsSettled ?? true,
   });
 }
 
@@ -205,5 +207,26 @@ Deno.test("revoked history starts fresh and only after the evidence matched", ()
       session: session({ resumeRef: { ...NATIVE, harnessVersion: "other" } }),
     })),
     "native_evidence_mismatch",
+  );
+});
+
+Deno.test("an unsettled external effect starts fresh before any native evidence is read", () => {
+  assertEquals(
+    fresh(decide({ effectsSettled: false })),
+    "effects_unresolved",
+  );
+  // The native history describes work whose outcome is unknown, so even a
+  // session that matches in every way is not resumed.
+  assertEquals(
+    fresh(decide({ effectsSettled: false, session: null })),
+    "effects_unresolved",
+  );
+  // An unsafe boundary is still reported first.
+  const unsafe = manifest({
+    checkpoint: { sequence: "0", digest: CHECKPOINT, safeBoundary: false },
+  });
+  assertEquals(
+    fresh(decide({ effectsSettled: false, manifest: unsafe })),
+    "boundary_unsafe",
   );
 });
