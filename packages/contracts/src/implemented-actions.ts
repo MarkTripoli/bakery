@@ -389,6 +389,28 @@ export const deliveryImplementedActions = Object.freeze(
   Object.values(DeliveryImplementedAction),
 );
 
+/** Evaluation batches: scorers, cases, datasets, batches, results (#44). */
+export const EvaluationImplementedAction = Object.freeze(
+  {
+    EvaluationDefinitionsList: "evaluationDefinitions.list",
+    EvaluationDefinitionsCreate: "evaluationDefinitions.create",
+    EvaluationCasesList: "evaluationCases.list",
+    EvaluationCasesCreate: "evaluationCases.create",
+    EvaluationDatasetsCreate: "evaluationDatasets.create",
+    EvaluationDatasetsList: "evaluationDatasets.list",
+    EvaluationBatchesCreate: "evaluationBatches.create",
+    EvaluationBatchesList: "evaluationBatches.list",
+    EvaluationBatchesGet: "evaluationBatches.get",
+    EvaluationBatchesCancel: "evaluationBatches.cancel",
+    EvaluationBatchesCompare: "evaluationBatches.compare",
+    EvaluationBatchResultsList: "evaluationBatchResults.list",
+    EvaluationAttemptsList: "evaluationAttempts.list",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const evaluationImplementedActions = Object.freeze(
+  Object.values(EvaluationImplementedAction),
+);
+
 /**
  * Ticket source, cached ticket, readiness, link and request operations.
  * Remote ticket creation (`externalTickets.create`) is not part of this
@@ -727,6 +749,14 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsCopy: "skills.copy",
     SkillsUpdate: "skills.update",
     SkillsUsedBy: "skills.usedBy",
+    SkillDraftsOpen: "skillDrafts.open",
+    SkillDraftsGet: "skillDrafts.get",
+    SkillDraftsUpdate: "skillDrafts.update",
+    SkillDraftsDiscard: "skillDrafts.discard",
+    SkillDraftsCheck: "skillDrafts.check",
+    SkillDraftFilesSave: "skillDraftFiles.save",
+    SkillDraftFilesGet: "skillDraftFiles.get",
+    SkillDraftFilesDelete: "skillDraftFiles.delete",
     SkillVersionsCreate: "skillVersions.create",
     SkillUseGrantsList: "skills.useGrants.list",
     SkillUseGrantsDelete: "skills.useGrants.delete",
@@ -836,6 +866,7 @@ export const implementedActions = Object.freeze(
     ...artifactKindImplementedActions,
     ...integrationsImplementedActions,
     ...deliveryImplementedActions,
+    ...evaluationImplementedActions,
     ...ticketImplementedActions,
     ...notificationImplementedActions,
     ...groupImplementedActions,
@@ -902,6 +933,8 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     Review: "review.independent",
     Freeform: "agent.freeform",
     TaskBrief: "task.brief",
+    EvaluationCheck: "evaluation.check",
+    EvaluationScore: "evaluation.score",
     SecretIdentityRead: "secret.identity.read",
   } as const satisfies Record<string, WorkflowActionName>,
 );

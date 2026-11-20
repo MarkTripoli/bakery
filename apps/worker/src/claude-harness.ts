@@ -1248,7 +1248,7 @@ async function retainClaudeSessionState(
 }
 
 export async function claudeConfigDirectory(
-  options: ClaudeHarnessOptions,
+  options: Pick<ClaudeHarnessOptions, "stateDir">,
   assignment: JobAssignment,
 ): Promise<{ root: string; path: string; home: string }> {
   let root: string;

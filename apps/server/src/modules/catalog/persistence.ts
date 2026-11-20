@@ -18,6 +18,17 @@ import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import { assertMayAuthorSkill, SKILL_VISIBLE_TO } from "./skill-scope-guard.ts";
 import { insertLocalSkillIdentity } from "./skill-identity.ts";
+import {
+  checkSkillDraft,
+  deleteSkillDraftFile,
+  discardSkillDraft,
+  getSkillDraft,
+  getSkillDraftFile,
+  openSkillDraft,
+  saveSkillDraftFile,
+  updateSkillDraft,
+} from "./skill-drafts.ts";
+import type { SkillFileStoreOperations } from "./storage.ts";
 import { listSkillUsage } from "./skill-usage.ts";
 import { deleteSkillUseGrant, listSkillUseGrants } from "./skill-use-grants.ts";
 import {
@@ -50,6 +61,10 @@ const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
 type CursorInput = { cursor?: string; limit?: number };
 type SourceCreateInput = z.output<typeof contractSchemas.SkillSourceCreate>;
 type SourceUpdateInput = { name?: string; enabled?: boolean };
+type SkillDraftUpdateInput = z.output<typeof contractSchemas.SkillDraftUpdate>;
+type SkillDraftFileSaveInput = z.output<
+  typeof contractSchemas.SkillDraftFileSave
+>;
 type SkillCreateInput = {
   slug: string;
   name: string;
@@ -418,6 +433,8 @@ export function createCatalogHandlers(
   secret: string,
   options: Readonly<{
     normalizeSourceLocator?: typeof normalizeSkillSourceLocator;
+    /** Where a published version's files are read back from, to start a draft. */
+    skillFileStore?: SkillFileStoreOperations;
   }> = {},
 ) {
   const normalizeSourceLocator = options.normalizeSourceLocator ??
@@ -788,6 +805,38 @@ export function createCatalogHandlers(
 
     listSkillUseGrants(context: ActionContext, input: CursorInput) {
       return listSkillUseGrants(context, input, secret);
+    },
+
+    openSkillDraft(context: ActionContext) {
+      return openSkillDraft(context, options.skillFileStore);
+    },
+
+    getSkillDraft(context: ActionContext) {
+      return getSkillDraft(context);
+    },
+
+    updateSkillDraft(context: ActionContext, input: SkillDraftUpdateInput) {
+      return updateSkillDraft(context, input);
+    },
+
+    discardSkillDraft(context: ActionContext) {
+      return discardSkillDraft(context);
+    },
+
+    checkSkillDraft(context: ActionContext) {
+      return checkSkillDraft(context);
+    },
+
+    saveSkillDraftFile(context: ActionContext, input: SkillDraftFileSaveInput) {
+      return saveSkillDraftFile(context, input);
+    },
+
+    getSkillDraftFile(context: ActionContext) {
+      return getSkillDraftFile(context);
+    },
+
+    deleteSkillDraftFile(context: ActionContext) {
+      return deleteSkillDraftFile(context);
     },
 
     listSkillUsage(context: ActionContext, input: CursorInput) {
