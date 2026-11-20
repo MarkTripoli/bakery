@@ -155,6 +155,7 @@ function fakeServer(options: { digest?: string; problem?: number } = {}) {
           workItemId: null,
           workItemTitle: null,
           sessionId: null,
+          agentName: null,
         });
         return Promise.resolve(json({
           items: [version(PLAN_V1, 1, false), version(PLAN_V2, 2, true)],

@@ -225,6 +225,94 @@ Deno.test("an agent's write is audited with the person and the session, in the p
     );
   }));
 
+Deno.test("an agent's put writes exactly one write-set row, and its version reads as the agent's", () =>
+  withWorkerFixture(async (fixture) => {
+    const folder = await json(
+      await asPerson(fixture, "POST", "/v1/storage/folders", {
+        path: "/shared/agent-448-write-set",
+      }),
+      201,
+    );
+    const agent = await agentSession(
+      fixture,
+      "agent-448-write-set",
+      async (job) => {
+        await grantFolder(
+          fixture,
+          job.workflowId,
+          folder.id as string,
+          "write",
+        );
+      },
+    );
+    const written = await sessionResult(
+      await agent.call(
+        "storageFiles.put",
+        file("/shared/agent-448-write-set/a.md"),
+      ),
+    );
+    // A person's own write in the same folder is in no step's set.
+    await json(
+      await asPerson(
+        fixture,
+        "PUT",
+        "/v1/storage/files",
+        file("/shared/agent-448-write-set/b.md", "person bytes"),
+      ),
+      200,
+    );
+    const rows = await fixture.pgDatabase.query<{
+      attempt_id: string;
+      agent_session_id: string | null;
+      entry_id: string;
+      op: string;
+      previous_version_id: string | null;
+      new_version_id: string | null;
+    }>(
+      "select attempt_id, agent_session_id, entry_id, op," +
+        " previous_version_id, new_version_id from bakery.step_write_set" +
+        " where organization_id = $1 and attempt_id = $2",
+      [fixture.organizationId, agent.attemptId],
+    );
+    assertEquals(rows.rows.length, 1);
+    const row = rows.rows[0];
+    assertEquals(row.entry_id, written.id);
+    assertEquals(row.op, "put");
+    assertEquals(row.previous_version_id, null);
+    assertEquals(row.new_version_id, written.currentVersionId);
+    const audit = await fixture.pgDatabase.query<
+      { agent_session_id: string | null }
+    >(
+      "select agent_session_id from bakery.audit_events" +
+        " where organization_id = $1 and operation = 'storageFiles.put'" +
+        " and resource_id = $2",
+      [fixture.organizationId, written.id],
+    );
+    assertEquals(audit.rows.length, 1);
+    assert(audit.rows[0].agent_session_id !== null);
+    assertEquals(audit.rows[0].agent_session_id, row.agent_session_id);
+    const person = await fixture.pgDatabase.query<{ n: string }>(
+      "select count(*)::text as n from bakery.step_write_set w" +
+        " join bakery.storage_entries e on e.organization_id = w.organization_id" +
+        " and e.id = w.entry_id" +
+        " where w.organization_id = $1 and e.name = 'b.md'",
+      [fixture.organizationId],
+    );
+    assertEquals(person.rows[0].n, "0");
+    // The version the agent wrote reads as the agent's, naming the person.
+    const versions = await json(
+      await asPerson(
+        fixture,
+        "GET",
+        "/v1/storage/files/" + written.id + "/versions",
+      ),
+      200,
+    ) as { items: Json[] };
+    assertEquals(versions.items[0].makerKind, "agent");
+    assertEquals(versions.items[0].makerPrincipalId, fixture.principalId);
+    assertEquals(versions.items[0].sessionId, row.agent_session_id);
+  }));
+
 Deno.test("the guard reads only the caller's organization: a foreign organization sees no folder", () =>
   withWorkerFixture(async (fixture) => {
     const folder = await json(

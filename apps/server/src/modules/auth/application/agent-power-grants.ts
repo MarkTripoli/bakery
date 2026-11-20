@@ -116,6 +116,25 @@ export async function attemptOrigin(
 }
 
 /**
+ * The agent session an action's audit row names (O50): the session of the
+ * attempt a session call came from, or null for a person's own action, a token
+ * agent's and an attempt that belongs to no run.
+ */
+export async function auditAgentSessionId(
+  transaction: PgTransactionClient,
+  context: Pick<ActionContext, "agentSession">,
+  organizationId: string,
+): Promise<string | null> {
+  if (context.agentSession === undefined) return null;
+  const origin = await attemptOrigin(
+    transaction,
+    organizationId,
+    context.agentSession.attemptId,
+  );
+  return origin?.agentSessionId ?? null;
+}
+
+/**
  * Whether a live grant gives this agent the power: a grant for the workflow it
  * runs under with no seat, or a grant for its seat that names the workflow or
  * every workflow. An agent without an access token (a session of a worker) can

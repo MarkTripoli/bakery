@@ -446,12 +446,18 @@ type VersionRow = {
   task_id: string | null;
   task_title: string | null;
   session_id: string | null;
+  /** True when an agent's session call wrote the version (a put or copy). */
+  agent_write: boolean;
+  agent_session_id: string | null;
+  agent_name: string | null;
 };
 
 /**
  * Who made a version. A version a run step published names the step, its run,
- * its work item and the step's latest agent session; any other version names
- * the person (or service) that wrote it.
+ * its work item and the step's latest agent session. A version an agent wrote
+ * from its session with a person's access names the agent, its session and
+ * that person: it never reads as the person's own. Any other version names the
+ * person (or service) that wrote it.
  */
 export function versionMaker(row: VersionRow) {
   if (row.run_step_id !== null) {
@@ -465,6 +471,21 @@ export function versionMaker(row: VersionRow) {
       workItemId: row.task_id,
       workItemTitle: row.task_title,
       sessionId: row.session_id,
+      agentName: null,
+    };
+  }
+  if (row.agent_write) {
+    return {
+      makerKind: "agent" as const,
+      makerPrincipalId: row.author_id,
+      makerName: row.author_name,
+      stepId: null,
+      stepName: null,
+      runId: null,
+      workItemId: null,
+      workItemTitle: null,
+      sessionId: row.agent_session_id,
+      agentName: row.agent_name,
     };
   }
   return {
@@ -477,6 +498,7 @@ export function versionMaker(row: VersionRow) {
     workItemId: null,
     workItemTitle: null,
     sessionId: null,
+    agentName: null,
   };
 }
 
@@ -527,7 +549,9 @@ export function createFileVersionLister(secret: string) {
           " (select s.id from bakery.agent_sessions s" +
           " where s.organization_id = v.organization_id" +
           " and s.run_step_id = v.run_step_id" +
-          " order by s.created_at desc, s.id desc limit 1) as session_id" +
+          " order by s.created_at desc, s.id desc limit 1) as session_id," +
+          " false as agent_write, null::uuid as agent_session_id," +
+          " null::text as agent_name" +
           " from bakery.artifact_versions v" +
           " left join bakery.principals who on who.id = v.author_id" +
           " left join bakery.run_steps rs" +
@@ -549,9 +573,27 @@ export function createFileVersionLister(secret: string) {
           " who.display_name as author_name, null::uuid as run_step_id," +
           " null::text as step_key, null::uuid as run_id," +
           " null::uuid as task_id, null::text as task_title," +
-          " null::uuid as session_id" +
+          " null::uuid as session_id," +
+          " (agent.id is not null) as agent_write," +
+          " agent.agent_session_id, agent.agent_name" +
           " from bakery.storage_file_versions v" +
           " left join bakery.principals who on who.id = v.author_id" +
+          // The agent write that made this version, if one did: its session
+          // and the agent the session ran.
+          " left join lateral (select w.id, w.agent_session_id," +
+          " def.name as agent_name from bakery.step_write_set w" +
+          " left join bakery.agent_sessions s" +
+          " on s.organization_id = w.organization_id" +
+          " and s.id = w.agent_session_id" +
+          " left join bakery.agent_versions av" +
+          " on av.organization_id = s.organization_id" +
+          " and av.id = s.agent_version_id" +
+          " left join bakery.agent_definitions def" +
+          " on def.organization_id = av.organization_id" +
+          " and def.id = av.agent_id" +
+          " where w.organization_id = v.organization_id" +
+          " and w.new_version_id = v.id and w.op in ('put', 'copy')" +
+          " order by w.created_at, w.id limit 1) agent on true" +
           " where v.organization_id = $1 and v.entry_id = $2" +
           " and ($3::int is null or v.revision < $3)" +
           " order by v.revision desc limit $4",

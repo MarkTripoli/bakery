@@ -331,6 +331,59 @@ export type AgentWrite = Readonly<{
   fileGrantId: string | null;
 }>;
 
+/**
+ * The storage operations a step write set records (section 17.6): every write
+ * an agent's session can make to Bakery Files.
+ */
+export const StepWriteOp = Object.freeze(
+  {
+    Put: "put",
+    Mkdir: "mkdir",
+    Copy: "copy",
+    Move: "move",
+    Trash: "trash",
+  } as const,
+);
+export type StepWriteOp = typeof StepWriteOp[keyof typeof StepWriteOp];
+
+/** One row of bakery.step_write_set, as the write builds it. */
+export type StepWriteSetRow = Readonly<{
+  organizationId: string;
+  attemptId: string;
+  agentSessionId: string | null;
+  entryId: string;
+  op: StepWriteOp;
+  previousVersionId: string | null;
+  newVersionId: string | null;
+}>;
+
+/**
+ * The write-set row an allowed agent write records, or null for a person's own
+ * write, which no step's set holds. The previous and new versions are the
+ * entry's current version before and after the write.
+ */
+export function stepWriteSetRow(
+  agent: AgentWrite | null,
+  write: Readonly<{
+    organizationId: string;
+    entryId: string;
+    op: StepWriteOp;
+    previousVersionId: string | null;
+    newVersionId: string | null;
+  }>,
+): StepWriteSetRow | null {
+  if (agent === null) return null;
+  return {
+    organizationId: write.organizationId,
+    attemptId: agent.attemptId,
+    agentSessionId: agent.agentSessionId,
+    entryId: write.entryId,
+    op: write.op,
+    previousVersionId: write.previousVersionId,
+    newVersionId: write.newVersionId,
+  };
+}
+
 export function storageAuditActor(
   attribution: Readonly<{
     principalId: string;

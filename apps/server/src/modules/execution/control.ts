@@ -484,6 +484,7 @@ async function runControlAction(
       organizationId,
       principalId,
       operation: "runs.control.agent",
+      agentSessionId: exercised.origin?.agentSessionId ?? null,
       resourceType: "workflow_run",
       resourceId: runId,
       requestId: context.requestId,

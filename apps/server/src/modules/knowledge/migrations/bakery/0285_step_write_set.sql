@@ -1,0 +1,61 @@
+-- The step write set (chapter 25 section 17.6, issue #448): one row per write
+-- an agent made to Bakery Files from a session, in the same transaction as the
+-- write and its audit row. It is a record only: the step write limits and the
+-- undo of a step's writes read it; nothing here enforces a rule.
+--   attempt_id           the job attempt the session call came from;
+--   agent_session_id     the agent session that made the call, when it has
+--                        one (the same id the audit row names);
+--   entry_id             the file or folder written;
+--   op                   put | mkdir | copy | move | trash (TypeScript
+--                        vocabulary in agent-file-scope.ts, not a CHECK
+--                        constraint: the PostgreSQL boundary rail forbids
+--                        them);
+--   previous_version_id  the entry's current version before the write, null
+--                        for a new entry or a folder;
+--   new_version_id       its current version after the write, null for a
+--                        folder. A move or trash leaves the version as it was,
+--                        so both name the same one.
+-- A version a retention sweep deletes leaves the row with a null version, and
+-- the set null below names only that column, never organization_id.
+create table bakery.step_write_set (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  attempt_id uuid not null,
+  agent_session_id uuid,
+  entry_id uuid not null,
+  op text not null,
+  previous_version_id uuid,
+  new_version_id uuid,
+  created_at timestamptz not null default now(),
+  constraint step_write_set_organization_fk
+    foreign key (organization_id)
+    references bakery.organizations (id) on delete cascade,
+  constraint step_write_set_attempt_fk
+    foreign key (organization_id, attempt_id)
+    references bakery.job_attempts (organization_id, id) on delete cascade,
+  constraint step_write_set_session_fk
+    foreign key (organization_id, agent_session_id)
+    references bakery.agent_sessions (organization_id, id)
+    on delete set null (agent_session_id),
+  constraint step_write_set_entry_fk
+    foreign key (organization_id, entry_id)
+    references bakery.storage_entries (organization_id, id) on delete cascade,
+  constraint step_write_set_previous_version_fk
+    foreign key (organization_id, previous_version_id)
+    references bakery.storage_file_versions (organization_id, id)
+    on delete set null (previous_version_id),
+  constraint step_write_set_new_version_fk
+    foreign key (organization_id, new_version_id)
+    references bakery.storage_file_versions (organization_id, id)
+    on delete set null (new_version_id)
+);
+
+-- A step's writes, in order, for its limits and its undo.
+create index step_write_set_attempt_idx
+  on bakery.step_write_set (organization_id, attempt_id, created_at, id);
+-- The version read finds the agent write that made a version.
+create index step_write_set_new_version_idx
+  on bakery.step_write_set (organization_id, new_version_id)
+  where new_version_id is not null;
+
+grant select, insert on bakery.step_write_set to bakery_app;

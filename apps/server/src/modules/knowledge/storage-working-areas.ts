@@ -21,7 +21,13 @@ import { appendAudit } from "@bakery/persistence/event-audit";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
-import { type AgentWrite, storageAuditActor } from "./agent-file-scope.ts";
+import {
+  type AgentWrite,
+  type StepWriteOp,
+  StepWriteOp as WriteOp,
+  stepWriteSetRow,
+  storageAuditActor,
+} from "./agent-file-scope.ts";
 import { agentFileWriteFor, refuseAgentPath } from "./agent-file-guard.ts";
 import { sha256Bytes } from "./bytes.ts";
 import {
@@ -470,7 +476,7 @@ async function appendVersion(
     bytes: FileBytes;
     limits: StorageLimits;
   },
-): Promise<void> {
+): Promise<string> {
   const revision = await tx.query<{ next: number }>(
     "select coalesce(max(revision), 0) + 1 as next" +
       " from bakery.storage_file_versions" +
@@ -518,6 +524,7 @@ async function appendVersion(
       [input.organizationId, input.entry.id, prune],
     );
   }
+  return inserted.rows[0].id;
 }
 
 type ProjectedRow = Row & {
@@ -615,6 +622,15 @@ async function audit(
     details: Record<string, unknown>;
     /** The allowed agent write, or null for a person's own request. */
     agent?: AgentWrite | null;
+    /**
+     * What the write did to the entry, for the step write set: the operation
+     * and the entry's current version before and after it.
+     */
+    write?: Readonly<{
+      op: StepWriteOp;
+      previousVersionId: string | null;
+      newVersionId: string | null;
+    }>;
   },
 ): Promise<void> {
   // The same actor keys for a person and an agent (O50, R1): the principal,
@@ -635,6 +651,42 @@ async function audit(
     traceId: context.traceId,
     details: { ...input.details, actor },
   });
+  // The step write set: one row per agent write, in the write's transaction.
+  if (input.write !== undefined) {
+    const row = stepWriteSetRow(input.agent ?? null, {
+      organizationId: input.organizationId,
+      entryId: input.entryId,
+      ...input.write,
+    });
+    if (row !== null) await recordStepWrite(tx, row);
+  }
+}
+
+/**
+ * Inserts one write-set row. A previous version the write's own pruning just
+ * deleted is recorded as null, as its foreign key would leave it.
+ */
+async function recordStepWrite(
+  tx: PgTransactionClient,
+  row: NonNullable<ReturnType<typeof stepWriteSetRow>>,
+): Promise<void> {
+  await tx.query(
+    "insert into bakery.step_write_set" +
+      " (organization_id, attempt_id, agent_session_id, entry_id, op," +
+      " previous_version_id, new_version_id)" +
+      " select $1, $2, $3, $4, $5," +
+      " (select id from bakery.storage_file_versions" +
+      " where organization_id = $1 and id = $6), $7",
+    [
+      row.organizationId,
+      row.attemptId,
+      row.agentSessionId,
+      row.entryId,
+      row.op,
+      row.previousVersionId,
+      row.newVersionId,
+    ],
+  );
 }
 
 /**
@@ -809,7 +861,8 @@ export async function putStorageFile(context: ActionContext, input: PutInput) {
     bytes.sizeBytes,
     limits,
   );
-  await appendVersion(tx, {
+  const previousVersionId = entry.current_version_id;
+  const newVersionId = await appendVersion(tx, {
     organizationId,
     principalId,
     entry,
@@ -822,6 +875,7 @@ export async function putStorageFile(context: ActionContext, input: PutInput) {
     operation: "storageFiles.put",
     entryId: entry.id,
     agent,
+    write: { op: WriteOp.Put, previousVersionId, newVersionId },
     details: {
       created,
       sha256: bytes.sha256,
@@ -871,6 +925,11 @@ export async function createStorageFolder(
     operation: "storageFolders.create",
     entryId: entry.id,
     agent,
+    write: {
+      op: WriteOp.Mkdir,
+      previousVersionId: null,
+      newVersionId: null,
+    },
     details: { parentId: parent.id },
   });
   return await project(tx, organizationId, entry.id);
@@ -971,7 +1030,7 @@ export async function copyStorageEntry(
     bytes.sizeBytes,
     limits,
   );
-  await appendVersion(tx, {
+  const newVersionId = await appendVersion(tx, {
     organizationId,
     principalId,
     entry,
@@ -984,6 +1043,7 @@ export async function copyStorageEntry(
     operation: "storageEntries.copy",
     entryId: entry.id,
     agent,
+    write: { op: WriteOp.Copy, previousVersionId: null, newVersionId },
     details: { sourceId: source.id, sha256: bytes.sha256 },
   });
   return await project(tx, organizationId, entry.id);
@@ -1099,6 +1159,12 @@ export async function moveStorageEntry(
     operation: "storageEntries.move",
     entryId: entry.id,
     agent,
+    // A move changes no version: before and after are the same one.
+    write: {
+      op: WriteOp.Move,
+      previousVersionId: entry.current_version_id,
+      newVersionId: entry.current_version_id,
+    },
     details: { fromParentId: entry.parent_id, toParentId: parent.id },
   });
   return await project(tx, organizationId, entry.id);
@@ -1143,6 +1209,11 @@ export async function trashStorageEntry(context: ActionContext) {
     operation: "storageEntries.trash",
     entryId: entry.id,
     agent,
+    write: {
+      op: WriteOp.Trash,
+      previousVersionId: entry.current_version_id,
+      newVersionId: entry.current_version_id,
+    },
     details: { fromParentId: entry.parent_id },
   });
   return await project(tx, organizationId, entry.id);

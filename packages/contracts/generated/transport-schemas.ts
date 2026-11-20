@@ -31201,7 +31201,8 @@ const transportSchemas = {
         "runId",
         "workItemId",
         "workItemTitle",
-        "sessionId"
+        "sessionId",
+        "agentName"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -31213,7 +31214,7 @@ const transportSchemas = {
         "sha256": "string",
         "contentRemoved": "boolean",
         "removedAt": "timestamp|null",
-        "makerKind": "enum(person|step)",
+        "makerKind": "enum(person|step|agent)",
         "makerPrincipalId": "uuid",
         "makerName": "string|null",
         "stepId": "uuid|null",
@@ -31221,7 +31222,8 @@ const transportSchemas = {
         "runId": "uuid|null",
         "workItemId": "uuid|null",
         "workItemTitle": "string|null",
-        "sessionId": "uuid|null"
+        "sessionId": "uuid|null",
+        "agentName": "string|null"
       },
       "nullableFields": [
         "removedAt",
@@ -31231,7 +31233,8 @@ const transportSchemas = {
         "runId",
         "workItemId",
         "workItemTitle",
-        "sessionId"
+        "sessionId",
+        "agentName"
       ],
       "description": "One version of a storage-tree file: its number, when and by whom or which step it was saved, its size, and whether its contents are still there.",
       "fieldDescriptions": {
@@ -31244,15 +31247,16 @@ const transportSchemas = {
         "sha256": "Lowercase hexadecimal SHA-256 of the version's bytes.",
         "contentRemoved": "True when retention or an Admin purge removed the version's bytes; the version stays listed and cannot be read.",
         "removedAt": "When the bytes were removed; null while they are there.",
-        "makerKind": "Who made the version: step when a run step published it, person when a member or service wrote it.",
-        "makerPrincipalId": "Principal that wrote the version: the member for a person, the run's acting principal for a step.",
+        "makerKind": "Who made the version: step when a run step published it, agent when an agent's session wrote it with a member's access, person when a member or service wrote it.",
+        "makerPrincipalId": "Principal that wrote the version: the member for a person, the run's acting principal for a step, the member whose access the agent used for an agent.",
         "makerName": "Display name of makerPrincipalId.",
         "stepId": "The run step that published the version; null for a person's version.",
         "stepName": "The step's key in its workflow; null for a person's version.",
         "runId": "The run the step belongs to, for Open the run; null for a person's version.",
         "workItemId": "The work item the run worked on; null for a person's version.",
         "workItemTitle": "That work item's title; null for a person's version.",
-        "sessionId": "The step's most recent agent session, for Open the session; null when the step had none or for a person's version."
+        "sessionId": "The agent session behind the version, for Open the session: the step's most recent session for a step, the session that wrote it for an agent; null when there was none or for a person's version.",
+        "agentName": "Name of the agent whose session wrote the version, for an agent's version; null otherwise, or when the agent is not recorded."
       }
     },
     "Page<StorageFileVersion>": {

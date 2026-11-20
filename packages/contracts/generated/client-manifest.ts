@@ -91514,15 +91514,16 @@ export const clientManifest = {
                 "type": "string",
                 "enum": [
                   "person",
-                  "step"
+                  "step",
+                  "agent"
                 ],
-                "description": "Who made the version: step when a run step published it, person when a member or service wrote it."
+                "description": "Who made the version: step when a run step published it, agent when an agent's session wrote it with a member's access, person when a member or service wrote it."
               },
               "makerPrincipalId": {
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Principal that wrote the version: the member for a person, the run's acting principal for a step."
+                "description": "Principal that wrote the version: the member for a person, the run's acting principal for a step, the member whose access the agent used for an agent."
               },
               "makerName": {
                 "anyOf": [
@@ -91617,7 +91618,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "The step's most recent agent session, for Open the session; null when the step had none or for a person's version."
+                    "description": "The agent session behind the version, for Open the session: the step's most recent session for a step, the session that wrote it for an agent; null when there was none or for a person's version."
                   },
                   {
                     "type": "null",
@@ -91625,6 +91626,20 @@ export const clientManifest = {
                   }
                 ],
                 "description": "StorageFileVersion.sessionId may be null in this transport value."
+              },
+              "agentName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Name of the agent whose session wrote the version, for an agent's version; null otherwise, or when the agent is not recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.agentName may be null in this transport value."
               }
             },
             "required": [
@@ -91645,7 +91660,8 @@ export const clientManifest = {
               "runId",
               "workItemId",
               "workItemTitle",
-              "sessionId"
+              "sessionId",
+              "agentName"
             ],
             "additionalProperties": false,
             "description": "One version of a storage-tree file: its number, when and by whom or which step it was saved, its size, and whether its contents are still there."
