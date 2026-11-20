@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "records": [
     {
-      "baseSha": "0ab8a30353e2d19599a02affbad1c09f05fcbec6",
+      "baseSha": "889c2fbfb938191e56ede7ed5dc7458216f131bd",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|fixture-auth|throttled",
       "rationale": "The login throttled specimen is gone: #713 replaced it with the login-rate-limited and login-blocked specimens, so the fixture-auth route no longer lists throttled and the route matrix cases are regenerated to match (#671).",
