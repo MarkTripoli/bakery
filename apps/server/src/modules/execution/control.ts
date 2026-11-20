@@ -670,6 +670,7 @@ export function createRunControlRegistry(
     path: "/v1/runs/:id/steps/:stepKey/writes/revert",
     input: contractSchemas.RunStepRevertWrites,
     output: contractSchemas.RunStepWritesReverted,
+    successStatus: 200,
     policy: {
       type: ActionKind.Command,
       access: ActionAccess.Developer,
