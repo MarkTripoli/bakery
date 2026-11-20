@@ -6,8 +6,9 @@
 # launcher starts the fixed probe worker in a systemd transient unit with a
 # memory cap, a CPU quota, a wall-clock limit, a private network namespace and a
 # read-only view of the filesystem. It ignores its environment and every other
-# argument: the only input it accepts is one lower-case UUID to name the unit.
-# Exit 64 on anything else.
+# argument: the only input it accepts is one lower-case UUID to name the unit,
+# plus an optional `--spool-dir=<absolute path>` naming the one directory
+# outside the repository the unit may read. Exit 64 on anything else.
 #
 # The properties below are the draft worker's, plus the ones a media parser
 # needs: a private /tmp and no network at all. The unit test
@@ -17,7 +18,7 @@
 # No systemd on this host (a container, or no user bus): exit 69
 # (EX_UNAVAILABLE), which the server reports as sandbox-unavailable. The probe
 # is not run in-process as a fallback, for the reason this launcher exists.
-[ "$#" -eq 1 ] || exit 64
+[ "$#" -eq 1 ] || [ "$#" -eq 2 ] || exit 64
 
 h='[0-9a-f]'
 case "$1" in
@@ -25,6 +26,25 @@ case "$1" in
   *) exit 64 ;;
 esac
 unit="bakery-artifact-probe-$1"
+
+# The spool is where the server puts one bounded copy of a blob whose store
+# cannot hand over a path (S3, bytea). Granting it read-only is the difference
+# between describing those bytes and reporting an unreadable file, so a spool
+# this launcher cannot honestly grant is refused here rather than believed
+# later: `InaccessiblePaths` wins over `ReadOnlyPaths`, and a read-only grant on
+# a directory under /tmp, /var/tmp or $HOME would be a promise systemd keeps and
+# still leaves unreadable.
+spool_dir=""
+if [ "$#" -eq 2 ]; then
+  case "$2" in
+    --spool-dir=/*) spool_dir=${2#--spool-dir=} ;;
+    *) exit 64 ;;
+  esac
+  case "$spool_dir" in
+    /tmp/* | /var/tmp/* | "${HOME:-/nonexistent}"/*) exit 64 ;;
+  esac
+  [ -d "$spool_dir" ] && [ ! -L "$spool_dir" ] || exit 64
+fi
 
 uid=$(/usr/bin/id -u) || exit 70
 case "$uid" in *[!0-9]* | "") exit 70 ;; esac
@@ -62,9 +82,11 @@ worker="$here/../../apps/server/src/modules/knowledge/probe-worker.ts"
 # writable by the thing reading a stranger's file.
 repo_root=$(cd "$here/../.." && pwd -P) || exit 70
 
-exec /usr/bin/env -i XDG_RUNTIME_DIR="$runtime_dir" \
-  DBUS_SESSION_BUS_ADDRESS="$bus" LC_ALL=C \
-  /usr/bin/systemd-run \
+# The properties are accumulated rather than written as one long `exec` line so
+# the spool grant can be conditional: a deployment that hands the probe a path
+# in place never asks for a directory to be mounted, and an unconditional grant
+# of a directory that does not exist is a unit systemd refuses to start.
+set -- \
   --user \
   --pipe \
   --wait \
@@ -90,5 +112,12 @@ exec /usr/bin/env -i XDG_RUNTIME_DIR="$runtime_dir" \
   --property=RestrictSUIDSGID=yes \
   --property=RemoveIPC=yes \
   --property=TemporaryFileSystem=/tmp:ro \
-  --property=InaccessiblePaths=/var/tmp \
+  --property=InaccessiblePaths=/var/tmp
+if [ -n "$spool_dir" ]; then
+  set -- "$@" "--property=ReadOnlyPaths=$spool_dir"
+fi
+
+exec /usr/bin/env -i XDG_RUNTIME_DIR="$runtime_dir" \
+  DBUS_SESSION_BUS_ADDRESS="$bus" LC_ALL=C \
+  /usr/bin/systemd-run "$@" \
   "$deno" run --cached-only --no-prompt --deny-import --frozen "$worker"

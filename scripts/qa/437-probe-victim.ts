@@ -66,6 +66,31 @@ async function reachNetwork(): Promise<void> {
   }
 }
 
+/**
+ * Reads the spooled copy and then tries to write beside it.
+ *
+ * Two answers in one run, because they are one property: the unit may read the
+ * directory the server spools to and must not be able to change it. The write is
+ * attempted after the read so a read-only mount is still tested for reading.
+ */
+async function readSpoolAndTryToWrite(dir: string): Promise<void> {
+  const names: string[] = [];
+  for await (const entry of Deno.readDir(dir)) names.push(entry.name);
+  const file = names.find((name) => name.startsWith("probe-"));
+  if (file === undefined) {
+    say("spool: empty");
+    return;
+  }
+  const bytes = await Deno.readFile(`${dir}/${file}`);
+  say(`spool: read ${bytes.byteLength} bytes`);
+  try {
+    await Deno.writeTextFile(`${dir}/probe-written-by-sandbox`, "x");
+    say("spool: wrote");
+  } catch (error) {
+    say(`spool: write-refused ${(error as Error).name}`);
+  }
+}
+
 const mode = Deno.args[0];
 switch (mode) {
   case "memory":
@@ -76,6 +101,9 @@ switch (mode) {
     break;
   case "network":
     await reachNetwork();
+    break;
+  case "spool":
+    await readSpoolAndTryToWrite(Deno.args[1] ?? "");
     break;
   default:
     say(`unknown mode: ${mode ?? "(none)"}`);

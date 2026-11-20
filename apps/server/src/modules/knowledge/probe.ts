@@ -61,6 +61,12 @@ export const ARTIFACT_PROBE_UNIT_PROPERTIES: readonly string[] = Object.freeze([
   "--property=RemoveIPC=yes",
   "--property=TemporaryFileSystem=/tmp:ro",
   "--property=InaccessiblePaths=/var/tmp",
+  // The one directory outside the repository the unit may read: where the
+  // server spools a blob whose store cannot hand over a path. The launcher adds
+  // it only when the deployment configured one, which is why the placeholder is
+  // compared rather than a path -- a hard-coded directory here would be a grant
+  // the server believes it has and the launcher never makes.
+  "--property=ReadOnlyPaths=@SPOOL_DIR@",
 ]);
 
 const repositoryRoot = new URL("../../../../", import.meta.url);
@@ -151,11 +157,15 @@ async function runLauncher(
   request: unknown,
   launcherPath: string,
   timeoutMs: number,
+  spoolDir?: string,
 ): Promise<LauncherExchange> {
   let child: Deno.ChildProcess;
   try {
     child = new Deno.Command(launcherPath, {
-      args: [crypto.randomUUID()],
+      args: [
+        crypto.randomUUID(),
+        ...(spoolDir === undefined ? [] : [`--spool-dir=${spoolDir}`]),
+      ],
       stdin: "piped",
       stdout: "piped",
       stderr: "null",
@@ -398,8 +408,17 @@ async function readFrame(
     { path, sizeBytes },
     options.launcherPath ?? SERVER_ARTIFACT_PROBE_LAUNCHER,
     options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS,
+    // A spooled copy is only readable because the launcher was told about the
+    // directory that holds it. Passing the path without the grant would produce
+    // an `unreadable` answer for a file that is perfectly fine, so the two
+    // travel together.
+    path.startsWith(options.spoolDir ?? "\u0000")
+      ? options.spoolDir
+      : undefined,
   );
-  if (exchange.late || exchange.timedOut) return refused("timeout", timeoutMs);
+  if (exchange.late || exchange.timedOut) {
+    return refused("timeout", options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS);
+  }
   if (exchange.code === null) return refused("sandbox-unavailable");
   if (SANDBOX_SETUP_FAILURES.includes(exchange.code)) {
     return refused("sandbox-unavailable");

@@ -27,22 +27,34 @@ function commandsOf(script: string): string {
   // stays exact about everything else, and still catches a launcher that
   // hard-coded a different directory.
   return script.split("\n").filter((line) => !line.trimStart().startsWith("#"))
-    .join("\n").replaceAll("$repo_root", "@REPO_ROOT@");
+    .join("\n").replaceAll("$repo_root", "@REPO_ROOT@")
+    .replaceAll("$spool_dir", "@SPOOL_DIR@");
+}
+
+/** Every `--property=` value the launcher would pass, in the order written. */
+function propertiesOf(script: string): string[] {
+  const commands = commandsOf(script).replaceAll('"', "");
+  return (commands.match(/--property=[^\s\\]+/g) ?? []).map((value) =>
+    value.startsWith("--property=") ? value.slice("--property=".length) : value
+  );
 }
 
 Deno.test("the probe launcher pins exactly the unit properties the server declares", async () => {
   const script = await Deno.readTextFile(LAUNCHER);
   // Quotes around a value are not a difference in what systemd is told, and
   // the working directory is quoted because a checkout may contain a space.
-  const commands = commandsOf(script).replaceAll('"', "");
+  // Compared as a set of values, not as formatted lines: the launcher
+  // accumulates its arguments so the spool grant can be conditional, and a test
+  // that matched trailing backslashes would be testing the layout.
+  const declared = propertiesOf(script);
   for (const property of ARTIFACT_PROBE_UNIT_PROPERTIES) {
     assert(
-      commands.includes(` ${property} \\`),
+      declared.some((value) => `--property=${value}` === property),
       `launcher is missing ${property}`,
     );
   }
   assertEquals(
-    commands.match(/--property=/g)?.length,
+    declared.length,
     ARTIFACT_PROBE_UNIT_PROPERTIES.length,
     "the launcher sets a property the server does not declare",
   );
@@ -96,17 +108,73 @@ Deno.test("the probe sandbox has no network and no writable system", async () =>
 Deno.test("the probe launcher refuses anything but one UUID", async () => {
   const script = await Deno.readTextFile(LAUNCHER);
   const commands = commandsOf(script);
-  // Exactly one argument, and it is validated as a lower-case UUID.
-  assert(commands.includes('[ "$#" -eq 1 ] || exit 64'));
-  // Caller argv never reaches a tool: "$@" appears only in the fixed command.
-  assertEquals(
-    commands.split("\n").filter((line) => line.includes('"$@"')),
-    [],
+  // One argument, validated as a lower-case UUID, and an optional second that
+  // may only be a spool directory. Anything else is refused before any tool runs.
+  assert(
+    commands.includes('[ "$#" -eq 1 ] || [ "$#" -eq 2 ] || exit 64'),
+    "one UUID, plus at most a spool",
   );
+  // The caller's second argument is parsed, never forwarded. The one place the
+  // argument list is expanded is the fixed `systemd-run` invocation, and that
+  // list is the launcher's own: every `set --` there names a property it chose.
+  const expanded = commands.split("\n").filter((line) => line.includes('"$@"'));
+  // Two lines mention it: the conditional append that adds the spool grant, and
+  // the fixed invocation. Nothing expands the caller's argv.
+  assertEquals(
+    expanded.filter((line) => line.includes("systemd-run")).length,
+    1,
+    "the list reaches systemd-run once",
+  );
+  for (const line of expanded) {
+    assert(
+      line.includes("systemd-run") || line.trimStart().startsWith("set --"),
+      `a line forwards the caller's argv: ${line.trim()}`,
+    );
+  }
   // The worker is pinned by path; no caller chooses what runs.
   assert(commands.includes('"$deno" run --cached-only --no-prompt'));
   assert(commands.includes('"$worker"'));
   assert(!/--allow-|eval|\$\*/.test(commands), "a permission or eval");
+});
+
+Deno.test("the launcher refuses a spool it cannot honestly grant", async () => {
+  // The guard runs before the parent check, so a shell can ask it and get an
+  // answer: this is the argument parsing, not the sandbox. `InaccessiblePaths`
+  // wins over `ReadOnlyPaths`, so a grant under /tmp, /var/tmp or $HOME is a
+  // property systemd would accept and still leave unreadable -- exactly the
+  // "unreadable" answer a healthy file must never get.
+  const uid = "0f1e2d3c-4b5a-4968-8776-655443322110";
+  const run = async (arg: string) => {
+    const result = await new Deno.Command("/bin/sh", {
+      args: [LAUNCHER, uid, arg],
+      stdout: "null",
+      stderr: "null",
+    }).output();
+    return result.code;
+  };
+  assertEquals(await run("--spool-dir=/tmp/spool"), 64, "under /tmp");
+  assertEquals(await run("--spool-dir=/var/tmp/spool"), 64, "under /var/tmp");
+  assertEquals(await run(`--spool-dir=${Deno.env.get("HOME")}/spool`), 64);
+  assertEquals(await run(`--spool-dir=${Deno.cwd()}/absent`), 64, "absent");
+  // A relative path is not a directory this launcher can name at all.
+  assertEquals(await run("--spool-dir=relative/spool"), 64);
+  // And an argument that is not the spool option is still refused.
+  assertEquals(await run("--allow-all"), 64);
+});
+
+Deno.test("the launcher names the spool directory in the unit", async () => {
+  const script = await Deno.readTextFile(LAUNCHER);
+  assert(
+    script.includes('set -- "$@" "--property=ReadOnlyPaths=$spool_dir"'),
+    "the grant names the directory the server configured",
+  );
+  // Conditional: a deployment that hands over a path in place has no spool, and
+  // an unconditional grant of a directory that does not exist is a unit
+  // systemd refuses to start.
+  assert(
+    /if \[ -n "\$spool_dir" \]; then[\s\S]{0,200}ReadOnlyPaths/.test(script),
+    "the grant is only made when there is a spool",
+  );
 });
 
 Deno.test("a host without a user bus reports the sandbox as unavailable", async () => {
