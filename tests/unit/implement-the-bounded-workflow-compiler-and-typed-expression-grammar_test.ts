@@ -4111,6 +4111,13 @@ Deno.test("step skills, roles and slots each report their own code", async () =>
       { ...noop("aa"), outputs: [{ name: "../escape" }] },
       "action_slots_invalid",
     ],
+    // #448 adds the files section: a malformed one, and a write area that
+    // only a person's grant can open.
+    [{ ...noop("aa"), files: { read: ["nowhere"] } }, "action_files_invalid"],
+    [
+      { ...noop("aa"), files: { write: ["shared"] } },
+      "action_files_write_needs_grant",
+    ],
   ];
   for (const [step, code] of cases) {
     const result = await compileWorkflowDocument(workflow([step]));

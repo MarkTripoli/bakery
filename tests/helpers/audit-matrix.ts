@@ -889,6 +889,27 @@ export async function runAuditMatrix(
       }),
     },
     {
+      operation: "backupRunnerCredential.issue",
+      failure: () =>
+        call(
+          f,
+          "POST",
+          "/v1/installation/backup-runner/credential",
+          developer,
+          { body: {} },
+        ),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/installation/backup-runner/credential",
+          f.adminCookie,
+          { body: {} },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
       operation: "backupSchedule.put",
       failure: () =>
         call(f, "PUT", "/v1/installation/backup-schedule", developer, {
@@ -970,27 +991,6 @@ export async function runAuditMatrix(
           "/v1/installation/backup-offsite/verification",
           f.adminCookie,
           { body: {}, headers: { "Idempotency-Key": key() } },
-        ),
-        organizationId: null,
-      }),
-    },
-    {
-      operation: "backupRunnerCredential.issue",
-      failure: () =>
-        call(
-          f,
-          "POST",
-          "/v1/installation/backup-runner/credential",
-          developer,
-          { body: {} },
-        ),
-      success: async () => ({
-        response: await call(
-          f,
-          "POST",
-          "/v1/installation/backup-runner/credential",
-          f.adminCookie,
-          { body: {} },
         ),
         organizationId: null,
       }),
