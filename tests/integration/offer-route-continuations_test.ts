@@ -134,7 +134,7 @@ async function seedRun(
       ids.job,
       organizationId,
       ids.step,
-      options.jobStatus ?? "running",
+      options.jobStatus ?? "queued",
       JSON.stringify({ harness: pin.harness }),
       JSON.stringify({
         provider: pin.provider,
@@ -315,7 +315,7 @@ Deno.test("route continuations: a step with two matching routes, or two live job
       `insert into bakery.jobs (id, organization_id, run_step_id, action, input,
          requirements, status, current_fence, agent_config, billing)
        select gen_random_uuid(), organization_id, run_step_id, 'harness.review',
-         '{}', '{}', 'running', 1, agent_config, billing
+         '{}', '{}', 'queued', 1, agent_config, billing
        from bakery.jobs where id = $1`,
       [run.jobId],
     );
@@ -398,14 +398,32 @@ Deno.test("route continuations: a finished job or a finished run offers nothing"
       const run = await seedRun(fixture, { runStatus });
       assertEquals((await offersOk(fixture, run.runId)).offers, [], runStatus);
     }
-    // And a queued or running one does.
-    for (const jobStatus of ["queued", "leased", "running"]) {
+    // And a queued one does.
+    const queued = await seedRun(fixture, { jobStatus: "queued" });
+    assertEquals((await offersOk(fixture, queued.runId)).offers.length, 1);
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("route continuations: a leased or running job behind an open incident is not offered, and is once it is queued again", async () => {
+  const fixture = await openApprovalFixture();
+  try {
+    const route = await seedRoute(fixture);
+    await openIncident(fixture, route);
+    for (const jobStatus of ["leased", "running"]) {
+      // An attempt in flight is still working: one probe failure on its route
+      // does not make the step wait on a model.
       const run = await seedRun(fixture, { jobStatus });
-      assertEquals(
-        (await offersOk(fixture, run.runId)).offers.length,
-        1,
-        jobStatus,
+      assertEquals((await offersOk(fixture, run.runId)).offers, [], jobStatus);
+      // The attempt ends and the job is requeued behind the same incident.
+      await fixture.fx.ownerPg.query(
+        "update bakery.jobs set status = 'queued' where id = $1",
+        [run.jobId],
       );
+      const offered = await offersOk(fixture, run.runId);
+      assertEquals(offered.offers.length, 1, jobStatus);
+      assertEquals(offered.offers[0]!.runStepId, run.stepId);
     }
   } finally {
     await fixture.close();

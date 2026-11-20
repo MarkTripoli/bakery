@@ -1,11 +1,10 @@
 // What the task page says about a step that waits on a model (#70, slice 2), as
-// plain functions: which offers are shown and when, the words of the card, the
-// dialog and the step's row, and what each refusal of a choice means. No React,
-// so one unit test proves the rules.
+// plain functions: which offers are shown and when, and the words of the card
+// and the step's row. No React, so one unit test proves the rules.
 //
 // The words are design-ux's (the slice 2 design and its ruling on the second
 // line). Nothing here chooses for the person: Bakery never switches by itself,
-// and a card only offers the choice.
+// and the card only says what waits and why.
 import type { MessageKey, Translator } from "@bakery/i18n";
 import type { RouteContinuationOffersResponse } from "../../api/client.ts";
 // The one list of providers a person knows by name: the contract types a
@@ -15,7 +14,6 @@ import { providerName } from "../../screens/usage/usage-display.ts";
 export { providerName };
 
 export type Offer = RouteContinuationOffersResponse["offers"][number];
-export type Target = Offer["targets"][number];
 type Harness = Offer["source"]["harness"];
 type Billing = Offer["source"]["billingRoute"];
 type Reason = Offer["reason"];
@@ -72,22 +70,11 @@ export function agentName(t: Translator, harness: Harness): string {
   return t(AGENT_KEYS[harness]);
 }
 
-const PAYMENT_KEYS: Record<Billing, MessageKey> = {
-  subscription: "tasks.waiting.payment.subscription",
-  api_metered: "tasks.waiting.payment.api_metered",
-  local: "tasks.waiting.payment.local",
-};
-
 const PAYMENT_INLINE_KEYS: Record<Billing, MessageKey> = {
   subscription: "tasks.waiting.payment.subscription.inline",
   api_metered: "tasks.waiting.payment.api_metered.inline",
   local: "tasks.waiting.payment.local.inline",
 };
-
-/** How the work is paid, as a label ("The subscription on a machine"). */
-export function paymentLabel(t: Translator, billing: Billing): string {
-  return t(PAYMENT_KEYS[billing]);
-}
 
 /** How the work is paid, to read inside a sentence ("using …"). */
 export function paymentInline(t: Translator, billing: Billing): string {
@@ -128,16 +115,6 @@ export function whenText(
     : format(moment, { dateStyle: "medium", timeStyle: "short" });
 }
 
-/** Targets the step may continue on, in the server's order. */
-export function eligibleTargets(offer: Pick<Offer, "targets">): Target[] {
-  return offer.targets.filter((target) => target.eligible);
-}
-
-/** True when there is a way to run the step; otherwise the button is hidden. */
-export function canChoose(offer: Pick<Offer, "targets">): boolean {
-  return offer.targets.some((target) => target.eligible);
-}
-
 export type CardCopy = Readonly<{
   /** "Waiting on a model", the run's badge. */
   badge: string;
@@ -146,8 +123,6 @@ export type CardCopy = Readonly<{
   text: string;
   /** What Bakery has and has not done, and what happens next. */
   second: string;
-  /** The button's label, or null when no other way can be chosen. */
-  button: string | null;
 }>;
 
 /** The words of one waiting card. */
@@ -155,25 +130,30 @@ export function cardCopy(
   offer: Offer,
   t: Translator,
   when: (iso: string) => string,
+  /** The step's name as its stage tab shows it. */
+  stepName: (stepKey: string) => string,
 ): CardCopy {
   const { source } = offer;
   const agent = agentName(t, source.harness);
   const provider = providerName(source.provider);
-  const choosable = canChoose(offer);
-  const second = !choosable
-    ? t("tasks.waiting.second.noTarget")
-    : offer.nextCheckAt === null
-    ? t("tasks.waiting.second.noCheck")
-    : t("tasks.waiting.second.withCheck", {
-      provider,
-      time: when(offer.nextCheckAt),
-    });
+  // No way to choose ships yet (the chooser is a later slice), so the second
+  // line promises no choice: only what Bakery has not done and when it tries
+  // the provider again.
+  const second = [
+    t("tasks.waiting.second"),
+    ...(offer.nextCheckAt === null ? [] : [
+      t("tasks.waiting.second.check", {
+        provider,
+        time: when(offer.nextCheckAt),
+      }),
+    ]),
+  ].join(" ");
   return {
     badge: t("tasks.waiting.badge"),
     title: t("tasks.waiting.title", { agent }),
     text: [
       t("tasks.waiting.runsOn", {
-        step: offer.stepKey,
+        step: stepName(offer.stepKey),
         agent,
         model: source.model,
         payment: paymentInline(t, source.billingRoute),
@@ -181,7 +161,6 @@ export function cardCopy(
       t(reasonKey(offer.reason), { provider, time: when(offer.since) }),
     ].join(" "),
     second,
-    button: choosable ? t("tasks.waiting.choose") : null,
   };
 }
 
@@ -191,206 +170,4 @@ export function stepRowCopy(offer: Offer, t: Translator): string {
     agent: agentName(t, offer.source.harness),
     model: offer.source.model,
   });
-}
-
-/** What a choice is called: "{Agent} with {model}". */
-export function choiceLabel(t: Translator, target: Target): string {
-  return t("tasks.waiting.dialog.choice", {
-    agent: agentName(t, target.harness),
-    model: target.model,
-  });
-}
-
-/** The line under a choice: "{Provider} · {how it is paid}". */
-export function choiceDetail(t: Translator, target: Target): string {
-  return t("tasks.waiting.dialog.choiceDetail", {
-    provider: providerName(target.provider),
-    payment: paymentLabel(t, target.billingRoute),
-  });
-}
-
-/** The badge beside a choice, only for a target that is not simply healthy. */
-export function healthBadge(
-  t: Translator,
-  target: Pick<Target, "health">,
-): { tone: "warning" | "neutral"; text: string } | null {
-  if (target.health === "degraded") {
-    return { tone: "warning", text: t("tasks.waiting.health.degraded") };
-  }
-  if (target.health === "unverified") {
-    return { tone: "neutral", text: t("tasks.waiting.health.unverified") };
-  }
-  return null;
-}
-
-/** Said only when the choice is paid differently from the step's route. */
-export function paymentNotice(
-  t: Translator,
-  source: Pick<Offer["source"], "billingRoute">,
-  target: Pick<Target, "billingRoute">,
-): string | null {
-  if (source.billingRoute === target.billingRoute) return null;
-  return t("tasks.waiting.dialog.paymentChanges", {
-    from: paymentInline(t, source.billingRoute),
-    to: paymentInline(t, target.billingRoute),
-  });
-}
-
-const INELIGIBLE_KEYS: Record<
-  NonNullable<Target["ineligibleReason"]>,
-  MessageKey
-> = {
-  different_harness: "tasks.waiting.ineligible.different_harness",
-  route_open: "tasks.waiting.ineligible.route_open",
-  route_not_active: "tasks.waiting.ineligible.route_not_active",
-};
-
-/** The routes that cannot be used, each with its reason, for the disclosure. */
-export function unavailableChoices(
-  t: Translator,
-  offer: Pick<Offer, "targets">,
-): { summary: string; lines: string[] } | null {
-  const others = offer.targets.filter((target) => !target.eligible);
-  if (others.length === 0) return null;
-  return {
-    summary: t("tasks.waiting.dialog.cannotUse", { count: others.length }),
-    lines: others.map((target) =>
-      t("tasks.waiting.dialog.cannotUseLine", {
-        agent: agentName(t, target.harness),
-        model: target.model,
-        reason: t(
-          target.ineligibleReason === null
-            ? INELIGIBLE_KEYS.route_not_active
-            : INELIGIBLE_KEYS[target.ineligibleReason],
-        ),
-      })
-    ),
-  };
-}
-
-/** The cost line; a figure replaces "Unknown" only when the server sent one. */
-export function costLine(
-  t: Translator,
-  offer: Pick<Offer, "estimatedIncrementalCost">,
-  money: (value: number) => string,
-): string {
-  const figure = offer.estimatedIncrementalCost === null
-    ? Number.NaN
-    : Number(offer.estimatedIncrementalCost);
-  return t("tasks.waiting.dialog.cost", {
-    cost: Number.isFinite(figure)
-      ? money(figure)
-      : t("tasks.waiting.dialog.costUnknown"),
-  });
-}
-
-/** The button that makes the choice, naming it. */
-export function continueLabel(t: Translator, target: Target): string {
-  return t("tasks.waiting.dialog.continue", {
-    model: target.model,
-    payment: paymentInline(t, target.billingRoute),
-  });
-}
-
-/** The notice after a choice worked. */
-export function continuedNotice(t: Translator, target: Target): string {
-  return t("tasks.waiting.continued", {
-    agent: agentName(t, target.harness),
-    model: target.model,
-  });
-}
-
-/** What the server named when it refused a choice (`problem.reason`). */
-export const REFUSAL_REASONS = [
-  "incident_not_current",
-  "step_not_pinned_to_route",
-  "already_continued",
-  "run_not_active",
-  "cancel_requested",
-  "target_route_not_active",
-  "target_route_open",
-  "target_different_harness",
-  "target_pin_unchanged",
-  "target_pricing_unavailable",
-  "awaiting_reconciliation",
-  "spend_in_flight",
-  "job_not_funded",
-  "attempt_budget_exhausted",
-] as const;
-export type RefusalReason = (typeof REFUSAL_REASONS)[number];
-
-/**
- * Where a refusal is said. `page`: the choice is stale, so the dialog closes,
- * the page reads the latest and the notice sits above the steps. `dialog`: the
- * dialog stays open with the sentence; `reload` also reads the choices again,
- * for a target that can no longer be used.
- */
-export type Refusal = Readonly<{
-  where: "page" | "dialog";
-  reload: boolean;
-  key: MessageKey;
-}>;
-
-const REFUSALS: Record<RefusalReason, Refusal> = {
-  incident_not_current: page("tasks.waiting.refused.changed"),
-  step_not_pinned_to_route: page("tasks.waiting.refused.changed"),
-  already_continued: page("tasks.waiting.refused.alreadyContinued"),
-  run_not_active: page("tasks.waiting.refused.runEnded"),
-  cancel_requested: page("tasks.waiting.refused.runEnded"),
-  target_route_not_active: dialog("tasks.waiting.refused.targetGone", true),
-  target_route_open: dialog("tasks.waiting.refused.targetGone", true),
-  target_different_harness: dialog("tasks.waiting.refused.targetGone", true),
-  target_pin_unchanged: dialog("tasks.waiting.refused.targetGone", true),
-  target_pricing_unavailable: dialog("tasks.waiting.refused.noPrice"),
-  awaiting_reconciliation: dialog("tasks.waiting.refused.confirming"),
-  spend_in_flight: dialog("tasks.waiting.refused.confirming"),
-  job_not_funded: dialog("tasks.waiting.refused.noBudget"),
-  attempt_budget_exhausted: dialog("tasks.waiting.refused.noBudget"),
-};
-
-function page(key: MessageKey): Refusal {
-  return { where: "page", reload: true, key };
-}
-
-function dialog(key: MessageKey, reload = false): Refusal {
-  return { where: "dialog", reload, key };
-}
-
-/** The one sentence for a refusal the page does not know. */
-const OTHER: Refusal = dialog("tasks.waiting.refused.other");
-
-/**
- * What a failed choice means. The run having changed since the offer is the
- * server's `PRECONDITION_FAILED`; every other refusal is a `STATE_CONFLICT`
- * with a reason. A reason the page does not know, or none, reads as the plain
- * "Nothing was switched. Try again."
- */
-export function refusalOf(
-  failure: {
-    readonly kind: string;
-    readonly problem?: { readonly code: string; readonly reason?: string };
-  },
-): Refusal {
-  if (failure.kind !== "problem" || !failure.problem) return OTHER;
-  const { code, reason } = failure.problem;
-  if (code === "PRECONDITION_FAILED") {
-    return page("tasks.waiting.refused.changed");
-  }
-  if (code !== "STATE_CONFLICT" || reason === undefined) return OTHER;
-  return (REFUSALS as Record<string, Refusal | undefined>)[reason] ?? OTHER;
-}
-
-/**
- * True when the answer to a choice never arrived or the server could not say,
- * so the choice may have gone through: the same key is sent again on a retry.
- */
-export function outcomeUnknown(
-  failure: {
-    readonly kind: string;
-    readonly problem?: { readonly status: number; readonly retryable: boolean };
-  },
-): boolean {
-  if (failure.kind !== "problem" || !failure.problem) return true;
-  const { status, retryable } = failure.problem;
-  return retryable || status >= 500 || status === 408;
 }

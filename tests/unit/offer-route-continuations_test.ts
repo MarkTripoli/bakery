@@ -145,11 +145,13 @@ Deno.test("every statement is a select inside the organization", async () => {
     assertEquals(values[0], ORG, sql);
     assert(/organization_id/.test(sql), sql);
   }
-  // The stalled-step query is scoped to the run and excludes terminal jobs and
-  // steps that were already continued for this incident generation.
+  // The stalled-step query is scoped to the run, counts only a job sitting
+  // queued (a leased or running attempt is still working), and excludes steps
+  // that were already continued for this incident generation.
   const stalledQuery = recorded[1]!;
   assertEquals(stalledQuery.values[1], RUN);
-  assert(/j\.status <> all/.test(stalledQuery.sql));
+  assert(/j\.status = any/.test(stalledQuery.sql));
+  assertEquals(stalledQuery.values[2], ["queued"]);
   // Only an open incident stalls a step: a route may still point at one that has
   // recovered or been superseded, and that link must not make an offer.
   assert(/i\.status = 'open'/.test(stalledQuery.sql));

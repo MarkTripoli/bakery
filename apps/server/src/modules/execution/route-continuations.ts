@@ -77,7 +77,7 @@ type StalledStepRow = {
  * step whose pin (provider, model, harness, billing route) matches an active route
  * with an open incident that the step has not already been continued past.
  * Aliases: `r` the run, `s` the step, `j` the job, `pr` the route, `i` the
- * incident. `$1` is the organization and `$3` the terminal job statuses; the
+ * incident. `$1` is the organization and `$3` the waiting job statuses; the
  * caller adds its own run predicate. Shared by the offers and by the runs read's
  * `waitingOnModel`, so the badge and the card can never disagree.
  */
@@ -100,7 +100,7 @@ const STALLED_STEP_JOINS = `
            on i.organization_id = pr.organization_id
           and i.id = pr.incident_id and i.status = 'open'
         where r.organization_id = $1
-          and j.status <> all($3::text[])
+          and j.status = any($3::text[])
           and not exists (
             select 1 from bakery.route_continuations as c
              where c.organization_id = r.organization_id
@@ -121,7 +121,7 @@ export async function readRunsWaitingOnModel(
     `select distinct r.id as run_id${STALLED_STEP_JOINS}
           and r.id = any($2::uuid[])
           and r.status <> all($4::text[])`,
-    [organizationId, runIds, TERMINAL_JOB_STATUSES, TERMINAL_RUN_STATUSES],
+    [organizationId, runIds, WAITING_JOB_STATUSES, TERMINAL_RUN_STATUSES],
   );
   return new Set(result.rows.map((row) => row.run_id));
 }
@@ -138,7 +138,12 @@ export type CandidateRouteRow = {
 /** Run statuses after which nothing more happens to a run. */
 const TERMINAL_RUN_STATUSES = ["completed", "failed", "canceled", "blocked"];
 /** Job statuses after which a job produces nothing more. */
-const TERMINAL_JOB_STATUSES = ["completed", "failed", "canceled"];
+/**
+ * A step waits on a model only while its job sits queued with no attempt in
+ * flight. A leased or running attempt is still working, so one probe timeout on
+ * its route does not make a healthy step read "cannot reach its model".
+ */
+const WAITING_JOB_STATUSES = ["queued"];
 
 /**
  * Why a candidate cannot take a step, in the order a person would fix it, or
@@ -207,7 +212,7 @@ export async function listRouteContinuations(
         order by s.id, i.opened_at, pr.id, j.id
      ) as stalled
      order by step_key, run_step_id`,
-    [organizationId, runId, TERMINAL_JOB_STATUSES],
+    [organizationId, runId, WAITING_JOB_STATUSES],
   );
   if (stalled.rows.length === 0) return { runId, offers: [] };
 
