@@ -65,6 +65,12 @@ export type CatalogActionName =
   | "automations.list"
   | "automations.run"
   | "automations.update"
+  | "backupRunner.claim"
+  | "backupRunner.report"
+  | "backupRunnerCredential.issue"
+  | "backups.list"
+  | "backups.start"
+  | "backups.status"
   | "blobUploads.complete"
   | "blobUploads.part"
   | "blobUploads.start"
@@ -410,6 +416,7 @@ export type CatalogActionName =
   | "storageFileVersions.list"
   | "storageFiles.byVersion"
   | "storageFiles.content"
+  | "storageFiles.pin"
   | "storageFiles.put"
   | "storageFolderEntries.list"
   | "storageFolders.create"
@@ -543,6 +550,8 @@ export type CatalogPermissionKey =
   | "automationFiring:read"
   | "automationVersion:manage"
   | "automationVersion:read"
+  | "backup:manage"
+  | "backup:read"
   | "browserSession:read"
   | "browserSession:write"
   | "capabilityBinding:manage"
@@ -730,6 +739,7 @@ export type CatalogAccessPolicy =
   | "Authenticated principal allowed to create organizations"
   | "Authorized owner/member"
   | "Authorized owner/member+install grant"
+  | "Backup runner"
   | "Bound Bakery-authenticated identity-link attempt"
   | "Bound browser auth attempt"
   | "Configured Slack app HMAC over timestamp and exact raw body; verified workspace/channel binding; current linked human for privileged commands"
@@ -768,6 +778,7 @@ export const CatalogAccess = Object.freeze(
     AuthenticatedPrincipalAllowedToCreateOrganizations: "Authenticated principal allowed to create organizations",
     AuthorizedOwnerMember: "Authorized owner/member",
     AuthorizedOwnerMemberAndInstallGrant: "Authorized owner/member+install grant",
+    BackupRunner: "Backup runner",
     BoundBakeryAuthenticatedIdentityLinkAttempt: "Bound Bakery-authenticated identity-link attempt",
     BoundBrowserAuthAttempt: "Bound browser auth attempt",
     ConfiguredSlackAppHMACOverTimestampAndExactRawBodyVerifiedWorkspaceChannelBindingCurrentLinkedHumanForPrivilegedCommands: "Configured Slack app HMAC over timestamp and exact raw body; verified workspace/channel binding; current linked human for privileged commands",
@@ -838,6 +849,7 @@ export type ContractInputName =
   | "AuditStreamQuery"
   | "AutomationUpdate"
   | "AutomationVersionCreate"
+  | "BackupRunReport"
   | "BillingConfig"
   | "BindingQuery"
   | "BlobUploadComplete"
@@ -1074,6 +1086,7 @@ export type ContractInputName =
   | "SteeringMessage"
   | "StorageEntryDestination"
   | "StorageFileContentQuery"
+  | "StorageFilePin"
   | "StorageFilePut"
   | "StorageFolderCreate"
   | "StorageSettingsPut"
@@ -1180,6 +1193,10 @@ export type ContractOutputName =
   | "Automation"
   | "AutomationFiring"
   | "AutomationVersion"
+  | "BackupRun"
+  | "BackupRunClaim"
+  | "BackupRunnerCredentialIssued"
+  | "BackupStatus"
   | "BinaryArtifact"
   | "BinaryArtifactBytes"
   | "BinarySkillFile"
@@ -1370,6 +1387,7 @@ export type ContractOutputName =
   | "Page<Automation>"
   | "Page<AutomationFiring>"
   | "Page<AutomationVersion>"
+  | "Page<BackupRun>"
   | "Page<CapabilityBinding>"
   | "Page<CheckRun>"
   | "Page<Conversation>"

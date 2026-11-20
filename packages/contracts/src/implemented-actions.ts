@@ -684,6 +684,19 @@ export const skillStorageImplementedActions = Object.freeze(
   Object.values(SkillStorageImplementedAction),
 );
 
+export const BackupImplementedAction = Object.freeze(
+  {
+    BackupsList: "backups.list",
+    BackupsStatus: "backups.status",
+    BackupsStart: "backups.start",
+    BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
+    BackupRunnerClaim: "backupRunner.claim",
+    BackupRunnerReport: "backupRunner.report",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const backupImplementedActions = Object.freeze(
+  Object.values(BackupImplementedAction),
+);
 export const TelemetryDestinationImplementedAction = Object.freeze(
   {
     TelemetryDestinationsList: "telemetryDestinations.list",
@@ -728,6 +741,7 @@ export const StorageImplementedAction = Object.freeze(
     StorageFileUsesList: "storageFileUses.list",
     StorageFilesContent: "storageFiles.content",
     StorageFilesByVersion: "storageFiles.byVersion",
+    StorageFilesPin: "storageFiles.pin",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const storageImplementedActions = Object.freeze(
@@ -883,6 +897,7 @@ export const implementedActions = Object.freeze(
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
+    ...backupImplementedActions,
     ...telemetryDestinationImplementedActions,
     ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
