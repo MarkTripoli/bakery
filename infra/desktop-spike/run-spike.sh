@@ -18,12 +18,15 @@ mkdir -p "$OUT"; chmod 777 "$OUT"
 
 # Nothing this script starts may outlive it or inherit the db-slot lock (fd 9 is the lock, held for
 # the whole run): a leaked copy of that fd kept the lock taken for hours after the run ended.
+# The restart runs in a background subshell, which cannot update this shell's variables, so the
+# live server's pid is kept in a file: reading a stale variable left the restarted server running.
 stop_server() {
+  SERVER_PID="$(cat "$OUT/server.pid" 2>/dev/null)"
   [ -n "$SERVER_PID" ] || return 0
   kill -- -"$SERVER_PID" 2>/dev/null
   for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 -- -"$SERVER_PID" 2>/dev/null || break; sleep 0.5; done
   kill -KILL -- -"$SERVER_PID" 2>/dev/null
-  SERVER_PID=""; sleep 1
+  SERVER_PID=""; rm -f "$OUT/server.pid"; sleep 1
 }
 WATCH_PID=""
 cleanup() {
@@ -70,6 +73,7 @@ pnpm migrate 2>&1 | tail -1 | cut -c1-80
 start_server() {
   (cd apps/server && exec setsid bash scripts/run-main.sh >> "$OUT/server.log" 2>&1 9>&-) &
   SERVER_PID=$!
+  echo "$SERVER_PID" > "$OUT/server.pid"
   for i in $(seq 1 120); do
     curl -fsS "http://127.0.0.1:$SERVER/health/ready" >/dev/null 2>&1 && return 0
     sleep 1
