@@ -355,6 +355,11 @@ export type StepWriteSetRow = Readonly<{
   op: StepWriteOp;
   previousVersionId: string | null;
   newVersionId: string | null;
+  /** For a move: the folder and name the entry had before it; else null. */
+  previousParentId: string | null;
+  previousName: string | null;
+  /** The entry's row version before the write; null when it made the entry. */
+  entryVersionBefore: number | null;
 }>;
 
 /**
@@ -370,6 +375,9 @@ export function stepWriteSetRow(
     op: StepWriteOp;
     previousVersionId: string | null;
     newVersionId: string | null;
+    previousParentId?: string | null;
+    previousName?: string | null;
+    entryVersionBefore?: number | null;
   }>,
 ): StepWriteSetRow | null {
   if (agent === null) return null;
@@ -381,6 +389,9 @@ export function stepWriteSetRow(
     op: write.op,
     previousVersionId: write.previousVersionId,
     newVersionId: write.newVersionId,
+    previousParentId: write.previousParentId ?? null,
+    previousName: write.previousName ?? null,
+    entryVersionBefore: write.entryVersionBefore ?? null,
   };
 }
 

@@ -18,6 +18,15 @@
 --   bytes_written        the size of the bytes the write stored (a put or a
 --                        copy), else 0. Kept on the row so the step's byte
 --                        limit still counts a version retention later deletes;
+--   previous_parent_id,  for a move only: the folder and name the entry had
+--   previous_name        before it, so the undo can move it back;
+--   entry_version_before the entry's row version before the write, null when
+--                        the write created the entry;
+--   entry_version_after  its row version after the write. The undo compares
+--                        these with the entry now, so a later change by
+--                        anyone else is refused, never overwritten;
+--   created_at           clock_timestamp(), so two writes in one transaction
+--                        still order newest first;
 --   reverted_at,         when a person undid this write, and who (#448 S5).
 --   reverted_by_principal_id  Null until undone; an undone write is never
 --                        undone again.
@@ -33,15 +42,26 @@ create table bakery.step_write_set (
   previous_version_id uuid,
   new_version_id uuid,
   bytes_written bigint not null default 0,
+  previous_parent_id uuid,
+  previous_name text,
+  entry_version_before bigint,
+  entry_version_after bigint not null,
   reverted_at timestamptz,
   reverted_by_principal_id uuid,
-  created_at timestamptz not null default now(),
+  created_at timestamptz not null default clock_timestamp(),
   constraint step_write_set_organization_fk
     foreign key (organization_id)
     references bakery.organizations (id) on delete cascade,
   constraint step_write_set_attempt_fk
     foreign key (organization_id, attempt_id)
     references bakery.job_attempts (organization_id, id) on delete cascade,
+  constraint step_write_set_reverted_by_fk
+    foreign key (reverted_by_principal_id)
+    references bakery.principals (id) on delete restrict,
+  constraint step_write_set_previous_parent_fk
+    foreign key (organization_id, previous_parent_id)
+    references bakery.storage_entries (organization_id, id)
+    on delete set null (previous_parent_id),
   constraint step_write_set_session_fk
     foreign key (organization_id, agent_session_id)
     references bakery.agent_sessions (organization_id, id)

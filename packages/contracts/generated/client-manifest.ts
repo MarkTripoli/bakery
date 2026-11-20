@@ -1138,6 +1138,32 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Work",
+      "method": "POST",
+      "path": "/v1/runs/{id}/steps/{stepKey}/writes/revert",
+      "action": "runSteps.revertWrites",
+      "access": "Developer",
+      "permission": "run:control",
+      "input": "RunStepRevertWrites",
+      "output": "RunStepWritesReverted",
+      "event": "",
+      "mcp": "bakery_runSteps_revertWrites",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Conversation",
       "method": "GET",
       "path": "/v1/conversations",
@@ -15776,6 +15802,7 @@ export const clientManifest = {
             "sessions.steer",
             "runSteps.note",
             "runSteps.takeOver",
+            "runSteps.revertWrites",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -25609,6 +25636,19 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
     },
+    "RunStepRevertWrites": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reason": {
+          "description": "Why the person reverted the step's writes, recorded verbatim in the audit record of the undo. RunStepRevertWrites.reason must contain at most 2000 characters.",
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false,
+      "description": "Reverts the Bakery Files writes the agent of one workflow step made, across all of the step's attempts, newest first and in one transaction (chapter 25 section 17.6, O48): a file or folder the step created goes to trash, a new version gives way to the version before it, a move is moved back and a trashed entry is restored. Writes that leave Bakery are external effects and are not covered."
+    },
     "IntegrationProviderPath": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -26257,6 +26297,18 @@ export const clientManifest = {
           "minimum": 1,
           "maximum": 1125899906842624,
           "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB. StorageSettingsPut.personalQuotaBytes must be at least 1. StorageSettingsPut.personalQuotaBytes must be at most 1125899906842624."
+        },
+        "stepWriteBytes": {
+          "description": "Bytes one agent step (one run step attempt) may write to Bakery Files through its puts and copies before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason bytes (O49). Left out, the organization follows Bakery's default of 2 GiB. A person's own writes are never limited by it. StorageSettingsPut.stepWriteBytes must be at least 1048576. StorageSettingsPut.stepWriteBytes must be at most 1099511627776.",
+          "type": "integer",
+          "minimum": 1048576,
+          "maximum": 1099511627776
+        },
+        "stepWriteFiles": {
+          "description": "Distinct files and folders one agent step (one run step attempt) may write, make, copy, move or trash before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason files (O49). Left out, the organization follows Bakery's default of 2,000. A person's own writes are never limited by it. StorageSettingsPut.stepWriteFiles must be at least 1. StorageSettingsPut.stepWriteFiles must be at most 1000000.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
         }
       },
       "required": [
@@ -40001,6 +40053,7 @@ export const clientManifest = {
                   "sessions.steer",
                   "runSteps.note",
                   "runSteps.takeOver",
+                  "runSteps.revertWrites",
                   "conversations.list",
                   "conversations.get",
                   "conversations.create",
@@ -47259,6 +47312,43 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "RunStepWritesReverted": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the run whose step was reverted."
+        },
+        "stepKey": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Key of the run step whose writes were reverted."
+        },
+        "reverted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How many of the step's recorded writes this undo reverted; 0 when every write was already reverted or the step wrote nothing."
+        },
+        "entries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How many distinct files and folders those writes touched."
+        }
+      },
+      "required": [
+        "runId",
+        "stepKey",
+        "reverted",
+        "entries"
+      ],
+      "additionalProperties": false,
+      "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert."
     },
     "ReviewCycle": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -59451,6 +59541,7 @@ export const clientManifest = {
             "sessions.steer",
             "runSteps.note",
             "runSteps.takeOver",
+            "runSteps.revertWrites",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -90551,6 +90642,18 @@ export const clientManifest = {
           "maximum": 9007199254740991,
           "description": "Bytes each member's personal folder may hold."
         },
+        "stepWriteBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Bytes one agent step may write before its writes are refused (O49); the default 2 GiB unless an Admin saved another value."
+        },
+        "stepWriteFiles": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Distinct files and folders one agent step may write before its writes are refused (O49); the default 2,000 unless an Admin saved another value."
+        },
         "organizationUsedBytes": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -90585,6 +90688,8 @@ export const clientManifest = {
         "organizationQuotaBytes",
         "projectQuotaBytes",
         "personalQuotaBytes",
+        "stepWriteBytes",
+        "stepWriteFiles",
         "organizationUsedBytes",
         "organizationQuotaState",
         "customized",

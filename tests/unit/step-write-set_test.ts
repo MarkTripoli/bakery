@@ -33,6 +33,9 @@ Deno.test("an agent's write builds one row naming its attempt, session and versi
       op: "put",
       previousVersionId: "v1",
       newVersionId: "v2",
+      previousParentId: null,
+      previousName: null,
+      entryVersionBefore: null,
     },
   );
 });

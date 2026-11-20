@@ -74,6 +74,7 @@ import {
 } from "./sessions.ts";
 import { createRunStepNote } from "./step-notes.ts";
 import { takeOverRunStep } from "./step-takeover.ts";
+import { revertRunStepWrites } from "./step-write-revert.ts";
 import { createSessionFeedHandler } from "./session-feed.ts";
 import { openSessionFeedStream } from "./session-feed-stream.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
@@ -662,6 +663,20 @@ export function createRunControlRegistry(
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
     handler: takeOverRunStep,
+  });
+  registry.register({
+    name: ExecutionImplementedAction.RunStepsRevertWrites,
+    method: HttpMethod.Post,
+    path: "/v1/runs/:id/steps/:stepKey/writes/revert",
+    input: contractSchemas.RunStepRevertWrites,
+    output: contractSchemas.RunStepWritesReverted,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: revertRunStepWrites,
   });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, executionImplementedActions);

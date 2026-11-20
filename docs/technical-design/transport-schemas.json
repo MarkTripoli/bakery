@@ -11469,6 +11469,26 @@
       ],
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
     },
+    "RunStepRevertWrites": {
+      "fields": [
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Why the person reverted the step's writes, recorded verbatim in the audit record of the undo."
+        }
+      ],
+      "rules": [
+        "A person with run control and a browser session or access token; an agent session is refused with AUTH_FORBIDDEN, so no agent undoes a step's writes, its own or another's.",
+        "Only while no attempt of the step's job is live; otherwise STATE_CONFLICT with reason attempt_live. Failed and finished attempts are reverted the same way.",
+        "All or nothing: when any entry was changed after the step wrote it, the answer is STATE_CONFLICT with reason step_writes_conflict and one issue per refused entry (its path, and a code such as changed_since_step, folder_not_empty, previous_version_gone, entry_gone, name_taken or restore_parent_gone), and nothing is reverted.",
+        "A step with nothing left to revert answers 200 with reverted 0; an undone write is never undone twice."
+      ],
+      "description": "Reverts the Bakery Files writes the agent of one workflow step made, across all of the step's attempts, newest first and in one transaction (chapter 25 section 17.6, O48): a file or folder the step created goes to trash, a new version gives way to the version before it, a move is moved back and a trashed entry is restored. Writes that leave Bakery are external effects and are not covered."
+    },
     "IntegrationProviderPath": {
       "fields": [
         {
@@ -19112,6 +19132,27 @@
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
+      }
+    },
+    "RunStepWritesReverted": {
+      "fields": [
+        "runId",
+        "stepKey",
+        "reverted",
+        "entries"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "stepKey": "string",
+        "reverted": "nonnegativeInteger",
+        "entries": "nonnegativeInteger"
+      },
+      "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert.",
+      "fieldDescriptions": {
+        "runId": "Stable UUID of the run whose step was reverted.",
+        "stepKey": "Key of the run step whose writes were reverted.",
+        "reverted": "How many of the step's recorded writes this undo reverted; 0 when every write was already reverted or the step wrote nothing.",
+        "entries": "How many distinct files and folders those writes touched."
       }
     },
     "CheckRun": {
