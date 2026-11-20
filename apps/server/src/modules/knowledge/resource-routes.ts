@@ -56,11 +56,13 @@ import {
   createFileUseLister,
   createFileVersionLister,
   createFolderLister,
+  createSessionFileContentReader,
   listStorageRoots,
   parseRevision,
   readStorageFileByVersion,
   type StorageReader,
 } from "./storage-reads.ts";
+import { pinStorageFile } from "./storage-pin.ts";
 import {
   createAgentFileGrant,
   revokeAgentFileGrant,
@@ -755,7 +757,7 @@ export function createArtifactActions(
       handler: (context) =>
         blobUploads.completeUpload(context, { id: context.params.id }),
     });
-  registerStorageActions(registry, options.secret);
+  registerStorageActions(registry, options.secret, options.blobStore);
   registerCommentActions(registry, options.secret, options.blobStore);
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
@@ -769,7 +771,12 @@ export function createArtifactActions(
 }
 
 /** The working-area actions over the storage tree (#447). */
-function registerStorageActions(registry: ActionRegistry, secret: string) {
+function registerStorageActions(
+  registry: ActionRegistry,
+  secret: string,
+  blobStore: OrganizationBlobStore | undefined,
+) {
+  const readSessionContent = createSessionFileContentReader(blobStore);
   const listTrash = createTrashLister(secret);
   const listFolder = createFolderLister(secret);
   const listVersions = createFileVersionLister(secret);
@@ -854,8 +861,10 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
           ),
         ),
     })
-    // The bytes are a raw Response served by the route below, under this
-    // action's authority; the registered handler is never reached.
+    // A person's bytes are a raw Response served by the route below, under
+    // this action's authority. The registered handler is reached only by an
+    // agent's session call (files.read), which answers JSON: the same reader
+    // and guard, with the bytes as base64.
     .register({
       name: A.StorageFilesContent,
       method: HttpMethod.Get,
@@ -864,8 +873,15 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
       output: contractSchemas.BinaryArtifact,
       // A <video> or <audio> src cannot send the organization header.
       policy: { ...readPolicy, organizationIdQuery: "organizationId" },
-      handler: () => {
-        throw new StandardError({ code: "INTERNAL" });
+      handler: async (context, input) => {
+        if (context.agentSession === undefined) {
+          throw new StandardError({ code: "INTERNAL" });
+        }
+        return await readSessionContent(
+          context,
+          storageReader(context, A.StorageFilesContent),
+          input as { range?: string; revision?: number },
+        );
       },
     })
     .register({
@@ -919,6 +935,26 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
       handler: async (context, input) =>
         contractSchemas.StorageEntry.parse(
           await moveStorageEntry(context, input),
+        ),
+    })
+    .register({
+      // An administrator pin, by the file's own id, so the command line can set
+      // it with a token: the same permission and the same pin as the artifact
+      // PATCH, without an artifact id or its version.
+      name: A.StorageFilesPin,
+      method: HttpMethod.Put,
+      path: "/v1/storage/files/:id/pin",
+      input: contractSchemas.StorageFilePin,
+      output: contractSchemas.ArtifactPinResult,
+      explicitIdempotency: "key",
+      policy: storageAdminPolicy(A.StorageFilesPin),
+      handler: async (context, input) =>
+        contractSchemas.ArtifactPinResult.parse(
+          await pinStorageFile(
+            context,
+            storageReader(context, A.StorageFilesPin),
+            input as { pinned: boolean },
+          ),
         ),
     })
     .register({
@@ -1046,12 +1082,17 @@ export function createArtifactResourceRoutes(
     /^\/v1\/storage\/files\/[^/]+\/(?:versions|uses|content)$/,
     /^\/v1\/storage\/file-versions\/[^/]+$/,
   ];
+  // The one write a token may make here: a file's pin (PUT .../pin), which the
+  // action itself keeps to the permission the artifact PATCH checks.
+  const tokenPinPath = /^\/v1\/storage\/files\/[^/]+\/pin$/;
   const readsAcceptTokens: MiddlewareHandler<{ Variables: AuthVariables }> = (
     context,
     next,
   ) =>
-    context.req.method === "GET" && options.tokenSession !== undefined &&
-      tokenReadablePaths.some((path) => path.test(context.req.path))
+    options.tokenSession !== undefined &&
+      ((context.req.method === "GET" &&
+        tokenReadablePaths.some((path) => path.test(context.req.path))) ||
+        (context.req.method === "PUT" && tokenPinPath.test(context.req.path)))
       ? options.tokenSession(context, next)
       : session(context, next);
   app.use("/v1/files/search", readsAcceptTokens);

@@ -5,13 +5,14 @@ import { requireWorkTransaction } from "../../work/work-transaction.ts";
 import {
   PREVIEW_ORIGIN_NOT_CONFIGURED,
   RUNNING_PREVIEW_EXCHANGE_PATH,
-  runningPreviewViewPath,
+  runningPreviewOrigin,
 } from "./shared.ts";
 import {
   insertAccessGrant,
   listPreviews,
   readAccessGrantOwner,
   readPreview,
+  readRouteKey,
   revokeAccessGrant,
   stopPreview,
 } from "./running-store.ts";
@@ -77,6 +78,11 @@ export async function createRunningPreviewAccess(
       params: { reason: "preview_not_running", status: preview.status },
     });
   }
+  const routeKey = await readRouteKey(transaction, organizationId, previewId);
+  if (routeKey === null) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+  const previewOrigin = runningPreviewOrigin(origin, routeKey);
   const sessionSeconds = input.sessionSeconds ??
     DEFAULT_PREVIEW_SESSION_SECONDS;
   const grant = await insertAccessGrant(transaction, {
@@ -99,8 +105,9 @@ export async function createRunningPreviewAccess(
   return {
     grantId: grant.grantId,
     grant: grant.secret,
-    exchangeUrl: `${origin}${RUNNING_PREVIEW_EXCHANGE_PATH}`,
-    previewUrl: `${origin}${runningPreviewViewPath(previewId)}`,
+    // The grant is posted to the preview's own origin and nowhere else.
+    exchangeUrl: `${previewOrigin}${RUNNING_PREVIEW_EXCHANGE_PATH}`,
+    previewUrl: `${previewOrigin}/`,
     expiresAt: grant.expiresAt,
     sessionSeconds,
   };

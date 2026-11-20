@@ -11,6 +11,7 @@
  * is for organization Admins only.
  */
 
+import { Buffer } from "node:buffer";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "@bakery/persistence";
@@ -32,6 +33,11 @@ import {
   resolveRange,
 } from "./reads.ts";
 import { isVisibleTo } from "./storage-areas.ts";
+import {
+  agentDeclaredReadAreas,
+  agentFileReadFor,
+} from "./agent-file-guard.ts";
+import { agentRootKeys } from "./agent-file-scope.ts";
 import { type StoragePolicy, storageQueryOf } from "./storage-tree.ts";
 import { ensureOrganizationTree } from "./storage-tree.ts";
 import { ensurePersonalFolder } from "./storage-working-areas.ts";
@@ -143,7 +149,8 @@ const UP_FROM = "with recursive up as (" +
  * record-area file an Admin purged stays readable as a tombstone: its versions
  * say their contents were removed.
  */
-async function readableEntry(
+export async function readableEntry(
+  context: Pick<ActionContext, "agentSession" | "sessionScopes">,
   tx: PgTransactionClient,
   organizationId: string,
   principalId: string,
@@ -172,6 +179,18 @@ async function readableEntry(
     [organizationId, row.id],
   );
   if (above.rows[0].in_system && !reader.isAdmin) notFound();
+  // An agent's read is judged again against its step's files section and the
+  // workflow's grants (section 17.6, O44); a person's passes untouched.
+  await agentFileReadFor(tx, context, {
+    organizationId,
+    principalId,
+    target: {
+      id: row.id,
+      policy: row.policy,
+      owner_id: row.owner_id,
+      system_key: row.system_key,
+    },
+  });
   return { ...row, path: above.rows[0].path };
 }
 
@@ -181,6 +200,7 @@ type ListedRow = EntryRow & {
   size_bytes: string | null;
   media_type: string | null;
   content_removed: boolean;
+  pinned: boolean;
 };
 
 /**
@@ -192,7 +212,8 @@ const LISTED_SELECT = "select " + ENTRY_COLUMNS + "," +
   " task.title as display_name, a.artifact_type as kind_name," +
   " coalesce(wv.size_bytes, av.size_bytes)::text as size_bytes," +
   " coalesce(wv.media_type, av.media_type) as media_type," +
-  " (e.purged_at is not null or av.purged_at is not null) as content_removed" +
+  " (e.purged_at is not null or av.purged_at is not null) as content_removed," +
+  " (a.pinned_at is not null) as pinned" +
   " from bakery.storage_entries e" +
   " left join bakery.storage_file_versions wv" +
   " on wv.organization_id = e.organization_id and wv.id = e.current_version_id" +
@@ -219,6 +240,7 @@ function listed(row: ListedRow, path: string) {
       ? null
       : Number(row.size_bytes),
     artifactId: row.artifact_id,
+    pinned: row.kind === "file" && row.pinned,
     contentRemoved: row.kind === "file" && row.content_removed,
     updatedAt: iso(row.updated_at),
   };
@@ -262,6 +284,7 @@ export async function readStorageFileByVersion(
   const hit = found.rows[0];
   if (!hit) notFound();
   const file = await readableEntry(
+    context,
     tx,
     organizationId,
     principalId,
@@ -299,11 +322,15 @@ export async function listStorageRoots(
       " and child.purged_at is null) as present",
     [organizationId],
   );
-  const keys = visibleRootKeys({
+  const everyKey = visibleRootKeys({
     principalId,
     isAdmin: reader.isAdmin,
     hasConnections: connections.rows[0].present,
   });
+  // An agent sees only the top-level areas its step's files section reaches,
+  // never its principal's personal folder, /trash or /system.
+  const declared = agentDeclaredReadAreas(context);
+  const keys = declared === null ? everyKey : agentRootKeys(everyKey, declared);
   const found = await tx.query<ListedRow>(
     LISTED_SELECT +
       " where e.organization_id = $1 and e.system_key = any($2::text[])",
@@ -333,6 +360,7 @@ export function createFolderLister(secret: string) {
       requireWorkTransaction(context);
     const limit = pageSize(input.limit);
     const folder = await readableEntry(
+      context,
       tx,
       organizationId,
       principalId,
@@ -467,6 +495,7 @@ export function createFileVersionLister(secret: string) {
       requireWorkTransaction(context);
     const limit = pageSize(input.limit);
     const file = await readableEntry(
+      context,
       tx,
       organizationId,
       principalId,
@@ -580,6 +609,7 @@ export function createFileUseLister(secret: string) {
       requireWorkTransaction(context);
     const limit = pageSize(input.limit);
     const file = await readableEntry(
+      context,
       tx,
       organizationId,
       principalId,
@@ -700,6 +730,7 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
     const { transaction: tx, organizationId, principalId } =
       requireWorkTransaction(context);
     const file = await readableEntry(
+      context,
       tx,
       organizationId,
       principalId,
@@ -804,5 +835,60 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
       bytes = await readBlobBytes(blobStore, organizationId, stored);
     }
     return new Response(bytes as unknown as BodyInit, { status: 200, headers });
+  };
+}
+
+/**
+ * The most bytes one session read returns. An agent's call answers JSON, so
+ * the bytes travel as base64; a larger file is read in ranges, and asking for
+ * all of it is refused by name rather than cut short.
+ */
+export const SESSION_CONTENT_MAX_BYTES = 8 * 1024 * 1024;
+
+function contentBase64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("base64");
+}
+
+/**
+ * A file's bytes for an agent's session call (storageFiles.content offered
+ * under files.read): the same reader, guard and range rules a person's
+ * download uses, answered as base64. The range comes from the call's own
+ * arguments, never from whatever headers the worker's request carried.
+ */
+export function createSessionFileContentReader(
+  blobStore?: OrganizationBlobStore,
+) {
+  const read = createFileContentReader(blobStore);
+  return async (
+    context: ActionContext,
+    reader: StorageReader,
+    input: Readonly<{ range?: string; revision?: number }>,
+  ): Promise<string> => {
+    const headers = new Headers();
+    if (input.range !== undefined) headers.set("range", input.range);
+    const response = await read(
+      { ...context, request: new Request(context.request.url, { headers }) },
+      reader,
+      { revision: input.revision ?? null },
+    );
+    const tooLarge = () =>
+      new StandardError({
+        code: "UNPROCESSABLE",
+        params: {
+          issues: [{
+            path: ["range"],
+            code: "session_content_too_large",
+            message: "session_content_too_large",
+          }],
+        },
+      });
+    const length = Number(response.headers.get("content-length") ?? "0");
+    if (length > SESSION_CONTENT_MAX_BYTES) {
+      await response.body?.cancel();
+      throw tooLarge();
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length > SESSION_CONTENT_MAX_BYTES) throw tooLarge();
+    return contentBase64(bytes);
   };
 }
