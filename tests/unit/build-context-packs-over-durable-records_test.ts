@@ -367,6 +367,8 @@ Deno.test("a non-text version becomes a reference with no text, never a blob", a
   assertEquals(pack.items.length, 1);
   const [item] = pack.items;
   assertEquals(item.kind, "image_reference");
+  assertEquals(item.limits, "binary_media");
+  assertEquals(item.redactions, 0);
   assertEquals(item.text, null);
   assertEquals(item.itemId, "diagram");
   assertEquals(
@@ -399,6 +401,88 @@ Deno.test("an unknown, unbounded count in the envelope blocks the pack instead o
 });
 
 Deno.test("every admitted item says how its count was obtained, and none is unknown", async () => {
+Deno.test("a PDF is a reference that says it has no text extractor, an unknown binary says it is binary", async () => {
+  for (
+    const [mediaType, kind, limits] of [
+      ["application/pdf", "pdf_reference", "no_text_extractor"],
+      ["application/zip", "binary_reference", "binary_media"],
+    ] as const
+  ) {
+    const { context } = contextWith({
+      id: VERSION,
+      purged_at: null,
+      artifact_id: ARTIFACT,
+      media_type: mediaType,
+      size_bytes: 4_096,
+      sha256: SHA,
+    });
+    const pack = await buildContextPack(context, {
+      envelope: ENVELOPE,
+      candidates: [{
+        itemId: "doc",
+        kind: "artifact" as const,
+        artifactVersionId: VERSION,
+        startByte: 0,
+        maxBytes: 1_024,
+        priority: 0,
+        required: false,
+      }],
+    });
+    const [item] = pack.items;
+    assertEquals(item.kind, kind);
+    assertEquals(item.limits, limits);
+    assertEquals(item.text, null);
+  }
+});
+
+Deno.test("a caller's own text carries no limit and no redaction", async () => {
+  const pack = await build({
+    envelope: ENVELOPE,
+    candidates: [{
+      itemId: "note",
+      kind: "text",
+      text: "plain note",
+      priority: 0,
+      required: false,
+    }],
+  }) as { items: Array<{ limits: unknown; redactions: number }> };
+  assertEquals(pack.items[0].limits, null);
+  assertEquals(pack.items[0].redactions, 0);
+});
+
+Deno.test("a pack digest moves when an item's limit moves", async () => {
+  const digestFor = async (mediaType: string) => {
+    const { context } = contextWith({
+      id: VERSION,
+      purged_at: null,
+      artifact_id: ARTIFACT,
+      media_type: mediaType,
+      size_bytes: 4_096,
+      sha256: SHA,
+    });
+    const pack = await buildContextPack(context, {
+      envelope: ENVELOPE,
+      candidates: [{
+        itemId: "doc",
+        kind: "artifact" as const,
+        artifactVersionId: VERSION,
+        startByte: 0,
+        maxBytes: 1_024,
+        priority: 0,
+        required: false,
+      }],
+    });
+    return pack.packDigest;
+  };
+  // Same sha, same size, different media type: kind and limit both differ.
+  assertEquals(
+    (await digestFor("application/pdf")) ===
+      (await digestFor("application/zip")),
+    false,
+  );
+});
+
+Deno.test("an unknown count is never counted as zero", async () => {
   const pack = await build({
     envelope: ENVELOPE,
     candidates: [textCandidate("known", "text")],
