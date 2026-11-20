@@ -513,7 +513,12 @@ for (
       await expect(form).toContainText(
         "Bakery will link version 4 of Deploy runbook.",
       );
-      await shot(page, "library-memory-correct", [], { windowOnly: true });
+      // One viewport only: changing the size would swap the panel between the
+      // inspector column and the bottom sheet and drop the open form.
+      await shot(page, "library-memory-correct", [], {
+        windowOnly: true,
+        only: viewport.name === "desktop" ? "desktop" : "mobile",
+      });
       await form.getByRole("button", { name: "Save and approve" }).click();
       await expect(sheet.getByTestId("memory-toast")).toContainText(
         "Correction saved and approved.",
