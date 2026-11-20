@@ -884,19 +884,27 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "4bd35c217d584662c4550c6a956fee67ec0e4577",
+    "7af7d8692f3c06834a7192c596341ff6d0cf9079",
   ];
   const approvedDigest =
-    "sha256:d310ef8b2cf58359b1873225acda4091f15861d175c6244fd1e59b221dfd4708";
+    "sha256:ac3b68c9d44e9c75c6039ba863248762e5d5f56f9c54520b42766c5ac0392b42";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #400 S2 re-bind onto main 4bd35c217: #728's (#431) approval, kept unchanged.
+    // Displaced by the #400 S2 re-bind onto main 7af7d8692 (#730 merged): main's own
+    // approval, kept unchanged.
+    "sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96",
+    // Displaced by the #72 memory re-bind onto main 4bd35c217 (#728 merged): main's own
+    // approval, kept unchanged.
     "sha256:f61c0f4a77facec344684ffb9915710f8ea65201a8c67b62bbef25382a56b7c3",
-    // Displaced when main moved again (#728 merged): the digest follows the tree,
-    // so the earlier one no longer authorises it.
-    "sha256:0253d09fb13a6878f5a5fb87369641346eb187c8362e663b1628fc0937074929",
+    // Displaced by the same re-bind: my previous approval on the earlier main.
+    "sha256:7d9b85a83e5f5a41393e5e6dcc407866073723de501b560c7518c019ba25c14e",
+    // Displaced by the #72 memory current-revision projection re-bind: the same
+    // fields on earlier mains (#731 and #735, then #726 and #729, changed other
+    // contracts).
+    "sha256:0fb3b25cf12e177a1109c01437a66d54d4b52f7353c5b5bfa3715e2950ffef89",
+    "sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b",
     // Displaced when main moved again (#735 and #731 merged): the digest follows the
     // tree, so the earlier one no longer authorises it.
     "sha256:465b0eac418d01b44c8e533f81a2236c7e9a75bdfc572d13453c4d5f8c531537",
@@ -1219,35 +1227,6 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     // Displaced by the #431 private skills re-bind onto main a83b7ec57 (access
     // and the skill:author permission follow the personal/organization split).
     "sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc",
-    // Displaced when main moved again (#735 and #731 merged): the digest follows the
-    // tree, so the earlier one no longer authorises it.
-    "sha256:98b0efb7a692f2c55762b24d4fab7fba8c50d6d401db96d229bcf701dc869f0c",
-    // Displaced when main moved again (#729 and #732 merged): the digest follows the
-    // tree, so the earlier one no longer authorises it.
-    "sha256:fa3cd4919cad71a56ef317c528e412072e557e35f49069c2ea18ec9a1dcb3f4f",
-    // Displaced by the #400 S2 re-bind onto main 889c2fbfb: the approval in force before it.
-    "sha256:67dd9ea9809f99be4aeb719ea1edaaa80cec17fce3d6ebe6b814fb86fce62e50",
-    // Displaced by the #400 S2 re-bind onto main 4e1f1fdf6: the approval in force before it.
-    "sha256:64858f3ae4c0236b9c7335599e50d05f0adad1c8fc5989d4eed5cf97f2768577",
-    // Displaced by the #400 re-bind onto main 1ce09ba92 (#714 merged).
-    "sha256:1d16dc619e99c9bae62393095f6a862b1005d4e455d11016fa4ba6899cbd6ecf",
-    // Newest first, matching the file: a displaced approval is prepended, so the
-    // approval this change removed from force heads the history it joins.
-    // Displaced by the #400 re-bind onto main 94e8c0e8c.
-    "sha256:5746a2c129a47b9dba605b034d3d1e4968b55ca95e922c75cbff0207d1057fc5",
-    // Displaced by the #400 re-bind onto main de64639a4.
-    "sha256:5178d631d0dfff391ce01c4b044cb87ed2684f95e529dba270b3a7aea30440c8",
-    // Displaced by the #400 re-bind onto main 6eefa2138 (#721 and #710 merged).
-    "sha256:ed93d6ab9c60fe57f298963e296af917252d61894392c63eec098f47242eb94d",
-    // Displaced by the #400 re-bind onto main 9da888250 (#706 merged; the same
-    // renamed input field, only the base and the digest moved).
-    "sha256:d6aa2d82f6414d196b7ee0780b964513e0c25772e3b499c65c775e04a7fa43c7",
-    // Displaced by the #400 re-bind onto main a83b7ec57 (#702 and #711 merged;
-    // the same renamed input field, only the base and the digest moved).
-    "sha256:8f194c24ed520a1644c7d1e0575ceeb56761f2675962b0b9c0d8adfbc927b726",
-    // Displaced by the #400 re-bind onto main 5b8d39e85 (the same renamed input
-    // field; only the base and the compatibility digest moved).
-    "sha256:b810e7ccc1b92adfbd41c4baee6b7ab89bb7ea2496b80e255731454eaff4e19a",
   ];
   const options = {
     baseRef: approvedBases[0],

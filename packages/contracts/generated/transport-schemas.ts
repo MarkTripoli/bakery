@@ -21771,6 +21771,7 @@ const transportSchemas = {
         "topic",
         "tags",
         "currentRevisionId",
+        "currentRevision",
         "sourceState",
         "status",
         "createdAt",
@@ -21787,10 +21788,12 @@ const transportSchemas = {
         "status": "enum(proposed|active|retired)",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "currentRevision": "MemoryRevision|null"
       },
       "nullableFields": [
-        "currentRevisionId"
+        "currentRevisionId",
+        "currentRevision"
       ],
       "description": "Stable repository-scoped learning topic; its currentRevisionId points at the latest accepted memory_revisions row and advances only through the normal compare-and-swap update path, never by editing content in place.",
       "fieldDescriptions": {
@@ -21803,7 +21806,8 @@ const transportSchemas = {
         "status": "Current lifecycle status of the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "currentRevision": "The revision currentRevisionId points at, as this reader sees it (its sourceState, sourceName and sourceRevision are judged against the reader's live access at read time), so wording, source, confidence and expiry come with the entry. Null while the entry has no current revision."
       }
     },
     "MemoryRevision": {
@@ -21816,6 +21820,8 @@ const transportSchemas = {
         "reason",
         "sourceArtifactVersionId",
         "sourceState",
+        "sourceName",
+        "sourceRevision",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -21838,13 +21844,17 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "reason": "string|null"
+        "reason": "string|null",
+        "sourceName": "string|null",
+        "sourceRevision": "integer|null"
       },
       "nullableFields": [
         "supersedesId",
         "expiresAt",
         "reason",
-        "sourceArtifactVersionId"
+        "sourceArtifactVersionId",
+        "sourceName",
+        "sourceRevision"
       ],
       "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
@@ -21861,7 +21871,9 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "reason": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking."
+        "reason": "Caller-supplied justification for a manually submitted revision, shown in revision history; null for revisions produced by workflow promotion. Never used for retrieval ranking.",
+        "sourceName": "Name of the artifact whose version this revision cites, so a reader sees which document it came from without a second read. Null unless sourceState is available or deleted: a reader who cannot read artifact versions, or a version that cannot be found, is never given a name.",
+        "sourceRevision": "Revision number of the cited artifact version, shown as the document's version. Null exactly when sourceName is null."
       },
       "optionalFields": [
         "reason"
