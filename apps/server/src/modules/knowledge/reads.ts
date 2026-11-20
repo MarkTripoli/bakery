@@ -298,7 +298,9 @@ async function readInlineBytes(
     // read, and guessing would hide the constraint being dropped.
     throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
   }
-  await assertStoredBytes(stored, stored.content);
+  await assertStoredBytes(stored, stored.content, {
+    mismatch: "content-mismatch",
+  });
   return stored.content;
 }
 
@@ -348,7 +350,7 @@ export async function readBlobBytes(
     stored.sha256,
     Number(stored.size_bytes),
   );
-  await assertStoredBytes(stored, bytes);
+  await assertStoredBytes(stored, bytes, { mismatch: "content-mismatch" });
   return bytes;
 }
 

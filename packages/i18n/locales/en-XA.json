@@ -4906,6 +4906,8 @@
   "files.kind.none": "⟦—⟧",
   "files.file.missing": "⟦Ŧĥàŧ ƒïļë ïš ñôŧ ïñ ŧĥïš ƒôļðëŕ. Ïŧ ɱàÿ ĥàṽë ƀëëñ ɱôṽëð ôŕ ŕëɱôṽëð, ôŕ ÿôû ɱàÿ ñôŧ ĥàṽë àççëšš ŧô ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "files.file.finding": "⟦Ƒïñðïñĝ ŧĥàŧ ƒïļë… ŧëšŧ⟧",
+  "problems.ARTIFACT_CONTENT_MISMATCH.title": "⟦Ŧĥïš ƒïļë ðôëš ñôŧ ɱàŧçĥ ïŧš ŕëçôŕð ŧëšŧ çôþÿŧ⟧",
+  "problems.ARTIFACT_CONTENT_MISMATCH.description": "⟦Ŵĥàŧ ïš šŧôŕëð ïš ñôŧ ŵĥàŧ ŵàš ŕëçôŕðëð, šô Ɓàķëŕÿ ŵïļļ ñôŧ šĥôŵ ôŕ ðôŵñļôàð ïŧ. Àšķ àñ ôŕĝàñïžàŧïôñ Àðɱïñ ŧô çĥëçķ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "settings.plugins.about.version": "⟦Ṽëŕšïôñ…⟧",
   "settings.plugins.about.published": "⟦Þûƀļïšĥëð ŧ⟧",
   "settings.plugins.about.fingerprint": "⟦Ƒïñĝëŕþŕïñŧ ŧ⟧",
