@@ -994,7 +994,7 @@ export type SecretIdentityAdmission = {
   repositoryProfile: unknown;
   requestedBy: string | null;
   runId: string;
-  secretRef: string | null;
+  identityRef: string | null;
 };
 
 /** Durable requester U is the only principal evaluated against secret policy. */
@@ -1007,7 +1007,7 @@ export async function assertSecretIdentityRepositoryAdmission(
     admission.repositoryProfile,
   );
   const input = SecretIdentityReadInputSchema.safeParse({
-    secretRef: admission.secretRef,
+    identityRef: admission.identityRef,
   });
   if (
     admission.executionMode !== "repository" ||
@@ -1044,7 +1044,7 @@ export async function assertSecretIdentityRepositoryAdmission(
         and secret.allowed_actions @> '["identity.read"]'::jsonb`,
     [
       admission.organizationId,
-      input.data.secretRef,
+      input.data.identityRef,
       admission.runId,
       admission.requestedBy,
       admission.applicationId,
@@ -1054,14 +1054,23 @@ export async function assertSecretIdentityRepositoryAdmission(
   if (eligible.rows.length !== 1) secretIdentityAdmissionRequired();
 }
 
-function secretRefFromEffectiveInput(input: unknown): string | null {
+/**
+ * The identity reference a job's stored input carries, or null when the
+ * workflow-owned part of the input is not exactly one reference. The keys the
+ * server adds at admission (the frozen repository profile and the step notes)
+ * are not workflow-owned and never make the strict parse fail.
+ */
+export function identityRefFromEffectiveInput(input: unknown): string | null {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     return null;
   }
-  const { repositoryProfile: _repositoryProfile, ...workflowInput } =
-    input as Record<string, unknown>;
+  const workflowInput = Object.fromEntries(
+    Object.entries(input as Record<string, unknown>).filter(([key]) =>
+      !ADMISSION_ADDED_ROOT_KEYS.includes(key)
+    ),
+  );
   const parsed = SecretIdentityReadInputSchema.safeParse(workflowInput);
-  return parsed.success ? parsed.data.secretRef : null;
+  return parsed.success ? parsed.data.identityRef : null;
 }
 
 /** Shared finite evidence validation for live publication and immutable admission. */
@@ -1752,7 +1761,7 @@ export async function admitRepositoryExecutionJob(
       : (row.input as Record<string, unknown>).repositoryProfile,
     requestedBy: row.requested_by,
     runId: row.run_id,
-    secretRef: secretRefFromEffectiveInput(input),
+    identityRef: identityRefFromEffectiveInput(input),
   });
   const requirements = repositoryExecutionRequirements(
     profile,
