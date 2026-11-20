@@ -23,6 +23,7 @@ import {
   workerRequest,
 } from "../helpers/worker-execution.ts";
 import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-job.ts";
+import { bearerCall, mintToken } from "../helpers/access-tokens.ts";
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 type Json = Record<string, unknown>;
@@ -413,4 +414,97 @@ Deno.test("an agent cannot grant itself a folder, and a grant never reaches the 
       );
       assertEquals(refused.code, "STORAGE_AREA_REFUSED", row.system_key);
     }
+  }));
+
+/** A bearer-token request: an Admin's access token acts as an agent. */
+function asToken(
+  fixture: Fixture,
+  secret: string,
+  method: string,
+  path: string,
+  body?: unknown,
+  ifMatch?: number,
+): Promise<Response> {
+  return Promise.resolve(bearerCall(
+    fixture as unknown as Parameters<typeof bearerCall>[0],
+    method,
+    path,
+    secret,
+    {
+      body,
+      headers: ifMatch === undefined ? {} : { "If-Match": '"' + ifMatch + '"' },
+    },
+  ));
+}
+
+// The storage routes take browser sessions only, so a token never reaches the
+// grant handlers; the handlers' own person check is pinned in
+// tests/unit/agent-file-grants-person_test.ts.
+Deno.test("an Admin's access token cannot grant or revoke a folder: only a person can", () =>
+  withWorkerFixture(async (fixture) => {
+    const folder = await json(
+      await asPerson(fixture, "POST", "/v1/storage/folders", {
+        path: "/shared/agent-448-token",
+      }),
+      201,
+    );
+    const job = await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const token = await mintToken(
+      fixture as unknown as Parameters<typeof mintToken>[0],
+      undefined,
+      ["bakery:admin"],
+      "agent-448 admin token",
+    );
+    const request = {
+      workflowId: job.workflowId,
+      folderId: folder.id,
+      access: "write",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    };
+
+    assertEquals(
+      await refusal(
+        await asToken(
+          fixture,
+          token.secret,
+          "POST",
+          "/v1/storage/agent-file-grants",
+          request,
+        ),
+      ),
+      { status: 401, code: "AUTH_INVALID", reason: undefined },
+    );
+    const none = await fixture.pgDatabase.query(
+      "select 1 from bakery.agent_file_grants where folder_id = $1",
+      [folder.id],
+    );
+    assertEquals(none.rows.length, 0);
+
+    // The same Admin, acting as a person, grants; the token cannot revoke it.
+    const grant = await json(
+      await asPerson(fixture, "POST", "/v1/storage/agent-file-grants", request),
+      201,
+    );
+    assertEquals(
+      await refusal(
+        await asToken(
+          fixture,
+          token.secret,
+          "POST",
+          "/v1/storage/agent-file-grants/" + grant.id + "/revoke",
+          undefined,
+          grant.version as number,
+        ),
+      ),
+      { status: 401, code: "AUTH_INVALID", reason: undefined },
+    );
+    const kept = await fixture.pgDatabase.query<{ revoked: boolean }>(
+      "select revoked_at is not null as revoked from bakery.agent_file_grants where id = $1",
+      [grant.id],
+    );
+    assertEquals(kept.rows[0].revoked, false);
   }));
