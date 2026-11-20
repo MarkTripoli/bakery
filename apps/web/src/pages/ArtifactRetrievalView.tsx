@@ -208,6 +208,8 @@ export type ArtifactPreviewViewProps =
   & {
     readonly label: string;
     readonly footer?: ReactNode;
+    /** `full` for a file opened full size; a panel's size otherwise. */
+    readonly size?: "panel" | "full";
   }
   & (
     | { readonly state: "content"; readonly content: UI.ArtifactViewerContent }
@@ -273,6 +275,7 @@ export function ArtifactPreviewView(props: ArtifactPreviewViewProps) {
       label={props.label}
       content={content}
       footer={props.footer}
+      size={props.size}
     />
   );
 }

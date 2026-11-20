@@ -317,7 +317,12 @@ export function ArtifactPreviewBody(
         label={label}
         state="content"
         footer={footer}
-        content={{ kind: state.kind, src: mediaUrl ?? "", label }}
+        content={{
+          kind: state.kind,
+          src: mediaUrl ?? "",
+          label,
+          unavailableLabel: t("artifact.preview.error"),
+        }}
       />
     );
   }

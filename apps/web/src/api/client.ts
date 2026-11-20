@@ -577,8 +577,18 @@ export type FileSearchPage = ClientOutputMap["Page<FileSearchHit>"];
 export type FileSearchHit = FileSearchPage["items"][number];
 export type FileSearchInput = Pick<
   ClientInputMap["FileSearchQuery"],
-  "query" | "path" | "kind" | "mediaGroup" | "producerId" | "cursor"
+  | "query"
+  | "path"
+  | "kind"
+  | "mediaGroup"
+  | "producerId"
+  | "factKey"
+  | "factValue"
+  | "cursor"
 >;
+/** What the files of one kind record: each key with each value it holds and how many files hold it. */
+export type FileFactPage = ClientOutputMap["Page<FileFact>"];
+export type FileFact = FileFactPage["items"][number];
 export type LibraryPage = ClientOutputMap["Page<LibraryEntry>"];
 export type LibraryEntry = LibraryPage["items"][number];
 
@@ -621,6 +631,22 @@ export type BakeryApiClient = {
       input: FileSearchInput,
       signal?: AbortSignal,
     ) => Promise<ApiResult<FileSearchPage>>;
+    /**
+     * The address a video or audio element plays a file from. A media element
+     * cannot send the organization header, so the organization is in the query,
+     * which the server checks against the caller's membership.
+     */
+    readonly mediaUrl: (
+      organizationId: string,
+      fileId: string,
+      revision?: number,
+    ) => string;
+    /** The facts the files of one kind record, for the Fact filter. */
+    readonly facts: (
+      organizationId: string,
+      kind: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<FileFactPage>>;
     /** One folder of the read-only library mirror (`/library`, `/library/kinds`). */
     readonly library: (
       organizationId: string,
@@ -3115,6 +3141,28 @@ export function createBakeryApiClient({
               ...input,
               limit: 25,
             }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      mediaUrl(org, fileId, revision) {
+        const query = new URLSearchParams({ organizationId: org });
+        if (revision !== undefined) query.set("revision", String(revision));
+        return `${baseUrl.replace(/\/$/, "")}/v1/storage/files/${
+          encodeURIComponent(fileId)
+        }/content?${query.toString()}`;
+      },
+      async facts(org, kind, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["files.facts"]({ kind }, { signal }),
           };
         } catch (error) {
           return failed(error);

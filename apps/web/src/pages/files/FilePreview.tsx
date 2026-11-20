@@ -41,10 +41,31 @@ const imageTypes = new Set([
   "image/webp",
 ]);
 
-/** The file's contents as far as the page can show them: text and images, bounded. */
+/** How many lines of a text file the details panel shows; opened, all of it. */
+export const PANEL_LINES = 20;
+
+/** What the page can show of a file, from its media type. */
+export function previewKind(
+  mediaType: string | null | undefined,
+): "text" | "image" | "media" | "other" {
+  const type = (mediaType ?? "").split(";", 1)[0]!.trim().toLowerCase();
+  if (textModes[type] !== undefined) return "text";
+  if (imageTypes.has(type)) return "image";
+  if (type.startsWith("video/") || type.startsWith("audio/")) return "media";
+  return "other";
+}
+
+/** The file's contents as far as the page can show them: text, images and players, bounded. */
 export function FilePreview(
-  { file, version, onMismatch }: {
+  { file, version, full = false, onOpenable, onMismatch }: {
     readonly file: StorageFolderItem;
+    /**
+     * Told whether the file has anything to open: false for a file with no
+     * preview, one too large or unreadable, and a video that cannot be played.
+     */
+    readonly onOpenable?: (openable: boolean) => void;
+    /** Opened full size in the page, rather than in the details panel. */
+    readonly full?: boolean;
     /** An older version being shown; null for the current one. */
     readonly version: StorageFileVersion | null;
     /**
@@ -73,6 +94,12 @@ export function FilePreview(
     .split(";", 1)[0]!.trim().toLowerCase();
   const textMode = textModes[mediaType];
   const image = imageTypes.has(mediaType);
+  // A video or audio file is played from its address, never read into the page.
+  const media = mediaType.startsWith("video/")
+    ? "video"
+    : mediaType.startsWith("audio/")
+    ? "audio"
+    : null;
   const supported = image || textMode !== undefined;
   const limit = image ? MAX_IMAGE_PREVIEW_BYTES : MAX_TEXT_PREVIEW_BYTES;
   const tooLarge = (sizeBytes ?? 0) > limit;
@@ -164,6 +191,9 @@ export function FilePreview(
     setMismatch(refusedAsMismatch);
     onMismatch?.(refusedAsMismatch);
   }, [refusedAsMismatch, onMismatch]);
+  // A player the browser could not play: it says so, and offers the download.
+  const [playFailed, setPlayFailed] = useState(false);
+  useEffect(() => setPlayFailed(false), [file.id, version?.revision]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!image || !content.data) return;
@@ -176,6 +206,10 @@ export function FilePreview(
       setImageUrl(null);
     };
   }, [content.data, image, mediaType]);
+
+  const openable = !contentRemoved &&
+    (media !== null ? !playFailed : supported && !tooLarge && !content.isError);
+  useEffect(() => onOpenable?.(openable), [onOpenable, openable]);
 
   if (contentRemoved) return null;
   // A refusal about the file, or a host that could not check it, is said the
@@ -223,6 +257,33 @@ export function FilePreview(
           {translate("files.preview.state.mismatchDescription")}
         </UI.Text>
       </UI.Stack>
+    );
+  }
+  if (media !== null && playFailed) {
+    // Nothing is wrong with Bakery and the details' own Download sits just
+    // below, so this is a quiet line, not an alert.
+    return (
+      <UI.Text variant="muted">{translate("files.preview.unplayable")}</UI.Text>
+    );
+  }
+  if (media !== null && scope.organizationId !== null) {
+    return (
+      <ArtifactPreviewView
+        size={full ? "full" : "panel"}
+        state="content"
+        label={translate("files.preview.title")}
+        content={{
+          kind: media,
+          src: api.files.mediaUrl(
+            scope.organizationId,
+            file.id,
+            version?.revision,
+          ),
+          label: translate("files.preview.player", { name: file.name }),
+          unavailableLabel: translate("files.preview.error"),
+          onError: () => setPlayFailed(true),
+        }}
+      />
     );
   }
   if (!supported) {
@@ -281,11 +342,17 @@ export function FilePreview(
           alt: translate("files.preview.image", { name: file.name }),
           unavailableLabel: translate("files.preview.error"),
         }
-        : {
-          kind: textMode ?? "text",
-          text: new TextDecoder().decode(content.data),
-          cut: true,
-        }}
+        : (() => {
+          // The panel shows the first lines, cut with a fade; opened, all of it.
+          const all = new TextDecoder().decode(content.data);
+          const lines = all.split("\n");
+          const cut = !full && lines.length > PANEL_LINES;
+          return {
+            kind: textMode ?? "text",
+            text: cut ? lines.slice(0, PANEL_LINES).join("\n") : all,
+            cut,
+          };
+        })()}
     />
   );
 }

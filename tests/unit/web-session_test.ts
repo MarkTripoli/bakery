@@ -108,6 +108,8 @@ function fakeApi(
       search: rejecting,
       content: rejecting,
       probe: rejecting,
+      mediaUrl: () => "",
+      facts: rejecting,
     },
     invitations: {
       preview: rejecting,

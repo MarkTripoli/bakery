@@ -1,10 +1,79 @@
 import { createHash } from "node:crypto";
+import { deflateSync } from "node:zlib";
+import { DEMO_WEBM, STANDUP_WEBM } from "./media-fixtures.ts";
 import type { Page } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
 } from "./mock-session.ts";
 import { uuid } from "./issues-fixture.ts";
+
+/** A table of the CRC-32 the PNG format asks for each chunk. */
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const byte of bytes) c = CRC_TABLE[(c ^ byte) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type: string, data: Uint8Array): Buffer {
+  const body = Buffer.concat([Buffer.from(type, "ascii"), Buffer.from(data)]);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([length, body, crc]);
+}
+
+/**
+ * A 720x405 picture of three boxes joined by lines, built here so the fixture
+ * carries no binary: opening it full size has to look like something.
+ */
+function diagramPng(): Buffer {
+  const width = 720;
+  const height = 405;
+  const boxes = [
+    { x: 60, y: 140, w: 170, h: 120, color: [91, 110, 225] },
+    { x: 275, y: 140, w: 170, h: 120, color: [74, 160, 140] },
+    { x: 490, y: 140, w: 170, h: 120, color: [225, 150, 80] },
+  ];
+  const row = Buffer.alloc(1 + width * 3);
+  const raw = Buffer.alloc((1 + width * 3) * height);
+  for (let y = 0; y < height; y++) {
+    row.fill(0);
+    for (let x = 0; x < width; x++) {
+      let color = [244, 246, 250];
+      if (y >= 196 && y <= 203 && x >= 230 && x <= 490) color = [150, 158, 175];
+      for (const box of boxes) {
+        if (
+          x >= box.x && x < box.x + box.w && y >= box.y && y < box.y + box.h
+        ) {
+          color = box.color;
+        }
+      }
+      row[1 + x * 3] = color[0]!;
+      row[2 + x * 3] = color[1]!;
+      row[3 + x * 3] = color[2]!;
+    }
+    row.copy(raw, y * (1 + width * 3));
+  }
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8; // bit depth
+  header[9] = 2; // truecolor
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(raw)),
+    pngChunk("IEND", new Uint8Array()),
+  ]);
+}
 
 const STAMP = "2026-01-01T00:00:00.000Z";
 
@@ -117,12 +186,12 @@ export const TREE: Entry[] = [
   {
     id: 41,
     parent: 20,
-    path: "/projects/web-app/demo.mp4",
-    name: "demo.mp4",
+    path: "/projects/web-app/demo.webm",
+    name: "demo.webm",
     kind: "file",
     policy: "record",
     kindName: null,
-    mediaType: "video/mp4",
+    mediaType: "video/webm",
     sizeBytes: 3_400_000,
     updatedAt: "2026-01-03T10:00:00.000Z",
   },
@@ -274,6 +343,10 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
     contents: [] as (string | null)[],
     /** The query string of each search read. */
     searches: [] as string[],
+    /** The query string of each facts read. */
+    facts: [] as string[],
+    /** The Range header of each content read that sent one: what a player asked for. */
+    ranges: [] as string[],
   };
   const json = (route: import("@playwright/test").Route, body: string) =>
     route.fulfill({ status: 200, contentType: "application/json", body });
@@ -491,6 +564,25 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
         ),
       ),
   );
+  // What the plan files record, as the facts list answers it: each key with
+  // each value it holds and how many files hold it. plan.md holds risk:high.
+  const FACTS = [
+    { kind: "plan", key: "risk", value: "high", files: 1 },
+    { kind: "plan", key: "risk", value: "low", files: 2 },
+    { kind: "plan", key: "team", value: "web", files: 1 },
+  ];
+  await page.route(
+    (url) => url.pathname === "/v1/files/facts",
+    (route) => {
+      const url = new URL(route.request().url());
+      seen.facts.push(url.search);
+      const kind = url.searchParams.get("kind");
+      return json(
+        route,
+        page_(FACTS.filter((fact) => kind === null || fact.kind === kind)),
+      );
+    },
+  );
   await page.route(
     (url) => url.pathname === "/v1/files/search",
     (route) => {
@@ -498,6 +590,8 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
       seen.searches.push(url.search);
       const kindFilter = url.searchParams.get("kind");
       const producerFilter = url.searchParams.get("producerId");
+      const factKey = url.searchParams.get("factKey");
+      const factValue = url.searchParams.get("factValue");
       const query = (url.searchParams.get("query") ?? "").toLowerCase();
       const under = url.searchParams.get("path");
       const group = url.searchParams.get("mediaGroup");
@@ -555,6 +649,12 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           kindFilter === null || entry.kindName?.toLowerCase() === kindFilter
         )
         .filter(() => producerFilter === null || producerFilter === uuid(8800))
+        // Only plan.md records a fact in this tree: risk is high.
+        .filter((entry) =>
+          factKey === null ||
+          (entry.name === "plan.md" && factKey === "risk" &&
+            factValue === "high")
+        )
         .map((entry) => ({
           source: "files",
           entryId: uuid(entry.id),
@@ -602,12 +702,78 @@ export async function filesFixture(page: Page, options: FilesOptions = {}) {
           }),
         });
       }
-      if (fileId === uuid(43)) {
-        // A 1x1 transparent PNG.
-        const png = Buffer.from(
-          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-          "base64",
+      // A player's reads: the whole file, or the Range it asked for, as a real
+      // server answers it (206 with Content-Range; 416 past the end).
+      const media = fileId === uuid(41)
+        ? { bytes: DEMO_WEBM, type: "video/webm" }
+        : fileId === uuid(47)
+        ? { bytes: STANDUP_WEBM, type: "audio/webm" }
+        // A file that says it is video and is not: no player can decode it.
+        : fileId === uuid(48)
+        ? {
+          bytes: Buffer.from(
+            "This is not a video, so no player can decode it.",
+          ),
+          type: "video/webm",
+        }
+        : null;
+      if (media !== null) {
+        const range = route.request().headers()["range"];
+        const total = media.bytes.length;
+        const common = {
+          "content-type": media.type,
+          "accept-ranges": "bytes",
+        };
+        if (range === undefined) {
+          return route.fulfill({
+            status: 200,
+            body: media.bytes,
+            headers: { ...common, "content-length": String(total) },
+          });
+        }
+        seen.ranges.push(range);
+        const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+        const start = match?.[1] ? Number(match[1]) : 0;
+        const end = match?.[2]
+          ? Math.min(Number(match[2]), total - 1)
+          : total - 1;
+        if (start >= total || start > end) {
+          return route.fulfill({
+            status: 416,
+            headers: { ...common, "content-range": `bytes */${total}` },
+          });
+        }
+        const slice = media.bytes.subarray(start, end + 1);
+        return route.fulfill({
+          status: 206,
+          body: slice,
+          headers: {
+            ...common,
+            "content-length": String(slice.length),
+            "content-range": `bytes ${start}-${end}/${total}`,
+          },
+        });
+      }
+      if (fileId === uuid(49)) {
+        // Forty lines: more than the panel shows, so opening it has something to add.
+        const text = Buffer.from(
+          Array.from({ length: 40 }, (_, index) => `Line ${index + 1}`).join(
+            "\n",
+          ),
         );
+        return route.fulfill({
+          status: 200,
+          body: text,
+          headers: {
+            "content-type": "text/plain",
+            "content-length": String(text.length),
+            etag: `"${createHash("sha256").update(text).digest("hex")}"`,
+          },
+        });
+      }
+      if (fileId === uuid(43)) {
+        // A real picture, wide enough that opening it full size is visible.
+        const png = diagramPng();
         return route.fulfill({
           status: 200,
           body: png,
