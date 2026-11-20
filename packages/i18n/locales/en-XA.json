@@ -4980,7 +4980,10 @@
   "files.madeBy.agentUnnamed": "⟦Àñ àĝëñŧ ŵôŕķïñĝ ƒôŕ {person} ŧëšŧ çôþ⟧",
   "files.madeBy.agentAccess": "⟦Ŵŕïŧŧëñ ŵïŧĥ {person}'š àççëšš ŧô ŧĥïš ƒôļðëŕ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "files.version.agentBadge": "⟦Àĝëñŧ⟧",
-  "files.version.agentHelp": "⟦Àñ àĝëñŧ ŵŕôŧë ŧĥïš ṽëŕšïôñ. Ôþëñ ïŧ ŧô šëë ŵĥïçĥ šëššïôñ, àñð ŵĥôšë àççëšš ïŧ ûšëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "files.version.agentHelpLabel": "⟦Àƀôûŧ àĝëñŧ ṽëŕšïôñš ŧëšŧ⟧",
-  "files.version.chooseAgent": "⟦Šĥôŵ ṽëŕšïôñ {number}, ŵŕïŧŧëñ ƀÿ àñ àĝëñŧ ŧëšŧ çôþÿ ŧë⟧"
+  "files.version.chooseAgent": "⟦Šĥôŵ ṽëŕšïôñ {number}, ŵŕïŧŧëñ ƀÿ àñ àĝëñŧ ŧëšŧ çôþÿ ŧë⟧",
+  "files.madeBy.agentAccessUnknown": "⟦Ŵĥôšë àççëšš ïŧ ûšëð ŵàš ñôŧ ŕëçôŕðëð. ŧëšŧ çôþÿ ŧ⟧",
+  "files.madeBy.agentOnly": "⟦{agent}, àñ àĝëñŧ ŧëš⟧",
+  "files.madeBy.agentAlone": "⟦Àñ àĝëñŧ…⟧",
+  "files.version.agentHelp": "⟦Àñ àĝëñŧ ŵŕôŧë ŧĥïš ṽëŕšïôñ. Ŧĥë ļïñë ƀëļôŵ ñàɱëš ŧĥë àĝëñŧ àñð ŵĥôšë àççëšš ïŧ ûšëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

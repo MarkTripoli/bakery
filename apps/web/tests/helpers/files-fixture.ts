@@ -204,6 +204,26 @@ export const VERSIONS: Version[] = [
   },
 ];
 
+/** An agent's version with no person recorded, beside one with no agent name. */
+export const AGENT_NO_PERSON_VERSIONS: Version[] = [
+  {
+    revision: 2,
+    isCurrent: true,
+    sizeBytes: 4200,
+    makerKind: "agent",
+    makerName: null,
+    agentName: "Reviewer",
+  },
+  {
+    revision: 1,
+    isCurrent: false,
+    sizeBytes: 3900,
+    makerKind: "agent",
+    makerName: null,
+    agentName: null,
+  },
+];
+
 export const USES: Use[] = [
   {
     id: 1,

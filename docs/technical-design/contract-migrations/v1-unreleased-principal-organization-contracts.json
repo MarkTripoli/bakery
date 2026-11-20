@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "c8cf571ea9fea05e16ae93dfa83ccfd414687a29"
+    "7b27af0ec5771c8deab67b80326829d0ddc2dbcd"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:31808caf51d5e00bcaec8ae11166e203ae774d8d228aca45d0f26ffe7c24ca45",
-  "reason": "#448 S3-S6 write set, limits, undo and read set re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main c8cf571ea9fea05e16ae93dfa83ccfd414687a29: the breaking drift is unchanged.",
+  "reason": "#448 S3-S6 write set, limits, undo and read set re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 7b27af0ec5771c8deab67b80326829d0ddc2dbcd: the breaking drift is unchanged.",
   "priorApprovals": [
     {
       "fromBaseRefs": [
