@@ -74,7 +74,12 @@ export const ARTIFACT_PROBE_UNIT_PROPERTIES: readonly string[] = Object.freeze([
   "--property=ReadOnlyPaths=@SPOOL_DIR@",
 ]);
 
-const repositoryRoot = new URL("../../../../", import.meta.url);
+// Five levels, not four: this file sits in `modules/knowledge/`, one directory
+// deeper than `platform/server-exec.ts`, which is where the four-level form was
+// copied from. With four the constant named `<repo>/apps/infra/...`, which does
+// not exist, so every probe without an explicit launcher path answered
+// `sandbox-unavailable` -- and every test passed one, so nothing noticed.
+const repositoryRoot = new URL("../../../../../", import.meta.url);
 
 /** Path the server's `--allow-run` grant may name, and nothing else. */
 export const SERVER_ARTIFACT_PROBE_LAUNCHER =

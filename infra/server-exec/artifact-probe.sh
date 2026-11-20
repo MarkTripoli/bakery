@@ -120,6 +120,9 @@ worker="$here/../../apps/server/src/modules/knowledge/probe-worker.ts"
 # server asks a canary question rather than trusting the property.
 repo_root=$(cd "$here/../.." && pwd -P) || exit 70
 
+# `--collect` is not decoration: without it a unit that was killed for its
+# memory or its wall clock stays in the user manager as a failed unit for ever,
+# one per hostile upload, until someone runs `systemctl --user reset-failed`.
 # The properties are accumulated rather than written as one long `exec` line so
 # the spool grant can be conditional: a deployment that hands the probe a path
 # in place never asks for a directory to be mounted, and an unconditional grant
@@ -163,7 +166,7 @@ permission=$(worker_permission "$frame" "$repo_root") || exit 64
 
 printf '%s' "$frame" | /usr/bin/env -i XDG_RUNTIME_DIR="$runtime_dir" \
   DBUS_SESSION_BUS_ADDRESS="$bus" LC_ALL=C \
-  /usr/bin/systemd-run "$@" \
+  /usr/bin/systemd-run --collect "$@" \
   "$deno" run --cached-only --no-prompt --deny-import --frozen \
   "$permission" "$worker"
 exit $?
