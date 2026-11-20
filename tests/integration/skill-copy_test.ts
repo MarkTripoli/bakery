@@ -173,26 +173,27 @@ Deno.test("copying a skill carries its active version and records where it came 
         isExecutable: false,
       }],
     };
+    const publishBody = {
+      revision: 1,
+      digest: await sha256(canonicalJson(manifest)),
+      entryPath: "SKILL.md",
+      manifest,
+      files: [{
+        path: "SKILL.md",
+        mediaType: "text/markdown",
+        isExecutable: false,
+        contentBase64: base64(instructions),
+      }, {
+        path: "references/sources.md",
+        mediaType: "text/markdown",
+        isExecutable: false,
+        contentBase64: base64(reference),
+      }],
+    };
     const publish = await post(
       adminCookie,
       `/v1/skills/${source.id}/versions`,
-      {
-        revision: 1,
-        digest: await sha256(canonicalJson(manifest)),
-        entryPath: "SKILL.md",
-        manifest,
-        files: [{
-          path: "SKILL.md",
-          mediaType: "text/markdown",
-          isExecutable: false,
-          contentBase64: base64(instructions),
-        }, {
-          path: "references/sources.md",
-          mediaType: "text/markdown",
-          isExecutable: false,
-          contentBase64: base64(reference),
-        }],
-      },
+      publishBody,
       "publish-research-v1",
     );
     assertEquals(publish.status, 201, await publish.clone().text());
@@ -365,11 +366,14 @@ Deno.test("copying a skill carries its active version and records where it came 
     const publishToGlobal = await post(
       adminCookie,
       `/v1/skills/${source.id}/versions`,
-      { revision: 2 },
+      { ...publishBody, revision: 2 },
       "publish-to-global",
     );
-    // The body is invalid on purpose: authority is decided before content.
-    assert([403, 422].includes(publishToGlobal.status));
+    assertEquals(
+      publishToGlobal.status,
+      403,
+      await publishToGlobal.clone().text(),
+    );
     void principalId;
   } finally {
     await cleanupAuthFixture(fixture.pgDatabase, [email, otherEmail]);
