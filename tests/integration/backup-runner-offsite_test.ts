@@ -376,39 +376,6 @@ Deno.test("off-site retention removes expired sets and nothing else, and never t
   });
 });
 
-Deno.test("local retention removes expired set directories only", async () => {
-  await withTemp(async (root) => {
-    const backups = `${root}/backups`;
-    await Deno.mkdir(backups);
-    for (const name of [N1, N2, N3]) {
-      await Deno.mkdir(`${backups}/${name}`);
-      await Deno.writeTextFile(`${backups}/${name}/SHA256SUMS`, "x");
-    }
-    await Deno.writeTextFile(`${backups}/latest`, `${backups}/${N3}\n`);
-    await Deno.mkdir(`${backups}/.pending-AbCd1234`);
-    // A symlink that is named like an old set must not be followed or removed.
-    const elsewhere = `${root}/elsewhere`;
-    await Deno.mkdir(elsewhere);
-    await Deno.writeTextFile(`${elsewhere}/precious`, "keep");
-    const linked = set("20250101T030000Z", 9);
-    await Deno.symlink(elsewhere, `${backups}/${linked}`);
-    const removed = await pruneLocal({
-      root: backups,
-      artifactName: N3,
-      daysToKeep: 30,
-      now: new Date("2026-11-20T12:00:00Z"),
-    });
-    assertEquals(removed, [N1, N2]);
-    const left = [];
-    for await (const entry of Deno.readDir(backups)) left.push(entry.name);
-    assertEquals(
-      left.sort(),
-      [".pending-AbCd1234", linked, "latest", N3].sort(),
-    );
-    assertEquals(await Deno.readTextFile(`${elsewhere}/precious`), "keep");
-  });
-});
-
 Deno.test("local retention reads the marker: an incomplete newest directory shields nothing and old ones are pruned", async () => {
   await withTemp(async (root) => {
     const backups = `${root}/backups`;

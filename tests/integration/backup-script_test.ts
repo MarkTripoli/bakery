@@ -1,6 +1,10 @@
 import { assert, assertEquals } from "@std/assert";
 import { join } from "node:path";
 import {
+  installDenoWrapper,
+  installReleaseManifestShim,
+} from "../helpers/backup-sandbox-release.ts";
+import {
   INCOMPLETE_FILE,
   keyFingerprint,
   type Manifest,
@@ -116,11 +120,11 @@ async function withSandbox(
       join(opt, "production/compose.yaml"),
       "name: test\n",
     );
-    await Deno.symlink(REPO, join(opt, "background"));
+    await installReleaseManifestShim(opt, REPO);
     for (const [name, body] of [["docker", DOCKER], ["age", AGE]]) {
       await Deno.writeTextFile(join(bin, name), body, { mode: 0o755 });
     }
-    await Deno.symlink(Deno.execPath(), join(bin, "deno"));
+    await installDenoWrapper(bin);
     const sandbox: Sandbox = {
       dir,
       bin,
@@ -445,7 +449,7 @@ Deno.test("with the release checkout missing the dumps are still taken, kept as 
       join(box.backups, "latest"),
       "/previous-good-set\n",
     );
-    await Deno.remove(join(box.opt, "background"));
+    await Deno.remove(join(box.opt, "background"), { recursive: true });
     const result = await box.run();
     await assertKeptIncomplete(box, result, "/previous-good-set");
   });
@@ -462,7 +466,7 @@ Deno.test("with Deno missing the dumps are still taken, kept as an incomplete se
 
 Deno.test("an incomplete set names the stores that also failed", async () => {
   await withSandbox({}, async (box) => {
-    await Deno.remove(join(box.opt, "background"));
+    await Deno.remove(join(box.opt, "background"), { recursive: true });
     const result = await box.run({ FAKE_REDIS_SAVE: "ERR" });
     assertEquals(result.code, 70, result.stderr);
     const name = (await entries(box.backups)).find((n) => n !== "latest")!;

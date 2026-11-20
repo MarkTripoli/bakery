@@ -171,3 +171,21 @@ Deno.test("only an unreadable list of steps draws no steps at all", () => {
   assertEquals(empty.nodes.length, 0);
   assertEquals(empty.straightLine, true);
 });
+
+Deno.test("a step that authors sealed or files is drawn as code-only (#448)", () => {
+  const tree = treeOf({
+    steps: [
+      { ...step("sealed", "harness.implement"), sealed: true },
+      { ...step("unsealed", "harness.implement"), sealed: false },
+      {
+        ...step("files", "harness.implement"),
+        files: { read: ["src/**"] },
+      },
+      step("plain", "harness.implement"),
+    ],
+  });
+  assertEquals(
+    stepsOfTree(tree).map((one) => [one.id, one.codeOnly]),
+    [["sealed", true], ["unsealed", true], ["files", true], ["plain", false]],
+  );
+});
