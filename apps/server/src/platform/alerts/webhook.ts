@@ -1,8 +1,13 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { parseTraceparent } from "@bakery/config/telemetry-trace";
-import type {
-  AddressPolicy,
+import {
+  ADDRESS_REFUSED_REASON,
+  type AddressPolicy,
 } from "../telemetry-destinations/address-policy.ts";
+import {
+  isAddressRefusal,
+  readAnswer,
+} from "../telemetry-destinations/pinned-fetch.ts";
 
 /** The header a receiver reads to verify a message came from this Bakery. */
 export const WEBHOOK_SIGNATURE_HEADER = "bakery-signature";
@@ -86,8 +91,11 @@ function outcome(
 /**
  * Sends one signed message and reports what the receiver said. The address is
  * checked again here, at send time, because a name can come to point somewhere
- * private after it was saved. A redirect is a failure, not something followed,
- * so the signed body cannot be bounced to a host nobody approved.
+ * private after it was saved. That check alone could be answered differently
+ * when the connection resolves the name again, so the production `fetch` is the
+ * pinned one: it dials only the addresses it checked. A redirect is a failure,
+ * not something followed, so the signed body cannot be bounced to a host nobody
+ * approved.
  */
 export async function sendSignedWebhook(options: {
   address: string;
@@ -119,10 +127,8 @@ export async function sendSignedWebhook(options: {
       body,
       signal: options.signal,
     });
-    const text = (await response.text().catch(() => "")).slice(
-      0,
-      WEBHOOK_ANSWER_MAX_CHARS,
-    );
+    // Read up to the cap and cancel: a receiver that keeps sending is not buffered.
+    const text = await readAnswer(response, WEBHOOK_ANSWER_MAX_CHARS);
     if (response.ok) return outcome(true, response.status, null, text);
     return outcome(
       false,
@@ -135,6 +141,10 @@ export async function sendSignedWebhook(options: {
       text,
     );
   } catch (error) {
+    // The connection itself refused a name that now points somewhere private.
+    if (isAddressRefusal(error)) {
+      return outcome(false, null, ADDRESS_REFUSED_REASON, null);
+    }
     const timedOut = options.signal.aborted ||
       (error as { name?: string }).name === "AbortError";
     return outcome(

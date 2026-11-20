@@ -504,6 +504,30 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
     assertEquals((await list()).destinations.map((d) => d.name), [
       "Health only",
     ]);
+
+    // At most 20 destinations, even when creates race: four at once with room
+    // for two must admit exactly two.
+    const make = (name: string) =>
+      send(f.adminCookie, "POST", "/v1/installation/telemetry-destinations", {
+        body: {
+          kind: "otlp",
+          name,
+          measurements: ["health"],
+          values: { address: other.address },
+        },
+      });
+    for (let n = 0; n < 17; n += 1) {
+      assertEquals((await make(`Filler ${n}`)).status, 201);
+    }
+    const raced = await Promise.all(
+      ["Race A", "Race B", "Race C", "Race D"].map(make),
+    );
+    assertEquals(
+      raced.map((r) => r.status).sort(),
+      [201, 201, 409, 409],
+      "concurrent creates went past the limit",
+    );
+    assertEquals((await list()).destinations.length, 20);
   } finally {
     await telemetry.close(500);
     await fanout.close(0);

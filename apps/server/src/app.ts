@@ -15,6 +15,7 @@ import {
 import {
   allowAnyAddress,
   createDestinationFanout,
+  createPinnedFetch,
   createProviderRegistry,
   createPublicHttpsPolicy,
   otlpProvider,
@@ -1003,6 +1004,12 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
     }),
   );
+  // Outbound alert and telemetry sends dial only the addresses they checked, so
+  // a name that answers differently the second time cannot reach a private
+  // network. A test environment may run its receiver on loopback, over http.
+  const egressFetch = options.config.environment === "test"
+    ? fetch
+    : createPinnedFetch();
   app.route(
     "/",
     createAlertChannelRoutes({
@@ -1011,7 +1018,7 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
       dependencies: options.alertChannels ?? {
         secretsKey: options.config.secretsKey,
-        fetch,
+        fetch: egressFetch,
         // A test environment may run its receiver on loopback.
         addressPolicy: options.config.environment === "test"
           ? allowAnyAddress
@@ -1029,10 +1036,10 @@ export function createApp(options: {
         registry: createProviderRegistry([otlpProvider]),
         fanout: createDestinationFanout({
           registry: createProviderRegistry([otlpProvider]),
-          dependencies: { fetch, addressPolicy: allowAnyAddress },
+          dependencies: { fetch: egressFetch, addressPolicy: allowAnyAddress },
         }),
         providerDependencies: {
-          fetch,
+          fetch: egressFetch,
           // A test environment may run its receiver on loopback.
           addressPolicy: options.config.environment === "test"
             ? allowAnyAddress

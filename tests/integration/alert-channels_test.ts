@@ -313,17 +313,24 @@ Deno.test("an administrator manages signed webhook alert channels that really re
     );
     assert(!(await list()).text.includes(next.signingSecret));
 
-    // At most 20 channels.
-    for (let n = 0; n < 19; n += 1) {
-      const more = await send(f.adminCookie, "POST", basePath, {
-        body: {
-          kind: "webhook",
-          name: `Channel ${n}`,
-          values: { address: hook.address },
-        },
+    // At most 20 channels, even when creates race: four at once with room for
+    // two must admit exactly two.
+    const make = (name: string) =>
+      send(f.adminCookie, "POST", basePath, {
+        body: { kind: "webhook", name, values: { address: hook.address } },
       });
+    for (let n = 0; n < 17; n += 1) {
+      const more = await make(`Channel ${n}`);
       assertEquals(more.status, 201, more.text);
     }
+    const raced = await Promise.all(
+      ["Race A", "Race B", "Race C", "Race D"].map(make),
+    );
+    assertEquals(
+      raced.map((r) => r.status).sort(),
+      [201, 201, 409, 409],
+      "concurrent creates went past the limit",
+    );
     const overLimit = await send(f.adminCookie, "POST", basePath, {
       body: {
         kind: "webhook",

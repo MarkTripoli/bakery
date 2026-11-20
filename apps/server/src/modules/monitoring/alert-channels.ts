@@ -239,6 +239,12 @@ export async function createAlertChannel(
     dependencies.addressPolicy,
     suppliedAddress(input.values),
   );
+  // One create at a time per table: without it two requests can both count 19
+  // and both insert, going past the limit.
+  await transaction.query(
+    "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+    ["bakery:alert_channels:create"],
+  );
   const count = await transaction.query<{ count: string }>(
     "select count(*)::text as count from bakery.alert_channels",
   );
