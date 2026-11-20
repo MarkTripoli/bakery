@@ -23,6 +23,7 @@ import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { admitRouteContinuation } from "./route-continuation-admit.ts";
 
 /**
  * The route continuation offers (#26 slice 6a): which steps of a run are stalled
@@ -60,7 +61,7 @@ type StalledStepRow = {
   incident_generation: number;
 };
 
-type CandidateRouteRow = {
+export type CandidateRouteRow = {
   id: string;
   provider: string;
   model: string;
@@ -88,7 +89,7 @@ const TERMINAL_JOB_STATUSES = ["completed", "failed", "canceled"];
  * unverified target themselves; only `open` (paused behind its own incident) is
  * refused outright.
  */
-function ineligibleReason(
+export function ineligibleReason(
   candidate: CandidateRouteRow,
   sourceHarness: string,
 ): Target["ineligibleReason"] {
@@ -223,6 +224,22 @@ export function createRouteContinuationActionRegistry(
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
     handler: listRouteContinuations,
+  });
+  registry.register({
+    name: RouteContinuationsImplementedAction.RouteContinuationsAdmit,
+    method: HttpMethod.Post,
+    path: "/v1/runs/:id/route-continuations",
+    input: contractSchemas.RouteContinuationAdmit,
+    output: contractSchemas.RouteContinuation,
+    policy: {
+      type: ActionKind.Command,
+      // The same access as controlling the run: continuing a step on another route
+      // is a decision about that one run, like cancelling it.
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: admitRouteContinuation,
   });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(
