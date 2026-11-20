@@ -75,12 +75,14 @@ const stableProblem = (body: Record<string, unknown>) => {
 
 const ADMIN_MINIMUM_ACCESS = [
   "Admin",
-  "Developer for personal; Admin for organization",
-  "Owner for personal; Admin for organization",
 ];
 
 const DEVELOPER_MINIMUM_ACCESS = [
   "Developer",
+  // Developer is the floor (permissions.ts): the action's own guard raises the
+  // bar to Admin for the organization case, so a developer holds the key.
+  "Developer for personal; Admin for organization",
+  "Owner for personal; Admin for organization",
   "Developer or Worker (pinned version + current lease)",
   "Developer+action grant",
   "Authorized owner/member",
@@ -325,6 +327,8 @@ Deno.test("principal and organization reads observe live multi-organization auth
     assertEquals(membershipPage.items.length, 1);
     assertEquals(membershipPage.items[0].principalId, principalId);
     assertEquals(membershipPage.items[0].role, "developer");
+    // A member list names people (#69): the principal's display name is served.
+    assert(String(membershipPage.items[0].displayName).length > 0);
 
     const invitations = await get(
       `/v1/organizations/${organizationA}/invitations`,
@@ -1086,7 +1090,9 @@ Deno.test("authorized lifecycle mutations remain Better Auth compatible", async 
       { role: "admin" },
     );
     assertEquals(promoted.status, 200, await promoted.clone().text());
-    assertEquals((await promoted.json()).version, 2);
+    const promotedMembership = await promoted.json();
+    assertEquals(promotedMembership.version, 2);
+    assert(String(promotedMembership.displayName).length > 0);
     assertEquals(
       (await changeMembership(
         founderCookie,
@@ -1124,6 +1130,27 @@ Deno.test("authorized lifecycle mutations remain Better Auth compatible", async 
     assertEquals(recreated.status, 201, await recreated.clone().text());
     const recreatedMembership = await recreated.json();
     assertEquals(recreatedMembership.version, 1);
+    // Created and updated memberships carry the same name of the same person.
+    assertEquals(
+      recreatedMembership.displayName,
+      promotedMembership.displayName,
+    );
+    // The list reads the same name for the same person (#69).
+    const listed = await bakeryRequest(
+      founderCookie,
+      "GET",
+      `/v1/organizations/${organizationB.id}/memberships`,
+      organizationB.id,
+    );
+    assertEquals(listed.status, 200, await listed.clone().text());
+    const listedPage = await listed.json() as {
+      items: { id: string; displayName: string }[];
+    };
+    assertEquals(
+      listedPage.items.find((item) => item.id === recreatedMembership.id)
+        ?.displayName,
+      recreatedMembership.displayName,
+    );
     assertEquals(
       (await changeMembership(
         founderCookie,
