@@ -33,6 +33,9 @@ import { TaskRunSectionView } from "./task-run-section-view.tsx";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
 import { focusMessageField } from "./task-delivery/focus-message.ts";
+import { RouteWaiting } from "./task-waiting/RouteWaiting.tsx";
+import { stepRowCopy } from "./task-waiting/model.ts";
+import { useWaitingOffers } from "./task-waiting/use-waiting-offers.ts";
 
 /**
  * Picks the step whose output the run view shows: the viewer's choice when it
@@ -189,6 +192,13 @@ export function TaskRunSection(
     }),
     enabled: activeRun,
   });
+  // The steps waiting on a model, once each has waited a minute (#70).
+  const waitingOffers = useWaitingOffers({
+    runId,
+    enabled: activeRun,
+    waitingOnModel: run.data?.waitingOnModel,
+  });
+  const waitingOnModel = waitingOffers.length > 0;
   const stepLanded = useRef(false);
   useEffect(() => {
     if (!landingStepId || stepLanded.current || !steps.data) return;
@@ -337,14 +347,28 @@ export function TaskRunSection(
             </UI.Heading>
             {validRun && run.data
               ? (
-                <UI.Badge tone={RUN_TONES[run.data.status]}>
-                  {t(`tasks.run.status.${run.data.status}`)}
+                <UI.Badge
+                  tone={waitingOnModel ? "warning" : RUN_TONES[run.data.status]}
+                >
+                  {waitingOnModel
+                    ? t("tasks.waiting.badge")
+                    : t(`tasks.run.status.${run.data.status}`)}
                 </UI.Badge>
               )
               : null}
           </UI.Inline>
           {validRun && run.data?.status === "blocked"
             ? <BlockedNotice run={run.data} />
+            : null}
+          {validRun && run.data
+            ? (
+              <RouteWaiting
+                key={runId}
+                taskId={taskId}
+                runId={runId}
+                offers={waitingOffers}
+              />
+            )
             : null}
           <UI.VisuallyHidden
             role={threadShown ? undefined : "status"}
@@ -355,8 +379,9 @@ export function TaskRunSection(
             {validRun && run.data
               ? (
                 <>
-                  {t("tasks.run.heading")}:{" "}
-                  {t(`tasks.run.status.${run.data.status}`)}
+                  {t("tasks.run.heading")}: {waitingOnModel
+                    ? t("tasks.waiting.badge")
+                    : t(`tasks.run.status.${run.data.status}`)}
                   {stepUpdate && !steps.isError && !invalidSteps
                     ? (
                       <>
@@ -425,10 +450,20 @@ export function TaskRunSection(
                   }`,
                 )}
                 events={[
-                  ...runTimelineEvents(run.data, steps.data.items, t, {
-                    first: cursors.length === 1,
-                    last: !steps.data.nextCursor,
-                  }),
+                  ...runTimelineEvents(
+                    run.data,
+                    steps.data.items,
+                    t,
+                    {
+                      first: cursors.length === 1,
+                      last: !steps.data.nextCursor,
+                    },
+                    new Map(
+                      waitingOffers.map((offer) =>
+                        [offer.runStepId, stepRowCopy(offer, t)] as const
+                      ),
+                    ),
+                  ),
                   ...(receipts.authority === authority ? receipts.events : []),
                 ]}
               />
