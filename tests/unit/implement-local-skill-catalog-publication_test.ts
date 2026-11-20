@@ -241,6 +241,7 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0250_storage_purge_requests",
       "0253_artifact_kind_binding",
       "0254_blob_upload_session_blob_fk",
+      "0258_plugin_update_failure",
       "0259_merge_entry_blocked_reason",
     ],
   );
