@@ -4,6 +4,12 @@ import type { TelemetryRecord } from "../../packages/config/src/telemetry.ts";
 import { createServerTelemetry } from "../../apps/server/src/platform/telemetry.ts";
 import { encodeOtlpTraces } from "../../apps/server/src/platform/telemetry-sink.ts";
 import {
+  allowAnyAddress,
+  createDestinationFanout,
+  createProviderRegistry,
+  otlpProvider,
+} from "../../apps/server/src/platform/telemetry-destinations/index.ts";
+import {
   bindProviderCallIntent,
   recordProviderUsageReceipt,
   type UsageReceipt,
@@ -56,9 +62,51 @@ const attributeOf = (span: Span, key: string) =>
 
 Deno.test("one run keeps one trace across a restart retry, and no secret reaches a span", async () => {
   const records: TelemetryRecord[] = [];
+  // A destination that takes only the workflow's results, behind a mock OTLP
+  // collector: what it receives is what a trace-only destination would.
+  const collected: { path: string; spans: Span[] }[] = [];
+  const collector = Deno.serve(
+    { hostname: "127.0.0.1", port: 0, onListen: () => {} },
+    async (request) => {
+      const body = await request.json() as {
+        resourceSpans?: { scopeSpans: { spans: Span[] }[] }[];
+      };
+      collected.push({
+        path: new URL(request.url).pathname,
+        spans: body.resourceSpans?.[0]?.scopeSpans[0]?.spans ?? [],
+      });
+      return new Response("{}", {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  );
+  const fanout = createDestinationFanout({
+    registry: createProviderRegistry([otlpProvider]),
+    dependencies: { fetch, addressPolicy: allowAnyAddress },
+    bounds: {
+      capacity: 200,
+      batchSize: 20,
+      sendTimeoutMs: 2_000,
+      maxAttempts: 1,
+      retryDelayMs: 1,
+      intervalMs: 5,
+    },
+  });
+  fanout.configure([{
+    id: "results-only",
+    kind: "otlp",
+    name: "Results only",
+    enabled: true,
+    measurements: ["results"],
+    values: {
+      address: `http://127.0.0.1:${(collector.addr as Deno.NetAddr).port}`,
+    },
+  }]);
   const telemetry = createServerTelemetry({
-    send: (batch) => {
+    send: (batch, signal) => {
       records.push(...batch);
+      return fanout.send(batch, signal);
     },
   });
   await withWorkerFixture(async (fixture) => {
@@ -274,6 +322,56 @@ Deno.test("one run keeps one trace across a restart retry, and no secret reaches
       { doubleValue: 1 },
     );
 
+    // The usage span reaches a destination that takes only results, under the
+    // attempt that settled it, with token counts and nothing in money.
+    for (let wait = 0; wait < 200; wait += 1) {
+      if (
+        collected.some((batch) =>
+          batch.spans.some((span) => span.name === "usage.settled")
+        )
+      ) break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    const delivered = collected.flatMap((batch) => batch.spans);
+    assertEquals(
+      new Set(collected.map((batch) => batch.path)),
+      new Set(["/v1/traces"]),
+    );
+    const usageSpan = delivered.find((span) =>
+      span.name === "usage.settled" &&
+      attributeOf(span, "bakery.attempt.id")?.stringValue ===
+        second.attemptId
+    );
+    assert(usageSpan !== undefined, "the destination received no usage span");
+    assertEquals(usageSpan.traceId, TRACE);
+    assertEquals(usageSpan.parentSpanId, secondContext.spanId);
+    assertEquals(attributeOf(usageSpan, "bakery.usage.input_tokens"), {
+      doubleValue: 1,
+    });
+    assertEquals(attributeOf(usageSpan, "bakery.usage.output_tokens"), {
+      doubleValue: 2,
+    });
+    assertEquals(attributeOf(usageSpan, "bakery.usage.measurement"), {
+      stringValue: "reported",
+    });
+    assertEquals(attributeOf(usageSpan, "bakery.usage.route"), {
+      stringValue: "api",
+    });
+    // Only the kinds it asked for: no renewal (health) reached it.
+    assertEquals(
+      delivered.filter((span) => span.name === "lease.renewed").length,
+      0,
+    );
+    const deliveredWire = JSON.stringify(delivered);
+    for (
+      const money of ["0.04", String(run.billing?.model), usage.providerCallId]
+    ) {
+      assert(
+        !deliveredWire.includes(money),
+        `${money} reached the destination`,
+      );
+    }
+
     // No secret, and no unregistered field, reached any span.
     const wire = JSON.stringify(spans);
     assert(!wire.includes(SECRET), "a secret reached a span");
@@ -283,4 +381,5 @@ Deno.test("one run keeps one trace across a restart retry, and no secret reaches
       "an unregistered field reached a span",
     );
   }, { telemetry });
+  await collector.shutdown();
 });

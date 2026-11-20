@@ -134,3 +134,32 @@ export async function emitAttemptEvent(
     trace,
   );
 }
+
+/**
+ * What a settled usage receipt tells telemetry: token counts, how they were
+ * measured and which billing route paid. The amount in money, the model and the
+ * provider call id stay out: the first is the cost kind's own slice, the others
+ * name things an operator did not ask a trace to carry.
+ */
+export function usageAttributes(
+  usage: Readonly<{
+    inputTokens?: string | null;
+    outputTokens?: string | null;
+    measurement: string;
+    billingRoute: string;
+  }>,
+): Readonly<Record<string, string | number>> {
+  const count = (value: string | null | undefined): number | undefined => {
+    if (value === null || value === undefined) return undefined;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
+  };
+  const input = count(usage.inputTokens);
+  const output = count(usage.outputTokens);
+  return {
+    ...(input === undefined ? {} : { "bakery.usage.input_tokens": input }),
+    ...(output === undefined ? {} : { "bakery.usage.output_tokens": output }),
+    "bakery.usage.measurement": usage.measurement,
+    "bakery.usage.route": usage.billingRoute,
+  };
+}

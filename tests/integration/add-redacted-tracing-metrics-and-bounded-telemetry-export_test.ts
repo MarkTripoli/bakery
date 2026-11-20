@@ -473,9 +473,15 @@ Deno.test("what a healthy sink receives: four events, ids and a closed outcome, 
   for (const event of events) {
     for (const key of Object.keys(event.attributes)) {
       assert(
-        ["bakery.attempt.id", "bakery.outcome", "bakery.retry.count"].includes(
-          key,
-        ),
+        [
+          "bakery.attempt.id",
+          "bakery.outcome",
+          "bakery.retry.count",
+          "bakery.usage.input_tokens",
+          "bakery.usage.output_tokens",
+          "bakery.usage.measurement",
+          "bakery.usage.route",
+        ].includes(key),
         key,
       );
     }

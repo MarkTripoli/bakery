@@ -44,6 +44,7 @@ import {
   emitAttemptEvent,
   EXECUTION_TELEMETRY_EVENTS,
   type JobOutcome,
+  usageAttributes,
 } from "./telemetry.ts";
 import { reconcileCoordinationForTerminalTask } from "../work/coordination-projection.ts";
 
@@ -749,6 +750,9 @@ export async function resultRoute(
         EXECUTION_TELEMETRY_EVENTS.usageSettled,
         {
           "bakery.attempt.id": attemptId,
+          ...(resultInput.usage === undefined
+            ? {}
+            : usageAttributes(resultInput.usage)),
         },
       );
     }
