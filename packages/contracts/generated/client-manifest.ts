@@ -8442,6 +8442,31 @@ export const clientManifest = {
     {
       "group": "Storage",
       "method": "PUT",
+      "path": "/v1/storage/files/{id}/pin",
+      "action": "storageFiles.pin",
+      "access": "Admin",
+      "permission": "artifact:manage",
+      "input": "StorageFilePin",
+      "output": "ArtifactPinResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "PUT",
       "path": "/v1/storage/files",
       "action": "storageFiles.put",
       "access": "Developer",
@@ -17427,6 +17452,7 @@ export const clientManifest = {
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
+            "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
             "storageEntries.copy",
@@ -28671,6 +28697,21 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+    },
+    "StorageFilePin": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pinned": {
+          "type": "boolean",
+          "description": "Whether the file's artifact is pinned against retention collection; true protects its versions from expiry-based purge, false lets normal retention apply again. Asking for the state a file is already in changes nothing."
+        }
+      },
+      "required": [
+        "pinned"
+      ],
+      "additionalProperties": false,
+      "description": "Sets or clears the administrator pin of a record-area file by its storage-tree id, so the command line can pin without knowing the artifact id or its version. It is the same pin as the artifact PATCH."
     },
     "StorageFilePut": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -43396,6 +43437,7 @@ export const clientManifest = {
                   "blobUploads.start",
                   "blobUploads.part",
                   "blobUploads.complete",
+                  "storageFiles.pin",
                   "storageFiles.put",
                   "storageFolders.create",
                   "storageEntries.copy",
@@ -63787,6 +63829,7 @@ export const clientManifest = {
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
+            "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
             "storageEntries.copy",
@@ -98763,6 +98806,10 @@ export const clientManifest = {
                 ],
                 "description": "StorageFolderItem.artifactId may be null in this transport value."
               },
+              "pinned": {
+                "type": "boolean",
+                "description": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin."
+              },
               "contentRemoved": {
                 "type": "boolean",
                 "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
@@ -98786,6 +98833,7 @@ export const clientManifest = {
               "mediaType",
               "sizeBytes",
               "artifactId",
+              "pinned",
               "contentRemoved",
               "updatedAt"
             ],
@@ -99237,6 +99285,10 @@ export const clientManifest = {
               ],
               "description": "StorageFolderItem.artifactId may be null in this transport value."
             },
+            "pinned": {
+              "type": "boolean",
+              "description": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin."
+            },
             "contentRemoved": {
               "type": "boolean",
               "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
@@ -99260,6 +99312,7 @@ export const clientManifest = {
             "mediaType",
             "sizeBytes",
             "artifactId",
+            "pinned",
             "contentRemoved",
             "updatedAt"
           ],
