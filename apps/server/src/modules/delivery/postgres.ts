@@ -701,6 +701,7 @@ type PullRequestRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  target_branch: string;
   cursor_created_at: string;
 };
 
@@ -728,6 +729,8 @@ function toPullRequest(row: PullRequestRow, mayMerge: boolean) {
     mayMerge,
     // The repository practice, served so the page sends it and never picks one.
     mergeMethod: PULL_REQUEST_MERGE_METHOD,
+    // The repository's default branch: the merge dispatch merges into it too.
+    targetBranch: row.target_branch,
   };
 }
 
@@ -776,27 +779,31 @@ export function createPullRequestsListHandler(secret: string) {
     const position = await decodeCursor(secret, input.cursor, binding);
     const limit = input.limit ?? 25;
     const result = await transaction.query<PullRequestRow>(
-      `select id, task_id, repository_id, run_id, provider_number, url,
-              head_sha, base_sha, status, merged_sha, created_at, updated_at,
-              version,
+      `select pr.id, pr.task_id, pr.repository_id, pr.run_id,
+              pr.provider_number, pr.url, pr.head_sha, pr.base_sha, pr.status,
+              pr.merged_sha, pr.created_at, pr.updated_at, pr.version,
+              repository.default_branch as target_branch,
               to_char(
-                created_at at time zone 'UTC',
+                pr.created_at at time zone 'UTC',
                 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
               ) as cursor_created_at
-         from bakery.pull_requests
-        where organization_id = $1
-          and ($2::uuid is null or repository_id = $2::uuid)
-          and ($3::uuid is null or task_id = $3::uuid)
-          and ($4::uuid is null or run_id = $4::uuid)
-          and ($7::uuid is null or task_id in (
+         from bakery.pull_requests as pr
+         join bakery.repositories as repository
+           on repository.organization_id = pr.organization_id
+          and repository.id = pr.repository_id
+        where pr.organization_id = $1
+          and ($2::uuid is null or pr.repository_id = $2::uuid)
+          and ($3::uuid is null or pr.task_id = $3::uuid)
+          and ($4::uuid is null or pr.run_id = $4::uuid)
+          and ($7::uuid is null or pr.task_id in (
                 select link.task_id from bakery.ticket_task_links as link
                  where link.organization_id = $1
                    and link.external_ticket_id = $7::uuid))
           and (
             $5::timestamptz is null or
-            (created_at, id) > ($5::timestamptz, $6::uuid)
+            (pr.created_at, pr.id) > ($5::timestamptz, $6::uuid)
           )
-        order by created_at asc, id asc
+        order by pr.created_at asc, pr.id asc
         limit $8`,
       [
         organizationId,

@@ -13,7 +13,10 @@ import {
   type MergeDispatchDependencies,
 } from "./merge-dispatch.ts";
 import type { MergeDispatchResult } from "./merge-dispatch.ts";
-import { assertCandidateEvidence } from "./merge-entries.ts";
+import {
+  assertCandidateEvidence,
+  type MergeEntryBlockedReason,
+} from "./merge-entries.ts";
 import { PULL_REQUEST_MERGE_METHOD } from "./postgres.ts";
 import type { MergeRefusalReason } from "./merge-candidate.ts";
 
@@ -42,6 +45,11 @@ export type BlockedReason =
   | "github_refused"
   | "not_merged"
   | "unavailable";
+
+// Every reason the queue stores is one the merge-entry read serves, and back.
+const _blockedReasonsMatch: [BlockedReason, MergeEntryBlockedReason] extends
+  [MergeEntryBlockedReason, BlockedReason] ? true : never = true;
+void _blockedReasonsMatch;
 
 export type EntryOutcome =
   | Readonly<{ status: "merged" }>
