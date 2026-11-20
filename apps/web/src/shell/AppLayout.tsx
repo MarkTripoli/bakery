@@ -239,6 +239,13 @@ function usePrimaryDestinations(
       matchPath: "/library",
       icon: <UI.IconGlyph name="book" />,
     },
+    {
+      id: "files",
+      label: translate("shell.navigation.files"),
+      href: "/files",
+      matchPath: "/files",
+      icon: <UI.IconGlyph name="file" />,
+    },
     unshipped(
       "automations",
       translate("shell.navigation.automations"),
@@ -467,6 +474,9 @@ function usePageTitle(pathname: string): string | undefined {
   }
   if (pathname === "/library" || pathname.startsWith("/library/")) {
     return translate("shell.navigation.library");
+  }
+  if (pathname === "/files" || pathname.startsWith("/files/")) {
+    return translate("shell.navigation.files");
   }
   if (pathname === "/projects" || pathname.startsWith("/projects/")) {
     return translate("shell.navigation.projects");

@@ -59,7 +59,8 @@ const DEFINITION_LOOKUP: Readonly<Record<DefinitionKind, string>> = {
     "select 1 from bakery.workflow_definitions where organization_id = $1 and id = $2",
   agent:
     "select 1 from bakery.agent_definitions where organization_id = $1 and id = $2",
-  skill: "select 1 from bakery.skills where organization_id = $1 and id = $2",
+  skill:
+    "select 1 from bakery.skills where organization_id = $1 and id = $2 and scope <> 'personal'",
   // The kind's row id, not its key: a kind recreated under a reused key is a
   // different kind and does not inherit the grant.
   artifactKind:

@@ -1708,6 +1708,27 @@
     },
     {
       "group": "Definitions",
+      "method": "GET",
+      "path": "/v1/workflows/{id}/versions/{versionId}/skills",
+      "action": "workflowVersions.skills",
+      "access": "Developer",
+      "permission": "workflowVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "WorkflowVersionPath",
+      "output": "WorkflowVersionSkills",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Definitions",
       "method": "PATCH",
       "path": "/v1/workflows/{id}/versions/{versionId}",
       "action": "workflowVersions.update",
@@ -2701,8 +2722,8 @@
       "method": "POST",
       "path": "/v1/skills",
       "action": "skills.create",
-      "access": "Admin",
-      "permission": "skill:manage",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "skill:author",
       "organizationContext": "required_authenticated_context",
       "input": "SkillCreate",
       "output": "Skill",
@@ -2721,6 +2742,35 @@
         "IDEMPOTENCY_IN_FLIGHT",
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED"
+      ]
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/copy",
+      "action": "skills.copy",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "skill:author",
+      "organizationContext": "required_authenticated_context",
+      "input": "SkillCopy",
+      "output": "Skill",
+      "event": "skills.copied",
+      "mcp": "bakery_skills_copy",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "SKILL_CONTENT_INTEGRITY_FAILED"
       ]
     },
     {
@@ -2793,8 +2843,8 @@
       "method": "PATCH",
       "path": "/v1/skills/{id}",
       "action": "skills.update",
-      "access": "Admin",
-      "permission": "skill:manage",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
       "input": "DefinitionUpdate",
       "output": "Skill",
       "event": "skills.updated",
@@ -2814,6 +2864,53 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Skills",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "method": "GET",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.list",
+      "input": "CursorQuery",
+      "output": "Page<SkillUseGrant>",
+      "event": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Skills",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "method": "DELETE",
+      "path": "/v1/skills/{id}/use-grants/{grantId}",
+      "action": "skills.useGrants.delete",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "skillUseGrant.deleted",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
     },
     {
       "group": "Skills",
@@ -2883,7 +2980,7 @@
       "method": "POST",
       "path": "/v1/skills/{id}/versions",
       "action": "skillVersions.create",
-      "access": "Admin",
+      "access": "Owner for personal; Admin for organization",
       "permission": "skillVersion:manage",
       "organizationContext": "required_authenticated_context",
       "input": "LocalSkillVersion",
@@ -8392,6 +8489,27 @@
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
         "UNPROCESSABLE"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/file-versions/{id}",
+      "action": "storageFiles.byVersion",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "Empty",
+      "output": "StorageFileAtVersion",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND"
       ]
     },
     {

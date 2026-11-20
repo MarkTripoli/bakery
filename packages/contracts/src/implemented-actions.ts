@@ -477,6 +477,7 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowsCopy: "workflows.copy",
     WorkflowVersionsList: "workflowVersions.list",
     WorkflowVersionsGet: "workflowVersions.get",
+    WorkflowVersionsSkills: "workflowVersions.skills",
     WorkflowVersionsCreate: "workflowVersions.create",
     WorkflowVersionsUpdate: "workflowVersions.update",
     WorkflowVersionsPublish: "workflowVersions.publish",
@@ -662,6 +663,7 @@ export const StorageImplementedAction = Object.freeze(
     StorageFileVersionsList: "storageFileVersions.list",
     StorageFileUsesList: "storageFileUses.list",
     StorageFilesContent: "storageFiles.content",
+    StorageFilesByVersion: "storageFiles.byVersion",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const storageImplementedActions = Object.freeze(
@@ -678,8 +680,11 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsList: "skills.list",
     SkillsGet: "skills.get",
     SkillsCreate: "skills.create",
+    SkillsCopy: "skills.copy",
     SkillsUpdate: "skills.update",
     SkillVersionsCreate: "skillVersions.create",
+    SkillUseGrantsList: "skills.useGrants.list",
+    SkillUseGrantsDelete: "skills.useGrants.delete",
     LibrarySearch: "library.search",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -688,7 +693,8 @@ export const catalogImplementedActions = Object.freeze(
 );
 export const catalogIdentityImplementedActions = Object.freeze(
   Object.values(CatalogImplementedAction).filter((action) =>
-    action !== CatalogImplementedAction.SkillVersionsCreate
+    action !== CatalogImplementedAction.SkillVersionsCreate &&
+    action !== CatalogImplementedAction.SkillsCopy
   ),
 );
 
