@@ -87,6 +87,7 @@ import { ConnectionPage } from "./pages/integrations/ConnectionPage.tsx";
 import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
 import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
+import { DeliveryPage } from "./pages/DeliveryPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
 import { SettingsIndexPage } from "./pages/SettingsIndexPage.tsx";
 import { ProfilePage } from "./pages/ProfilePage.tsx";
@@ -209,6 +210,24 @@ export const routeCoverage = [
       "stale",
       "offline",
       "long-copy",
+    ],
+  },
+  {
+    id: "delivery",
+    path: "/delivery",
+    classification: "production",
+    // Not a fifth kind of failure: `partial` is the page with figures and a
+    // note that some records are missing, and `disconnected` is a source that
+    // stopped, whose figures are unknown rather than zero.
+    states: [
+      "loading",
+      "default",
+      "partial",
+      "disconnected",
+      "stale",
+      "empty",
+      "error",
+      "forbidden",
     ],
   },
   {
@@ -1260,6 +1279,15 @@ function validateFilesSearch(
       : {}),
   };
 }
+
+const deliveryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/delivery",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <DeliveryPage />,
+  errorComponent: ProtectedRouteError,
+});
 
 const filesRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -2457,6 +2485,7 @@ const routeTree = rootRoute.addChildren([
   organizationSettingsRoute,
   installationSettingsRoute,
   installationUsageRoute,
+  deliveryRoute,
   installationAuditRoute,
   installationIntegrationsRoute,
   organizationAccessRoute,

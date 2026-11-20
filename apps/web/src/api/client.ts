@@ -109,6 +109,16 @@ export type InstallationSettings = ClientOutputMap["InstallationSettings"];
 export type UsageSummary = ClientOutputMap["UsageSummary"];
 /** Window and filters for that summary; all three are optional on the server. */
 export type UsageQuery = ClientInputMap["UsageQuery"];
+/** One delivery metric over a window: points, provenance and what is missing. */
+export type MetricSeries = ClientOutputMap["MetricSeries"];
+/** The metric, window and repository a series is asked for. */
+export type MetricsQuery = ClientInputMap["MetricsQuery"];
+/** The same question, listing the records behind the numbers, one page at a time. */
+export type MetricSourcesQuery = ClientInputMap["MetricSourcesQuery"];
+/** One page of the pull requests or tasks counted in a metric. */
+export type MetricSourcePage = ClientOutputMap["Page<MetricSource>"];
+/** One pull request or task counted in a metric. */
+export type MetricSource = MetricSourcePage["items"][number];
 export type IntegrationAppRegistration =
   ClientOutputMap["IntegrationAppRegistration"];
 export type IntegrationAppManifestStart =
@@ -1178,6 +1188,18 @@ export type BakeryApiClient = {
       readonly query: UsageQuery;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<UsageSummary>>;
+  };
+  readonly metrics: {
+    /** `GET /v1/metrics`: one delivery metric over a window. */
+    readonly get: (options: {
+      readonly query: MetricsQuery;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<MetricSeries>>;
+    /** `GET /v1/metrics/sources`: the records behind it, keyset paged. */
+    readonly sources: (options: {
+      readonly query: MetricSourcesQuery;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<MetricSourcePage>>;
   };
   readonly installationSettings: {
     readonly get: (
@@ -3713,6 +3735,33 @@ export function createBakeryApiClient({
           return {
             ok: true,
             data: await client.actions["usage.list"](options.query, {
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    metrics: {
+      async get(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["metrics.get"](options.query, {
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async sources(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["metrics.sources"](options.query, {
               signal: options.signal,
             }),
           };

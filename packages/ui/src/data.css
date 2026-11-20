@@ -2165,3 +2165,37 @@
   color: var(--color-fg-muted);
   font: var(--type-caption);
 }
+
+/* A figure that opens its records: the number is the button, with a visible
+   focus ring and a coarse-pointer target, and the chosen one is marked by a
+   border rather than a colour alone. */
+.ui-stat-tile__action {
+  appearance: none;
+  background: transparent;
+  border: var(--border-default) solid transparent;
+  border-radius: var(--radius-control);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  margin-inline-start: calc(-1 * var(--space-1));
+  min-block-size: var(--target-min);
+  padding-block: 0;
+  padding-inline: var(--space-1);
+  text-align: start;
+}
+.ui-stat-tile__action:hover {
+  background: var(--color-surface-subtle);
+}
+.ui-stat-tile__action:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-stat-tile__action[aria-pressed="true"] {
+  border-color: var(--color-border-strong);
+  border-width: var(--border-emphasis);
+}
+@media (pointer: coarse) {
+  .ui-stat-tile__action {
+    min-block-size: var(--target-coarse);
+  }
+}

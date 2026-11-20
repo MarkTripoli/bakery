@@ -42,6 +42,8 @@ const namespacePrefixes = [
   // installation spent, and the design names its keys `installation.usage.*`
   // rather than filing a read-only report under the settings namespace.
   "installation.",
+  // The Delivery page: what was delivered and how long it took.
+  "delivery.",
   // Provider copy: `integrations.<slug>.*` is the one namespace where a provider's
   // own strings live, and `check-provider-literals.ts` exempts exactly it. The two
   // rails have to agree, so the prefix is allowed here rather than the keys moved.
@@ -73,6 +75,7 @@ const pseudoExpansionPrefixes = [
   "repository.rules.",
   "session.",
   "installation.",
+  "delivery.",
 ] as const;
 
 function argumentNames(message: string): string[] {

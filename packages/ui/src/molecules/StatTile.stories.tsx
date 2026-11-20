@@ -28,6 +28,17 @@ export const Contract: StoryObj = {
         label="Reported, not confirmed"
         value="$4.10"
       />
+      {/* A figure that opens its records: the number is the button. */}
+      <StatTile
+        action={{
+          label: "Pull requests merged, 42",
+          onSelect: () => undefined,
+          selected: true,
+        }}
+        detail="Counted by when each was merged."
+        label="Pull requests merged"
+        value="42"
+      />
       {/* The case the molecule exists for: an unknown is a word, never a 0. */}
       <StatTile
         detail="No cost was reported. Unknown is not zero."
