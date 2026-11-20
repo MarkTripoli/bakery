@@ -122,7 +122,14 @@ export function createCatalogRoutes(options: {
           } else if (
             request.action.name === CatalogImplementedAction.SkillDraftsPublish
           ) {
-            stage.draft = await prepareSkillDraftPublish(request.context);
+            // The prepare phase runs before the handler, so the context does not
+            // carry the command metadata yet: hand it the one the runner has, so
+            // the draft's If-Match is read and checked before anything is stored.
+            stage.draft = await prepareSkillDraftPublish(
+              Object.assign({}, request.context, {
+                commandMetadata: request.metadata,
+              }),
+            );
             stage.preparation = stage.draft.publication;
           } else {
             stage.preparation = await prepareLocalSkillVersionPublication({
