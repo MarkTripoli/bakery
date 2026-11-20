@@ -29,6 +29,8 @@ export type ArtifactViewerProps = {
   readonly label: ReactNode;
   readonly content: ArtifactViewerContent;
   readonly state?: "ready" | "loading" | "error";
+  /** `full` lets an image or player take the room it is given instead of a panel's. */
+  readonly size?: "panel" | "full";
   readonly footer?: ReactNode;
   readonly "data-testid"?: string;
 };
@@ -172,8 +174,14 @@ function preview(content: ArtifactViewerContent): ReactNode {
 }
 
 export function ArtifactViewer(
-  { label, content, footer, state = "ready", "data-testid": testId }:
-    ArtifactViewerProps,
+  {
+    label,
+    content,
+    footer,
+    size = "panel",
+    state = "ready",
+    "data-testid": testId,
+  }: ArtifactViewerProps,
 ) {
   const titleId = useId();
   return (
@@ -184,6 +192,7 @@ export function ArtifactViewer(
       data-testid={testId}
       data-ui-component="artifactViewer"
       data-variant={content.kind}
+      data-size={size}
       data-state={state}
     >
       <h2 id={titleId}>{label}</h2>

@@ -215,6 +215,18 @@
   block-size: 100%;
   object-fit: contain;
 }
+/* Opened full size: the picture and the player take the room they are given. */
+.ui-artifact-viewer[data-size="full"] .ui-artifact-viewer__image {
+  block-size: auto;
+}
+.ui-artifact-viewer[data-size="full"] .ui-artifact-viewer__image img {
+  block-size: auto;
+  inline-size: auto;
+  max-inline-size: 100%;
+}
+.ui-artifact-viewer[data-size="full"] .ui-artifact-viewer__media video {
+  max-block-size: none;
+}
 /* A video or audio player: the browser's own controls, the width of the panel,
    and a target tall enough to touch on a phone. */
 .ui-artifact-viewer__media {

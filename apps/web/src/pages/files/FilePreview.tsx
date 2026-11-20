@@ -36,8 +36,10 @@ const imageTypes = new Set([
 
 /** The file's contents as far as the page can show them: text and images, bounded. */
 export function FilePreview(
-  { file, version }: {
+  { file, version, full = false }: {
     readonly file: StorageFolderItem;
+    /** Opened full size in the page, rather than in the details panel. */
+    readonly full?: boolean;
     /** An older version being shown; null for the current one. */
     readonly version: StorageFileVersion | null;
   },
@@ -106,6 +108,7 @@ export function FilePreview(
   if (media !== null && scope.organizationId !== null) {
     return (
       <ArtifactPreviewView
+        size={full ? "full" : "panel"}
         state="content"
         label={translate("files.preview.title")}
         content={{
@@ -157,6 +160,7 @@ export function FilePreview(
   }
   return (
     <ArtifactPreviewView
+      size={full ? "full" : "panel"}
       state="content"
       label={translate("files.preview.title")}
       content={image && imageUrl !== null

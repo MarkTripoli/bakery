@@ -4969,6 +4969,7 @@
   "files.action.more": "More",
   "files.action.moreLabel": "More actions",
   "files.action.open": "Open",
+  "files.action.closeView": "Back to the folder",
   "files.back": "Back to {name}",
   "files.version.viewing": "Viewing",
   "files.madeBy.openItem": "Open {item}",

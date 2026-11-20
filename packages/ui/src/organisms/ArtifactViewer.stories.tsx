@@ -58,6 +58,16 @@ export const Contract: StoryObj = {
           }}
         />
         <ArtifactViewer
+          label="Preview · Image, full size"
+          size="full"
+          content={{
+            kind: "image",
+            src,
+            alt: "Verified PNG fixture",
+            unavailableLabel: "Image unavailable",
+          }}
+        />
+        <ArtifactViewer
           label="Preview · Video"
           content={{
             kind: "video",

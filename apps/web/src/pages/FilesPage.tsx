@@ -15,6 +15,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { FileDetails, type FileTab } from "./files/FileDetails.tsx";
+import { FileOpened } from "./files/FileOpened.tsx";
 import { isLibraryPath, LibraryFilesPage } from "./files/LibraryFilesPage.tsx";
 import {
   FileSearchControls,
@@ -71,6 +72,7 @@ function StorageFilesPage({ path }: { readonly path: string }) {
     kind?: string;
     by?: string;
     fact?: string;
+    view?: "open";
     in?: "all";
   };
   const searchState: SearchState = {
@@ -98,6 +100,7 @@ function StorageFilesPage({ path }: { readonly path: string }) {
       kind?: string | undefined;
       by?: string | undefined;
       fact?: string | undefined;
+      view?: "open" | undefined;
       in?: "all" | undefined;
     },
   ) => {
@@ -110,6 +113,7 @@ function StorageFilesPage({ path }: { readonly path: string }) {
       kind: search.kind,
       by: search.by,
       fact: search.fact,
+      view: search.view,
       in: search.in,
       ...next,
     };
@@ -122,6 +126,7 @@ function StorageFilesPage({ path }: { readonly path: string }) {
       kind?: string;
       by?: string;
       fact?: string;
+      view?: "open";
       in?: "all";
     } = {};
     if (merged.q !== undefined && merged.q !== "") query.q = merged.q;
@@ -129,6 +134,7 @@ function StorageFilesPage({ path }: { readonly path: string }) {
     if (merged.kind !== undefined) query.kind = merged.kind;
     if (merged.by !== undefined) query.by = merged.by;
     if (merged.fact !== undefined) query.fact = merged.fact;
+    if (merged.view !== undefined) query.view = merged.view;
     if (merged.in !== undefined) query.in = merged.in;
     if (merged.file !== undefined) query.file = merged.file;
     if (merged.tab !== undefined) query.tab = merged.tab;
@@ -179,7 +185,12 @@ function StorageFilesPage({ path }: { readonly path: string }) {
           data-name="true"
           onClick={(event) => {
             event.preventDefault();
-            setSearch({ file: item.id, tab: undefined, version: undefined });
+            setSearch({
+              file: item.id,
+              tab: undefined,
+              version: undefined,
+              view: undefined,
+            });
           }}
         >
           {nameOf(item)}
@@ -250,8 +261,16 @@ function StorageFilesPage({ path }: { readonly path: string }) {
       onRevision={(next) => setSearch({ version: next })}
       onTab={(next) =>
         setSearch({ tab: next === "details" ? undefined : next })}
+      opened={search.view === "open"}
+      onOpenView={() => setSearch({ view: "open" })}
+      onCloseView={() => setSearch({ view: undefined })}
       onClose={() =>
-        setSearch({ file: undefined, tab: undefined, version: undefined })}
+        setSearch({
+          file: undefined,
+          tab: undefined,
+          version: undefined,
+          view: undefined,
+        })}
     />
   );
 
@@ -390,6 +409,14 @@ function StorageFilesPage({ path }: { readonly path: string }) {
           ? <UI.Text role="status">{translate("files.loading")}</UI.Text>
           : detailsPanel !== null && phone
           ? detailsPanel
+          : search.view === "open" && selected !== null
+          ? (
+            <FileOpened
+              file={selected}
+              revision={search.version}
+              onBack={() => setSearch({ view: undefined })}
+            />
+          )
           : rows.length === 0
           ? (
             <UI.EmptyState

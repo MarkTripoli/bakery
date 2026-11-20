@@ -632,6 +632,37 @@ for (
       await still(page, "files-preview-failed");
     });
 
+    test("Open shows a picture full size, with the panel beside it, and Back to the folder returns", async ({ page }) => {
+      await filesFixture(page);
+      await page.goto(`/files/projects/web-app/media?file=${uuid(43)}`);
+      const details = page.getByTestId("file-details");
+      await expect(details).toBeVisible();
+      await details.getByRole("button", { name: "Open", exact: true }).click();
+      await expect(page).toHaveURL(/view=open/);
+      const picture = page.getByRole("img", { name: "Image: diagram.png" });
+      if (viewport.name === "desktop") {
+        const opened = page.getByTestId("file-opened");
+        await expect(opened.getByRole("img", { name: "Image: diagram.png" }))
+          .toBeVisible();
+        // The folder's rows give way to the file; the panel stays beside it.
+        await expect(page.locator("[data-entry-id]")).toHaveCount(0);
+        await expect(details).toBeVisible();
+        await page.mouse.move(700, 700);
+        await still(page, "files-open-image");
+        await opened.getByRole("button", { name: "Back to the folder" })
+          .click();
+      } else {
+        // On a phone the file is a page of its own: the picture fills it.
+        await expect(picture).toBeVisible();
+        await page.mouse.move(700, 700);
+        await still(page, "files-open-image");
+        await details.getByRole("button", { name: "Back to the folder" })
+          .click();
+      }
+      await expect(page).not.toHaveURL(/view=open/);
+      await expect(details).toBeVisible();
+    });
+
     test("a video shows a player that is not autoplayed and loads nothing until it is played", async ({ page }) => {
       const seen = await filesFixture(page);
       await page.goto(`/files/projects/web-app?file=${uuid(41)}`);

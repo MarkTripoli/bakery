@@ -22,7 +22,19 @@ export type FileTab = "details" | "versions" | "uses";
 
 /** One file's details: what it is, its versions, and the runs that used it. */
 export function FileDetails(
-  { file, tab, onTab, onClose, revision, onRevision, phone, backLabel }: {
+  {
+    file,
+    tab,
+    onTab,
+    onClose,
+    revision,
+    onRevision,
+    phone,
+    backLabel,
+    opened,
+    onOpenView,
+    onCloseView,
+  }: {
     readonly file: StorageFolderItem;
     /** On a phone the file is a page of its own, with a back link. */
     readonly phone: boolean;
@@ -33,6 +45,10 @@ export function FileDetails(
     /** The version number being shown; undefined for the current version. */
     readonly revision: number | undefined;
     readonly onRevision: (revision: number | undefined) => void;
+    /** The file is opened full size: in the page column, or on a phone in this page. */
+    readonly opened: boolean;
+    readonly onOpenView: () => void;
+    readonly onCloseView: () => void;
   },
 ) {
   const api = useBakeryApi();
@@ -386,23 +402,39 @@ export function FileDetails(
           </UI.Stack>
         )
         : null}
-      <FilePreview file={file} version={shown} />
+      <FilePreview file={file} version={shown} full={opened && phone} />
       <UI.Inline gap="compact">
-        {artifactTarget === null ? null : (
-          <UI.Button
-            variant="primary"
-            onClick={() =>
-              void navigate({
-                to: "/tasks/$taskId/artifacts/$artifactId",
-                params: artifactTarget,
-              })}
-          >
-            {translate("files.action.open")}
-          </UI.Button>
-        )}
+        {artifactTarget !== null
+          ? (
+            <UI.Button
+              variant="primary"
+              onClick={() =>
+                void navigate({
+                  to: "/tasks/$taskId/artifacts/$artifactId",
+                  params: artifactTarget,
+                })}
+            >
+              {translate("files.action.open")}
+            </UI.Button>
+          )
+          : (shown?.contentRemoved ?? file.contentRemoved)
+          ? null
+          : (
+            // Any other file opens full size in the page, and the same button
+            // closes that view again.
+            <UI.Button
+              variant="primary"
+              aria-pressed={opened}
+              onClick={opened ? onCloseView : onOpenView}
+            >
+              {opened
+                ? translate("files.action.closeView")
+                : translate("files.action.open")}
+            </UI.Button>
+          )}
         {(shown?.contentRemoved ?? file.contentRemoved) ? null : (
           <UI.Button
-            variant={artifactTarget === null ? "primary" : "secondary"}
+            variant="secondary"
             onClick={() => void download()}
           >
             {shown === null

@@ -1224,6 +1224,7 @@ function validateFilesSearch(
   kind?: string;
   by?: string;
   fact?: string;
+  view?: "open";
   in?: "all";
 } {
   return {
@@ -1245,6 +1246,7 @@ function validateFilesSearch(
     ...(typeof search.by === "string" && search.by !== ""
       ? { by: search.by.slice(0, 64) }
       : {}),
+    ...(search.view === "open" ? { view: "open" as const } : {}),
     ...(typeof search.fact === "string" && search.fact.includes(":")
       ? { fact: search.fact.slice(0, 700) }
       : {}),
