@@ -32167,41 +32167,113 @@
         "routeId",
         "provider",
         "model",
+        "providerName",
+        "modelName",
         "harness",
         "billingRoute",
         "health",
-        "eligible",
-        "ineligibleReason"
+        "priced",
+        "estimatedIncrementalCost"
       ],
       "nullableFields": [
-        "ineligibleReason"
+        "estimatedIncrementalCost"
       ],
       "fieldTypes": {
         "routeId": "uuid",
         "provider": "string",
         "model": "string",
+        "providerName": "string",
+        "modelName": "string",
         "harness": "enum(pi|claude_code|codex|mastra)",
         "billingRoute": "enum(subscription|api_metered|local)",
         "health": "enum(healthy|degraded|open|unverified)",
-        "eligible": "boolean",
-        "ineligibleReason": "enum(different_harness|route_not_active|route_open)"
+        "priced": "boolean",
+        "estimatedIncrementalCost": "decimal|null"
       },
-      "description": "One route a stalled step could continue on, with whether it may and, when it may not, the one reason. Every other route of the organization is listed, eligible or not, so a person choosing can see why a route is not offered instead of wondering where it went.",
+      "description": "One route a stalled step may continue on. Only usable routes are listed: active, on the step's own harness and not paused behind their own incident. Routes that cannot be used are counted in the offer's unavailable groups instead, so an organization with a hundred routes is not sent a hundred rows.",
       "fieldDescriptions": {
-        "routeId": "UUID of the candidate provider route.",
-        "provider": "Provider key the candidate route sends to.",
-        "model": "Model identifier the candidate route pins; a continuation runs the step on this model.",
-        "harness": "Harness path the candidate route executes on: pi, claude_code, codex or mastra.",
-        "billingRoute": "Billing route the candidate route's spend follows: subscription, api_metered or local.",
-        "health": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it.",
-        "eligible": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused.",
-        "ineligibleReason": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+        "routeId": "UUID of the target provider route; the id a continuation submission names.",
+        "provider": "Provider key the target route sends to.",
+        "model": "Model identifier the target route pins; a continuation runs the step on this model.",
+        "providerName": "The provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider.",
+        "modelName": "The model as a person reads it; the model key, since Bakery has no model catalog and the key is the provider's own name for the model.",
+        "harness": "Harness path the target route executes on; always the step's own harness: pi, claude_code, codex or mastra.",
+        "billingRoute": "Billing route the target route's spend follows: subscription, api_metered or local.",
+        "health": "The target route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes are listed with their health, so a person sees how much to trust a target before choosing it.",
+        "priced": "True when Bakery has an active price for this route's provider, model, account and billing route. A continuation onto an unpriced route is refused with target_pricing_unavailable, so a page shows it as not choosable.",
+        "estimatedIncrementalCost": "Estimated extra spend in USD of continuing the step on this route, or null when unknown. Null is never free: Bakery has no forecast yet of how many tokens a step has left, so no route is estimated today."
+      }
+    },
+    "RouteContinuationUnavailable": {
+      "fields": [
+        "reason",
+        "count",
+        "harnesses",
+        "routes"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "reason": "enum(different_harness|route_not_active|route_open)",
+        "count": "integer",
+        "harnesses": "RouteContinuationHarnessCount[]",
+        "routes": "RouteContinuationRouteName[]"
+      },
+      "description": "One reason routes of the organization cannot take a stalled step, with how many routes it covers. Counts, not rows: a person reads why routes are missing without being sent every one.",
+      "fieldDescriptions": {
+        "reason": "Why these routes cannot take the step: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident). A route with several reasons counts once, under the first a person would fix: not active, then harness, then open.",
+        "count": "How many routes this reason covers, at least 1.",
+        "harnesses": "For different_harness only: the routes counted per harness, most first. Absent for any other reason.",
+        "routes": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason."
+      },
+      "optionalFields": [
+        "harnesses",
+        "routes"
+      ]
+    },
+    "RouteContinuationHarnessCount": {
+      "fields": [
+        "harness",
+        "count"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "count": "integer"
+      },
+      "description": "How many routes of the organization run on one other harness, so a person sees which coding agents have routes this step cannot use.",
+      "fieldDescriptions": {
+        "harness": "The other harness path: pi, claude_code, codex or mastra.",
+        "count": "How many routes run on that harness, at least 1."
+      }
+    },
+    "RouteContinuationRouteName": {
+      "fields": [
+        "provider",
+        "model",
+        "providerName",
+        "modelName"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "provider": "string",
+        "model": "string",
+        "providerName": "string",
+        "modelName": "string"
+      },
+      "description": "The name of one route that cannot be used right now, as a provider and model a person recognises.",
+      "fieldDescriptions": {
+        "provider": "Provider key of the route.",
+        "model": "Model identifier of the route.",
+        "providerName": "The provider as a person reads it; the key itself when Bakery does not know the provider.",
+        "modelName": "The model as a person reads it; the model key, since Bakery has no model catalog."
       }
     },
     "RouteContinuationSource": {
       "fields": [
         "provider",
         "model",
+        "providerName",
+        "modelName",
         "harness",
         "billingRoute",
         "health"
@@ -32210,6 +32282,8 @@
       "fieldTypes": {
         "provider": "string",
         "model": "string",
+        "providerName": "string",
+        "modelName": "string",
         "harness": "enum(pi|claude_code|codex|mastra)",
         "billingRoute": "enum(subscription|api_metered|local)",
         "health": "enum(healthy|degraded|open|unverified)"
@@ -32218,6 +32292,8 @@
       "fieldDescriptions": {
         "provider": "Provider key the source route sends to.",
         "model": "Model identifier the source route pins; the model the step is waiting on.",
+        "providerName": "The source provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider.",
+        "modelName": "The source model as a person reads it; the model key, since Bakery has no model catalog.",
         "harness": "Harness path (agent) the step runs on: pi, claude_code, codex or mastra.",
         "billingRoute": "How the source route's spend is paid: subscription, api_metered or local.",
         "health": "The source route's current circuit state: open while its incident is an outage, degraded while it still serves some work."
@@ -32235,12 +32311,11 @@
         "since",
         "nextCheckAt",
         "runVersion",
-        "estimatedIncrementalCost",
-        "targets"
+        "targets",
+        "unavailable"
       ],
       "nullableFields": [
-        "nextCheckAt",
-        "estimatedIncrementalCost"
+        "nextCheckAt"
       ],
       "fieldTypes": {
         "runStepId": "uuid",
@@ -32253,8 +32328,8 @@
         "since": "timestamp",
         "nextCheckAt": "timestamp|null",
         "runVersion": "integer",
-        "estimatedIncrementalCost": "decimalString|null",
-        "targets": "RouteContinuationTarget[]"
+        "targets": "RouteContinuationTarget[]",
+        "unavailable": "RouteContinuationUnavailable[]"
       },
       "description": "One choice a run is waiting on: a step pinned to a route that has an open incident, and the routes it could continue on. The incident generation and the run version are what a later submission names, so a choice made against an incident that has since recovered, or a run that has since changed, is recognised as stale and commits nothing.",
       "fieldDescriptions": {
@@ -32268,8 +32343,8 @@
         "since": "When the incident the step is waiting behind was opened.",
         "nextCheckAt": "When the source route is next checked, or null when no check is scheduled.",
         "runVersion": "The run's version when this offer was made, so a submission can be refused if the run changed in between.",
-        "estimatedIncrementalCost": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice.",
-        "targets": "Every other route of the organization, each marked eligible or not with the reason."
+        "targets": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate.",
+        "unavailable": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list."
       }
     },
     "RouteContinuationOffers": {

@@ -9,7 +9,7 @@
 .ui-search-field__input,
 select,
 textarea,
-input:not([type="hidden"]) {
+input:not([type="hidden"], [type="radio"], [type="checkbox"]) {
   min-block-size: var(--target-min);
   min-inline-size: var(--target-min);
 }

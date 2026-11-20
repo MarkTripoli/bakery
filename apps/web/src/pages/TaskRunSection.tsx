@@ -365,7 +365,14 @@ export function TaskRunSection(
             ? <BlockedNotice run={run.data} />
             : null}
           {validRun && run.data
-            ? <RouteWaiting key={runId} offers={waitingOffers} />
+            ? (
+              <RouteWaiting
+                key={runId}
+                taskId={taskId}
+                runId={runId}
+                offers={waitingOffers}
+              />
+            )
             : null}
           <UI.VisuallyHidden
             role={threadShown ? undefined : "status"}

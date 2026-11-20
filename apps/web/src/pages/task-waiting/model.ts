@@ -17,6 +17,8 @@ export type Offer = RouteContinuationOffersResponse["offers"][number];
 type Harness = Offer["source"]["harness"];
 type Billing = Offer["source"]["billingRoute"];
 type Reason = Offer["reason"];
+export type Target = Offer["targets"][number];
+export type Unavailable = Offer["unavailable"][number];
 
 /** The card and the run badge appear only once the incident is this old. */
 export const SHOWN_AFTER_MS = 60_000;
@@ -123,6 +125,8 @@ export type CardCopy = Readonly<{
   text: string;
   /** What Bakery has and has not done, and what happens next. */
   second: string;
+  /** The button that opens the chooser, or null when nothing else can run it. */
+  button: string | null;
 }>;
 
 /** The words of one waiting card. */
@@ -161,6 +165,7 @@ export function cardCopy(
       t(reasonKey(offer.reason), { provider, time: when(offer.since) }),
     ].join(" "),
     second,
+    button: offer.targets.length > 0 ? t("tasks.waiting.choose") : null,
   };
 }
 
@@ -170,4 +175,380 @@ export function stepRowCopy(offer: Offer, t: Translator): string {
     agent: agentName(t, offer.source.harness),
     model: offer.source.model,
   });
+}
+
+// ---- The chooser (#70, slice 2, UX revision 3): providers on the left, that
+// provider's models in a table on the right, search across every provider.
+
+const HEALTH_RANK: Record<Target["health"], number> = {
+  healthy: 0,
+  unverified: 1,
+  degraded: 2,
+  open: 3,
+};
+
+/** Working, then Not tried yet, then Having trouble too, then by name. */
+export function orderTargets(targets: readonly Target[]): Target[] {
+  return [...targets].sort((a, b) =>
+    HEALTH_RANK[a.health] - HEALTH_RANK[b.health] ||
+    a.modelName.localeCompare(b.modelName) ||
+    a.providerName.localeCompare(b.providerName) ||
+    a.routeId.localeCompare(b.routeId)
+  );
+}
+
+/** The most the Suggested list holds. */
+export const SUGGESTED_MAX = 5;
+
+/**
+ * Suggested: routes that are Working, priced and paid the same way as the
+ * step's route today; the same provider first, at most five.
+ */
+export function suggestedTargets(
+  offer: Pick<Offer, "source" | "targets">,
+): Target[] {
+  const { source } = offer;
+  return orderTargets(
+    offer.targets.filter((target) =>
+      target.health === "healthy" && target.priced &&
+      target.billingRoute === source.billingRoute
+    ),
+  ).sort((a, b) =>
+    Number(b.provider === source.provider) -
+    Number(a.provider === source.provider)
+  ).slice(0, SUGGESTED_MAX);
+}
+
+export type ProviderEntry = Readonly<{
+  /** The provider key, or `SUGGESTED` for the Suggested entry. */
+  key: string;
+  name: string;
+  count: number;
+}>;
+
+/** The key of the Suggested entry in the provider list. */
+export const SUGGESTED = "@suggested";
+
+/**
+ * The provider list: Suggested first when it has any, then every provider
+ * with a usable route, by name, each with how many models it has.
+ */
+export function providerEntries(
+  offer: Pick<Offer, "source" | "targets">,
+  suggestedName: string,
+): ProviderEntry[] {
+  const byProvider = new Map<string, { name: string; count: number }>();
+  for (const target of offer.targets) {
+    const entry = byProvider.get(target.provider);
+    if (entry) entry.count += 1;
+    else {byProvider.set(target.provider, {
+        name: target.providerName,
+        count: 1,
+      });}
+  }
+  const providers = [...byProvider].map(([key, value]) => ({ key, ...value }))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
+  const suggested = suggestedTargets(offer).length;
+  return suggested === 0 ? providers : [
+    { key: SUGGESTED, name: suggestedName, count: suggested },
+    ...providers,
+  ];
+}
+
+/** The models one entry of the provider list shows, in table order. */
+export function targetsOf(
+  offer: Pick<Offer, "source" | "targets">,
+  key: string,
+): Target[] {
+  if (key === SUGGESTED) return suggestedTargets(offer);
+  return orderTargets(offer.targets.filter((one) => one.provider === key));
+}
+
+/**
+ * Search across every provider: the text matches a model or provider name or
+ * key, ignoring case. Blank text matches nothing (search is off).
+ */
+export function searchTargets(
+  targets: readonly Target[],
+  text: string,
+): { matches: Target[]; providers: number } {
+  const needle = text.trim().toLocaleLowerCase();
+  if (needle === "") return { matches: [], providers: 0 };
+  const matches = orderTargets(
+    targets.filter((target) =>
+      [target.modelName, target.model, target.providerName, target.provider]
+        .some((field) => field.toLocaleLowerCase().includes(needle))
+    ),
+  );
+  return {
+    matches,
+    providers: new Set(matches.map((one) => one.provider)).size,
+  };
+}
+
+/** A target can be chosen only when Bakery has a price for it. */
+export function choosable(target: Pick<Target, "priced">): boolean {
+  return target.priced;
+}
+
+const PAYMENT_KEYS: Record<Billing, MessageKey> = {
+  subscription: "tasks.waiting.payment.subscription",
+  api_metered: "tasks.waiting.payment.api_metered",
+  local: "tasks.waiting.payment.local",
+};
+const PAYMENT_SHORT_KEYS: Record<Billing, MessageKey> = {
+  subscription: "tasks.waiting.payment.subscription.short",
+  api_metered: "tasks.waiting.payment.api_metered.short",
+  local: "tasks.waiting.payment.local.short",
+};
+
+/** How the work is paid, as a column or a line reads it. */
+export function paymentLabel(t: Translator, billing: Billing): string {
+  return t(PAYMENT_KEYS[billing]);
+}
+
+/** How the work is paid, shortened for the search table. */
+export function paymentShort(t: Translator, billing: Billing): string {
+  return t(PAYMENT_SHORT_KEYS[billing]);
+}
+
+/** The State column: how far to trust a route, or that it has no price. */
+export function stateLabel(
+  t: Translator,
+  target: Pick<Target, "health" | "priced">,
+): { tone: "success" | "warning" | "neutral"; text: string } {
+  if (!target.priced) {
+    return { tone: "neutral", text: t("tasks.waiting.state.noPrice") };
+  }
+  if (target.health === "degraded") {
+    return { tone: "warning", text: t("tasks.waiting.health.degraded") };
+  }
+  if (target.health === "unverified") {
+    return { tone: "neutral", text: t("tasks.waiting.health.unverified") };
+  }
+  return { tone: "success", text: t("tasks.waiting.health.healthy") };
+}
+
+/** The chooser's first line: what stays, what to do, and what runs now. */
+export function chooserIntro(
+  t: Translator,
+  offer: Pick<Offer, "source">,
+): string {
+  const { source } = offer;
+  return t("tasks.waiting.chooser.intro", {
+    agent: agentName(t, source.harness),
+    provider: source.providerName,
+    model: source.modelName,
+    payment: paymentInline(t, source.billingRoute),
+  });
+}
+
+/** The end bar's summary of the choice: "{Provider} · {model} · {payment}". */
+export function choiceSummary(t: Translator, target: Target): string {
+  return t("tasks.waiting.chooser.summary", {
+    provider: target.providerName,
+    model: target.modelName,
+    payment: paymentLabel(t, target.billingRoute),
+  });
+}
+
+/** Said only when the choice is paid differently from the step's route. */
+export function paymentNotice(
+  t: Translator,
+  source: Pick<Offer["source"], "billingRoute">,
+  target: Pick<Target, "billingRoute">,
+): string | null {
+  if (source.billingRoute === target.billingRoute) return null;
+  return t("tasks.waiting.chooser.paymentChanges", {
+    from: paymentInline(t, source.billingRoute),
+    to: paymentInline(t, target.billingRoute),
+  });
+}
+
+/** The cost line; a figure replaces "Unknown" only when the server sent one. */
+export function costLine(
+  t: Translator,
+  target: Pick<Target, "estimatedIncrementalCost"> | null,
+  money: (value: number) => string,
+): string {
+  const raw = target?.estimatedIncrementalCost ?? null;
+  const figure = raw === null ? Number.NaN : Number(raw);
+  return t("tasks.waiting.chooser.cost", {
+    cost: Number.isFinite(figure)
+      ? money(figure)
+      : t("tasks.waiting.chooser.costUnknown"),
+  });
+}
+
+/** The button that makes the choice, naming the model. */
+export function continueLabel(t: Translator, target: Target | null): string {
+  return target === null
+    ? t("tasks.waiting.chooser.continueNone")
+    : t("tasks.waiting.chooser.continue", { model: target.modelName });
+}
+
+/** The notice after a choice worked. */
+export function continuedNotice(t: Translator, target: Target): string {
+  return t("tasks.waiting.continued", {
+    agent: agentName(t, target.harness),
+    model: target.modelName,
+  });
+}
+
+/** The closed "cannot be used" line, or null when every route can be used. */
+export function unavailableSummary(
+  t: Translator,
+  offer: Pick<Offer, "unavailable">,
+): string | null {
+  const count = offer.unavailable.reduce((sum, one) => sum + one.count, 0);
+  return count === 0 ? null : t("tasks.waiting.unavailable.summary", { count });
+}
+
+/**
+ * One line per reason routes cannot be used, with its count: other coding
+ * agents by agent only, routes not working by name, turned off routes as a
+ * pointer to Settings.
+ */
+export function unavailableLines(
+  t: Translator,
+  offer: Pick<Offer, "unavailable">,
+): { reason: Unavailable["reason"]; text: string }[] {
+  return offer.unavailable.map((group) => {
+    if (group.reason === "different_harness") {
+      return {
+        reason: group.reason,
+        text: t("tasks.waiting.unavailable.different_harness", {
+          count: group.count,
+          agents: (group.harnesses ?? []).map((one) =>
+            t("tasks.waiting.unavailable.agentCount", {
+              agent: agentName(t, one.harness),
+              count: one.count,
+            })
+          ).join(", "),
+        }),
+      };
+    }
+    if (group.reason === "route_open") {
+      const names = (group.routes ?? []).map((one) =>
+        t("tasks.waiting.unavailable.routeName", {
+          provider: one.providerName,
+          model: one.modelName,
+        })
+      );
+      const more = group.count - names.length;
+      return {
+        reason: group.reason,
+        text: t("tasks.waiting.unavailable.route_open", {
+          count: group.count,
+          names: more > 0
+            ? t("tasks.waiting.unavailable.andMore", {
+              names: names.join(", "),
+              count: more,
+            })
+            : names.join(", "),
+        }),
+      };
+    }
+    return {
+      reason: group.reason,
+      text: t("tasks.waiting.unavailable.route_not_active", {
+        count: group.count,
+      }),
+    };
+  });
+}
+
+/** What the server named when it refused a choice (`problem.reason`). */
+export const REFUSAL_REASONS = [
+  "incident_not_current",
+  "step_not_pinned_to_route",
+  "already_continued",
+  "run_not_active",
+  "cancel_requested",
+  "target_route_not_active",
+  "target_route_open",
+  "target_different_harness",
+  "target_pin_unchanged",
+  "target_pricing_unavailable",
+  "awaiting_reconciliation",
+  "spend_in_flight",
+  "job_not_funded",
+  "attempt_budget_exhausted",
+] as const;
+export type RefusalReason = (typeof REFUSAL_REASONS)[number];
+
+/**
+ * Where a refusal is said. `page`: the choice is stale, so the chooser
+ * closes, the page reads the latest and the notice sits above the steps.
+ * `chooser`: it stays open with the sentence above its buttons; `reload`
+ * also reads the choices again, for a target that can no longer be used.
+ */
+export type Refusal = Readonly<{
+  where: "page" | "chooser";
+  reload: boolean;
+  key: MessageKey;
+}>;
+
+function onPage(key: MessageKey): Refusal {
+  return { where: "page", reload: true, key };
+}
+
+function inChooser(key: MessageKey, reload = false): Refusal {
+  return { where: "chooser", reload, key };
+}
+
+const REFUSALS: Record<RefusalReason, Refusal> = {
+  incident_not_current: onPage("tasks.waiting.refused.changed"),
+  step_not_pinned_to_route: onPage("tasks.waiting.refused.changed"),
+  already_continued: onPage("tasks.waiting.refused.alreadyContinued"),
+  run_not_active: onPage("tasks.waiting.refused.runEnded"),
+  cancel_requested: onPage("tasks.waiting.refused.runEnded"),
+  target_route_not_active: inChooser("tasks.waiting.refused.targetGone", true),
+  target_route_open: inChooser("tasks.waiting.refused.targetGone", true),
+  target_different_harness: inChooser("tasks.waiting.refused.targetGone", true),
+  target_pin_unchanged: inChooser("tasks.waiting.refused.targetGone", true),
+  target_pricing_unavailable: inChooser("tasks.waiting.refused.noPrice"),
+  awaiting_reconciliation: inChooser("tasks.waiting.refused.confirming"),
+  spend_in_flight: inChooser("tasks.waiting.refused.confirming"),
+  job_not_funded: inChooser("tasks.waiting.refused.noBudget"),
+  attempt_budget_exhausted: inChooser("tasks.waiting.refused.noBudget"),
+};
+
+/** The one sentence for a refusal the page does not know. */
+const OTHER: Refusal = inChooser("tasks.waiting.refused.other");
+
+/**
+ * What a failed choice means. The run having changed since the offer is the
+ * server's `PRECONDITION_FAILED`; every other refusal is a `STATE_CONFLICT`
+ * with a reason. A reason the page does not know, or none, reads as the plain
+ * "Nothing was switched. Try again."
+ */
+export function refusalOf(
+  failure: {
+    readonly kind: string;
+    readonly problem?: { readonly code: string; readonly reason?: string };
+  },
+): Refusal {
+  if (failure.kind !== "problem" || !failure.problem) return OTHER;
+  const { code, reason } = failure.problem;
+  if (code === "PRECONDITION_FAILED") {
+    return onPage("tasks.waiting.refused.changed");
+  }
+  if (code !== "STATE_CONFLICT" || reason === undefined) return OTHER;
+  return (REFUSALS as Record<string, Refusal | undefined>)[reason] ?? OTHER;
+}
+
+/**
+ * True when the answer to a choice never arrived or the server could not say,
+ * so the choice may have gone through: the same key is sent again on a retry.
+ */
+export function outcomeUnknown(
+  failure: {
+    readonly kind: string;
+    readonly problem?: { readonly status: number; readonly retryable: boolean };
+  },
+): boolean {
+  if (failure.kind !== "problem" || !failure.problem) return true;
+  const { status, retryable } = failure.problem;
+  return retryable || status >= 500 || status === 408;
 }

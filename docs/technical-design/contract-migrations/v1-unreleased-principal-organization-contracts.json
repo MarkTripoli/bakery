@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "064ca6fd61b59fe9eae31cfe2469f62f9e635687"
+    "e321e76af1ce1933149b3345d832e98295ccc364"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:1f25130262c7f1a06b80a55cf63474047fd0dbd37cf8234a0898539354af3c69",
-  "reason": "#70 slice 2 waiting-on-a-model reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 064ca6fd61b59fe9eae31cfe2469f62f9e635687: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:cf4c74a76008b30a040dc12607d479f6f88cc46c7d7952c4b5bbb481f9f56036",
+  "reason": "#70 chooser server re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main e321e76af1ce1933149b3345d832e98295ccc364, onto the #70 slice 2 head 1bf2a8f2: RouteContinuationOffer drops estimatedIncrementalCost and lists only usable targets, gaining unavailable (counts per reason, per harness, and up to 20 open route names); RouteContinuationTarget drops eligible and ineligibleReason and gains providerName, modelName, priced and estimatedIncrementalCost; RouteContinuationSource gains providerName and modelName. The #70 slice 2 approval is kept unchanged first below, then this PR's previous one.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "064ca6fd61b59fe9eae31cfe2469f62f9e635687"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1f25130262c7f1a06b80a55cf63474047fd0dbd37cf8234a0898539354af3c69",
+      "reason": "#70 slice 2 waiting-on-a-model reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 064ca6fd61b59fe9eae31cfe2469f62f9e635687: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

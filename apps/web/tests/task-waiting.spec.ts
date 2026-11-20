@@ -1,13 +1,20 @@
-import { expect, type Page, type Route, test } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 // #70 slice 2: a step whose model is not answering shows a card on the task
-// run. Bakery never switches by itself, and this slice ships no way to choose
-// another. The reads are mocked with the shapes of `routeContinuations.list`
-// and `runs.get` (`waitingOnModel`).
+// run, and the card's chooser (UX revision 3) picks another way to run it.
+// Bakery never switches by itself. The reads and the admit are mocked with the
+// shapes of `routeContinuations.list`, `routeContinuations.admit` and
+// `runs.get` (`waitingOnModel`).
 
 registerPageHealth(test);
 
@@ -113,9 +120,22 @@ type Target = {
   model: string;
   harness: string;
   billingRoute: string;
+  providerName: string;
+  modelName: string;
   health: string;
-  eligible: boolean;
-  ineligibleReason: string | null;
+  priced: boolean;
+  estimatedIncrementalCost: string | null;
+};
+type Unavailable = {
+  reason: string;
+  count: number;
+  harnesses?: { harness: string; count: number }[];
+  routes?: {
+    provider: string;
+    model: string;
+    providerName: string;
+    modelName: string;
+  }[];
 };
 type Offer = ReturnType<typeof offerRow>;
 
@@ -125,16 +145,22 @@ const target = (n: number, over: Partial<Target> = {}): Target => ({
   model: "claude-sonnet",
   harness: "claude_code",
   billingRoute: "subscription",
+  providerName: "Anthropic",
+  modelName: "claude-sonnet",
   health: "healthy",
-  eligible: true,
-  ineligibleReason: null,
+  priced: true,
+  estimatedIncrementalCost: null,
   ...over,
 });
 
 /** One step waiting on a model; `since` is how many seconds ago it began. */
 const offerRow = (
-  over: { since?: number; targets?: Target[]; nextCheckAt?: string | null } =
-    {},
+  over: {
+    since?: number;
+    targets?: Target[];
+    unavailable?: Unavailable[];
+    nextCheckAt?: string | null;
+  } = {},
 ) => ({
   runStepId: stepId,
   stepKey: "implement",
@@ -144,6 +170,8 @@ const offerRow = (
   source: {
     provider: "anthropic",
     model: "claude-opus",
+    providerName: "Anthropic",
+    modelName: "claude-opus",
     harness: "claude_code",
     billingRoute: "subscription",
     health: "open",
@@ -154,41 +182,50 @@ const offerRow = (
     ? new Date(Date.now() + 3 * 60_000).toISOString()
     : over.nextCheckAt,
   runVersion: 4,
-  estimatedIncrementalCost: null,
   targets: over.targets ?? [
     target(1, { model: "claude-sonnet" }),
     target(2, {
       provider: "openai",
       model: "gpt-5",
+      providerName: "OpenAI",
+      modelName: "gpt-5",
       harness: "claude_code",
       billingRoute: "api_metered",
       health: "degraded",
     }),
-    target(3, { model: "claude-haiku", health: "unverified" }),
-    target(4, {
-      provider: "openai",
-      model: "codex-large",
-      harness: "codex",
-      eligible: false,
-      ineligibleReason: "different_harness",
+    target(3, {
+      model: "claude-haiku",
+      modelName: "claude-haiku",
+      health: "unverified",
     }),
-    target(5, {
-      model: "claude-old",
-      eligible: false,
-      ineligibleReason: "route_not_active",
-    }),
+  ],
+  unavailable: over.unavailable ?? [
+    {
+      reason: "route_not_active",
+      count: 1,
+    },
+    {
+      reason: "different_harness",
+      count: 1,
+      harnesses: [{ harness: "codex", count: 1 }],
+    },
   ],
 });
 
+type Admit = { key: string | undefined; body: Record<string, unknown> };
 type Waiting = {
   offers: Offer[];
   /** What `runs.get` says; false once the incident has closed. */
   waiting: boolean;
+  /** Every admit the page sent, in order. */
+  admits: Admit[];
+  /** Answers an admit instead of the default success. */
+  reply?: (route: Route) => Promise<void>;
 };
 
 /** Serves the task and its run waiting on a model. */
 async function openWaiting(page: Page, offers: Offer[]): Promise<Waiting> {
-  const state: Waiting = { offers, waiting: offers.length > 0 };
+  const state: Waiting = { offers, waiting: offers.length > 0, admits: [] };
   await mockAuthenticatedSession(page);
   await page.route(
     `**/v1/tasks/${id}`,
@@ -246,22 +283,74 @@ async function openWaiting(page: Page, offers: Offer[]): Promise<Waiting> {
     }));
   await page.route(`**/v1/runs/${runId}/route-continuations`, async (route) => {
     const request = route.request();
-    // This slice ships no way to choose, so the page only reads offers.
     if (request.method() === "GET") {
       return await route.fulfill({
         json: { runId, offers: state.offers },
       });
     }
+    const body = request.postDataJSON() as Record<string, unknown>;
+    state.admits.push({ key: request.headers()["idempotency-key"], body });
+    if (state.reply) return await state.reply(route);
+    const chosen = state.offers[0].targets.find((one) =>
+      one.routeId === body.targetRouteId
+    )!;
+    // The server moves the step: the incident no longer offers a choice.
+    state.offers = [];
+    state.waiting = false;
     await route.fulfill({
-      status: 405,
-      json: problemBody(405, "METHOD_NOT_ALLOWED"),
+      json: {
+        id: uuid(60),
+        runId,
+        runStepId: stepId,
+        jobId: uuid(61),
+        incidentId,
+        incidentGeneration: 2,
+        sourceRouteId: uuid(40),
+        targetRouteId: chosen.routeId,
+        previousPin: {
+          provider: "anthropic",
+          model: "claude-opus",
+          billingRoute: "subscription",
+          billingAccountId: "acct-1",
+        },
+        newPin: {
+          provider: chosen.provider,
+          model: chosen.model,
+          billingRoute: chosen.billingRoute === "api_metered"
+            ? "api"
+            : "subscription",
+          billingAccountId: "acct-2",
+        },
+        admittedAt: new Date().toISOString(),
+      },
     });
   });
   await page.goto(`/tasks/${id}`);
   return state;
 }
 
+/** The in-page chooser is for desktop and tablet; the phone sheet has its own test. */
+const inPageOnly = () =>
+  test.skip(
+    test.info().project.name === "mobile",
+    "the phone gets the two-step sheet, proven by its own test",
+  );
+
+/** A problem answer as the server sends it (`application/problem+json`). */
+const problemReply = (route: Route, body: ReturnType<typeof problemBody>) =>
+  route.fulfill({
+    status: body.status,
+    contentType: "application/problem+json",
+    body: JSON.stringify(body),
+  });
+
 const card = (page: Page) => page.getByTestId("route-waiting-card");
+const chooser = (page: Page) => page.getByTestId("route-waiting-chooser");
+const chooseButton = (page: Page) => page.getByTestId("route-waiting-choose");
+const providerRow = (scope: Locator, key: string) =>
+  scope.locator(`[data-provider="${key}"] button`);
+const modelRadio = (scope: Locator, name: string) =>
+  scope.getByRole("radio", { name, exact: true });
 
 const SECOND_LINE =
   "Bakery has not moved this work anywhere else. It tries the step again with the same model, and the waiting ends when a try works.";
@@ -278,9 +367,7 @@ test("a step waiting on a model shows one card that says what, why and what Bake
   await expect(card(page)).toContainText(SECOND_LINE);
   await expect(card(page)).toContainText("Bakery also checks Anthropic at");
   await expect(card(page)).not.toContainText("checks again");
-  // No way to choose ships yet: no button, and no promise of one.
-  await expect(card(page).getByRole("button")).toHaveCount(0);
-  await expect(card(page)).not.toContainText("chooses");
+  await expect(chooseButton(page)).toHaveText("Choose another way to run it");
   // The run says so too: the badge, and the step's own row.
   await expect(page.getByText("Waiting on a model", { exact: true }))
     .toBeVisible();
@@ -311,7 +398,17 @@ test("a wait of less than a minute shows no card and no badge", async ({ page })
 test("with no other way to run the step the card reads the same and has no button", async ({ page }) => {
   await openWaiting(page, [
     offerRow({
-      targets: [target(4, { eligible: false, ineligibleReason: "route_open" })],
+      targets: [],
+      unavailable: [{
+        reason: "route_open",
+        count: 1,
+        routes: [{
+          provider: "anthropic",
+          model: "claude-sonnet",
+          providerName: "Anthropic",
+          modelName: "claude-sonnet",
+        }],
+      }],
     }),
   ]);
   await expect(card(page)).toContainText(SECOND_LINE);
@@ -345,6 +442,203 @@ test("several waiting steps show one card each, oldest first", async ({ page }) 
   await expect(card(page).last()).toHaveAttribute("data-step-key", "review");
 });
 
+test("the chooser opens under the card, closes with Escape or its button, and focus returns", async ({ page }) => {
+  inPageOnly();
+  await openWaiting(page, [offerRow()]);
+  await chooseButton(page).click();
+  await expect(chooser(page)).toBeVisible();
+  await expect(chooseButton(page)).toHaveText("Close the choices");
+  await expect(chooseButton(page)).toHaveAttribute("aria-expanded", "true");
+  await expect(chooser(page)).toContainText(
+    "This step stays on Claude Code. Choose a provider, then a model. Now: Anthropic, claude-opus, the subscription on a machine.",
+  );
+  // It opens on Suggested with nothing chosen and Continue disabled.
+  await expect(providerRow(chooser(page), "@suggested")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByTestId("route-waiting-summary")).toHaveText(
+    "Nothing chosen yet.",
+  );
+  await expect(page.getByTestId("route-waiting-continue")).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(chooser(page)).toHaveCount(0);
+  await expect(chooseButton(page)).toBeFocused();
+  await chooseButton(page).click();
+  await expect(chooser(page)).toBeVisible();
+  await chooseButton(page).click();
+  await expect(chooser(page)).toHaveCount(0);
+  await expect(chooseButton(page)).toHaveText("Choose another way to run it");
+  await chooseButton(page).click();
+  await chooser(page).getByRole("button", { name: "Keep waiting" }).click();
+  await expect(chooser(page)).toHaveCount(0);
+  await expect(chooseButton(page)).toBeFocused();
+});
+
+test("choosing a provider, then a model, names it and says the payment changes", async ({ page }) => {
+  inPageOnly();
+  await openWaiting(page, [offerRow()]);
+  await chooseButton(page).click();
+  // Suggested holds only the Working route paid the same way.
+  await expect(modelRadio(chooser(page), "claude-sonnet")).toBeVisible();
+  await expect(modelRadio(chooser(page), "gpt-5")).toHaveCount(0);
+  await providerRow(chooser(page), "openai").click();
+  await modelRadio(chooser(page), "gpt-5").check();
+  await expect(page.getByTestId("route-waiting-summary")).toHaveText(
+    "OpenAI · gpt-5 · Charged per use to an API key",
+  );
+  await expect(page.getByTestId("route-waiting-payment")).toHaveText(
+    "This changes how the work is paid for: from the subscription on a machine to an API key charged per use.",
+  );
+  await expect(page.getByTestId("route-waiting-continue")).toHaveText(
+    "Continue with gpt-5",
+  );
+  // Anthropic: Working first, then Not tried yet; same payment, no notice.
+  await providerRow(chooser(page), "anthropic").click();
+  const rows = chooser(page).locator("[data-route-id]");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText("claude-sonnet");
+  await expect(rows.last()).toContainText("Not tried yet");
+  await modelRadio(chooser(page), "claude-haiku").check();
+  await expect(page.getByTestId("route-waiting-payment")).toHaveCount(0);
+  const results = await new AxeBuilder({ page })
+    .include('[data-testid="route-waiting"]')
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test("search finds models across providers, says how many, and can be cleared", async ({ page }) => {
+  inPageOnly();
+  await openWaiting(page, [offerRow()]);
+  await chooseButton(page).click();
+  await page.keyboard.press("/");
+  await expect(page.getByTestId("route-waiting-search")).toBeFocused();
+  await page.keyboard.type("claude");
+  await expect(chooser(page)).toContainText(
+    '2 models match "claude" across 1 provider.',
+  );
+  await expect(
+    chooser(page).getByRole("columnheader", {
+      name: "Provider",
+      exact: true,
+    }),
+  ).toHaveCount(1);
+  await expect(chooser(page).locator("[data-route-id]")).toHaveCount(2);
+  await page.getByTestId("route-waiting-search").fill("llama");
+  await expect(page.getByTestId("route-waiting-search-none")).toContainText(
+    'No models match "llama".',
+  );
+  await chooser(page).getByRole("button", { name: "Clear search" }).click();
+  await expect(page.getByTestId("route-waiting-search")).toHaveValue("");
+  await expect(modelRadio(chooser(page), "claude-sonnet")).toBeVisible();
+});
+
+test("routes that cannot be used are counts, one line per reason", async ({ page }) => {
+  inPageOnly();
+  await openWaiting(page, [offerRow({
+    unavailable: [
+      { reason: "route_not_active", count: 2 },
+      {
+        reason: "different_harness",
+        count: 3,
+        harnesses: [{ harness: "codex", count: 2 }, {
+          harness: "pi",
+          count: 1,
+        }],
+      },
+      {
+        reason: "route_open",
+        count: 1,
+        routes: [{
+          provider: "google",
+          model: "gemini-pro",
+          providerName: "Google",
+          modelName: "gemini-pro",
+        }],
+      },
+    ],
+  })]);
+  await chooseButton(page).click();
+  const unavailable = page.getByTestId("route-waiting-unavailable");
+  await expect(unavailable).toContainText("6 routes cannot be used");
+  await unavailable.getByText("6 routes cannot be used").click();
+  await expect(unavailable).toContainText(
+    "Turned off (2). Turned off in Settings, Providers.",
+  );
+  await expect(unavailable).toContainText(
+    "A different coding agent (3): Codex 2, Pi 1",
+  );
+  await expect(unavailable).toContainText(
+    "Not working right now (1): Google gemini-pro",
+  );
+});
+
+test("Continue sends the choice once, with the offer it saw, and the card goes", async ({ page }) => {
+  inPageOnly();
+  const state = await openWaiting(page, [offerRow()]);
+  await chooseButton(page).click();
+  await modelRadio(chooser(page), "claude-sonnet").check();
+  await page.getByTestId("route-waiting-continue").click();
+  await expect(page.getByTestId("route-waiting-notice")).toContainText(
+    "Continuing with Claude Code with claude-sonnet. The step starts again.",
+  );
+  expect(state.admits).toHaveLength(1);
+  expect(state.admits[0].key).toBeTruthy();
+  expect(state.admits[0].body).toMatchObject({
+    runStepId: stepId,
+    incidentId,
+    incidentGeneration: 2,
+    targetRouteId: uuid(101),
+    runVersion: 4,
+  });
+  await expect(card(page)).toHaveCount(0);
+});
+
+test("a refused choice says why in the chooser; a lost answer retries with the same key", async ({ page }) => {
+  inPageOnly();
+  const state = await openWaiting(page, [offerRow()]);
+  state.reply = (route) =>
+    problemReply(
+      route,
+      problemBody(409, "STATE_CONFLICT", "target_pricing_unavailable"),
+    );
+  await chooseButton(page).click();
+  await modelRadio(chooser(page), "claude-sonnet").check();
+  await page.getByTestId("route-waiting-continue").click();
+  await expect(page.getByTestId("route-waiting-problem")).toHaveText(
+    "Bakery has no price for that one, so it cannot hold a budget for it. Pick another.",
+  );
+  await expect(chooser(page)).toBeVisible();
+  state.reply = (route) =>
+    problemReply(route, {
+      ...problemBody(503, "DEPENDENCY_UNAVAILABLE"),
+      retryable: true,
+    });
+  await page.getByTestId("route-waiting-continue").click();
+  await expect(page.getByTestId("route-waiting-problem")).toHaveText(
+    "Nothing was switched. Try again.",
+  );
+  await page.getByTestId("route-waiting-continue").click();
+  await expect.poll(() => state.admits.length).toBe(3);
+  expect(state.admits[0].key).not.toBe(state.admits[1].key);
+  expect(state.admits[2].key).toBe(state.admits[1].key);
+});
+
+test("on a phone the chooser is a sheet in two steps: providers, then models", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openWaiting(page, [offerRow()]);
+  await chooseButton(page).click();
+  await expect(chooser(page)).toBeVisible();
+  await expect(providerRow(chooser(page), "openai")).toBeVisible();
+  await expect(chooser(page).locator("[data-route-id]")).toHaveCount(0);
+  await providerRow(chooser(page), "openai").click();
+  await expect(modelRadio(chooser(page), "gpt-5")).toBeVisible();
+  await chooser(page).getByRole("button", { name: "‹ Providers" }).click();
+  await expect(providerRow(chooser(page), "anthropic")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(chooser(page)).toHaveCount(0);
+});
+
 // ---- stills for design-ux's and QA's review (only when BAKERY_STILLS_DIR is set).
 const STILLS = process.env.BAKERY_EVIDENCE_DIR ?? process.env.BAKERY_STILLS_DIR;
 const SIZES = [["desktop", 1440, 900], ["phone", 390, 844]] as const;
@@ -356,6 +650,101 @@ const CASES = [
   ["waiting-card", () => [offerRow()]],
   ["waiting-card-no-check", () => [offerRow({ nextCheckAt: null })]],
 ] as const;
+
+/** A wider organization for the chooser stills: four providers, a dozen models. */
+const wideOffer = () =>
+  offerRow({
+    targets: [
+      target(1, { model: "claude-sonnet", modelName: "claude-sonnet" }),
+      target(2, { model: "claude-haiku", modelName: "claude-haiku" }),
+      target(3, {
+        model: "claude-sonnet-long-context-preview-2026-10",
+        modelName: "claude-sonnet-long-context-preview-2026-10",
+        health: "unverified",
+      }),
+      ...["gpt-5", "gpt-5-mini", "gpt-5-nano"].map((model, index) =>
+        target(10 + index, {
+          provider: "openai",
+          providerName: "OpenAI",
+          model,
+          modelName: model,
+          billingRoute: index === 0 ? "subscription" : "api_metered",
+          health: index === 2 ? "degraded" : "healthy",
+        })
+      ),
+      ...["deepseek-r2", "llama-4-maverick", "qwen-3-coder"].map((
+        model,
+        index,
+      ) =>
+        target(20 + index, {
+          provider: "openrouter",
+          providerName: "OpenRouter",
+          model,
+          modelName: model,
+          billingRoute: "api_metered",
+          priced: index !== 1,
+        })
+      ),
+      target(30, {
+        provider: "local",
+        providerName: "Local",
+        model: "qwen-3-32b",
+        modelName: "qwen-3-32b",
+        billingRoute: "local",
+      }),
+    ],
+    unavailable: [
+      { reason: "route_not_active", count: 4 },
+      {
+        reason: "different_harness",
+        count: 7,
+        harnesses: [{ harness: "codex", count: 5 }, {
+          harness: "pi",
+          count: 2,
+        }],
+      },
+      {
+        reason: "route_open",
+        count: 1,
+        routes: [{
+          provider: "google",
+          model: "gemini-pro",
+          providerName: "Google",
+          modelName: "gemini-pro",
+        }],
+      },
+    ],
+  });
+
+/** Chooser stills: each opens the chooser and gets it into one state. */
+const CHOOSER_CASES: readonly [
+  string,
+  "desktop" | "phone" | "both",
+  (page: Page) => Promise<void>,
+][] = [
+  ["chooser-suggested", "desktop", async () => {}],
+  ["chooser-chosen", "desktop", async (page) => {
+    await providerRow(chooser(page), "openai").click();
+    await modelRadio(chooser(page), "gpt-5-mini").check();
+    await expect(page.getByTestId("route-waiting-payment")).toBeVisible();
+  }],
+  ["chooser-search", "both", async (page) => {
+    await page.getByTestId("route-waiting-search").fill("qwen");
+    await expect(chooser(page).locator("[data-route-id]")).toHaveCount(2);
+  }],
+  ["chooser-cannot", "desktop", async (page) => {
+    await page.getByTestId("route-waiting-unavailable")
+      .getByText("12 routes cannot be used").click();
+    await expect(page.getByTestId("route-waiting-unavailable"))
+      .toContainText("Codex 5");
+  }],
+  ["chooser-providers", "phone", async () => {}],
+  ["chooser-models", "phone", async (page) => {
+    await providerRow(chooser(page), "openai").click();
+    await modelRadio(chooser(page), "gpt-5-mini").check();
+    await expect(page.getByTestId("route-waiting-payment")).toBeVisible();
+  }],
+];
 
 for (const scheme of SCHEMES) {
   for (const [size, width, height] of SIZES) {
@@ -371,6 +760,35 @@ for (const scheme of SCHEMES) {
         await expect(page.getByText(
           "Waiting on Claude Code with claude-opus. Bakery tries it again with the same model.",
         )).toBeVisible();
+        await page.screenshot({
+          path: `${STILLS}/${name}-${size}-${scheme}.png`,
+          animations: "disabled",
+        });
+      });
+    }
+  }
+}
+
+for (const scheme of SCHEMES) {
+  for (const [size, width, height] of SIZES) {
+    for (const [name, where, act] of CHOOSER_CASES) {
+      if (where !== "both" && where !== size) continue;
+      test(`still: ${name}, ${size} ${scheme}`, async ({ page }) => {
+        test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+        test.setTimeout(laneBudgetMs(90_000));
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height });
+        await openWaiting(page, [wideOffer()]);
+        await chooseButton(page).click();
+        await expect(chooser(page)).toBeVisible();
+        await act(page);
+        if (size === "desktop") {
+          await page.setViewportSize({ width, height: TALL[size] });
+        }
+        // The card at the top, the chooser under it.
+        await card(page).evaluate((element) =>
+          element.scrollIntoView({ block: "start" })
+        );
         await page.screenshot({
           path: `${STILLS}/${name}-${size}-${scheme}.png`,
           animations: "disabled",

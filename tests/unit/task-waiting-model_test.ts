@@ -2,12 +2,27 @@ import { assert, assertEquals } from "@std/assert";
 import { createTranslator } from "../../packages/i18n/src/index.ts";
 import {
   cardCopy,
+  choiceSummary,
+  continueLabel,
+  costLine,
   isShown,
   msUntilNextShown,
   type Offer,
+  orderTargets,
+  outcomeUnknown,
+  paymentNotice,
+  providerEntries,
   providerName,
+  refusalOf,
+  searchTargets,
   shownOffers,
+  stateLabel,
   stepRowCopy,
+  SUGGESTED,
+  suggestedTargets,
+  targetsOf,
+  unavailableLines,
+  unavailableSummary,
   whenText,
 } from "../../apps/web/src/pages/task-waiting/model.ts";
 
@@ -27,9 +42,11 @@ const target = (over: Partial<Target> = {}): Target => ({
   model: "gpt-5",
   harness: "codex",
   billingRoute: "subscription",
+  providerName: "OpenAI",
+  modelName: "gpt-5",
   health: "healthy",
-  eligible: true,
-  ineligibleReason: null,
+  priced: true,
+  estimatedIncrementalCost: null,
   ...over,
 });
 
@@ -42,6 +59,8 @@ const offer = (over: Partial<Offer> = {}): Offer => ({
   source: {
     provider: "anthropic",
     model: "claude-opus",
+    providerName: "Anthropic",
+    modelName: "claude-opus",
     harness: "claude_code",
     billingRoute: "subscription",
     health: "open",
@@ -50,8 +69,8 @@ const offer = (over: Partial<Offer> = {}): Offer => ({
   since: ago(120),
   nextCheckAt: "2026-11-20T12:05:00.000Z",
   runVersion: 4,
-  estimatedIncrementalCost: null,
   targets: [target()],
+  unavailable: [],
   ...over,
 });
 
@@ -155,7 +174,7 @@ Deno.test("the card promises no choice, with or without a target", () => {
   for (
     const targets of [
       [],
-      [target({ eligible: false, ineligibleReason: "route_open" })],
+      [target({ priced: false })],
       [target()],
     ]
   ) {
@@ -217,5 +236,225 @@ Deno.test("a moment is the time today and the date and time otherwise", () => {
   assertEquals(
     whenText("2026-11-19T09:05:00.000Z", NOW, format),
     "Nov 19, 2026, 9:05 AM",
+  );
+});
+
+// ---- the chooser (UX revision 3)
+
+let n = 200;
+const route = (over: Partial<Target> = {}): Target =>
+  target({
+    routeId: `00000000-0000-4000-8000-${String(n++).padStart(12, "0")}`,
+    provider: "anthropic",
+    providerName: "Anthropic",
+    harness: "claude_code",
+    model: over.modelName ?? "claude-sonnet",
+    ...over,
+  });
+
+Deno.test("models read Working, Not tried yet, Having trouble too, then by name", () => {
+  const rows = orderTargets([
+    route({ modelName: "b", health: "degraded" }),
+    route({ modelName: "z", health: "healthy" }),
+    route({ modelName: "a", health: "unverified" }),
+    route({ modelName: "a", health: "degraded" }),
+    route({ modelName: "c", health: "healthy" }),
+  ]);
+  assertEquals(rows.map((r) => `${r.health}:${r.modelName}`), [
+    "healthy:c",
+    "healthy:z",
+    "unverified:a",
+    "degraded:a",
+    "degraded:b",
+  ]);
+});
+
+Deno.test("Suggested: Working, priced and paid the same way, same provider first, at most five", () => {
+  const openai = (m: string) =>
+    route({ provider: "openai", providerName: "OpenAI", modelName: m });
+  const targets = [
+    openai("a-openai"),
+    openai("b-openai"),
+    route({ modelName: "z-same" }),
+    route({ modelName: "y-same" }),
+    route({ modelName: "trouble", health: "degraded" }),
+    route({ modelName: "new", health: "unverified" }),
+    route({ modelName: "metered", billingRoute: "api_metered" }),
+    route({ modelName: "unpriced", priced: false }),
+    openai("c-openai"),
+    openai("d-openai"),
+  ];
+  const suggested = suggestedTargets(offer({ targets }));
+  assertEquals(suggested.map((r) => r.modelName), [
+    "y-same",
+    "z-same",
+    "a-openai",
+    "b-openai",
+    "c-openai",
+  ]);
+  const list = providerEntries(offer({ targets }), "Suggested");
+  assertEquals(list.map((e) => [e.key, e.count]), [
+    [SUGGESTED, 5],
+    ["anthropic", 6],
+    ["openai", 4],
+  ]);
+  assertEquals(targetsOf(offer({ targets }), SUGGESTED), suggested);
+  assertEquals(
+    targetsOf(offer({ targets }), "openai").map((r) => r.modelName),
+    ["a-openai", "b-openai", "c-openai", "d-openai"],
+  );
+  // Nothing qualifies: no Suggested entry, the first provider leads.
+  const none = providerEntries(
+    offer({ targets: [route({ health: "degraded" })] }),
+    "Suggested",
+  );
+  assertEquals(none.map((e) => e.key), ["anthropic"]);
+});
+
+Deno.test("search matches model and provider names across every provider", () => {
+  const targets = [
+    route({ modelName: "claude-sonnet" }),
+    route({ provider: "openai", providerName: "OpenAI", modelName: "gpt-5" }),
+    route({
+      provider: "openrouter",
+      providerName: "OpenRouter",
+      modelName: "gpt-5-mini",
+    }),
+  ];
+  const gpt = searchTargets(targets, " GPT ");
+  assertEquals(gpt.matches.map((r) => r.modelName), ["gpt-5", "gpt-5-mini"]);
+  assertEquals(gpt.providers, 2);
+  assertEquals(
+    searchTargets(targets, "anthropic").matches.map((r) => r.modelName),
+    ["claude-sonnet"],
+  );
+  assertEquals(searchTargets(targets, "   ").matches, []);
+  assertEquals(searchTargets(targets, "llama").matches, []);
+  assertEquals(
+    t("tasks.waiting.chooser.searchResults", {
+      count: 2,
+      text: "gpt",
+      providers: 2,
+    }),
+    '2 models match "gpt" across 2 providers.',
+  );
+});
+
+Deno.test("the end bar names the choice, the payment change and the cost", () => {
+  const metered = route({
+    provider: "openai",
+    providerName: "OpenAI",
+    modelName: "gpt-5-mini",
+    billingRoute: "api_metered",
+  });
+  assertEquals(
+    choiceSummary(t, metered),
+    "OpenAI · gpt-5-mini · Charged per use to an API key",
+  );
+  assertEquals(
+    paymentNotice(t, offer().source, metered),
+    "This changes how the work is paid for: from the subscription on a machine to an API key charged per use.",
+  );
+  assertEquals(paymentNotice(t, offer().source, route()), null);
+  assertEquals(continueLabel(t, null), "Continue");
+  assertEquals(continueLabel(t, metered), "Continue with gpt-5-mini");
+  assertEquals(
+    costLine(t, metered, (v) => `$${v}`),
+    "The amount held for this run stays the same. What the rest will cost this way: Unknown.",
+  );
+  assert(
+    costLine(t, { estimatedIncrementalCost: "1.5" }, (v) => `$${v}`)
+      .endsWith("this way: $1.5."),
+  );
+  assertEquals(stateLabel(t, route({ priced: false })).text, "No price set");
+  assertEquals(stateLabel(t, route()).text, "Working");
+});
+
+Deno.test("routes that cannot be used read as counts, one line per reason", () => {
+  const o = offer({
+    unavailable: [
+      { reason: "route_not_active", count: 3 },
+      {
+        reason: "different_harness",
+        count: 4,
+        harnesses: [{ harness: "codex", count: 3 }, {
+          harness: "pi",
+          count: 1,
+        }],
+      },
+      {
+        reason: "route_open",
+        count: 2,
+        routes: [{
+          provider: "openai",
+          model: "gpt-5",
+          providerName: "OpenAI",
+          modelName: "gpt-5",
+        }],
+      },
+    ],
+  });
+  assertEquals(unavailableSummary(t, o), "9 routes cannot be used");
+  assertEquals(unavailableSummary(t, offer()), null);
+  assertEquals(unavailableLines(t, o).map((l) => l.text), [
+    "Turned off (3). Turned off in Settings, Providers.",
+    "A different coding agent (4): Codex 3, Pi 1",
+    "Not working right now (2): OpenAI gpt-5 and 1 more",
+  ]);
+});
+
+Deno.test("a refused choice maps to where it is said and whether choices reload", () => {
+  const conflict = (reason?: string) => ({
+    kind: "problem",
+    problem: { code: "STATE_CONFLICT", reason, status: 409, retryable: false },
+  });
+  assertEquals(
+    refusalOf({
+      kind: "problem",
+      problem: { code: "PRECONDITION_FAILED" },
+    }),
+    { where: "page", reload: true, key: "tasks.waiting.refused.changed" },
+  );
+  assertEquals(refusalOf(conflict("already_continued")).where, "page");
+  assertEquals(
+    refusalOf(conflict("cancel_requested")).key,
+    "tasks.waiting.refused.runEnded",
+  );
+  assertEquals(refusalOf(conflict("target_route_open")), {
+    where: "chooser",
+    reload: true,
+    key: "tasks.waiting.refused.targetGone",
+  });
+  assertEquals(refusalOf(conflict("target_pricing_unavailable")), {
+    where: "chooser",
+    reload: false,
+    key: "tasks.waiting.refused.noPrice",
+  });
+  assertEquals(
+    refusalOf(conflict("spend_in_flight")).key,
+    "tasks.waiting.refused.confirming",
+  );
+  assertEquals(
+    refusalOf(conflict("job_not_funded")).key,
+    "tasks.waiting.refused.noBudget",
+  );
+  assertEquals(
+    refusalOf(conflict("something_new")).key,
+    "tasks.waiting.refused.other",
+  );
+  assertEquals(refusalOf(conflict()).key, "tasks.waiting.refused.other");
+  assertEquals(
+    refusalOf({ kind: "network" }).key,
+    "tasks.waiting.refused.other",
+  );
+  // A lost answer keeps the idempotency key for the retry; a definite one ends it.
+  assertEquals(outcomeUnknown({ kind: "network" }), true);
+  assertEquals(outcomeUnknown(conflict("job_not_funded")), false);
+  assertEquals(
+    outcomeUnknown({
+      kind: "problem",
+      problem: { status: 503, retryable: false },
+    }),
+    true,
   );
 });

@@ -176,6 +176,19 @@
   gap: var(--space-4);
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+/* A list to pick from (196px) beside what it picks, such as providers beside
+   their models; one column on phones. */
+.ui-inline--aside {
+  align-items: start;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 196px minmax(0, 1fr);
+}
+@media (max-width: 743px) {
+  .ui-inline--aside {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .ui-inline--thirds {
   align-items: stretch;
   display: grid;
