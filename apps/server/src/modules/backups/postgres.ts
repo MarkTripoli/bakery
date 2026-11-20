@@ -20,6 +20,8 @@ import {
   type ReportBody,
   reportDigest,
 } from "./state.ts";
+import { isBackupDue, staleAfterMs } from "./schedule.ts";
+import { readBackupSchedule } from "./settings.ts";
 
 type Run = z.output<typeof contractSchemas.BackupRun>;
 type Status = z.output<typeof contractSchemas.BackupStatus>;
@@ -159,6 +161,7 @@ export async function readBackupStatus(
     held: heldRow,
     newestFinishedStatus: (newest.rows[0]?.status as BackupRunStatus) ?? null,
     lastGoodAt,
+    staleAfterMs: staleAfterMs(await readBackupSchedule(transaction)),
   });
   const live = heldRow !== null && heldRow.leaseExpiresAt !== null &&
     heldRow.leaseExpiresAt > now;
@@ -272,6 +275,33 @@ export async function authenticateRunner(
 }
 
 /**
+ * With no server-side scheduler, the runner's own poll is the clock: a claim
+ * that finds nothing waiting asks `isBackupDue` and, when a scheduled backup is
+ * due, records it as a waiting request in the same transaction. The one-waiting
+ * unique index keeps it single when two claims race; the loser's insert does
+ * nothing. Returns whether a due schedule was acted on.
+ */
+async function materializeScheduledRun(
+  transaction: PgTransactionClient,
+): Promise<boolean> {
+  const schedule = await readBackupSchedule(transaction);
+  if (schedule === null || !schedule.enabled) return false;
+  const clock = await transaction.query<{ now: Date; newest: Date | null }>(
+    `select clock_timestamp() as now,
+            (select max(requested_at) from bakery.backup_runs) as newest`,
+  );
+  const { now, newest } = clock.rows[0];
+  if (!isBackupDue(schedule, now, newest)) return false;
+  await transaction.query(
+    `insert into bakery.backup_runs
+       (trigger_kind, status, requested_by_principal_id, requested_at)
+     values ('scheduled', 'requested', null, clock_timestamp())
+     on conflict ((true)) where status = 'requested' do nothing`,
+  );
+  return true;
+}
+
+/**
  * backupRunner.claim: hands the runner the one run it may work on, with a new
  * lease. A live claim elsewhere means nothing to do; a lapsed claim is taken
  * over, which resets its report sequence so the old holder's late reports are
@@ -295,11 +325,21 @@ export async function claimRun(
     target = held.rows[0].id;
     reclaim = true;
   } else {
-    const waiting = await transaction.query<{ id: string }>(
-      `select id from bakery.backup_runs
-        where status = 'requested'
-        order by requested_at, id limit 1 for update`,
-    );
+    const selectWaiting = () =>
+      transaction.query<{ id: string }>(
+        `select id from bakery.backup_runs
+          where status = 'requested'
+          order by requested_at, id limit 1 for update`,
+      );
+    let waiting = await selectWaiting();
+    if (
+      waiting.rows[0] === undefined &&
+      await materializeScheduledRun(transaction)
+    ) {
+      // Nothing was waiting and a scheduled backup is due: it is the run to
+      // take. (A concurrent claim that inserted it first is found the same way.)
+      waiting = await selectWaiting();
+    }
     target = waiting.rows[0]?.id;
   }
   if (target === undefined) return nothingToClaim();
