@@ -9,9 +9,11 @@ import {
 import {
   type ActionContextSeed,
   createApiRouter,
+  getTraceId,
   toProblem,
 } from "@bakery/contracts/http";
 import type { McpGrant } from "./guard.ts";
+import { callerTraceparent, type McpCallTrace } from "./trace.ts";
 
 /** Header the authority runner reads to scope an action to one organization. */
 const ORGANIZATION_HEADER = "Bakery-Organization-Id";
@@ -103,6 +105,7 @@ export type McpCatalogToolRunner = {
     tool: McpCatalogTool,
     grant: McpGrant,
     args: Record<string, unknown>,
+    trace?: McpCallTrace,
   ): Promise<McpToolOutcome>;
 };
 
@@ -225,7 +228,7 @@ export function createMcpCatalogTools(options: {
   return {
     tools,
     get: (name) => byName.get(name),
-    async run(tool, grant, args) {
+    async run(tool, grant, args, trace) {
       const { idempotencyKey, ifMatch, ...fields } = args;
       const invalid = (): McpToolOutcome => ({
         ok: false,
@@ -263,6 +266,10 @@ export function createMcpCatalogTools(options: {
         headers.set("idempotency-key", idempotencyKey);
       }
       if (typeof ifMatch === "string") headers.set("if-match", ifMatch);
+      // The call continues its caller's trace; the router reads the trace id
+      // from this header, so the operation and its rows join the caller's run.
+      const traceparent = callerTraceparent(trace);
+      if (traceparent !== undefined) headers.set("traceparent", traceparent);
       let body: string | undefined;
       if (tool.method === "GET") {
         for (const [key, value] of Object.entries(fields)) {
@@ -295,7 +302,7 @@ export function createMcpCatalogTools(options: {
         } catch (error) {
           const problem = toProblem(error, {
             requestId: crypto.randomUUID(),
-            traceId: crypto.randomUUID().replaceAll("-", ""),
+            traceId: getTraceId(request),
             publicBaseUrl: origin,
           });
           return {
