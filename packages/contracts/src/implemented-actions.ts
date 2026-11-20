@@ -871,6 +871,7 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     Review: "review.independent",
     Freeform: "agent.freeform",
     TaskBrief: "task.brief",
+    SecretIdentityRead: "secret.identity.read",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 

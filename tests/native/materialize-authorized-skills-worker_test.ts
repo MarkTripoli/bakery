@@ -2,7 +2,8 @@ import { assert, assertEquals, assertExists } from "@std/assert";
 import { join } from "node:path";
 import { agentVersionDigest } from "../../apps/server/src/modules/agents/postgres.ts";
 import { SkillFileStore } from "../../apps/server/src/modules/catalog/storage.ts";
-import { extractFixedWorkflowSteps } from "../../apps/server/src/modules/work/run-steps.ts";
+import { compileWorkflowDocumentDetailed } from "../../packages/contracts/src/workflow-compiler/mod.ts";
+import { defaultWorkflowCompilerCatalog } from "../../packages/contracts/src/workflow-compiler/default-catalog.ts";
 import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
 import {
   canonicalJson,
@@ -172,6 +173,7 @@ Deno.test("authenticated pins reach the real supervisor and native cgroup child"
   const store = {
     recover: realStore.recover.bind(realStore),
     putIfAbsent: realStore.putIfAbsent.bind(realStore),
+    stat: realStore.stat.bind(realStore),
     read: async (key: string, digest: string, size: number) => {
       objectReads += 1;
       return await realStore.read(key, digest, size);
@@ -358,19 +360,32 @@ Deno.test("authenticated pins reach the real supervisor and native cgroup child"
       worktree: { root: ".bakery/worktrees" },
     };
     const profileDigest = await sha256Hex(canonicalJson(profileConfig));
+    // #400: a run is a compiled plan; the container makes the document one and
+    // the repository is a required input.
     const workflowSpec = {
       apiVersion: "bakery.dev/v1",
       kind: "workflow",
       name: "issue279-authenticated-native-proof",
-      workflow: { kind: "fixed" },
       agents: { "quality.check": agentVersion.id },
+      inputs: { repositoryId: { type: "uuid", required: true } },
       steps: [{
-        id: "quality",
-        uses: "quality.check",
-        with: { repositoryId, revision: "HEAD", checks: ["fmt"] },
+        id: "flow",
+        steps: [{
+          id: "quality",
+          uses: "quality.check",
+          with: {
+            repositoryId: "$input.repositoryId",
+            revision: "HEAD",
+            checks: ["fmt"],
+          },
+        }],
       }],
     };
-    assertEquals(extractFixedWorkflowSteps(workflowSpec, "fixed").length, 1);
+    const compiled = await compileWorkflowDocumentDetailed(workflowSpec, {
+      catalog: defaultWorkflowCompilerCatalog(),
+    });
+    assertEquals(compiled.result.ok, true);
+    assertEquals(compiled.actionSites.length, 1);
     const workflowDigest = await sha256Hex(canonicalJson(workflowSpec));
     await fixture.pgDatabase.query(
       `insert into bakery.applications (
@@ -483,7 +498,7 @@ Deno.test("authenticated pins reach the real supervisor and native cgroup child"
         workflowVersionId,
         executionMode: "repository",
         repositoryProfileId: profileId,
-        inputs: {},
+        inputs: { repositoryId },
       };
       const idempotencyKey = `issue279-${label}-${crypto.randomUUID()}`;
       const response = await adminPost(
@@ -495,7 +510,7 @@ Deno.test("authenticated pins reach the real supervisor and native cgroup child"
       const responseBody = await response.json() as { id: string };
       const frozen = await fixture.pgDatabase.query<{
         snapshot: {
-          stepAgents: Record<string, {
+          planAgents: Record<string, {
             agentVersionId: string;
             revision: number;
             config: unknown;
@@ -508,7 +523,7 @@ Deno.test("authenticated pins reach the real supervisor and native cgroup child"
           where organization_id = $1 and id = $2`,
         [fixture.organizationId, responseBody.id],
       );
-      assertEquals(frozen.rows[0]?.snapshot.stepAgents.quality, {
+      assertEquals(frozen.rows[0]?.snapshot.planAgents[agentVersion.id], {
         agentVersionId: agentVersion.id,
         revision: agentVersion.revision,
         config: agentConfig,
@@ -524,15 +539,19 @@ Deno.test("authenticated pins reach the real supervisor and native cgroup child"
       };
     };
     const admitRun = async (runId: string) => {
-      const key = {
+      // Production workflow-engine repository driver: the engine owner decides
+      // the plan's step, then admits it. Fixture code does not insert a job or
+      // write any agent/pin column.
+      const owner = await workflowRepository.acquireEngineOwner(
         runId,
-        stepKey: "quality",
-        iteration: 0,
-        actionVersion: workflowVersionId,
-      };
-      // Production workflow-engine repository driver. Fixture code does not
-      // insert a job or write any agent/pin column.
-      const admission = await workflowRepository.admit(key);
+        `issue279-${crypto.randomUUID()}`,
+        900_000,
+      );
+      assertExists(owner);
+      const key = await workflowRepository.findNext(runId, owner);
+      assertExists(key);
+      assertEquals(key.stepKey, "flow.quality");
+      const admission = await workflowRepository.admit(key, owner);
       assertExists(admission.jobId);
       const jobId = admission.jobId;
       const selected = await fixture.pgDatabase.query<{
@@ -553,7 +572,7 @@ Deno.test("authenticated pins reach the real supervisor and native cgroup child"
         agent_config: agentConfig,
         skill_refs: [{ versionId: version.id, digest: version.digest }],
       });
-      const retry = await workflowRepository.admit(key);
+      const retry = await workflowRepository.admit(key, owner);
       assertEquals(retry.jobId, jobId);
       const afterRetry = await fixture.pgDatabase.query<{
         agent_version_id: string | null;

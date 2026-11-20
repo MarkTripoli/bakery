@@ -23518,7 +23518,8 @@ export const clientManifest = {
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
-            "task.brief"
+            "task.brief",
+            "secret.identity.read"
           ],
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -62733,7 +62734,8 @@ export const clientManifest = {
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
-            "task.brief"
+            "task.brief",
+            "secret.identity.read"
           ],
           "description": "Registered workflow action name."
         },
@@ -62767,7 +62769,8 @@ export const clientManifest = {
               "reviewer",
               "integration",
               "delivery",
-              "storage"
+              "storage",
+              "secret.identity"
             ],
             "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
           },
@@ -62892,7 +62895,8 @@ export const clientManifest = {
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
-                  "task.brief"
+                  "task.brief",
+                  "secret.identity.read"
                 ],
                 "description": "Registered workflow action name."
               },
@@ -62926,7 +62930,8 @@ export const clientManifest = {
                     "reviewer",
                     "integration",
                     "delivery",
-                    "storage"
+                    "storage",
+                    "secret.identity"
                   ],
                   "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
                 },
@@ -63247,7 +63252,8 @@ export const clientManifest = {
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
-                  "task.brief"
+                  "task.brief",
+                  "secret.identity.read"
                 ],
                 "description": "Registered workflow action the step runs."
               },
@@ -63319,7 +63325,8 @@ export const clientManifest = {
                     "reviewer",
                     "integration",
                     "delivery",
-                    "storage"
+                    "storage",
+                    "secret.identity"
                   ],
                   "description": "Capabilities the step's action requires of its agent. Each array item follows this format."
                 },

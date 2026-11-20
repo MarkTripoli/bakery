@@ -1667,6 +1667,33 @@ const actionSpecs: Record<
         "Immutable artifact holding the evidence the observation is based on.",
     },
   },
+  // The plan-facing shape of the identity read. The worker's result is the
+  // strict union `SecretIdentityToolResult` (checked when it is reported); a
+  // plan can only read a flat object, so this names every field a later step
+  // may read and marks the ones an outcome leaves out as optional.
+  SecretIdentityOutput: {
+    fields: {
+      status: "enum(completed|denied|uncertain)",
+      accountId: "string?",
+      login: "string?",
+      code: "string?",
+    },
+    bounds: {
+      accountId: { minLength: 1, maxLength: 16 },
+      login: { minLength: 1, maxLength: 39 },
+      code: { minLength: 1, maxLength: 64 },
+    },
+    meanings: {
+      status:
+        "How the one fixed identity read ended: completed, denied before the provider was asked, or uncertain.",
+      accountId:
+        "Provider account number of the identity; present only when status is completed.",
+      login:
+        "Provider login of the identity; present only when status is completed.",
+      code:
+        "Safe reason code; present only when status is denied or uncertain.",
+    },
+  },
   MemoryOutput: {
     fields: { memoryId: "uuid", status: "literal(promoted)" },
     meanings: {
