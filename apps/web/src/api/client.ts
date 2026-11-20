@@ -81,6 +81,10 @@ export type TaskResponse = ClientOutputMap["Task"];
 export type RunListResponse = ClientOutputMap["Page<Run>"];
 export type RunResponse = ClientOutputMap["Run"];
 export type RunControlCapabilities = ClientOutputMap["RunControlCapabilities"];
+export type RouteContinuationOffersResponse =
+  ClientOutputMap["RouteContinuationOffers"];
+export type RouteContinuationAdmit = ClientInputMap["RouteContinuationAdmit"];
+export type RouteContinuationResponse = ClientOutputMap["RouteContinuation"];
 export type RunStepListResponse = ClientOutputMap["Page<RunStep>"];
 export type AgentSessionPageResponse = ClientOutputMap["AgentSessionPage"];
 export type SessionFeedResponse = ClientOutputMap["SessionFeed"];
@@ -92,6 +96,9 @@ export type DeliveryDecisionListResponse =
 export type PullRequestListResponse = ClientOutputMap["Page<PullRequest>"];
 export type MergeAttemptListResponse = ClientOutputMap["Page<MergeAttempt>"];
 export type MergeAttemptResponse = ClientOutputMap["MergeAttempt"];
+export type MergeEntryListResponse = ClientOutputMap["Page<MergeEntry>"];
+export type MergeEntryResponse = ClientOutputMap["MergeEntry"];
+export type MergeEntryCreate = ClientInputMap["MergeEntryCreate"];
 export type MergeReconciliationResponse =
   ClientOutputMap["MergeReconciliation"];
 export type SyncQuery = ClientInputMap["SyncQuery"];
@@ -1516,6 +1523,29 @@ export type BakeryApiClient = {
     readonly runId: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RunResponse>>;
+  /**
+   * The choices a run is waiting on: each step whose model has an open incident,
+   * what it waits on and the other routes it could continue on. A read of
+   * current state; nothing is switched by reading it. Developers and Admins only.
+   */
+  readonly listRouteContinuations: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RouteContinuationOffersResponse>>;
+  /**
+   * A person's choice to continue one waiting step on another route, against the
+   * exact offer they saw. A stale or refused choice commits nothing and names why
+   * (`ApiFailure.problem.reason`). Reuse the key and input when the outcome is
+   * unknown.
+   */
+  readonly admitRouteContinuation: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly input: RouteContinuationAdmit;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RouteContinuationResponse>>;
   readonly getRunControlCapabilities: (options: {
     readonly organizationId: string;
     readonly runId: string;
@@ -1592,6 +1622,29 @@ export type BakeryApiClient = {
     readonly mergeMethod: "merge" | "squash" | "rebase";
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<MergeAttemptResponse>>;
+  /**
+   * One pull request's merge queue entries, newest first. An entry still
+   * queued, being checked or merging reads the same after a reload.
+   */
+  readonly listMergeEntries: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeEntryListResponse>>;
+  /**
+   * Asks Bakery to queue a merge of the candidate the person saw: the exact
+   * head and base, with the run, review and checks that vouch for it. Bakery
+   * checks that nothing changed, then merges; a repeat with the same key
+   * answers with the same entry.
+   */
+  readonly createMergeEntry: (options: {
+    readonly organizationId: string;
+    readonly input: MergeEntryCreate;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeEntryResponse>>;
   /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
   readonly reconcileMergeAttempts: (options: {
     readonly organizationId: string;
@@ -5077,6 +5130,45 @@ export function createBakeryApiClient({
       }
     },
 
+    async listRouteContinuations(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["routeContinuations.list"](
+          { id: options.runId },
+          { signal: options.signal },
+        );
+        if (data.runId !== options.runId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async admitRouteContinuation(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["routeContinuations.admit"](
+          { id: options.runId, ...options.input },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.runId !== options.runId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
     async getRunControlCapabilities(options) {
       organizationId = options.organizationId;
       try {
@@ -5286,6 +5378,40 @@ export function createBakeryApiClient({
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
           { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMergeEntries(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeEntries.list"](
+          {
+            pullRequestId: options.pullRequestId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createMergeEntry(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeEntries.create"](
+          options.input,
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
         );
         return { ok: true, data };
       } catch (error) {

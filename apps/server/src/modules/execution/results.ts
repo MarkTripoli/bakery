@@ -64,6 +64,7 @@ import {
   withPgTransaction,
 } from "@bakery/persistence";
 import { finalizeOutputTranscript } from "./output-transcript.ts";
+import { recordAttemptRouteEvidence } from "./attempt-route-evidence.ts";
 
 export async function renewLease(
   context: Context,
@@ -607,6 +608,18 @@ export async function resultRoute(
             resultInput.fence,
           );
         }
+        // What the attempt proves about its provider route: exhausted quota or
+        // an invalid credential, or (completed) that inference really ran.
+        // Through the one incident writer, deduped on the attempt id, in this
+        // transaction so a rolled-back result leaves no route evidence.
+        await recordAttemptRouteEvidence(transaction, {
+          organizationId: attempt.organization_id,
+          jobId: attempt.job_id,
+          attemptId: attempt.id,
+          status: resultInput.status,
+          fault: faultPayload,
+          observedAt: new Date(),
+        });
         // A retryable fault without usage requeues the job while attempts
         // remain. A failure with usage stays terminal: settleWorkflowAction
         // settled the budget intent, so a re-claim could not be funded.

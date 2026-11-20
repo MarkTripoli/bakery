@@ -6,6 +6,7 @@ export type FailureCode =
   | "destination_refused"
   | "destination_unreachable"
   | "key_missing"
+  | "incomplete_set"
   | "runner_error";
 
 export type ReportBody = {

@@ -121,6 +121,8 @@ export const ExecutionImplementedAction = Object.freeze(
     RunStepsNote: "runSteps.note",
     RunStepsTakeOver: "runSteps.takeOver",
     RunStepsRevertWrites: "runSteps.revertWrites",
+    HandoffManifestsGet: "handoffManifests.get",
+    HandoffManifestsContinue: "handoffManifests.continue",
     TranscriptStatus: "outputStreams.transcript",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -648,6 +650,7 @@ export const DraftImplementedAction = Object.freeze(
     CheckpointGet: "draftCheckpoints.get",
     Slice: "draftSlices.get",
     Edit: "drafts.edit",
+    Rollover: "drafts.rollover",
     PublicationCreate: "draftPublications.create",
     PublicationGet: "draftPublications.get",
     SuggestionCreate: "draftSuggestions.create",
@@ -727,6 +730,8 @@ export const backupImplementedActions = Object.freeze(
 export const TelemetryDestinationImplementedAction = Object.freeze(
   {
     TelemetryDestinationsList: "telemetryDestinations.list",
+    TelemetryDestinationsGet: "telemetryDestinations.get",
+    TelemetryDestinationsDropped: "telemetryDestinations.dropped",
     TelemetryDestinationsCreate: "telemetryDestinations.create",
     TelemetryDestinationsUpdate: "telemetryDestinations.update",
     TelemetryDestinationsDelete: "telemetryDestinations.delete",
@@ -749,6 +754,18 @@ export const AlertChannelImplementedAction = Object.freeze(
 );
 export const alertChannelImplementedActions = Object.freeze(
   Object.values(AlertChannelImplementedAction),
+);
+
+export const AlertRuleImplementedAction = Object.freeze(
+  {
+    AlertRulesList: "alertRules.list",
+    AlertRulesUpdate: "alertRules.update",
+    AlertsList: "alerts.list",
+    AlertsSendTest: "alerts.sendTest",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const alertRuleImplementedActions = Object.freeze(
+  Object.values(AlertRuleImplementedAction),
 );
 
 export const BlobUploadImplementedAction = Object.freeze(
@@ -807,6 +824,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillDraftsUpdate: "skillDrafts.update",
     SkillDraftsDiscard: "skillDrafts.discard",
     SkillDraftsCheck: "skillDrafts.check",
+    SkillDraftsPublish: "skillDrafts.publish",
     SkillDraftFilesSave: "skillDraftFiles.save",
     SkillDraftFilesGet: "skillDraftFiles.get",
     SkillDraftFilesDelete: "skillDraftFiles.delete",
@@ -822,7 +840,8 @@ export const catalogImplementedActions = Object.freeze(
 export const catalogIdentityImplementedActions = Object.freeze(
   Object.values(CatalogImplementedAction).filter((action) =>
     action !== CatalogImplementedAction.SkillVersionsCreate &&
-    action !== CatalogImplementedAction.SkillsCopy
+    action !== CatalogImplementedAction.SkillsCopy &&
+    action !== CatalogImplementedAction.SkillDraftsPublish
   ),
 );
 
@@ -939,6 +958,7 @@ export const implementedActions = Object.freeze(
     ...backupImplementedActions,
     ...telemetryDestinationImplementedActions,
     ...alertChannelImplementedActions,
+    ...alertRuleImplementedActions,
     ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
