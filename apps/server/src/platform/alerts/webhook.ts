@@ -1,10 +1,13 @@
 import { createHmac, randomBytes } from "node:crypto";
+import { parseTraceparent } from "@bakery/config/telemetry-trace";
 import type {
   AddressPolicy,
 } from "../telemetry-destinations/address-policy.ts";
 
 /** The header a receiver reads to verify a message came from this Bakery. */
 export const WEBHOOK_SIGNATURE_HEADER = "bakery-signature";
+/** The W3C header that carries the trace an alert belongs to. */
+export const WEBHOOK_TRACE_HEADER = "traceparent";
 /** The header that names the message, so a receiver can ignore a repeat. */
 export const WEBHOOK_EVENT_HEADER = "bakery-event-id";
 
@@ -23,6 +26,12 @@ export type AlertMessage = Readonly<{
   text: string;
   /** Seconds since the epoch when the message was made. */
   sentAt: number;
+  /**
+   * The trace the alert belongs to, when it is about work in one. A well-formed
+   * value is sent as the `traceparent` header and its trace id is in the body,
+   * so a receiver can join the alert to the run it is about.
+   */
+  traceparent?: string;
 }>;
 
 /** A fresh signing secret: random, URL-safe and prefixed so it is recognisable. */
@@ -32,11 +41,13 @@ export function newSigningSecret(): string {
 
 /** The body a webhook receives. Plain JSON, so any language can read it. */
 export function webhookBody(message: AlertMessage): string {
+  const trace = parseTraceparent(message.traceparent);
   return JSON.stringify({
     id: message.id,
     type: message.type,
     text: message.text,
     sentAt: new Date(message.sentAt * 1000).toISOString(),
+    ...(trace === undefined ? {} : { traceId: trace.traceId }),
   });
 }
 
@@ -96,6 +107,9 @@ export async function sendSignedWebhook(options: {
       headers: {
         "content-type": "application/json",
         [WEBHOOK_EVENT_HEADER]: options.message.id,
+        ...(parseTraceparent(options.message.traceparent) === undefined
+          ? {}
+          : { [WEBHOOK_TRACE_HEADER]: options.message.traceparent as string }),
         [WEBHOOK_SIGNATURE_HEADER]: signWebhook(
           options.secret,
           options.message.sentAt,
