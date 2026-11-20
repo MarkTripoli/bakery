@@ -831,7 +831,8 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
       path: "/v1/storage/files/:id/content",
       input: contractSchemas.StorageFileContentQuery,
       output: contractSchemas.BinaryArtifact,
-      policy: readPolicy,
+      // A <video> or <audio> src cannot send the organization header.
+      policy: { ...readPolicy, organizationIdQuery: "organizationId" },
       handler: () => {
         throw new StandardError({ code: "INTERNAL" });
       },

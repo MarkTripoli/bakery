@@ -8881,6 +8881,7 @@
       "access": "Developer",
       "permission": "artifactVersion:read",
       "organizationContext": "required_authenticated_context",
+      "organizationIdQuery": "organizationId",
       "input": "StorageFileContentQuery",
       "output": "BinaryArtifact",
       "event": "",
