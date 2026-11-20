@@ -18,6 +18,7 @@ import {
 } from "./modules/work/migrations.ts";
 import { BAKERY_MIGRATION_SOURCES } from "./migration-sources.ts";
 import { runStoragePurgesTask } from "./platform/storage-purges-task.ts";
+import { runProbeRunnerTask } from "./platform/probe-runner-task.ts";
 import { AuthErrorCode } from "./modules/auth/domain/errors.ts";
 import {
   authEnvironmentNames,
@@ -147,6 +148,7 @@ const tasks = [
   "settings",
   "reset",
   "storage-purges",
+  "probe-runner",
 ];
 if (!task || !tasks.includes(task)) {
   console.error(`Expected ${tasks.join(", ")}`);
@@ -168,6 +170,11 @@ const authConfig =
   task === "createsuperuser" || task === "register-oauth-client"
     ? readAuthTaskConfig(databaseConfig)
     : undefined;
+
+if (task === "probe-runner") {
+  console.log(JSON.stringify(await runProbeRunnerTask(databaseConfig.url)));
+  Deno.exit(0);
+}
 
 if (task === "storage-purges") {
   console.log(JSON.stringify(await runStoragePurgesTask(databaseConfig.url)));

@@ -192,6 +192,28 @@ services:
   # Queued Admin purges of record-area files (#447) need the database owner,
   # which the server never holds. Runs the bakery-server storage-purges task
   # as the owner every 600 seconds, after migrations.
+  # Asks the sandbox what a version's bytes are, so a reader shows facts instead
+  # of a name (#437 slice 4). Every 60 seconds rather than the purge cadence:
+  # facts are the point, and a file uploaded a minute ago should have them. Runs
+  # as the owner because it writes probe answers and clears requests.
+  probe-runner:
+    image: denoland/deno:2.9.1@sha256:c40ad61ed0b40cca8fda05a2bbf44f8e02485bebec8ee4820bdb4b6fff42599d
+    working_dir: /workspace
+    command:
+      - sh
+      - -c
+      - while true; do deno run --allow-env --allow-net apps/server/src/tasks.ts probe-runner; sleep 60; done
+    environment:
+      DATABASE_URL: postgres://bakery:${BAKERY_LOCAL_BAKERY_PASSWORD:-bakery-local-bakery}@postgres:5432/bakery
+    volumes:
+      - ..:/workspace:ro
+    networks:
+      - infra
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   storage-purges:
     image: denoland/deno:2.9.1@sha256:c40ad61ed0b40cca8fda05a2bbf44f8e02485bebec8ee4820bdb4b6fff42599d
     working_dir: /workspace
