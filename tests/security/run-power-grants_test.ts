@@ -273,3 +273,77 @@ Deno.test("an answer power reaches exactly its one question", async () => {
     await o.finish();
   }
 });
+
+Deno.test("a power granted for the other kind of row is no power", async () => {
+  const o = await open();
+  try {
+    // Hand-built grants that the request route would never write: an answer
+    // power on an approval, and an approve power on a question. The lookup
+    // matches the power the action needs, so neither opens anything.
+    const grant = (power: string, target: string) =>
+      o.fixture.pgDatabase.query(
+        `insert into bakery.run_power_grants (
+           organization_id, run_id, principal_id, power, target_id, expires_at)
+         values ($1, $2, $3, $4, $5, now() + interval '1 day')`,
+        [
+          o.fixture.organizationId,
+          o.run.runId,
+          o.guest.principalId,
+          power,
+          target,
+        ],
+      );
+    await grant("answer", o.approval);
+    await grant("approve", o.question);
+    for (
+      const path of [
+        `/v1/approvals/${o.approval}`,
+        `/v1/questions/${o.question}`,
+      ]
+    ) {
+      assertEquals((await o.get(o.guest.cookie, path)).status, 404, path);
+    }
+    assertEquals((await o.decide(o.guest.cookie, o.approval)).status, 404);
+    assertEquals(
+      (await api(
+        o.fixture,
+        o.guest.cookie,
+        "PUT",
+        `/v1/questions/${o.question}/answer`,
+        { answer: { text: "main" } },
+      )).status,
+      404,
+    );
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a developer outside the named audience still cannot read or decide a private approval", async () => {
+  const o = await open();
+  try {
+    // The audience check is the second wall: a developer passes the gate, so
+    // only this check keeps a private approval or question private.
+    const outsider = await addMember(o.fixture, "Outsider", "developer");
+    try {
+      assertEquals(
+        (await o.get(outsider.cookie, `/v1/approvals/${o.approval}`)).status,
+        404,
+      );
+      assertEquals((await o.decide(outsider.cookie, o.approval)).status, 404);
+      assertEquals(
+        (await o.get(outsider.cookie, `/v1/questions/${o.question}`)).status,
+        404,
+      );
+      // The named approver is not refused.
+      assertEquals(
+        (await o.get(o.approver.cookie, `/v1/approvals/${o.approval}`)).status,
+        200,
+      );
+    } finally {
+      await cleanupAuthFixture(o.fixture.pgDatabase, [outsider.email]);
+    }
+  } finally {
+    await o.finish();
+  }
+});
