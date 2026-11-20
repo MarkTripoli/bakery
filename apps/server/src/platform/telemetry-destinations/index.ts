@@ -1,8 +1,16 @@
 export {
+  ADDRESS_REFUSED_REASON,
   type AddressPolicy,
   allowAnyAddress,
+  createGuardedLookup,
   createPublicHttpsPolicy,
 } from "./address-policy.ts";
+export {
+  createPinnedFetch,
+  isAddressRefusal,
+  PINNED_BODY_MAX_BYTES,
+  readAnswer,
+} from "./pinned-fetch.ts";
 export {
   type ConfiguredDestination,
   createDestinationFanout,

@@ -5903,6 +5903,12 @@
      "type": "timestamp?",
      "nullable": true,
      "references": null
+    },
+    {
+     "name": "traceparent",
+     "type": "text?",
+     "nullable": true,
+     "references": null
     }
    ],
    "constraints": "UNIQUE(job_id,attempt_no); UNIQUE(job_id,fence); one live attempt per job; completion requires current fence, active lease and matching host. worker_session_id and worker_session_generation preserve the process session that claimed the attempt while allowing a replacement process to report it after restart with the current server-issued session fence. started_at records the first accepted execution start; last_event_seq defaults to 0; first accepted event is 1; all event/result submissions share one contiguous journal ingestion transaction. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.",

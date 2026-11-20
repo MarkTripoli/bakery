@@ -4,6 +4,13 @@ import {
   type probeSkillStorage,
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
+import { createBackupRoutes } from "./modules/backups/actions.ts";
+import type { probeBackupDestination } from "./modules/backups/s3.ts";
+import type { HostResolver } from "./modules/backups/dns.ts";
+import {
+  type AlertChannelDependencies,
+  createAlertChannelRoutes,
+} from "./modules/monitoring/alert-channels.ts";
 import {
   createTelemetryDestinationRoutes,
   type TelemetryDestinationDependencies,
@@ -11,6 +18,7 @@ import {
 import {
   allowAnyAddress,
   createDestinationFanout,
+  createPinnedFetch,
   createProviderRegistry,
   createPublicHttpsPolicy,
   otlpProvider,
@@ -123,6 +131,7 @@ import {
   type EventsSocketLimits,
   type EventsSocketRegistry,
 } from "./modules/work/events-socket.ts";
+import { createBatchRoutes } from "./modules/work/batch-routes.ts";
 import { createMcpManagementRoutes } from "./modules/mcp/routes.ts";
 import {
   createGroupRoutes,
@@ -218,6 +227,10 @@ export function createApp(options: {
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
   skillStorageProbe?: typeof probeSkillStorage;
+  /** Destination test runner; tests inject one so no suite reaches a real bucket. */
+  backupDestinationProbe?: typeof probeBackupDestination;
+  /** Destination host resolver; tests inject one so no suite touches real DNS. */
+  backupDestinationResolver?: HostResolver;
   /**
    * The telemetry destinations the Monitoring settings manage: the adapters the
    * server knows, the fan-out that delivers to them and how to reach a
@@ -225,6 +238,8 @@ export function createApp(options: {
    * its telemetry; left out, the routes run on a fan-out nothing feeds.
    */
   telemetryDestinations?: TelemetryDestinationDependencies;
+  /** Where alert messages go and how a send is made; tests inject a receiver. */
+  alertChannels?: AlertChannelDependencies;
   /** Replaces the SMTP exchange of the installation email test (tests only). */
   emailSend?: EmailSettingsDependencies["send"];
   skillSourceAdapter?: SkillSourceAdapter;
@@ -848,6 +863,15 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createBatchRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
     createEvaluationRoutes({
       database: options.pgDatabase,
       session: tokenSession,
@@ -997,6 +1021,28 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
     }),
   );
+  // Outbound alert and telemetry sends dial only the addresses they checked, so
+  // a name that answers differently the second time cannot reach a private
+  // network. A test environment may run its receiver on loopback, over http.
+  const egressFetch = options.config.environment === "test"
+    ? fetch
+    : createPinnedFetch();
+  app.route(
+    "/",
+    createAlertChannelRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      dependencies: options.alertChannels ?? {
+        secretsKey: options.config.secretsKey,
+        fetch: egressFetch,
+        // A test environment may run its receiver on loopback.
+        addressPolicy: options.config.environment === "test"
+          ? allowAnyAddress
+          : createPublicHttpsPolicy(),
+      },
+    }),
+  );
   app.route(
     "/",
     createTelemetryDestinationRoutes({
@@ -1007,10 +1053,10 @@ export function createApp(options: {
         registry: createProviderRegistry([otlpProvider]),
         fanout: createDestinationFanout({
           registry: createProviderRegistry([otlpProvider]),
-          dependencies: { fetch, addressPolicy: allowAnyAddress },
+          dependencies: { fetch: egressFetch, addressPolicy: allowAnyAddress },
         }),
         providerDependencies: {
-          fetch,
+          fetch: egressFetch,
           // A test environment may run its receiver on loopback.
           addressPolicy: options.config.environment === "test"
             ? allowAnyAddress
@@ -1027,6 +1073,21 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       dependencies: { ...skillStorage, probe: options.skillStorageProbe },
+    }),
+  );
+  app.route(
+    "/",
+    createBackupRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      secret: options.config.auth.secret,
+      settings: {
+        secretsKey: options.config.secretsKey,
+        allowLoopbackEndpoint: options.config.environment === "test",
+        probe: options.backupDestinationProbe,
+        resolve: options.backupDestinationResolver,
+      },
     }),
   );
   app.route(
