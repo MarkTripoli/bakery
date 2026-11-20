@@ -31,6 +31,8 @@ export const AUDIT_MATRIX_ACTIONS = [
   "integrationClientCredentials.put",
   "skillStorageSettings.put",
   "skillStorageSettings.verify",
+  "backups.start",
+  "backupRunnerCredential.issue",
   "telemetryDestinations.create",
   "telemetryDestinations.update",
   "telemetryDestinations.test",
