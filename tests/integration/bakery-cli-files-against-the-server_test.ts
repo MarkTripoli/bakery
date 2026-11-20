@@ -311,8 +311,33 @@ Deno.test("an access token with the read scope reads the storage tree and nothin
       ),
       401,
     );
-    // Other routes of the same router stay closed to a token.
-    assertEquals(await statusOf(await asToken("GET", "/v1/artifacts")), 401);
+    // Other routes of the same router stay closed to a token, reads included:
+    // the rest of the file routes, storage settings and the trash, and the
+    // artifact and blob routes that share the router.
+    const someId = crypto.randomUUID();
+    for (
+      const path of [
+        "/v1/artifacts",
+        "/v1/files/library",
+        `/v1/artifact-versions/${someId}`,
+        "/v1/artifact-storage",
+        `/v1/blobs/${someId}`,
+        "/v1/storage/settings",
+        "/v1/storage/trash",
+        "/v1/storage/agent-file-grants",
+      ]
+    ) {
+      assertEquals(await statusOf(await asToken("GET", path)), 401, path);
+    }
+    // The allowlisted reads stay open: the command line's own routes.
+    for (
+      const path of [
+        `/v1/storage/files/${plan.id}/uses`,
+        `/v1/storage/files/${plan.id}/versions`,
+      ]
+    ) {
+      assertEquals(await statusOf(await asToken("GET", path)), 200, path);
+    }
     // A token acts in one organization: in another one it reads nothing.
     const foreign = await createWorkerScope(fixture, "cli-445", fixture);
     try {

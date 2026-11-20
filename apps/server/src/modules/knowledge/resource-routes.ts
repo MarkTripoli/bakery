@@ -896,12 +896,23 @@ export function createArtifactResourceRoutes(
   app.use("/v1/artifact-comments/*", session);
   app.use("/v1/artifact-storage", session);
   app.use("/v1/artifacts", session);
-  // Reads of files accept an access token; a write on the same paths does not.
+  // An access token reads exactly the file routes the command line calls, and
+  // nothing else on this router: not storage settings, the trash, grants or
+  // the library. A write on the same paths does not accept one either. A path
+  // not listed here, or with a trailing slash, falls to the browser session.
+  const tokenReadablePaths = [
+    /^\/v1\/files\/search$/,
+    /^\/v1\/storage\/roots$/,
+    /^\/v1\/storage\/folders\/[^/]+\/entries$/,
+    /^\/v1\/storage\/files\/[^/]+\/(?:versions|uses|content)$/,
+    /^\/v1\/storage\/file-versions\/[^/]+$/,
+  ];
   const readsAcceptTokens: MiddlewareHandler<{ Variables: AuthVariables }> = (
     context,
     next,
   ) =>
-    context.req.method === "GET" && options.tokenSession !== undefined
+    context.req.method === "GET" && options.tokenSession !== undefined &&
+      tokenReadablePaths.some((path) => path.test(context.req.path))
       ? options.tokenSession(context, next)
       : session(context, next);
   app.use("/v1/files/search", readsAcceptTokens);
