@@ -117,9 +117,9 @@ step_launcher() {
     systemctl --user show "$unit.service" \
       --property=LoadState --property=ActiveState --property=Result \
       --property=WorkingDirectory \
-      --property=MemoryMax --property=MemorySwapMax \\
-      --property=RuntimeMaxSec --property=RuntimeMaxUSec \\
-      --property=CPUQuota --property=CPUQuotaPerSecUSec --property=TasksMax \\
+      --property=MemoryMax --property=MemorySwapMax \
+      --property=RuntimeMaxSec --property=RuntimeMaxUSec \
+      --property=CPUQuota --property=CPUQuotaPerSecUSec --property=TasksMax \
       --property=PrivateNetwork \
       --property=NoNewPrivileges --property=ProtectSystem --property=KillMode \
       --property=OOMPolicy --property=IPAddressDeny 2>/dev/null \
@@ -210,8 +210,12 @@ run_victim() {
   id=$(uuidgen | tr 'A-Z' 'a-z')
   unit="bakery-artifact-probe-$id"
   started_units="$started_units $unit"
+  # The unit's wall clock is the declared cap, always. The victim must WANT to
+  # run longer than that, or it would finish on its own and the step would
+  # report a success as "the time cap did nothing" -- which is exactly what a
+  # first version of this did when the two were the same number.
   runtime=10
-  [ "$mode" = "time" ] && runtime=$seconds
+  [ "$mode" = "time" ] || seconds=10
   timeout $((runtime + 30)) systemd-run --user --pipe --wait --quiet \
     "--unit=$unit" \
     "--property=WorkingDirectory=$repo" \
@@ -302,7 +306,11 @@ case "$time_result" in
 esac
 
 say ""
-say "## step 4: the private network refuses a connection"
+say "## step 4: the sandbox refuses a connection"
+# Which property does the refusing is not this script's business: some hosts
+# cannot build a network namespace and quietly skip PrivateNetwork, while
+# RestrictAddressFamilies=AF_UNIX still refuses AF_INET. The unit carries both,
+# the worker asks the only question with an answer, and this step reads it.
 net_unit=$(run_victim network)
 net_code=$?
 net_result=$(systemctl --user show "$net_unit.service" --property=Result --value 2>/dev/null)
