@@ -92,3 +92,31 @@ Deno.test("the desktop origins are separate from the cookie trusted origins", ()
 Deno.test("only the server reads desktop origins", () => {
   assertEquals(readRuntimeConfig(base, "worker").auth, undefined);
 });
+
+Deno.test("an origin that only begins with or contains an allowed one is invalid, never accepted", () => {
+  for (
+    const value of [
+      "tauri://localhost.evil.example",
+      "tauri://localhost:1420",
+      "tauri://localhostx",
+      "tauri://local",
+      "http://tauri.localhost.evil.example",
+      "https://tauri.localhost.evil.example",
+      "tauri://localhost,tauri://localhost.evil.example",
+      "TAURI://LOCALHOST",
+    ]
+  ) {
+    const config = readRuntimeConfig(
+      { ...base, BAKERY_DESKTOP_ORIGINS: value },
+      "server",
+    );
+    assertEquals(
+      config.invalidConfig.includes("BAKERY_DESKTOP_ORIGINS"),
+      true,
+      value,
+    );
+    for (const origin of config.auth?.desktopOrigins ?? []) {
+      assertEquals(DESKTOP_WEB_VIEW_ORIGINS.includes(origin), true, value);
+    }
+  }
+});

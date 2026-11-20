@@ -176,3 +176,49 @@ Deno.test("a preflight is answered only when it asks for a method, so a plain OP
   assert(response.status !== 204);
   assertEquals(response.headers.get("access-control-allow-methods"), null);
 });
+
+Deno.test("an origin that only begins with, ends with or contains an allowed one is not allowed", async () => {
+  const configured = ["tauri://localhost", "http://tauri.localhost"];
+  // Exact membership, not a prefix, suffix or substring: each of these would pass a loose match.
+  for (
+    const origin of [
+      "tauri://localhost.evil.example",
+      "tauri://localhost:1420",
+      "tauri://localhostx",
+      "tauri://evil-localhost",
+      "xtauri://localhost",
+      "tauri://localhost/",
+      "http://tauri.localhost.evil.example",
+      "http://tauri.localhost:8080",
+      "https://tauri.localhost.evil.example",
+      "https://tauri.localhost",
+      "TAURI://LOCALHOST",
+    ]
+  ) {
+    const pre = await app(configured).fetch(preflight(origin));
+    assert(pre.status !== 204, `preflight ${origin}`);
+    assertEquals(
+      pre.headers.get("access-control-allow-origin"),
+      null,
+      `preflight ${origin}`,
+    );
+    const real = await app(configured).fetch(
+      new Request("http://bakery.test/v1/me", { headers: { origin } }),
+    );
+    assertEquals(
+      real.headers.get("access-control-allow-origin"),
+      null,
+      `call ${origin}`,
+    );
+    assertEquals(
+      real.headers.get("access-control-expose-headers"),
+      null,
+      `call ${origin}`,
+    );
+  }
+  // The exact origins still work.
+  for (const origin of configured) {
+    const response = await app(configured).fetch(preflight(origin));
+    assertEquals(response.headers.get("access-control-allow-origin"), origin);
+  }
+});
