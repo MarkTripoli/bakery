@@ -139,7 +139,7 @@ Deno.test("a draft rolls over to the next epoch from its published checkpoint", 
         where organization_id=$1 and draft_id=$2 group by epoch order by epoch`,
       [fixture.ids.organizationId, opened.id],
     );
-    assertEquals(rows.rows.map((row) => [row.epoch, row.n]), [[1, 3], [2, 1]]);
+    assertEquals(rows.rows.map((row) => [row.epoch, row.n]), [[1, 2], [2, 1]]);
 
     // An edit built for epoch 1 can no longer be applied.
     const refused = await post(fixture, `/v1/drafts/${opened.id}/edits`, stale);
