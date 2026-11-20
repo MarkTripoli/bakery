@@ -4928,5 +4928,10 @@
   "settings.integrations.credentials.save": "⟦Šàṽë⟧",
   "settings.integrations.credentials.replace": "⟦Ŕëþļàçë ðëŧàïļš ŧëš⟧",
   "settings.integrations.credentials.cancel": "⟦Çàñçëļ…⟧",
-  "settings.integrations.credentials.tooLong": "⟦Ûšë àŧ ɱôšŧ {limit} çĥàŕàçŧëŕš. ŧëšŧ çôþ⟧"
+  "settings.integrations.credentials.tooLong": "⟦Ûšë àŧ ɱôšŧ {limit} çĥàŕàçŧëŕš. ŧëšŧ çôþ⟧",
+  "library.memory.source.exactVersion": "⟦Ôþëñš ŧĥàŧ ëẋàçŧ ṽëŕšïôñ, ñôŧ ŧĥë ļàŧëšŧ. ŧëšŧ çôþÿ ŧë⟧",
+  "library.memory.fact.by": "⟦ƀÿ {name} ŧ⟧",
+  "library.memory.live.offline": "⟦Ÿôû àŕë ôƒƒļïñë. Ŵĥàŧ ÿôû šëë ɱàÿ ƀë ôûŧ ôƒ ðàŧë. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.memory.live.lost": "⟦Ļïṽë ûþðàŧëš àŕë þàûšëð. Ŕëçôññëçŧïñĝ. Ŵĥàŧ ÿôû šëë ɱàÿ ƀë ôûŧ ôƒ ðàŧë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.memory.live.corrected": "⟦Ŧĥïš ƒàçŧ ŵàš çôŕŕëçŧëð ŵĥïļë ÿôû ĥàð ïŧ ôþëñ. Ŧĥë ñëŵ ŵôŕðïñĝ ïš šĥôŵñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
 }

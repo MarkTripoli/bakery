@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test, type WebSocketRoute } from "@playwright/test";
 import { libraryFixture, uuid } from "./helpers/library-fixture.ts";
 import { MOCK_ORGANIZATION_ID } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
@@ -56,7 +56,8 @@ const revisionOf = (fact: Fact, revision: number) => {
     supersedesId: revision === 1 ? null : uuid(fact.n * 100 + revision - 1),
     confidence: fact.confidence ?? "0.900000",
     expiresAt: fact.expiresAt ?? null,
-    createdBy: uuid(1),
+    createdBy: uuid(revision === 1 ? 1 : 2),
+    createdByName: revision === 1 ? "Ada Admin" : "Grace Hopper",
     createdAt: `2026-11-0${revision}T10:00:00.000Z`,
     updatedAt: STAMP,
     version: 1,
@@ -178,6 +179,20 @@ async function memoryFixture(
         sourceArtifactVersionId: string;
       };
     }[],
+    /** Another person corrects a fact: the next read shows the new wording. */
+    correct: (n: number, content: string) => {
+      const fact = live.find((item) => item.n === n);
+      if (!fact) throw new Error(`no fact ${n}`);
+      fact.revisions = (fact.revisions ?? 1) + 1;
+      fact.body = content;
+      bump(uuid(n));
+    },
+    /** The cited document is deleted: the next read says so. */
+    deleteSource: (n: number) => {
+      const fact = live.find((item) => item.n === n);
+      if (!fact) throw new Error(`no fact ${n}`);
+      fact.source = "deleted";
+    },
     /** A source that could not be checked can be: the next read says so. */
     recover: (n: number) => {
       const fact = live.find((item) => item.n === n);
@@ -346,6 +361,92 @@ async function memoryFixture(
   return seen;
 }
 
+/** The organization's event socket: it answers a subscription with a cursor, and pushes a memory signal on request. */
+async function memoryEvents(page: Page) {
+  const sockets: WebSocketRoute[] = [];
+  const requests = new Map<WebSocketRoute, string>();
+  const subscribes: { scopes: unknown }[] = [];
+  let sequence = 1;
+  await page.routeWebSocket(/\/v1\/events/, (socket) => {
+    sockets.push(socket);
+    socket.send(JSON.stringify({
+      type: "hello",
+      protocolVersion: 1,
+      connectionId: crypto.randomUUID(),
+      highwater: "1",
+      retainedFrom: "0",
+    }));
+    socket.onMessage((message) => {
+      const frame = JSON.parse(String(message)) as {
+        type: string;
+        requestId: string;
+        scopes: unknown;
+      };
+      if (frame.type !== "subscribe") return;
+      subscribes.push({ scopes: frame.scopes });
+      requests.set(socket, frame.requestId);
+      sequence += 1;
+      socket.send(JSON.stringify({
+        type: "cursor",
+        requestId: frame.requestId,
+        cursor: `cursor-${sequence}`,
+        highwater: String(sequence),
+      }));
+    });
+  });
+  return {
+    subscribes,
+    /** The server tells the open tab that fact `n` was revised. */
+    revised: (n: number) => {
+      const socket = sockets.at(-1);
+      if (!socket) throw new Error("no event socket is open");
+      sequence += 1;
+      socket.send(JSON.stringify({
+        type: "events",
+        requestId: requests.get(socket),
+        events: [{
+          id: crypto.randomUUID(),
+          sequence: String(sequence),
+          type: "memory.revised",
+          schemaVersion: 1,
+          occurredAt: STAMP,
+          repositoryId: null,
+          taskId: null,
+          conversationId: null,
+          workerHostId: null,
+          workerEnrollmentId: null,
+          payload: { resourceId: uuid(n), resourceVersion: sequence },
+        }],
+        highwater: String(sequence),
+      }));
+    },
+    sourceChanged: (n: number) => {
+      const socket = sockets.at(-1);
+      if (!socket) throw new Error("no event socket is open");
+      sequence += 1;
+      socket.send(JSON.stringify({
+        type: "events",
+        requestId: requests.get(socket),
+        events: [{
+          id: crypto.randomUUID(),
+          sequence: String(sequence),
+          type: "memory.source_changed",
+          schemaVersion: 1,
+          occurredAt: STAMP,
+          repositoryId: null,
+          taskId: null,
+          conversationId: null,
+          workerHostId: null,
+          workerEnrollmentId: null,
+          payload: { resourceId: uuid(n), resourceVersion: sequence },
+        }],
+        highwater: String(sequence),
+      }));
+    },
+    drop: () => sockets.at(-1)?.close(),
+  };
+}
+
 for (
   const viewport of [
     { name: "desktop", width: 1280, height: 800 },
@@ -415,7 +516,7 @@ for (
       await expect(sheet.getByTestId("memory-fact-body")).toHaveText(
         "Deploys run from main, never from a branch.",
       );
-      await expect(sheet.getByTestId("memory-source")).toHaveText(
+      await expect(sheet.getByTestId("memory-source")).toContainText(
         "Runbook, version 3",
       );
       await expect(sheet).toContainText("How sure: High");
@@ -575,6 +676,8 @@ for (
       });
       await expect(row(page, 2)).toContainText("In use");
       await expect(row(page, 2)).toContainText("corrected once");
+      // The page's own correction is not announced as someone else's.
+      await expect(sheet.getByTestId("memory-changed-by-other")).toHaveCount(0);
       await expect(sheet.getByTestId("memory-fact-body")).toHaveText(
         "The staging database is reset every Tuesday.",
       );
@@ -677,6 +780,158 @@ for (
       }
     });
 
+    test("another person's correction reaches the open tab; the notice says so, History names who, and it goes when a change starts", async ({ page }) => {
+      const seen = await memoryFixture(page);
+      const events = await memoryEvents(page);
+      const sheet = await open(page, 1);
+      await expect.poll(() => events.subscribes.length).toBeGreaterThan(0);
+      expect(events.subscribes[0].scopes).toEqual([
+        { type: "memory", id: MOCK_ORGANIZATION_ID },
+      ]);
+      await expect(sheet.getByTestId("memory-changed-by-other")).toHaveCount(0);
+      seen.correct(1, "Deploys run from main after review.");
+      events.revised(1);
+      await expect(sheet.getByTestId("memory-fact-body")).toHaveText(
+        "Deploys run from main after review.",
+      );
+      const notice = sheet.getByTestId("memory-changed-by-other");
+      await expect(notice).toContainText(
+        "This fact was corrected while you had it open. The new wording is shown.",
+      );
+      // Announced politely, not as an alert.
+      await expect(notice).toHaveAttribute("role", "status");
+      // History reloaded with the fact: its newest entry is the new wording and
+      // says who made it, when and why (it replaces a name in the notice).
+      const newest = sheet.getByTestId("memory-history").getByRole("listitem")
+        .first();
+      await expect(newest).toContainText("Deploys run from main after review.");
+      await expect(newest).toContainText("by Grace Hopper");
+      await expect(newest).toContainText("Correction 3");
+      await expect(row(page, 1)).toContainText("corrected 3 times");
+      await shot(page, "library-memory-changed", [], {
+        windowOnly: true,
+        only: viewport.name === "desktop" ? "desktop" : "mobile",
+      });
+      // Starting a change ends the notice.
+      await sheet.getByRole("button", { name: "Correct", exact: true }).click();
+      await expect(sheet.getByTestId("memory-changed-by-other")).toHaveCount(0);
+    });
+
+    test("the notice shows only for the fact that is open, and not again after the panel closes", async ({ page }) => {
+      const seen = await memoryFixture(page);
+      const events = await memoryEvents(page);
+      const sheet = await open(page, 1);
+      await expect.poll(() => events.subscribes.length).toBeGreaterThan(0);
+      // Another fact is corrected: its row updates, the open fact says nothing.
+      seen.correct(2, "The staging database is reset on Tuesdays.");
+      events.revised(2);
+      await expect(row(page, 2)).toContainText("corrected once");
+      await expect(sheet.getByTestId("memory-changed-by-other")).toHaveCount(0);
+      // The open fact is corrected, then the panel closes and opens again.
+      seen.correct(1, "Deploys run from main after review.");
+      events.revised(1);
+      await expect(sheet.getByTestId("memory-changed-by-other")).toBeVisible();
+      await sheet.getByRole("button", { name: "Close" }).click();
+      await row(page, 1).getByRole("button", { name: /^Open fact:/ }).click();
+      await expect(
+        page.getByTestId("memory-fact").getByTestId("memory-changed-by-other"),
+      ).toHaveCount(0);
+    });
+
+    test("starting Approve while the corrected-while-open notice shows ends the notice", async ({ page }) => {
+      const seen = await memoryFixture(page);
+      const events = await memoryEvents(page);
+      // Fact 2 is a suggestion, so Approve is offered.
+      const sheet = await open(page, 2);
+      await expect.poll(() => events.subscribes.length).toBeGreaterThan(0);
+      seen.correct(2, "The staging database is reset on Tuesdays.");
+      events.revised(2);
+      await expect(sheet.getByTestId("memory-changed-by-other")).toBeVisible();
+      await sheet.getByRole("button", { name: "Approve", exact: true }).click();
+      await expect(sheet.getByTestId("memory-changed-by-other")).toHaveCount(0);
+    });
+
+    test("a source removed while the fact is open changes the badge and the source box, with no notice", async ({ page }) => {
+      const seen = await memoryFixture(page);
+      const events = await memoryEvents(page);
+      const sheet = await open(page, 1);
+      await expect.poll(() => events.subscribes.length).toBeGreaterThan(0);
+      seen.deleteSource(1);
+      events.sourceChanged(1);
+      await expect(row(page, 1)).toContainText("Source missing");
+      await expect(sheet.getByTestId("memory-source")).toContainText(
+        "This source was deleted.",
+      );
+      await expect(sheet.getByTestId("memory-changed-by-other")).toHaveCount(0);
+    });
+
+    test("another person's correction while the Correct form is open keeps what was typed and says to make the change again", async ({ page }) => {
+      const seen = await memoryFixture(page);
+      const events = await memoryEvents(page);
+      const sheet = await open(page, 1);
+      await expect.poll(() => events.subscribes.length).toBeGreaterThan(0);
+      await sheet.getByRole("button", { name: "Correct", exact: true }).click();
+      const form = sheet.getByTestId("memory-correct");
+      const wording = form.getByLabel("What should agents be told instead?");
+      await wording.fill("My own new wording.");
+      seen.correct(1, "Their wording.");
+      events.revised(1);
+      const notice = sheet.getByTestId("memory-changed-by-other");
+      await expect(notice).toContainText(
+        "Someone else changed this fact. Their wording is shown; make your change again.",
+      );
+      await expect(wording).toHaveValue("My own new wording.");
+      await expect(row(page, 1)).toContainText("corrected 3 times");
+    });
+
+    test("a dropped connection says updates are paused, then clears when it is back", async ({ page }) => {
+      await memoryFixture(page);
+      const events = await memoryEvents(page);
+      await page.goto("/library?tab=memory");
+      await expect.poll(() => events.subscribes.length).toBe(1);
+      await expect(page.getByTestId("memory-stale")).toHaveCount(0);
+      events.drop();
+      await expect(page.getByTestId("memory-stale")).toContainText(
+        "Live updates are paused. Reconnecting.",
+      );
+      await shot(page, "library-memory-paused", [], {
+        windowOnly: true,
+        only: viewport.name === "desktop" ? "desktop" : "mobile",
+      });
+      await expect.poll(() => events.subscribes.length).toBe(2);
+      await expect(page.getByTestId("memory-stale")).toHaveCount(0);
+    });
+
+    test("the source is a link to the cited version; a source nobody here may open is not", async ({ page }) => {
+      await memoryFixture(page);
+      const sheet = await open(page, 1);
+      const link = sheet.getByTestId("memory-source").getByRole("link", {
+        name: "Runbook, version 3",
+      });
+      await expect(link).toHaveAttribute(
+        "href",
+        `/files/versions/${uuid(7001)}`,
+      );
+      await expect(sheet.getByTestId("memory-source")).toContainText(
+        "Opens that exact version, not the latest.",
+      );
+      await shot(page, "library-memory-source-link", [], {
+        windowOnly: true,
+        only: viewport.name === "desktop" ? "desktop" : "mobile",
+      });
+      await link.click();
+      await expect(page).toHaveURL(
+        new RegExp(`/files/versions/${uuid(7001)}$`),
+      );
+      await page.goto(`/library?tab=memory&fact=${uuid(4)}`);
+      await expect(page.getByTestId("memory-source")).toContainText(
+        "You do not have access to this source.",
+      );
+      await expect(
+        page.getByTestId("memory-source").getByRole("link"),
+      ).toHaveCount(0);
+    });
+
     test("Retry on a source that could not be checked reads the fact again and shows what it finds", async ({ page }) => {
       const seen = await memoryFixture(page, [
         { n: 6, body: "Retries use jittered backoff.", source: "unknown" },
@@ -701,7 +956,7 @@ for (
         only: viewport.name === "desktop" ? "desktop" : "mobile",
       });
       hold = false;
-      await expect(sheet.getByTestId("memory-source")).toHaveText(
+      await expect(sheet.getByTestId("memory-source")).toContainText(
         "Runbook, version 3",
         { timeout: 15000 },
       );
@@ -756,7 +1011,7 @@ for (
       expect(reads).toBeGreaterThan(before);
     });
 
-    test("a link to a fact the list does not hold opens it; one that is gone or not yours says it was not found", async ({ page }) => {
+    test("a link to a fact the list does not hold opens it", async ({ page }) => {
       await memoryFixture(page, [
         ...WORLD,
         { n: 7, body: "Hidden from the list, fetched by id.", unlisted: true },
@@ -765,8 +1020,14 @@ for (
       await expect(page.getByTestId("memory-fact-body")).toHaveText(
         "Hidden from the list, fetched by id.",
       );
-      // Gone (404) and not yours (403) read the same.
-      for (const id of [99, 98]) {
+    });
+
+    // Gone (404) and not yours (403) read the same.
+    for (
+      const [why, id] of [["gone", 99], ["not yours", 98]] as const
+    ) {
+      test(`a link to a fact that is ${why} says it was not found; Close returns to the list`, async ({ page }) => {
+        await memoryFixture(page, WORLD);
         await page.goto(`/library?tab=memory&fact=${uuid(id)}`);
         const missing = page.getByTestId("memory-fact-missing");
         // The title shows once: a doubled one would read as a layout bug.
@@ -774,17 +1035,17 @@ for (
         await expect(missing).toContainText(
           "It may have been removed, or you may not have access to it.",
         );
-      }
-      await shot(page, "library-memory-missing", [], {
-        windowOnly: true,
-        only: viewport.name === "desktop" ? "desktop" : "mobile",
+        if (id === 99) {
+          await shot(page, "library-memory-missing", [], {
+            windowOnly: true,
+            only: viewport.name === "desktop" ? "desktop" : "mobile",
+          });
+        }
+        await missing.getByRole("button", { name: "Close" }).click();
+        await expect(missing).toHaveCount(0);
+        await expect(page).not.toHaveURL(/fact=/);
       });
-      await page.getByTestId("memory-fact-missing").getByRole("button", {
-        name: "Close",
-      }).click();
-      await expect(page.getByTestId("memory-fact-missing")).toHaveCount(0);
-      await expect(page).not.toHaveURL(/fact=/);
-    });
+    }
 
     if (viewport.name === "desktop") {
       test("on a wide screen the list stays beside the fact; Escape closes it and returns to the row", async ({ page }) => {

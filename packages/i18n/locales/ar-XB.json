@@ -4928,5 +4928,10 @@
   "settings.integrations.credentials.save": "⟪Save⟫",
   "settings.integrations.credentials.replace": "⟪Replace details⟫",
   "settings.integrations.credentials.cancel": "⟪Cancel⟫",
-  "settings.integrations.credentials.tooLong": "⟪Use at most {limit} characters.⟫"
+  "settings.integrations.credentials.tooLong": "⟪Use at most {limit} characters.⟫",
+  "library.memory.source.exactVersion": "⟪Opens that exact version, not the latest.⟫",
+  "library.memory.fact.by": "⟪by {name}⟫",
+  "library.memory.live.offline": "⟪You are offline. What you see may be out of date.⟫",
+  "library.memory.live.lost": "⟪Live updates are paused. Reconnecting. What you see may be out of date.⟫",
+  "library.memory.live.corrected": "⟪This fact was corrected while you had it open. The new wording is shown.⟫"
 }

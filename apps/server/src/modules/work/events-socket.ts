@@ -37,12 +37,14 @@ import {
 } from "../auth/domain/assurance.ts";
 import {
   assertEventAccess,
-  assertInboxOnlyScope,
   assertScope,
+  assertScopeAccess,
   type ClockRow,
   isOutsideRetention,
   readEventClock,
+  readScopeAccess,
   readScopedEvents,
+  type ScopeAccess,
   type SyncScope,
   type SyncScopeType,
   toEvent,
@@ -74,9 +76,10 @@ const FILTER_LETTERS = Object.freeze(
     task: "t",
     conversation: "c",
     inbox: "i",
+    memory: "m",
   } as const,
 );
-const FILTER_ORDER = Object.freeze({ a: 0, r: 1, t: 2, c: 3, i: 4 });
+const FILTER_ORDER = Object.freeze({ a: 0, r: 1, t: 2, c: 3, i: 4, m: 5 });
 const LETTER_TYPES: Readonly<Record<string, SyncScopeType>> = Object.freeze({
   a: "application",
   r: "repository",
@@ -85,6 +88,7 @@ const LETTER_TYPES: Readonly<Record<string, SyncScopeType>> = Object.freeze({
   e: "worker_enrollment",
   w: "worker",
   i: "inbox",
+  m: "memory",
 });
 const CURSOR_ACTION = "events.connect";
 const CURSOR_ORDERING = "sequence:asc";
@@ -237,6 +241,7 @@ const EVENT_SCOPE_TYPES: Record<SyncScopeType, true> = {
   worker_enrollment: true,
   worker: true,
   inbox: true,
+  memory: true,
 };
 
 function freezeLimits(
@@ -1117,14 +1122,14 @@ export function createEventsSocketHandler(
   async function authorizeMembership(
     transaction: PgTransactionClient,
     state: ConnectionState,
-  ): Promise<boolean> {
+  ): Promise<ScopeAccess> {
     try {
       const actor = await resolveOrganizationActor(
         transaction,
         state.principalId,
         state.organizationId,
       );
-      return assertEventAccess(actor);
+      return readScopeAccess(actor);
     } catch (error) {
       if (
         error instanceof StandardError && error.code === "RESOURCE_NOT_FOUND"
@@ -1142,10 +1147,10 @@ export function createEventsSocketHandler(
     scopes: readonly SyncScope[],
     clock: ClockRow,
   ): Promise<void> {
-    const fullAccess = await authorizeMembership(transaction, state);
+    const access = await authorizeMembership(transaction, state);
     for (const scope of scopes) {
       try {
-        if (!fullAccess) assertInboxOnlyScope(scope);
+        assertScopeAccess(access, scope);
         await assertScope(
           transaction,
           state.organizationId,
@@ -1337,9 +1342,9 @@ export function createEventsSocketHandler(
     const outcome = await withPgTransaction<SubscriptionOutcome>(
       options.database,
       async (transaction) => {
-        const fullAccess = await authorizeMembership(transaction, state);
+        const access = await authorizeMembership(transaction, state);
         for (const scope of normalizedScopes) {
-          if (!fullAccess) assertInboxOnlyScope(scope);
+          assertScopeAccess(access, scope);
           await assertScope(
             transaction,
             state.organizationId,
