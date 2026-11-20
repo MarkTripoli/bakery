@@ -96,6 +96,9 @@ export type DeliveryDecisionListResponse =
 export type PullRequestListResponse = ClientOutputMap["Page<PullRequest>"];
 export type MergeAttemptListResponse = ClientOutputMap["Page<MergeAttempt>"];
 export type MergeAttemptResponse = ClientOutputMap["MergeAttempt"];
+export type MergeEntryListResponse = ClientOutputMap["Page<MergeEntry>"];
+export type MergeEntryResponse = ClientOutputMap["MergeEntry"];
+export type MergeEntryCreate = ClientInputMap["MergeEntryCreate"];
 export type MergeReconciliationResponse =
   ClientOutputMap["MergeReconciliation"];
 export type SyncQuery = ClientInputMap["SyncQuery"];
@@ -1619,6 +1622,29 @@ export type BakeryApiClient = {
     readonly mergeMethod: "merge" | "squash" | "rebase";
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<MergeAttemptResponse>>;
+  /**
+   * One pull request's merge queue entries, newest first. An entry still
+   * queued, being checked or merging reads the same after a reload.
+   */
+  readonly listMergeEntries: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeEntryListResponse>>;
+  /**
+   * Asks Bakery to queue a merge of the candidate the person saw: the exact
+   * head and base, with the run, review and checks that vouch for it. Bakery
+   * checks that nothing changed, then merges; a repeat with the same key
+   * answers with the same entry.
+   */
+  readonly createMergeEntry: (options: {
+    readonly organizationId: string;
+    readonly input: MergeEntryCreate;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeEntryResponse>>;
   /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
   readonly reconcileMergeAttempts: (options: {
     readonly organizationId: string;
@@ -5352,6 +5378,40 @@ export function createBakeryApiClient({
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
           { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMergeEntries(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeEntries.list"](
+          {
+            pullRequestId: options.pullRequestId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createMergeEntry(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeEntries.create"](
+          options.input,
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
         );
         return { ok: true, data };
       } catch (error) {

@@ -48528,6 +48528,11 @@ export const clientManifest = {
                   "rebase"
                 ],
                 "description": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one."
+              },
+              "targetBranch": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Branch this pull request merges into: its repository's default branch, the branch Bakery opens pull requests against and the one mergeEntries.create takes."
               }
             },
             "required": [
@@ -48545,7 +48550,8 @@ export const clientManifest = {
               "updatedAt",
               "version",
               "mayMerge",
-              "mergeMethod"
+              "mergeMethod",
+              "targetBranch"
             ],
             "additionalProperties": false,
             "description": "Bakery's mirror of a provider pull request's identity and latest known SHAs for a task's repository; provider webhooks reconcile status, mergedSha and the head/base SHAs against the provider's current state, so this record can lag briefly behind Git history."
@@ -49901,6 +49907,31 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "blockedReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "already_merged",
+                      "not_open",
+                      "head_moved",
+                      "base_moved",
+                      "checks_not_passed",
+                      "not_permitted",
+                      "evidence_changed",
+                      "github_refused",
+                      "not_merged",
+                      "unavailable"
+                    ],
+                    "description": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MergeEntry.blockedReason may be null in this transport value."
               }
             },
             "required": [
@@ -49917,7 +49948,8 @@ export const clientManifest = {
               "reviewCycleId",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "blockedReason"
             ],
             "additionalProperties": false,
             "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds."
@@ -67775,6 +67807,31 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "blockedReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "already_merged",
+                "not_open",
+                "head_moved",
+                "base_moved",
+                "checks_not_passed",
+                "not_permitted",
+                "evidence_changed",
+                "github_refused",
+                "not_merged",
+                "unavailable"
+              ],
+              "description": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MergeEntry.blockedReason may be null in this transport value."
         }
       },
       "required": [
@@ -67791,7 +67848,8 @@ export const clientManifest = {
         "reviewCycleId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "blockedReason"
       ],
       "additionalProperties": false,
       "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds."

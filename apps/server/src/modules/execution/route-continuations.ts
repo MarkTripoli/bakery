@@ -74,9 +74,10 @@ type StalledStepRow = {
 
 /**
  * The joins that find a step stalled behind an open incident: a live job of the
- * step whose pin (provider, model, harness, billing route) matches an active route
+ * step whose pin (provider, model, harness, billing route and account) matches an active route
  * with an open incident that the step has not already been continued past.
- * Aliases: `r` the run, `s` the step, `j` the job, `pr` the route, `i` the
+ * Aliases: `r` the run, `s` the step, `j` the job, `pr` the route, `a` its
+ * account, `i` the
  * incident. `$1` is the organization and `$3` the waiting job statuses; the
  * caller adds its own run predicate. Shared by the offers and by the runs read's
  * `waitingOnModel`, so the badge and the card can never disagree.
@@ -96,6 +97,10 @@ const STALLED_STEP_JOINS = `
           and pr.billing_route = case j.billing->>'billingRoute'
                 when 'api' then 'api_metered'
                 else j.billing->>'billingRoute' end
+         join bakery.model_provider_accounts as a
+           on a.organization_id = pr.organization_id
+          and a.id = pr.provider_account_id
+          and a.billing_identity = j.billing->>'billingAccountId'
          join bakery.provider_incidents as i
            on i.organization_id = pr.organization_id
           and i.id = pr.incident_id and i.status = 'open'

@@ -17041,7 +17041,8 @@ const transportSchemas = {
         "reviewCycleId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "blockedReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -17057,10 +17058,12 @@ const transportSchemas = {
         "reviewCycleId": "uuid",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "blockedReason": "enum(already_merged|not_open|head_moved|base_moved|checks_not_passed|not_permitted|evidence_changed|github_refused|not_merged|unavailable)|null"
       },
       "nullableFields": [
-        "externalEffectId"
+        "externalEffectId",
+        "blockedReason"
       ],
       "sourceColumns": {
         "id": "id",
@@ -17076,7 +17079,8 @@ const transportSchemas = {
         "reviewCycleId": "review_cycle_id",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
-        "version": "version"
+        "version": "version",
+        "blockedReason": "blocked_reason"
       },
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
@@ -17093,7 +17097,8 @@ const transportSchemas = {
         "reviewCycleId": "Stable UUID linking this merge entry record to the related review cycle entity.",
         "createdAt": "UTC timestamp when the merge entry record was created.",
         "updatedAt": "UTC timestamp when the merge entry record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the merge entry record."
+        "version": "Optimistic-concurrency version used when updating the merge entry record.",
+        "blockedReason": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded."
       }
     },
     "deployments": {
@@ -20531,7 +20536,8 @@ const transportSchemas = {
         "updatedAt",
         "version",
         "mayMerge",
-        "mergeMethod"
+        "mergeMethod",
+        "targetBranch"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -20548,7 +20554,8 @@ const transportSchemas = {
         "version": "integer",
         "runId": "uuid|null",
         "mayMerge": "boolean",
-        "mergeMethod": "enum(merge|squash|rebase)"
+        "mergeMethod": "enum(merge|squash|rebase)",
+        "targetBranch": "string"
       },
       "nullableFields": [
         "mergedSha",
@@ -20570,7 +20577,8 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version used when updating the record.",
         "runId": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run.",
         "mayMerge": "Whether the caller holds the permission to merge this pull request from Bakery (the pullRequest:merge permission). It says nothing about whether the pull request is ready to merge; the checks and the dispatch still decide that.",
-        "mergeMethod": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one."
+        "mergeMethod": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one.",
+        "targetBranch": "Branch this pull request merges into: its repository's default branch, the branch Bakery opens pull requests against and the one mergeEntries.create takes."
       }
     },
     "ReviewCycle": {
@@ -23512,7 +23520,8 @@ const transportSchemas = {
         "reviewCycleId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "blockedReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -23528,10 +23537,12 @@ const transportSchemas = {
         "reviewCycleId": "uuid",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "blockedReason": "enum(already_merged|not_open|head_moved|base_moved|checks_not_passed|not_permitted|evidence_changed|github_refused|not_merged|unavailable)|null"
       },
       "nullableFields": [
-        "externalEffectId"
+        "externalEffectId",
+        "blockedReason"
       ],
       "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds.",
       "fieldDescriptions": {
@@ -23548,7 +23559,8 @@ const transportSchemas = {
         "reviewCycleId": "Stable UUID linking this record to the related review cycle entity.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "blockedReason": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded."
       }
     },
     "Deployment": {

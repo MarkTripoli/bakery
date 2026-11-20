@@ -264,7 +264,7 @@ async function openWaiting(page: Page, offers: Offer[]): Promise<Waiting> {
 const card = (page: Page) => page.getByTestId("route-waiting-card");
 
 const SECOND_LINE =
-  "Bakery has not moved this work anywhere else, and the step does not start again by itself.";
+  "Bakery has not moved this work anywhere else. It tries the step again with the same model, and the waiting ends when a try works.";
 
 test("a step waiting on a model shows one card that says what, why and what Bakery has not done", async ({ page }) => {
   await openWaiting(page, [offerRow()]);
@@ -276,7 +276,7 @@ test("a step waiting on a model shows one card that says what, why and what Bake
     'The step "Implement" runs on Claude Code with claude-opus, using the subscription on a machine. Anthropic has been limiting requests since',
   );
   await expect(card(page)).toContainText(SECOND_LINE);
-  await expect(card(page)).toContainText("Bakery tries Anthropic again at");
+  await expect(card(page)).toContainText("Bakery also checks Anthropic at");
   await expect(card(page)).not.toContainText("checks again");
   // No way to choose ships yet: no button, and no promise of one.
   await expect(card(page).getByRole("button")).toHaveCount(0);
@@ -285,7 +285,7 @@ test("a step waiting on a model shows one card that says what, why and what Bake
   await expect(page.getByText("Waiting on a model", { exact: true }))
     .toBeVisible();
   await expect(page.getByText(
-    "Waiting on Claude Code with claude-opus. It does not start again by itself.",
+    "Waiting on Claude Code with claude-opus. Bakery tries it again with the same model.",
   )).toBeVisible();
   const results = await new AxeBuilder({ page })
     .include('[data-testid="route-waiting"]')
@@ -296,7 +296,7 @@ test("a step waiting on a model shows one card that says what, why and what Bake
 test("with no next check the card drops its last sentence", async ({ page }) => {
   await openWaiting(page, [offerRow({ nextCheckAt: null })]);
   await expect(card(page)).toContainText(SECOND_LINE);
-  await expect(card(page)).not.toContainText("tries Anthropic again");
+  await expect(card(page)).not.toContainText("also checks Anthropic");
 });
 
 test("a wait of less than a minute shows no card and no badge", async ({ page }) => {
@@ -369,7 +369,7 @@ for (const scheme of SCHEMES) {
         await expect(card(page)).toBeVisible();
         await page.setViewportSize({ width, height: TALL[size] });
         await expect(page.getByText(
-          "Waiting on Claude Code with claude-opus. It does not start again by itself.",
+          "Waiting on Claude Code with claude-opus. Bakery tries it again with the same model.",
         )).toBeVisible();
         await page.screenshot({
           path: `${STILLS}/${name}-${size}-${scheme}.png`,

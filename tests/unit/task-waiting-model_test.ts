@@ -140,14 +140,14 @@ Deno.test("the card names the agent and the badge, and the step as its tab does"
 Deno.test("the second line, with a next check", () => {
   assertEquals(
     cardCopy(offer(), t, when, name).second,
-    "Bakery has not moved this work anywhere else, and the step does not start again by itself. Bakery tries Anthropic again at <12:05>.",
+    "Bakery has not moved this work anywhere else. It tries the step again with the same model, and the waiting ends when a try works. Bakery also checks Anthropic at <12:05>.",
   );
 });
 
 Deno.test("the second line, with no next check, drops the last sentence", () => {
   assertEquals(
     cardCopy(offer({ nextCheckAt: null }), t, when, name).second,
-    "Bakery has not moved this work anywhere else, and the step does not start again by itself.",
+    "Bakery has not moved this work anywhere else. It tries the step again with the same model, and the waiting ends when a try works.",
   );
 });
 
@@ -162,7 +162,7 @@ Deno.test("the card promises no choice, with or without a target", () => {
     const copy = cardCopy(offer({ targets, nextCheckAt: null }), t, when, name);
     assertEquals(
       copy.second,
-      "Bakery has not moved this work anywhere else, and the step does not start again by itself.",
+      "Bakery has not moved this work anywhere else. It tries the step again with the same model, and the waiting ends when a try works.",
     );
     assert(!copy.second.includes("choose"));
   }
@@ -177,7 +177,7 @@ Deno.test("no card sentence says the step carries on by itself", () => {
     ]
   ) {
     const { second } = cardCopy(given, t, when, name);
-    assert(second.includes("does not start again by itself"));
+    assert(second.includes("waiting ends when a try works"));
     assert(!second.includes("checks again"));
   }
 });
@@ -185,7 +185,7 @@ Deno.test("no card sentence says the step carries on by itself", () => {
 Deno.test("the step's row says what it waits on and that it does not restart", () => {
   assertEquals(
     stepRowCopy(offer(), t),
-    "Waiting on Claude Code with claude-opus. It does not start again by itself.",
+    "Waiting on Claude Code with claude-opus. Bakery tries it again with the same model.",
   );
 });
 

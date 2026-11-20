@@ -1,13 +1,43 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "2de7c9744ef72c605c415b6fc2ba846b95f98eee"
+    "8d403f1221dc327bbb871c1eebc0b41b99b31619"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:aea2af06520c6271fbeb030dbd25e40297e25425dd60f1efba81fd770e4b0fa1",
-  "reason": "#70 slice 2 waiting-on-a-model reads by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2de7c9744ef72c605c415b6fc2ba846b95f98eee: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:4c7ce0ae4caa534c2ceec4f5b125ffe45a2e213b8f9d484be0365ab13c20c517",
+  "reason": "#70 slice 2 waiting-on-a-model reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8d403f1221dc327bbb871c1eebc0b41b99b31619: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "536ca2f627dbd9fdb8ba2500830bd8b508645b40"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:af4c0cec80238c9475b30cfa542fdfbf918f4f1b892a86332649bd1a90474480",
+      "reason": "#57 slice 2 merge-queue reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 536ca2f627dbd9fdb8ba2500830bd8b508645b40 (#788 and handoff manifests merged): PullRequest gains targetBranch, required and not nullable; MergeEntry gains blockedReason, nullable. This PR's previous approval is kept unchanged first below, then main's own."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "2de7c9744ef72c605c415b6fc2ba846b95f98eee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:aea2af06520c6271fbeb030dbd25e40297e25425dd60f1efba81fd770e4b0fa1",
+      "reason": "#70 slice 2 waiting-on-a-model reads by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2de7c9744ef72c605c415b6fc2ba846b95f98eee: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "2de7c9744ef72c605c415b6fc2ba846b95f98eee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5e6cbf87fc5f188cc0b7baf0b42f9b86c72229e09937616145eabbbb79c8f48c",
+      "reason": "#57 slice 2 merge-queue reads by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2de7c9744ef72c605c415b6fc2ba846b95f98eee: PullRequest gains targetBranch, required and not nullable, the repository's default branch that mergeEntries.create takes; MergeEntry gains blockedReason, nullable. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

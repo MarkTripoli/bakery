@@ -1,4 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import { readRunsWaitingOnModel } from "../../apps/server/src/modules/execution/route-continuations.ts";
 import { openApprovalFixture } from "../helpers/scoped-approvals.ts";
 
 /**
@@ -50,7 +52,34 @@ const PIN = {
   model: "claude-x",
   harness: "pi",
   billingRoute: "api",
+  billingAccountId: "acct-continuation-a",
 };
+
+/** Provider accounts already seeded, by fixture then organization and identity. */
+const accounts = new WeakMap<Fixture, Map<string, string>>();
+
+/** The organization's provider account for a billing identity, created once. */
+async function seedAccount(
+  fixture: Fixture,
+  organizationId: string,
+  billingIdentity: string,
+): Promise<string> {
+  const known = accounts.get(fixture) ?? new Map<string, string>();
+  accounts.set(fixture, known);
+  const key = `${organizationId}/${billingIdentity}`;
+  const existing = known.get(key);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  await fixture.fx.ownerPg.query(
+    `insert into bakery.model_provider_accounts (
+       id, organization_id, provider, billing_identity, identity_hash,
+       billing_route, display_identity
+     ) values ($1, $2, $3, $4, $5, 'api', 'continuation')`,
+    [id, organizationId, PIN.provider, billingIdentity, `h-${id}`],
+  );
+  known.set(key, id);
+  return id;
+}
 
 async function seedRun(
   fixture: Fixture,
@@ -140,6 +169,7 @@ async function seedRun(
         provider: pin.provider,
         model: pin.model,
         billingRoute: pin.billingRoute,
+        billingAccountId: pin.billingAccountId,
       }),
     ],
   );
@@ -156,24 +186,32 @@ async function seedRoute(
     status?: string;
     health?: string;
     organizationId?: string;
+    billingAccountId?: string;
   } = {},
 ): Promise<string> {
   const id = crypto.randomUUID();
+  const organizationId = values.organizationId ?? fixture.fx.organizationId;
+  const accountId = await seedAccount(
+    fixture,
+    organizationId,
+    values.billingAccountId ?? PIN.billingAccountId,
+  );
   await fixture.fx.ownerPg.query(
     `insert into bakery.provider_routes (
        id, organization_id, provider, endpoint, model, harness, billing_route,
-       credential_location, status, health
+       credential_location, status, health, provider_account_id
      ) values ($1, $2, $3, 'https://api.provider.example/v1', $4, $5, $6,
-       'harness_host', $7, $8)`,
+       'harness_host', $7, $8, $9)`,
     [
       id,
-      values.organizationId ?? fixture.fx.organizationId,
+      organizationId,
       values.provider ?? PIN.provider,
       values.model ?? PIN.model,
       values.harness ?? PIN.harness,
       values.billingRoute ?? "api_metered",
       values.status ?? "active",
       values.health ?? "healthy",
+      accountId,
     ],
   );
   return id;
@@ -360,6 +398,41 @@ Deno.test("route continuations: a closed incident still linked to the route offe
         status,
       );
     }
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("route continuations: an incident on one account's route does not stall a run billing another account", async () => {
+  const fixture = await openApprovalFixture();
+  try {
+    const onA = await seedRun(fixture, {
+      pin: { billingAccountId: "acct-continuation-a" },
+    });
+    const onB = await seedRun(fixture, {
+      pin: { billingAccountId: "acct-continuation-b" },
+    });
+    // Two routes share the pin; only account A's is down.
+    const routeA = await seedRoute(fixture, {
+      billingAccountId: "acct-continuation-a",
+    });
+    await seedRoute(fixture, { billingAccountId: "acct-continuation-b" });
+    await openIncident(fixture, routeA);
+
+    const offeredA = await offersOk(fixture, onA.runId);
+    assertEquals(offeredA.offers.length, 1);
+    assertEquals(offeredA.offers[0]!.sourceRouteId, routeA);
+    assertEquals((await offersOk(fixture, onB.runId)).offers, []);
+
+    const runs = await withPgTransaction(
+      fixture.fx.ownerPg,
+      (transaction) =>
+        readRunsWaitingOnModel(transaction, fixture.fx.organizationId, [
+          onA.runId,
+          onB.runId,
+        ]),
+    );
+    assertEquals([...runs], [onA.runId]);
   } finally {
     await fixture.close();
   }
