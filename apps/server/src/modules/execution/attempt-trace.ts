@@ -1,4 +1,6 @@
 import {
+  childTraceContext,
+  formatTraceparent,
   parseTraceparent,
   type TraceContext,
   type TraceLink,
@@ -100,4 +102,22 @@ export async function loadAttemptTrace(
 /** The shape the telemetry port takes for an event about the attempt. */
 export function attemptTelemetryTrace(trace: AttemptTrace): TelemetryTrace {
   return { context: trace.context, links: trace.links };
+}
+
+/**
+ * The span a child session starts in: its parent's trace and a span of its own.
+ *
+ * A sub-session is part of the same run, so it must not start a trace of its
+ * own (`agent_sessions.parent_session_id` says whose child it is, and this says
+ * which trace). A parent with no usable context gives the child none rather than
+ * a made-up root, so one half of a run is never filed under an unrelated trace.
+ * Nothing creates a sub-session yet; the code that does must take its span here.
+ */
+export function childSessionTraceparent(
+  parentTraceparent: string | null | undefined,
+): string | undefined {
+  const parent = parseTraceparent(parentTraceparent);
+  return parent === undefined
+    ? undefined
+    : formatTraceparent(childTraceContext(parent));
 }
