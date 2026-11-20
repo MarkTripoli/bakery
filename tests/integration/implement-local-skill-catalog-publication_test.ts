@@ -30,6 +30,8 @@ type Skill = {
   enabled: boolean;
   scope: "global" | "organization" | "personal";
   ownerPrincipalId: string | null;
+  copiedFromSkillId: string | null;
+  copiedFromVersionId: string | null;
   createdAt: string;
   updatedAt: string;
   version: number;
