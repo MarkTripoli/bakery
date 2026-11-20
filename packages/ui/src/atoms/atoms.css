@@ -91,6 +91,11 @@
   min-inline-size: 0;
   overflow-wrap: anywhere;
 }
+/* Opt-in (the fingerprint beside Copy): the value's own width, not the line's. */
+.ui-data-text--fit {
+  flex: 0 1 auto;
+  inline-size: auto;
+}
 .ui-data-text--timestamp {
   color: var(--color-fg-muted);
   font: var(--type-time);

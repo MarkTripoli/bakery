@@ -10019,6 +10019,28 @@
     },
     {
       "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/state-items",
+      "action": "pluginStateItems.list",
+      "access": "Authorized owner/member",
+      "permission": "pluginState:read",
+      "input": "CursorQuery",
+      "output": "Page<PluginStateItem>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Plugins",
       "method": "PUT",
       "path": "/v1/plugin-installs/{id}/state/{namespace}/{key}",
       "action": "pluginState.put",
