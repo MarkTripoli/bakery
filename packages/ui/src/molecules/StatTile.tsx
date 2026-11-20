@@ -43,6 +43,7 @@ export function StatTile(
     <section
       className="ui-stat-tile"
       {...props}
+      data-selected={action?.selected ? "true" : undefined}
       data-ui-component="statTile"
     >
       <div className="ui-stat-tile__label">

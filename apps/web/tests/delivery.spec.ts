@@ -20,6 +20,11 @@ for (
       await page.goto("/delivery");
       await expect(page.getByRole("heading", { name: "Delivery", level: 1 }))
         .toBeVisible();
+      // The Repository and Period controls sit right of the title on a desktop, in the header on a phone.
+      await expect(page.getByRole("button", { name: /^Repository:/ }))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: /^Period:/ }))
+        .toBeVisible();
       const time = page.getByTestId("delivery-time");
       await expect(time.getByRole("heading", { name: "How long a task took" }))
         .toBeVisible();
@@ -31,6 +36,11 @@ for (
       // The bar's key lists every part with its time, and Not accounted for is its own part.
       const bar = time.getByRole("img", { name: /^Where the time went:/ });
       await expect(bar).toBeVisible();
+      // The bar says what its hours are: added up, not an average.
+      await expect(time.getByRole("heading", { name: "Where the time went" }))
+        .toBeVisible();
+      await expect(time.getByText(/added up across 8 tasks, not an average/))
+        .toBeVisible();
       for (
         const label of [
           "Agent working",
@@ -41,7 +51,8 @@ for (
         ]
       ) await expect(time.getByText(label, { exact: true })).toBeVisible();
       // Blocked is not a part of the bar: Bakery keeps no history of it.
-      await expect(time.getByText(/^Blocked: Unknown\./)).toBeVisible();
+      await expect(time.getByText("Blocked: Unknown.")).toBeVisible();
+      await expect(time.getByText("Not accounted for:")).toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "delivery-time");
     });
@@ -50,13 +61,32 @@ for (
       await deliveryFixture(page);
       await page.goto("/delivery?show=tasks");
       const records = page.getByTestId("delivery-records");
-      await expect(
-        records.getByRole("columnheader", { name: "Not accounted for" }),
-      )
-        .toBeVisible();
       await expect(records.getByText("merged pull request").first())
         .toBeVisible();
       await expect(records.getByText("completed run").first()).toBeVisible();
+      if (viewport.name === "phone") {
+        // A phone has stacked rows with every value labelled, not a clipped table.
+        await expect(records.getByRole("list")).toBeVisible();
+        await expect(records.getByText(/^Not accounted for:/).first())
+          .toBeVisible();
+        await expect(records.getByText(/^Agent working:/).first())
+          .toBeVisible();
+      } else {
+        // Each row adds up: the four waits and what no record covers sit beside Total.
+        for (
+          const header of [
+            "Total",
+            "Agent working",
+            "Waiting in queue",
+            "In review",
+            "Waiting for a person",
+            "Not accounted for",
+          ]
+        ) {
+          await expect(records.getByRole("columnheader", { name: header }))
+            .toBeVisible();
+        }
+      }
       // No Blocked column while nothing records it.
       await expect(records.getByRole("columnheader", { name: "Blocked" }))
         .toHaveCount(0);
@@ -71,8 +101,69 @@ for (
       await expect(time.getByText("Too few tasks to summarise (3)."))
         .toBeVisible();
       await expect(time.getByText(/^Typical:/)).toHaveCount(0);
+      // The bar is not drawn for a handful of tasks; the records still list them.
+      await expect(time.getByRole("img", { name: /^Where the time went:/ }))
+        .toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "delivery-too-few");
+    });
+
+    test("nothing unaccounted shows no hatched part, and the sentence follows the delivery points", async ({ page }) => {
+      await deliveryFixture(page, {
+        merged: 7,
+        runs: 0,
+        hours: {
+          agentWorking: 14,
+          queue: 5,
+          review: 3,
+          person: 6,
+          unaccounted: 0,
+        },
+      });
+      await page.goto("/delivery");
+      const time = page.getByTestId("delivery-time");
+      await expect(
+        time.getByText(/to a merged pull request\. Includes waiting/),
+      )
+        .toBeVisible();
+      await expect(time.getByText("Not accounted for", { exact: true }))
+        .toHaveCount(0);
+      await expect(time.getByText("Blocked: Unknown.")).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-no-unaccounted");
+    });
+
+    test("all runs, and tasks left out for a missing time", async ({ page }) => {
+      await deliveryFixture(page, { merged: 0, runs: 6, leftOut: 1 });
+      await page.goto("/delivery");
+      const time = page.getByTestId("delivery-time");
+      await expect(time.getByText(/to a completed run\. Includes waiting/))
+        .toBeVisible();
+      await expect(time.getByText(/1 task was left out for a missing time/))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-runs-left-out");
+    });
+
+    test("pull request rows show real times and the reason a value is missing; a chosen figure marks the whole tile", async ({ page }) => {
+      await deliveryFixture(page);
+      await page.goto("/delivery");
+      const records = page.getByTestId("delivery-records");
+      await expect(records.getByText("Add the metrics read")).toBeVisible();
+      await expect(records.getByText(/Not line-counted/).first())
+        .toBeVisible();
+      await page.getByRole("button", {
+        name: /^Tasks delivered, 8\./,
+        pressed: false,
+      }).click();
+      await expect(
+        page.getByRole("button", {
+          name: /^Tasks delivered, 8\./,
+          pressed: true,
+        }),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-pull-requests");
     });
   });
 }

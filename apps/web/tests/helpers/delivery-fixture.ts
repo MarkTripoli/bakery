@@ -114,6 +114,36 @@ export async function deliveryFixture(
     deliveryPoint: point,
     waits: waits(0.2),
   });
+  const pullRequest = (n: number, missing: boolean) => ({
+    kind: "pullRequest",
+    id: uuid(400 + n),
+    repositoryId: REPO.id,
+    taskId: uuid(300 + n),
+    providerNumber: 100 + n,
+    url: null,
+    status: "merged",
+    openedAt: `2026-11-${String(2 + n).padStart(2, "0")}T09:30:00.000Z`,
+    mergedAt: `2026-11-${String(3 + n).padStart(2, "0")}T14:10:00.000Z`,
+    closedAt: null,
+    countedAt: STAMP,
+    value: missing ? null : 40 + n * 11,
+    missingReason: missing ? "no_diff_totals" : null,
+    title: [
+      "Add the metrics read",
+      "Fix the retry window",
+      "Show the delivery page",
+      "Tidy the settings copy",
+      "Count the changed lines",
+    ][n],
+    requestedAt: null,
+    deliveredAt: null,
+    deliveryPoint: null,
+    waits: null,
+  });
+  const pullRequests = Array.from(
+    { length: 5 },
+    (_, i) => pullRequest(i, i === 3),
+  );
   const records = [
     ...Array.from(
       { length: merged },
@@ -133,6 +163,7 @@ export async function deliveryFixture(
           route,
           series(metric, "hours", [28, 40, null, 31], {
             sampleCount: merged + runs,
+            missingCount: options.leftOut ?? 0,
             summary: {
               median: 30,
               p90: 52,
@@ -162,11 +193,13 @@ export async function deliveryFixture(
   );
   await page.route(
     (url) => url.pathname === "/v1/metrics/sources",
-    (route) =>
-      json(route, {
-        items: records,
+    (route) => {
+      const metric = new URL(route.request().url()).searchParams.get("metric");
+      return json(route, {
+        items: metric === "tasks.leadTimeHours" ? records : pullRequests,
         nextCursor: null,
-      }),
+      });
+    },
   );
-  return { records };
+  return { records, pullRequests };
 }

@@ -5176,8 +5176,6 @@
   "delivery.time.sentence.merge": "⟦Ƒŕôɱ ŵĥëñ ŧĥë ƒïŕšŧ ŕûñ ŵàš àççëþŧëð ŧô à ɱëŕĝëð þûļļ ŕëǫûëšŧ. Ïñçļûðëš ŵàïŧïñĝ; ïŧ ïš ñôŧ ĥôûŕš ôƒ ëƒƒôŕŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "delivery.time.sentence.run": "⟦Ƒŕôɱ ŵĥëñ ŧĥë ƒïŕšŧ ŕûñ ŵàš àççëþŧëð ŧô à çôɱþļëŧëð ŕûñ. Ïñçļûðëš ŵàïŧïñĝ; ïŧ ïš ñôŧ ĥôûŕš ôƒ ëƒƒôŕŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "delivery.time.sentence.mixed": "⟦Ƒŕôɱ ŵĥëñ ŧĥë ƒïŕšŧ ŕûñ ŵàš àççëþŧëð ŧô à ɱëŕĝëð þûļļ ŕëǫûëšŧ, ôŕ ŧô à çôɱþļëŧëð ŕûñ ƒôŕ ŧĥë {runs} ôƒ {count} ŧàšķš ŵïŧĥ ñô þûļļ ŕëǫûëšŧ. Ïñçļûðëš ŵàïŧïñĝ; ïŧ ïš ñôŧ ĥôûŕš ôƒ ëƒƒôŕŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
-  "delivery.time.counts": "⟦{count} ŧàšķš. ŧë⟧",
-  "delivery.time.leftOut": "⟦{count} ŧàšķš ļëƒŧ ôûŧ ƒôŕ à ɱïššïñĝ ŧïɱë. ŧëšŧ çôþÿ ŧë⟧",
   "delivery.time.bar.heading": "⟦Ŵĥëŕë ŧĥë ŧïɱë ŵëñŧ ŧëšŧ⟧",
   "delivery.time.bar.label": "⟦Ŵĥëŕë ŧĥë ŧïɱë ŵëñŧ: {parts} ŧëšŧ çô⟧",
   "delivery.time.help": "⟦À þëŕšôñ ŵàïŧ çôûñŧš ƒïŕšŧ, ŧĥëñ ŕëṽïëŵ, ŧĥëñ àĝëñŧ ŵôŕķ, ŧĥëñ ǫûëûë, šô ñô ɱïñûŧë ïš çôûñŧëð ŧŵïçë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
@@ -5188,9 +5186,13 @@
   "delivery.time.part.person": "⟦Ŵàïŧïñĝ ƒôŕ à þëŕšôñ ŧëšŧ⟧",
   "delivery.time.part.blocked": "⟦Ɓļôçķëð…⟧",
   "delivery.time.part.unaccounted": "⟦Ñôŧ àççôûñŧëð ƒôŕ ŧëš⟧",
-  "delivery.time.unaccounted": "⟦Ŧïɱë Ɓàķëŕÿ ĥàš ñô ŕëçôŕð ƒôŕ, ïñçļûðïñĝ àñÿ ŧïɱë ƀļôçķëð. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "delivery.time.blockedUnknown": "⟦Ɓļôçķëð: Ûñķñôŵñ. Ɓàķëŕÿ ðôëš ñôŧ ŕëçôŕð ŵĥëñ à ŧàšķ ŵàš ƀļôçķëð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "delivery.records.column.notAccounted": "⟦Ñôŧ àççôûñŧëð ƒôŕ ŧëš⟧",
   "delivery.point.merged_pull_request": "⟦ɱëŕĝëð þûļļ ŕëǫûëšŧ ŧëšŧ⟧",
-  "delivery.point.completed_run": "⟦çôɱþļëŧëð ŕûñ ŧë⟧"
+  "delivery.point.completed_run": "⟦çôɱþļëŧëð ŕûñ ŧë⟧",
+  "delivery.time.leftOut": "⟦{count, plural, one {# task was} other {# tasks were}} ļëƒŧ ôûŧ ƒôŕ à ɱïššïñĝ ŧïɱë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "delivery.time.measure": "⟦Ŧïɱë àððëð ûþ àçŕôšš {count, plural, one {# task} other {# tasks}}, ñôŧ àñ àṽëŕàĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "delivery.time.unaccounted.name": "⟦Ñôŧ àççôûñŧëð ƒôŕ: ŧëšŧ⟧",
+  "delivery.time.unaccounted.text": "⟦ŧïɱë Ɓàķëŕÿ ĥàš ñô ŕëçôŕð ƒôŕ, ïñçļûðïñĝ àñÿ ŧïɱë ƀļôçķëð. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "delivery.time.blockedUnknown.name": "⟦Ɓļôçķëð: Ûñķñôŵñ. ŧëš⟧",
+  "delivery.time.blockedUnknown.text": "⟦Ɓàķëŕÿ ðôëš ñôŧ ŕëçôŕð ŵĥëñ à ŧàšķ ŵàš ƀļôçķëð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

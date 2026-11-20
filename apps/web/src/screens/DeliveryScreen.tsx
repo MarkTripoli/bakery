@@ -1,5 +1,6 @@
 import * as UI from "@bakery/ui";
 import { formatDate, formatNumber } from "@bakery/i18n";
+import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   type DeliveryShow,
@@ -125,6 +126,7 @@ const RULE_KEYS = {
 export function DeliveryScreen(props: DeliveryScreenProps) {
   const { translate } = useI18n();
   const { state } = props;
+  const phone = useShellViewport() === "phone";
 
   if (state === "notFound") {
     return (
@@ -140,13 +142,17 @@ export function DeliveryScreen(props: DeliveryScreenProps) {
 
   return (
     <UI.Stack data-testid="delivery-page" gap="spacious">
-      <UI.PageHeader
-        actions={<Filters {...props} />}
-        description={translate("delivery.description")}
-        flush
-        title={translate("delivery.title")}
-        variant="list"
-      />
+      {/* Right of the title on a desktop; the page header carries them on a phone. */}
+      <UI.Inline gap="standard" variant="between">
+        <UI.PageHeader
+          actions={phone ? <Filters {...props} /> : undefined}
+          description={translate("delivery.description")}
+          flush
+          title={translate("delivery.title")}
+          variant="list"
+        />
+        {phone ? null : <Filters {...props} />}
+      </UI.Inline>
       {props.periodTooLong
         ? (
           <UI.InlineNotice tone="warning">
@@ -455,13 +461,20 @@ function TimeWent({ lead }: { readonly lead: LeadTime }) {
           </UI.Inline>
         )}
       <UI.Text variant="muted">{sentence}</UI.Text>
+      {tooFew || parts.length === 0
+        ? null
+        : (
+          <UI.Heading level="subsection" rank={3}>
+            {translate("delivery.time.bar.heading")}
+          </UI.Heading>
+        )}
       <UI.Text variant="muted">
-        {translate("delivery.time.counts", { count: lead.count })}
+        {translate("delivery.time.measure", { count: lead.count })}
         {lead.leftOut > 0
           ? ` ${translate("delivery.time.leftOut", { count: lead.leftOut })}`
           : ""}
       </UI.Text>
-      {parts.length === 0 ? null : (
+      {tooFew || parts.length === 0 ? null : (
         <UI.SegmentedBar
           label={translate("delivery.time.bar.label", {
             parts: parts.map((part) => `${part.label} ${part.detail}`).join(
@@ -471,16 +484,16 @@ function TimeWent({ lead }: { readonly lead: LeadTime }) {
           parts={parts}
         />
       )}
-      {hasUnaccounted
-        ? (
-          <UI.Text variant="muted">
-            {translate("delivery.time.unaccounted")}
-          </UI.Text>
-        )
-        : null}
-      {lead.blockedKnown ? null : (
+      {tooFew || !hasUnaccounted ? null : (
         <UI.Text variant="muted">
-          {translate("delivery.time.blockedUnknown")}
+          <strong>{translate("delivery.time.unaccounted.name")}</strong>{" "}
+          {translate("delivery.time.unaccounted.text")}
+        </UI.Text>
+      )}
+      {tooFew || lead.blockedKnown ? null : (
+        <UI.Text variant="muted">
+          <strong>{translate("delivery.time.blockedUnknown.name")}</strong>{" "}
+          {translate("delivery.time.blockedUnknown.text")}
         </UI.Text>
       )}
     </UI.Stack>
@@ -624,6 +637,7 @@ function RecordsSection(
   },
 ) {
   const { translate, locale, timeZone } = useI18n();
+  const phone = useShellViewport() === "phone";
   const shown: DeliveryShow = props.show ?? "merged";
   const chosen = props.show !== null;
   const { records } = props;
@@ -635,6 +649,12 @@ function RecordsSection(
     iso === null
       ? "\u2014"
       : formatDate(new Date(iso), locale, { dateStyle: "medium", timeZone });
+  const dayAndTime = (iso: string | null) =>
+    iso === null ? "\u2014" : formatDate(new Date(iso), locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone,
+    });
   const duration = (hours: number | null) => {
     if (hours === null) return "\u2014";
     const words = durationWords(hours);
@@ -703,14 +723,14 @@ function RecordsSection(
         {
           id: "requested",
           header: translate("delivery.records.column.requested"),
-          cell: (row: RecordRow) => day(row.requestedAt),
+          cell: (row: RecordRow) => dayAndTime(row.requestedAt),
         },
         {
           id: "delivered",
           header: translate("delivery.records.column.delivered"),
           cell: (row: RecordRow) => (
             <UI.Stack gap="none">
-              {day(row.deliveredAt)}
+              {dayAndTime(row.deliveredAt)}
               {row.deliveryPoint === null ? null : (
                 <UI.Text variant="muted">
                   {translate(`delivery.point.${row.deliveryPoint}` as never)}
@@ -725,6 +745,14 @@ function RecordsSection(
           align: "end" as const,
           cell: (row: RecordRow) => duration(row.value),
         },
+        ...(["agentWorking", "queue", "review", "person"] as const).map((
+          part,
+        ) => ({
+          id: part,
+          header: translate(`delivery.time.part.${part}` as never),
+          align: "end" as const,
+          cell: (row: RecordRow) => duration(row.waitHours[part]),
+        })),
         {
           id: "notAccounted",
           header: translate("delivery.records.column.notAccounted"),
@@ -790,15 +818,17 @@ function RecordsSection(
               </UI.Button>
             )
             : null}
-          <UI.Button
-            aria-pressed={props.missingOnly}
-            onClick={() => props.onMissingOnly(!props.missingOnly)}
-            variant="outline"
-          >
-            {translate("delivery.records.missingOnly", {
-              count: formatNumber(missing.length, locale),
-            })}
-          </UI.Button>
+          {missing.length === 0 && !props.missingOnly ? null : (
+            <UI.Button
+              aria-pressed={props.missingOnly}
+              onClick={() => props.onMissingOnly(!props.missingOnly)}
+              variant="outline"
+            >
+              {translate("delivery.records.missingOnly", {
+                count: formatNumber(missing.length, locale),
+              })}
+            </UI.Button>
+          )}
         </UI.Inline>
       </UI.Inline>
       {records.status === "loading"
@@ -816,14 +846,46 @@ function RecordsSection(
         )
         : (
           <>
-            <UI.DataTable<RecordRow>
-              caption={translate("delivery.records.caption")}
-              captionHidden
-              columns={columns}
-              emptyMessage={translate("delivery.records.empty")}
-              getRowKey={(row) => row.key}
-              rows={[...rows]}
-            />
+            {phone
+              ? (
+                // A phone has no room for a table: each record is a stacked
+                // row with every value labelled.
+                rows.length === 0
+                  ? (
+                    <UI.Text variant="muted">
+                      {translate("delivery.records.empty")}
+                    </UI.Text>
+                  )
+                  : (
+                    <UI.Stack
+                      aria-label={translate("delivery.records.caption")}
+                      gap="none"
+                      role="list"
+                    >
+                      {rows.map((row) => (
+                        <div key={row.key} role="listitem">
+                          <UI.StackedRow title={title(row)}>
+                            {columns.slice(1).map((column) => (
+                              <UI.Text key={column.id} variant="caption">
+                                {column.header}: {column.cell(row)}
+                              </UI.Text>
+                            ))}
+                          </UI.StackedRow>
+                        </div>
+                      ))}
+                    </UI.Stack>
+                  )
+              )
+              : (
+                <UI.DataTable<RecordRow>
+                  caption={translate("delivery.records.caption")}
+                  captionHidden
+                  columns={columns}
+                  emptyMessage={translate("delivery.records.empty")}
+                  getRowKey={(row) => row.key}
+                  rows={[...rows]}
+                />
+              )}
             {records.hasMore
               ? (
                 <UI.CursorControls

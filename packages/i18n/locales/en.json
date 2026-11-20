@@ -5176,8 +5176,7 @@
   "delivery.time.sentence.merge": "From when the first run was accepted to a merged pull request. Includes waiting; it is not hours of effort.",
   "delivery.time.sentence.run": "From when the first run was accepted to a completed run. Includes waiting; it is not hours of effort.",
   "delivery.time.sentence.mixed": "From when the first run was accepted to a merged pull request, or to a completed run for the {runs} of {count} tasks with no pull request. Includes waiting; it is not hours of effort.",
-  "delivery.time.counts": "{count} tasks.",
-  "delivery.time.leftOut": "{count} tasks left out for a missing time.",
+  "delivery.time.leftOut": "{count, plural, one {# task was} other {# tasks were}} left out for a missing time.",
   "delivery.time.bar.heading": "Where the time went",
   "delivery.time.bar.label": "Where the time went: {parts}",
   "delivery.time.help": "A person wait counts first, then review, then agent work, then queue, so no minute is counted twice.",
@@ -5188,9 +5187,12 @@
   "delivery.time.part.person": "Waiting for a person",
   "delivery.time.part.blocked": "Blocked",
   "delivery.time.part.unaccounted": "Not accounted for",
-  "delivery.time.unaccounted": "Time Bakery has no record for, including any time blocked.",
-  "delivery.time.blockedUnknown": "Blocked: Unknown. Bakery does not record when a task was blocked yet.",
   "delivery.records.column.notAccounted": "Not accounted for",
   "delivery.point.merged_pull_request": "merged pull request",
-  "delivery.point.completed_run": "completed run"
+  "delivery.point.completed_run": "completed run",
+  "delivery.time.measure": "Time added up across {count, plural, one {# task} other {# tasks}}, not an average.",
+  "delivery.time.unaccounted.name": "Not accounted for:",
+  "delivery.time.unaccounted.text": "time Bakery has no record for, including any time blocked.",
+  "delivery.time.blockedUnknown.name": "Blocked: Unknown.",
+  "delivery.time.blockedUnknown.text": "Bakery does not record when a task was blocked yet."
 }

@@ -193,12 +193,21 @@ export type RecordRow = {
   readonly deliveryPoint: "merged_pull_request" | "completed_run" | null;
   /** Hours of a task's lead time no record covers; null for a pull request or when unknown. */
   readonly unaccountedHours: number | null;
+  /** Hours the task spent in each recorded wait; null when unknown or for a pull request. */
+  readonly waitHours: Readonly<
+    Record<"agentWorking" | "queue" | "review" | "person", number | null>
+  >;
   /** Hours from open to merge, when both are known. */
   readonly openToMergeHours: number | null;
   /** Lines for a line-count row; hours for a task row; null when unknown. */
   readonly value: number | null;
   readonly missing: MissingKey | null;
 };
+
+function waitOf(source: MetricSource, category: string): number | null {
+  return source.waits?.find((share) => share.category === category)?.hours ??
+    null;
+}
 
 export function recordRow(source: MetricSource): RecordRow {
   return {
@@ -217,6 +226,12 @@ export function recordRow(source: MetricSource): RecordRow {
     unaccountedHours:
       source.waits?.find((share) => share.category === "unaccounted")?.hours ??
         null,
+    waitHours: {
+      agentWorking: waitOf(source, "agentWorking"),
+      queue: waitOf(source, "queue"),
+      review: waitOf(source, "review"),
+      person: waitOf(source, "person"),
+    },
     openToMergeHours: hoursBetween(source.openedAt, source.mergedAt),
     value: source.value,
     missing: missingKey(source.missingReason),

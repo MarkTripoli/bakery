@@ -2190,9 +2190,12 @@
   outline: var(--focus-width) solid var(--color-focus);
   outline-offset: var(--focus-offset);
 }
-.ui-stat-tile__action[aria-pressed="true"] {
-  border-color: var(--color-border-strong);
-  border-width: var(--border-emphasis);
+/* The chosen figure marks the whole tile (label, number and line), not the
+   number alone. */
+.ui-stat-tile[data-selected="true"] {
+  border: var(--border-emphasis) solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  padding: var(--space-2);
 }
 @media (pointer: coarse) {
   .ui-stat-tile__action {
@@ -2217,24 +2220,26 @@
   overflow: hidden;
 }
 .ui-segmented-bar__part {
+  /* A page-coloured hairline between parts, so neighbouring greys stay apart. */
+  border-inline-end: var(--border-default) solid var(--color-surface);
   flex-basis: 0;
   min-inline-size: 2px;
 }
 .ui-segmented-bar__part[data-tone="first"],
 .ui-segmented-bar__swatch[data-tone="first"] {
-  background: color-mix(in srgb, var(--color-fg) 80%, var(--color-surface));
+  background: color-mix(in srgb, var(--color-fg) 90%, var(--color-surface));
 }
 .ui-segmented-bar__part[data-tone="second"],
 .ui-segmented-bar__swatch[data-tone="second"] {
-  background: color-mix(in srgb, var(--color-fg) 60%, var(--color-surface));
+  background: color-mix(in srgb, var(--color-fg) 75%, var(--color-surface));
 }
 .ui-segmented-bar__part[data-tone="third"],
 .ui-segmented-bar__swatch[data-tone="third"] {
-  background: color-mix(in srgb, var(--color-fg) 40%, var(--color-surface));
+  background: color-mix(in srgb, var(--color-fg) 62%, var(--color-surface));
 }
 .ui-segmented-bar__part[data-tone="fourth"],
 .ui-segmented-bar__swatch[data-tone="fourth"] {
-  background: color-mix(in srgb, var(--color-fg) 22%, var(--color-surface));
+  background: color-mix(in srgb, var(--color-fg) 50%, var(--color-surface));
 }
 .ui-segmented-bar__part[data-tone="unknown"],
 .ui-segmented-bar__swatch[data-tone="unknown"] {
