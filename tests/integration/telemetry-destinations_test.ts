@@ -135,6 +135,8 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
       kinds: { kind: string; fields: { name: string; secret: boolean }[] }[];
       measurements: { kind: string }[];
       destinations: Body[];
+      total: number;
+      destinationLimit: number;
     };
   };
   try {
@@ -526,8 +528,9 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
       "Health only",
     ]);
 
-    // At most 20 destinations, even when creates race: four at once with room
-    // for two must admit exactly two.
+    // At most 200 destinations, even when creates race: four at once with room
+    // for two must admit exactly two. The fillers are written straight to the
+    // table so the test does not make 197 requests.
     const make = (name: string) =>
       send(f.adminCookie, "POST", "/v1/installation/telemetry-destinations", {
         body: {
@@ -537,9 +540,12 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
           values: { address: other.address },
         },
       });
-    for (let n = 0; n < 17; n += 1) {
-      assertEquals((await make(`Filler ${n}`)).status, 201);
-    }
+    await f.pgDatabase.query(
+      `insert into bakery.telemetry_destinations (id, kind, name, measurements)
+       select gen_random_uuid(), 'otlp', 'Filler ' || n, array['health']
+         from generate_series(0, 196) as n`,
+    );
+    assertEquals((await list()).total, 198);
     const raced = await Promise.all(
       ["Race A", "Race B", "Race C", "Race D"].map(make),
     );
@@ -548,7 +554,9 @@ Deno.test("an administrator manages OpenTelemetry destinations that really recei
       [201, 201, 409, 409],
       "concurrent creates went past the limit",
     );
-    assertEquals((await list()).destinations.length, 20);
+    const full = await list();
+    assertEquals(full.total, 200);
+    assertEquals(full.destinationLimit, 200);
   } finally {
     await telemetry.close(500);
     await fanout.close(0);
