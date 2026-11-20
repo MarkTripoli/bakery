@@ -6,6 +6,7 @@ import {
 } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
+import { auditAgentSessionId } from "../auth/application/agent-power-grants.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { resolveExecutableBinding } from "../projects/binding.ts";
 import {
@@ -296,6 +297,8 @@ async function appendSuccessFacts(
     organizationId: string;
     principalId: string;
     operation: "tasks.create" | "tasks.update";
+    /** The agent session that made the call (O50), or null. */
+    agentSessionId: string | null;
     taskId: string;
     version: number;
     applicationId: string;
@@ -308,8 +311,8 @@ async function appendSuccessFacts(
   await transaction.query(
     `insert into bakery.audit_events (
        organization_id, principal_id, operation, resource_type, resource_id,
-       outcome, request_id, trace_id, details
-     ) values ($1, $2, $3, 'task', $4, 'succeeded', $5, $6, '{}'::jsonb)`,
+       outcome, request_id, trace_id, details, agent_session_id
+     ) values ($1, $2, $3, 'task', $4, 'succeeded', $5, $6, '{}'::jsonb, $7)`,
     [
       options.organizationId,
       options.principalId,
@@ -317,6 +320,7 @@ async function appendSuccessFacts(
       options.taskId,
       options.requestId,
       options.traceId,
+      options.agentSessionId,
     ],
   );
   await appendTaskProjectionEvent(transaction, {
@@ -434,6 +438,11 @@ export const createTaskCommand = async (
     organizationId,
     principalId,
     operation: "tasks.create",
+    agentSessionId: await auditAgentSessionId(
+      transaction,
+      context,
+      organizationId,
+    ),
     taskId,
     version: row.version,
     applicationId: row.application_id,
@@ -496,6 +505,11 @@ export const updateTaskCommand = async (
     organizationId,
     principalId,
     operation: "tasks.update",
+    agentSessionId: await auditAgentSessionId(
+      transaction,
+      context,
+      organizationId,
+    ),
     taskId,
     version: row.version,
     applicationId: row.application_id,

@@ -378,6 +378,12 @@ export async function createTelemetryDestination(
   const measurements = checkMeasurements(provider, input.measurements);
   const { settings, secrets } = splitValues(provider, input.values);
   await validateValues(provider, { ...settings, ...secrets });
+  // One create at a time per table: without it two requests can both count 19
+  // and both insert, going past the limit.
+  await transaction.query(
+    "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+    ["bakery:telemetry_destinations:create"],
+  );
   const count = await transaction.query<{ count: string }>(
     "select count(*)::text as count from bakery.telemetry_destinations",
   );
