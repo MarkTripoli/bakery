@@ -2087,7 +2087,7 @@
   "settings.roles.verb.preview": "Preview {things}",
   "settings.roles.thing.group": "groups",
   "settings.roles.thing.runRequest": "requests",
-  "settings.roles.thing.batch": "batches",
+  "settings.roles.thing.batch": "batches of issues",
   "settings.roles.verb.share": "Give and remove other people's access to {things}",
   "settings.roles.verb.author": "Create, change and publish {things}",
   "settings.roles.thing.task": "tasks",

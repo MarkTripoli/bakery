@@ -533,7 +533,7 @@ export type CatalogPermissionKey =
   | "automationFiring:read"
   | "automationVersion:manage"
   | "automationVersion:read"
-  | "batch:manage"
+  | "batch:control"
   | "batch:read"
   | "browserSession:read"
   | "browserSession:write"
