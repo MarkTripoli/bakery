@@ -2,6 +2,7 @@ import {
   describeProblems,
   IncompleteBackup,
   type KeyIdentity,
+  readKeyFingerprint,
   verifyBackupDirectory,
   writeBackupManifest,
 } from "./backup-runner/manifest.ts";
@@ -11,9 +12,12 @@ import {
  * backup.sh and restore-check.sh.
  *
  *   backup-manifest.ts build <directory> --started <ISO time>
- *       (--key-id <id> | --no-key | --key-failed <reason>)
+ *       (--key-id <id> --key-file <path> | --no-key | --key-failed <reason>)
  *       --skill-files <n> --blobs <n> [--failed <store>=<reason>]...
- *   backup-manifest.ts verify <directory> [--allow-legacy]
+ *   backup-manifest.ts verify <directory> [--allow-legacy] [--key-file <path>]
+ *
+ * The key file is read once, only to compute its fingerprint (see
+ * keyFingerprint in manifest.ts); its bytes are never copied, printed or kept.
  *
  * Exit 0: done (build wrote the manifest; verify found a complete set, or a
  * legacy set with --allow-legacy). Exit 70: the set is incomplete, with
@@ -48,6 +52,7 @@ async function main(args: string[]): Promise<void> {
   if (command === "verify") {
     const result = await verifyBackupDirectory(directory, {
       allowLegacy: rest.includes("--allow-legacy"),
+      keyFile: flag(rest, "--key-file"),
     });
     if (result.complete) {
       console.log("BACKUP_COMPLETE");
@@ -70,8 +75,25 @@ async function main(args: string[]): Promise<void> {
     let key: KeyIdentity;
     const keyId = flag(rest, "--key-id");
     const keyFailed = flag(rest, "--key-failed");
-    if (keyId !== undefined) key = { state: "configured", id: keyId };
-    else if (keyFailed !== undefined) {
+    if (keyId !== undefined) {
+      const keyFile = flag(rest, "--key-file");
+      if (keyFile === undefined) {
+        fail("BACKUP_MANIFEST_USAGE --key-id needs --key-file");
+      }
+      try {
+        key = {
+          state: "configured",
+          id: keyId,
+          fingerprint: await readKeyFingerprint(keyFile),
+        };
+      } catch {
+        // Say nothing about the file beyond that it could not be read.
+        key = {
+          state: "failed",
+          reason: "the secrets key file cannot be read",
+        };
+      }
+    } else if (keyFailed !== undefined) {
       key = { state: "failed", reason: keyFailed };
     } else if (rest.includes("--no-key")) key = { state: "unconfigured" };
     else fail("BACKUP_MANIFEST_USAGE one of --key-id, --no-key, --key-failed");

@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # BAKERY_BACKUP_SANDBOX is for tests only (it roots the paths and skips the root
-# check); the systemd units and operators never set it.
+# check); it is refused unless BAKERY_ENV=test, before anything is touched. The
+# systemd units and operators never set it.
 if [[ -n "${BAKERY_BACKUP_SANDBOX:-}" ]]; then
+  if [[ "${BAKERY_ENV:-}" != test ]]; then
+    echo "BAKERY_BACKUP_SANDBOX is only honoured when BAKERY_ENV=test; refusing to run" >&2
+    exit 64
+  fi
   root=$BAKERY_BACKUP_SANDBOX/opt/bakery
   state=$BAKERY_BACKUP_SANDBOX/var/lib/bakery
 else

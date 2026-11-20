@@ -11,8 +11,13 @@ set -euo pipefail
 # the operator keeps the key.
 #
 # BAKERY_BACKUP_SANDBOX is for tests only: it roots every path under a scratch
-# directory and skips the root check. The systemd units never set it.
+# directory and skips the root check, and it is refused unless BAKERY_ENV=test
+# (before anything is touched). The systemd units never set it.
 if [[ -n "${BAKERY_BACKUP_SANDBOX:-}" ]]; then
+  if [[ "${BAKERY_ENV:-}" != test ]]; then
+    echo "BAKERY_BACKUP_SANDBOX is only honoured when BAKERY_ENV=test; refusing to run" >&2
+    exit 64
+  fi
   root=$BAKERY_BACKUP_SANDBOX/opt/bakery
   state=$BAKERY_BACKUP_SANDBOX/var/lib/bakery
   etc=$BAKERY_BACKUP_SANDBOX/etc/bakery
@@ -132,7 +137,9 @@ key_file=$(infra_value BAKERY_SECRETS_KEY_FILE || true)
 if [[ -z "$key_id" && -z "$key_file" ]]; then
   key_args=(--no-key)
 elif [[ -n "$key_id" && -n "$key_file" && -s "$key_file" ]]; then
-  key_args=(--key-id "$key_id")
+  # The builder reads the key file once, only to fingerprint it; the key is
+  # never copied, logged or stored.
+  key_args=(--key-id "$key_id" --key-file "$key_file")
 else
   key_args=(--key-failed "the secrets key id or its key file is missing")
 fi
@@ -142,8 +149,41 @@ fi
 # 70 here, so it never becomes a backup and never updates `latest`.
 export DENO_DIR=${DENO_DIR:-$state/backup-runner/deno}
 manifest=("$root/background/scripts/deploy/backup-manifest.ts")
+
+# Never stop taking backups: when Deno or the release checkout is missing, the
+# dumps are already encrypted and in the set, so the set is kept (under its
+# normal name, not deleted) with a marker saying it is incomplete and why, and
+# the script exits 70. It never becomes `latest`, restore-check.sh and the
+# verifier refuse it, and the runner reports `incomplete_set`.
+keep_incomplete_set() {
+  local cause=manifest_builder_missing
+  local detail="deno or $root/background/scripts/deploy/backup-manifest.ts is not available, so the set has no manifest and is not a complete backup. Install or enable a release so $root/background exists, then take another backup."
+  local stores="" i id
+  for ((i = 1; i < ${#failed[@]}; i += 2)); do
+    id=${failed[i]%%=*}
+    stores+="${stores:+,}\"$id\""
+  done
+  printf '{"format":1,"complete":false,"cause":"%s","detail":"%s","failedStores":[%s],"startedAt":"%s"}\n' \
+    "$cause" "$detail" "$stores" "$started" > "$attempt/INCOMPLETE.json"
+  (cd "$attempt" && sha256sum ./* > .SHA256SUMS.tmp && mv .SHA256SUMS.tmp SHA256SUMS)
+  sync -f "$attempt"
+  local kept
+  kept="$directory/$(date -u +%Y%m%dT%H%M%SZ)-$(cat /proc/sys/kernel/random/uuid)"
+  mv "$attempt" "$kept"
+  sync -f "$directory"
+  echo "BACKUP_INCOMPLETE $cause: $detail (set kept as ${kept##*/}; it is not the latest backup)" >&2
+  exit 70
+}
+if ! command -v deno > /dev/null 2>&1 || [[ ! -f "${manifest[0]}" ]]; then
+  keep_incomplete_set
+fi
+
+# The key file is the only file outside the set the builder may read.
+build_read=$attempt
+if [[ -n "$key_file" ]]; then build_read="$attempt,$key_file"; fi
+build_run=(deno run --no-prompt "--allow-read=$build_read" "--allow-write=$attempt")
 deno_run=(deno run --no-prompt "--allow-read=$attempt" "--allow-write=$attempt")
-"${deno_run[@]}" "${manifest[@]}" build "$attempt" --started "$started" \
+"${build_run[@]}" "${manifest[@]}" build "$attempt" --started "$started" \
   "${key_args[@]}" --skill-files "$skill_files" --blobs "$blobs" \
   ${failed[@]+"${failed[@]}"}
 "${deno_run[@]}" "${manifest[@]}" verify "$attempt" > /dev/null

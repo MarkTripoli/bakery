@@ -19,6 +19,13 @@ import { join } from "node:path";
 
 export const MANIFEST_FILE = "manifest.json";
 export const CHECKSUMS_FILE = "SHA256SUMS";
+/**
+ * Written by backup.sh, in shell, when it cannot build the manifest (Deno or the
+ * release checkout is missing). The set keeps its dumps so the bytes exist, but
+ * it declares itself incomplete: it is never `latest`, never counts as the
+ * newest good set, and no restore may use it.
+ */
+export const INCOMPLETE_FILE = "INCOMPLETE.json";
 export const MANIFEST_FORMAT = 1;
 
 export type StoreStatus = "captured" | "excluded" | "failed";
@@ -88,7 +95,7 @@ export const STORES: readonly StoreDefinition[] = Object.freeze([
     id: "secrets-key-identity",
     title: "Secrets key identity",
     source:
-      "the id of the key that protects saved secrets (BAKERY_SECRETS_KEY_ID); the key itself is operator-held and never copied",
+      "the id of the key that protects saved secrets (BAKERY_SECRETS_KEY_ID) and a fingerprint of the key file, so a restore can check it has the right key; the key itself is operator-held and never copied, and the file is read once, only to compute the fingerprint",
     required: true,
     file: null,
   },
@@ -121,9 +128,45 @@ export const STORES: readonly StoreDefinition[] = Object.freeze([
   },
 ]);
 
+/**
+ * The key fingerprint: the first 16 hex characters of
+ * SHA-256("bakery-backup-key-fingerprint-v1\n" || key file bytes). It is
+ * domain-separated, so it is not the hash of the key as any other system would
+ * take it, and 64 bits is enough to tell one key from another (a restore drill
+ * compares it) while giving nothing toward recovering the key.
+ */
+export const KEY_FINGERPRINT_DOMAIN = "bakery-backup-key-fingerprint-v1\n";
+export const KEY_FINGERPRINT_FORMAT = "sha256-16hex-v1";
+const FINGERPRINT = /^[0-9a-f]{16}$/;
+
+export function keyFingerprint(key: Uint8Array): string {
+  const hash = createHash("sha256");
+  hash.update(KEY_FINGERPRINT_DOMAIN);
+  hash.update(key);
+  return hash.digest("hex").slice(0, 16);
+}
+
+/**
+ * Reads the key file once, only to fingerprint it. The bytes are not copied,
+ * logged or kept: the buffer is zeroed as soon as the digest is taken.
+ */
+export async function readKeyFingerprint(path: string): Promise<string> {
+  const bytes = await Deno.readFile(path);
+  try {
+    return keyFingerprint(bytes);
+  } finally {
+    bytes.fill(0);
+  }
+}
+
 /** What the secrets key looked like on the host when the backup ran. */
 export type KeyIdentity =
-  | { readonly state: "configured"; readonly id: string }
+  | {
+    readonly state: "configured";
+    readonly id: string;
+    /** From `keyFingerprint`; the key itself is never recorded. */
+    readonly fingerprint: string;
+  }
   | { readonly state: "unconfigured" }
   | { readonly state: "failed"; readonly reason: string };
 
@@ -136,6 +179,8 @@ export type StoreEntry = {
   readonly sha256?: string;
   readonly reason?: string;
   readonly keyId?: string;
+  readonly keyFingerprint?: string;
+  readonly keyFingerprintFormat?: typeof KEY_FINGERPRINT_FORMAT;
 };
 
 export type Manifest = {
@@ -156,6 +201,8 @@ export type Manifest = {
 export type Problem = {
   readonly kind:
     | "no_manifest"
+    | "declared_incomplete"
+    | "key_mismatch"
     | "manifest_invalid"
     | "store_not_captured"
     | "missing_file"
@@ -334,7 +381,7 @@ export async function writeBackupManifest(
     stores,
     references: input.references,
     note:
-      "The secrets key is not in this set. The operator holds it and must save it separately; without it saved secrets cannot be read after a restore.",
+      "The secrets key is not in this set. The operator holds it and must save it separately; without it saved secrets cannot be read after a restore. Only its id and a fingerprint are recorded: the key file was read once, to compute the fingerprint, and never copied or logged.",
   };
   await Deno.writeTextFile(
     join(input.directory, MANIFEST_FILE),
@@ -367,7 +414,22 @@ function keyEntry(
         reason: "the secrets key id is not a valid id",
       };
     }
-    return { id: store.id, status: "captured", required: true, keyId: key.id };
+    if (!FINGERPRINT.test(key.fingerprint)) {
+      return {
+        id: store.id,
+        status: "failed",
+        required: true,
+        reason: "the secrets key fingerprint is not valid",
+      };
+    }
+    return {
+      id: store.id,
+      status: "captured",
+      required: true,
+      keyId: key.id,
+      keyFingerprint: key.fingerprint,
+      keyFingerprintFormat: KEY_FINGERPRINT_FORMAT,
+    };
   }
   if (key.state === "unconfigured") {
     return {
@@ -441,6 +503,12 @@ export function parseManifest(value: unknown): Manifest | string {
       !["captured", "excluded", "failed"].includes(String(store.status)) ||
       typeof store.required !== "boolean"
     ) return "a store entry is malformed";
+    if (store.status === "captured" && store.keyFingerprint !== undefined) {
+      if (
+        typeof store.keyFingerprint !== "string" ||
+        !FINGERPRINT.test(store.keyFingerprint)
+      ) return "the key fingerprint is malformed";
+    }
     if (store.status === "captured" && store.file !== undefined) {
       if (
         typeof store.file !== "string" || !SET_FILE.test(store.file) ||
@@ -452,9 +520,54 @@ export function parseManifest(value: unknown): Manifest | string {
   return value as Manifest;
 }
 
+export type IncompleteMarker = {
+  readonly cause: string;
+  readonly detail: string;
+};
+
+/**
+ * The marker a set carries when backup.sh declared it incomplete, or null when
+ * there is none. A marker that cannot be read still marks the set: the file's
+ * presence is what counts.
+ */
+export async function readIncompleteMarker(
+  directory: string,
+): Promise<IncompleteMarker | null> {
+  let text: string;
+  try {
+    text = await Deno.readTextFile(join(directory, INCOMPLETE_FILE));
+  } catch {
+    return null;
+  }
+  try {
+    const marker = JSON.parse(text) as Record<string, unknown>;
+    return {
+      cause: typeof marker.cause === "string" ? marker.cause : "unknown",
+      detail: typeof marker.detail === "string" ? marker.detail : "",
+    };
+  } catch {
+    return { cause: "unknown", detail: "the marker could not be read" };
+  }
+}
+
+export async function isDeclaredIncomplete(
+  directory: string,
+): Promise<boolean> {
+  return (await readIncompleteMarker(directory)) !== null;
+}
+
 export type VerifyOptions = {
-  /** Treat a set with no manifest as a legacy set instead of incomplete. */
+  /**
+   * Treat a set with no manifest as a legacy set instead of incomplete. It never
+   * excuses a set that declares itself incomplete or has a manifest that does
+   * not match.
+   */
   readonly allowLegacy?: boolean;
+  /**
+   * A secrets key file to check against the fingerprint the manifest recorded
+   * (for a restore drill). The file is read once, only to fingerprint it.
+   */
+  readonly keyFile?: string;
 };
 
 /**
@@ -467,6 +580,19 @@ export async function verifyBackupDirectory(
   directory: string,
   options: VerifyOptions = {},
 ): Promise<Verification> {
+  // A set that declared itself incomplete is refused first, whatever else it
+  // holds: it is not legacy, and no flag excuses it.
+  const marker = await readIncompleteMarker(directory);
+  if (marker !== null) {
+    return {
+      complete: false,
+      legacy: false,
+      problems: [{
+        kind: "declared_incomplete",
+        detail: `${marker.cause}${marker.detail ? `: ${marker.detail}` : ""}`,
+      }],
+    };
+  }
   let text: string;
   try {
     text = await Deno.readTextFile(join(directory, MANIFEST_FILE));
@@ -637,6 +763,35 @@ export async function verifyBackupDirectory(
       file: CHECKSUMS_FILE,
       detail: "SHA256SUMS is missing",
     });
+  }
+  if (options.keyFile !== undefined) {
+    const entry = byId.get("secrets-key-identity");
+    if (entry?.status !== "captured" || entry.keyFingerprint === undefined) {
+      problems.push({
+        kind: "key_mismatch",
+        store: "secrets-key-identity",
+        detail: "this backup recorded no secrets key to check against",
+      });
+    } else {
+      let actual: string | null = null;
+      try {
+        actual = await readKeyFingerprint(options.keyFile);
+      } catch {
+        problems.push({
+          kind: "key_mismatch",
+          store: "secrets-key-identity",
+          detail: "the key file could not be read",
+        });
+      }
+      if (actual !== null && actual !== entry.keyFingerprint) {
+        problems.push({
+          kind: "key_mismatch",
+          store: "secrets-key-identity",
+          detail:
+            "the key file is not the key this backup was taken with (its fingerprint differs)",
+        });
+      }
+    }
   }
   return { complete: problems.length === 0, legacy: false, problems };
 }
