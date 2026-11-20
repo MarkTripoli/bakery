@@ -632,6 +632,19 @@ export const skillStorageImplementedActions = Object.freeze(
   Object.values(SkillStorageImplementedAction),
 );
 
+export const TelemetryDestinationImplementedAction = Object.freeze(
+  {
+    TelemetryDestinationsList: "telemetryDestinations.list",
+    TelemetryDestinationsCreate: "telemetryDestinations.create",
+    TelemetryDestinationsUpdate: "telemetryDestinations.update",
+    TelemetryDestinationsDelete: "telemetryDestinations.delete",
+    TelemetryDestinationsTest: "telemetryDestinations.test",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const telemetryDestinationImplementedActions = Object.freeze(
+  Object.values(TelemetryDestinationImplementedAction),
+);
+
 export const BlobUploadImplementedAction = Object.freeze(
   {
     BlobUploadStart: "blobUploads.start",
@@ -786,6 +799,7 @@ export const implementedActions = Object.freeze(
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
+    ...telemetryDestinationImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
     ...blobUploadImplementedActions,

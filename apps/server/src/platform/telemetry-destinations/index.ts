@@ -21,7 +21,9 @@ export { otlpProvider } from "./otlp-provider.ts";
 export {
   createProviderRegistry,
   type DestinationKind,
+  type DestinationValues,
   type ProbeOutcome,
+  type ProviderDependencies,
   type TelemetryProvider,
   type TelemetryProviderRegistry,
 } from "./provider.ts";

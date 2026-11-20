@@ -334,8 +334,9 @@ export type RuntimeConfig = {
    */
   draftIsolationLauncher?: DraftIsolationLauncher;
   /**
-   * Where telemetry goes (`BAKERY_TELEMETRY_LOG_DIR`, `BAKERY_OTLP_ENDPOINT`);
-   * server only. Absent means export stays disabled, which is the default.
+   * Where the server writes its rotated telemetry log (`BAKERY_TELEMETRY_LOG_DIR`);
+   * server only. Absent means no log is written. Destinations that receive
+   * measurements are saved in the app, not configured here.
    */
   telemetry?: TelemetrySinkConfig;
 };
