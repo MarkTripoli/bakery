@@ -117,6 +117,10 @@ Deno.test("one run keeps one trace across a restart retry, and no secret reaches
     await renew(first);
 
     // The worker's host restarts: the attempt is lost and the step is claimed again.
+    await database.query(
+      "update bakery.jobs set max_attempts = 3 where organization_id = $1 and id = $2",
+      [fixture.organizationId, run.jobId],
+    );
     await expireAndSupersedeAttempt(database, run.jobId);
     const second = await claimAssignment(fixture, worker);
     assertEquals(second.jobId, run.jobId);
