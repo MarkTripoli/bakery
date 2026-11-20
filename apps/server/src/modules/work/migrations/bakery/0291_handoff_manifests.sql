@@ -54,15 +54,7 @@ create table bakery.handoff_manifests (
   constraint handoff_manifests_organization_id_unique
     unique (organization_id, id),
   constraint handoff_manifests_source_attempt_unique
-    unique (source_attempt_id),
-  constraint handoff_manifests_mode_check
-    check (mode in ('fresh_session', 'exact_harness_resume')),
-  constraint handoff_manifests_status_check
-    check (status in ('pending', 'continued', 'blocked')),
-  constraint handoff_manifests_digest_check
-    check (digest ~ '^[0-9a-f]{64}$'),
-  constraint handoff_manifests_source_fence_check
-    check (source_fence >= 0)
+    unique (source_attempt_id)
 );
 
 -- A run's manifests, newest first, for the read path and the continuation.
