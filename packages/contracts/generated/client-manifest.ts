@@ -7272,8 +7272,7 @@ export const clientManifest = {
         "MALFORMED_REQUEST",
         "BODY_TOO_LARGE",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "DEPENDENCY_UNAVAILABLE",
-        "INSTALLATION_QUIESCED"
+        "DEPENDENCY_UNAVAILABLE"
       ],
       "organizationContext": "none",
       "implemented": true

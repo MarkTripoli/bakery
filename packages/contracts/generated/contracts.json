@@ -8107,8 +8107,7 @@
         "MALFORMED_REQUEST",
         "BODY_TOO_LARGE",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "DEPENDENCY_UNAVAILABLE",
-        "INSTALLATION_QUIESCED"
+        "DEPENDENCY_UNAVAILABLE"
       ],
       "organizationContext": "none",
       "implemented": true
@@ -262737,7 +262736,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:f205f790c66ad591202d7da4957c395bad2968ef87bcc58045c7670057d9fb7f",
+  "compatibilityDigest": "sha256:cb279c80ab5ab8400785feee858970dbe9bd95ff1645b3be66b807f82fe2243f",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
