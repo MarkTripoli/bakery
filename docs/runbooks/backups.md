@@ -178,7 +178,7 @@ The status (`GET /v1/installation/backups/status`) answers "am I protected":
 | `running`   | a backup holds a live claim                                                                                       |
 | `not_copied` | the newest finished backup was **taken on the host** but its **off-site copy failed** (see below); a later good full backup replaces this state |
 | `stale`     | the newest good backup is older than that                                                                         |
-| `failed`    | the newest attempt failed, or a claim lapsed (the runner stopped reporting: the cause is `runner_lost`)           |
+| `failed`    | the newest attempt failed, or a claim lapsed (the runner stopped reporting; the run keeps no cause until a new claim takes it over)           |
 
 A failed backup keeps a stable code and the runner's plain-text detail:
 
