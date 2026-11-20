@@ -555,8 +555,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
          from bakery.person_requests
         where organization_id = $1 and id = $6
        on conflict (
-         organization_id, principal_id, power,
-         (coalesce(question_id, artifact_version_id, run_step_id))
+         organization_id, principal_id, power, question_id
        ) where revoked_at is null do nothing`,
       [organizationId, run.id, recipientId, power, value.questionId, requestId],
     );
@@ -758,8 +757,10 @@ export async function withdrawRunRequest(context: ActionContext) {
  * A decision or an answer on a row ends the request that asked for it, and the
  * power it gave: a row is decided once, and the right to act on it is spent.
  * Called by the handlers in the transaction that decides, so the request never
- * says "open" about a row that is done. Only the asked person's own open
- * request moves.
+ * says "open" about a row that is done. It closes every open request and
+ * revokes every live grant for the row, whoever decided: the asked person's
+ * power is spent when anyone else acts first. `principalId` is the actor, kept
+ * as the revoker.
  */
 export async function completeRequestsOnQuestion(
   transaction: PgTransactionClient,
@@ -770,17 +771,15 @@ export async function completeRequestsOnQuestion(
 ): Promise<void> {
   await transaction.query(
     `update bakery.person_requests
-        set status = $4, responded_at = now(), updated_at = now(),
+        set status = $3, responded_at = now(), updated_at = now(),
             version = version + 1
-      where organization_id = $1 and recipient_id = $2 and target_id = $3
-        and status = 'open'`,
-    [organizationId, principalId, questionId, status],
+      where organization_id = $1 and target_id = $2 and status = 'open'`,
+    [organizationId, questionId, status],
   );
   await transaction.query(
     `update bakery.run_power_grants
-        set revoked_at = now(), revoked_by = $2, version = version + 1
-      where organization_id = $1 and principal_id = $2 and question_id = $3
-        and revoked_at is null`,
-    [organizationId, principalId, questionId],
+        set revoked_at = now(), revoked_by = $3, version = version + 1
+      where organization_id = $1 and question_id = $2 and revoked_at is null`,
+    [organizationId, questionId, principalId],
   );
 }

@@ -37,14 +37,6 @@ export const artifactVersionReferences = [
     protection: "none",
   },
   {
-    // A power grant (#456) names one approval target and goes with it. It never
-    // keeps the bytes alive: purging the version removes the grant.
-    kind: "power-grant",
-    table: "run_power_grants",
-    constraint: "run_power_grants_artifact_version_fk",
-    protection: "none",
-  },
-  {
     // A live external effect (prepared, submitted or uncertain) may still be
     // dispatched or reconciled from these oversized arguments.
     kind: "external-effect-arguments",

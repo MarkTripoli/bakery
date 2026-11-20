@@ -177,3 +177,44 @@ Deno.test("asking gives one expiring power on that row, and asking again only re
     await o.finish();
   }
 });
+
+Deno.test("when someone else decides the row, the asked person's request and power end too", async () => {
+  const o = await open();
+  try {
+    assertEquals(
+      (await o.ask({ intent: "approve", questionId: o.approval })).status,
+      201,
+    );
+    assertEquals(
+      (await o.ask({ intent: "answer", questionId: o.question })).status,
+      201,
+    );
+    // The named approver, not the person asked, decides and answers.
+    const decided = await api(
+      o.fixture,
+      o.approver.cookie,
+      "POST",
+      `/v1/approvals/${o.approval}/decision`,
+      { decision: "approve", expectedVersion: 1 },
+    );
+    assertEquals(decided.status, 200, await decided.clone().text());
+    const answered = await api(
+      o.fixture,
+      o.approver.cookie,
+      "PUT",
+      `/v1/questions/${o.question}/answer`,
+      { answer: { text: "main" } },
+    );
+    assertEquals(answered.status, 200, await answered.clone().text());
+    assertEquals((await o.powers()).map((p) => p.live), [false, false]);
+    const requests = await o.fixture.pgDatabase.query<{ status: string }>(
+      `select status from bakery.person_requests
+        where organization_id = $1 and run_id = $2 and recipient_id = $3
+        order by intent`,
+      [o.fixture.organizationId, o.run.runId, o.guest.principalId],
+    );
+    assertEquals(requests.rows.map((r) => r.status), ["answered", "handled"]);
+  } finally {
+    await o.finish();
+  }
+});
