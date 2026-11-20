@@ -166,7 +166,7 @@ async function assertTask(
   }
 }
 
-function parseRange(value: string | null): RangeSpec | null {
+export function parseRange(value: string | null): RangeSpec | null {
   if (value === null) return null;
   if (new TextEncoder().encode(value).byteLength > MAX_RANGE_HEADER_BYTES) {
     throw new StandardError({ code: "UNPROCESSABLE" });
@@ -186,7 +186,7 @@ function parseRange(value: string | null): RangeSpec | null {
   return { start, end };
 }
 
-function resolveRange(
+export function resolveRange(
   range: RangeSpec,
   size: number,
 ): { start: number; end: number } | null {
@@ -205,11 +205,14 @@ function resolveRange(
   return { start, end: Math.min(end, size - 1) };
 }
 
-function ifRangeMatches(value: string | null, sha256: string): boolean {
+export function ifRangeMatches(value: string | null, sha256: string): boolean {
   return value === null || value.trim() === `"${sha256}"`;
 }
 
-function ifNoneMatchMatches(value: string | null, sha256: string): boolean {
+export function ifNoneMatchMatches(
+  value: string | null,
+  sha256: string,
+): boolean {
   if (value === null) return false;
   const etag = `"${sha256}"`;
   return value.split(",").some((candidate) => {
@@ -329,7 +332,7 @@ function readInlineRange(
  * version cannot name another organization's bytes even if its row were wrong:
  * the key is built from the organization the caller is already scoped to.
  */
-async function readBlobBytes(
+export async function readBlobBytes(
   store: OrganizationBlobStore | undefined,
   organizationId: string,
   stored: StoredVersion,
@@ -363,7 +366,7 @@ async function readBlobBytes(
  * The ranged read belongs on the port, and it rides the streaming-port row
  * rather than widening this one.
  */
-async function readBlobRange(
+export async function readBlobRange(
   store: OrganizationBlobStore | undefined,
   organizationId: string,
   stored: StoredVersion,
