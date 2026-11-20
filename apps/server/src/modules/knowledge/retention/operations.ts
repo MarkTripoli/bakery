@@ -13,21 +13,43 @@ export async function updateArtifactPin(
   context: ActionContext,
   input: { readonly pinned: boolean },
 ) {
-  const { transaction, organizationId, principalId } = requireWorkTransaction(
-    context,
-  );
   const expectedVersion = requireCommandMetadata(context).expectedVersion;
   if (expectedVersion === undefined) {
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
   }
-  const artifactId = context.params.id;
+  return await applyArtifactPin(
+    context,
+    context.params.id,
+    input.pinned,
+    expectedVersion,
+  );
+}
+
+/**
+ * Sets an artifact's administrator pin. The one implementation behind both the
+ * artifact PATCH (which carries the version it read, `expectedVersion`) and a
+ * file's pin in the storage tree (which names a state, so it passes null and
+ * asks for no version: pinning an already pinned file changes nothing the
+ * caller can lose).
+ */
+export async function applyArtifactPin(
+  context: ActionContext,
+  artifactId: string,
+  pinned: boolean,
+  expectedVersion: number | null,
+  operation: "artifacts.update" | "storageFiles.pin" = "artifacts.update",
+) {
+  const input = { pinned };
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
   const parents = await transaction.query<{ version: number; task_id: string }>(
     "select version,task_id from bakery.artifacts where organization_id=$1 and id=$2 for update",
     [organizationId, artifactId],
   );
   const parent = parents.rows[0];
   if (!parent) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  if (Number(parent.version) !== expectedVersion) {
+  if (expectedVersion !== null && Number(parent.version) !== expectedVersion) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
   const versions = await transaction.query<{ id: string; expired: boolean }>(
@@ -70,7 +92,7 @@ export async function updateArtifactPin(
   await appendAudit(transaction, {
     organizationId,
     principalId,
-    operation: "artifacts.update",
+    operation,
     resourceType: "artifact",
     resourceId: row.id,
     requestId: context.requestId,
