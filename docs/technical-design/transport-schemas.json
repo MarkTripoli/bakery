@@ -11162,6 +11162,53 @@
       ],
       "description": "Publishes the next revision of one project's scope profile: the step defaults every later run of the project inherits and pins at admission."
     },
+    "ContextPackBuild": {
+      "fields": [
+        {
+          "name": "envelope",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 4096
+          },
+          "description": "Budget envelope for the step: the model context window, the reservations held back for output, tool results, compaction and safety margin, and an optional operator cap on input tokens."
+        },
+        {
+          "name": "candidates",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Ordered candidate context items. An artifact candidate names an authorized artifact version and the bounded window to project; a text candidate carries its own bounded text. The order is the caller's relevance order and is never re-sorted by size."
+        },
+        {
+          "name": "conversationCutoff",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 0,
+            "max": 9007199254740991
+          },
+          "description": "Minimum conversation sequence the step must see, recorded in the pack so a reader can tell which messages were in scope."
+        },
+        {
+          "name": "repository",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 4096
+          },
+          "description": "Repository the step runs against: the commit SHA and the safe paths the pack may name. Omitted when the step is not repository-scoped."
+        }
+      ],
+      "rules": [
+        "A candidate that is not in the caller's organization, or whose content was removed, is reported in omitted with reason not_found, never silently dropped and never allowed to fail the whole build. Who may build a pack is the action's permission on the organization; there is no narrower per-version permission.",
+        "An artifact candidate's version digest is read from the version row rather than accepted from the caller, so a citation cannot name a digest the version does not have.",
+        "The same request with the same inputs returns the same packDigest; the digest covers the selection, not the time of the call."
+      ],
+      "description": "Builds one bounded context pack for a step: candidates are admitted against the envelope, artifact candidates are projected into cited windows or references, and everything that did not fit is reported with a reason."
+    },
     "ProviderRouteQuery": {
       "fields": [
         {
@@ -30149,6 +30196,123 @@
         "checkCommands": "Check commands offered to steps as defaults, in profile order.",
         "rules": "Rule entries the profile supplies, in profile order.",
         "updatedAt": "When the profile was last published, or null for the empty baseline."
+      }
+    },
+    "ContextPackEnvelope": {
+      "fields": [
+        "modelContextTokens",
+        "reservedTokens",
+        "countedInputTokens",
+        "availableTokens",
+        "maxInputTokens",
+        "decision"
+      ],
+      "fieldTypes": {
+        "modelContextTokens": "integer",
+        "reservedTokens": "integer",
+        "countedInputTokens": "integer",
+        "availableTokens": "integer",
+        "maxInputTokens": "integer|null",
+        "decision": "enum(ready|needs_bounding|bound-more-before-dispatch|handoff_required)"
+      },
+      "description": "The arithmetic the pack was admitted under: what the window allows, what was held back before any item was added, what the inputs counted as, and what remained.",
+      "fieldDescriptions": {
+        "modelContextTokens": "Context window the resolved model and harness report.",
+        "reservedTokens": "Tokens held back before any item was added: output, tool results, compaction and the safety margin.",
+        "countedInputTokens": "What the admitted inputs counted as, with a bounded unknown counted at its bound.",
+        "availableTokens": "Tokens left for input after the reservations: negative means the reservations alone exceed the window.",
+        "maxInputTokens": "Operator cap on input tokens when one applies, or null when the window alone bounds it.",
+        "decision": "What admission concluded: ready, needs_bounding, bound_more_before_dispatch, or handoff_required."
+      }
+    },
+    "ContextPackItem": {
+      "fields": [
+        "itemId",
+        "kind",
+        "citation",
+        "text",
+        "truncated",
+        "tokens",
+        "countState"
+      ],
+      "fieldTypes": {
+        "itemId": "string",
+        "kind": "enum(text|text_window|log_window|image_reference|pdf_reference|binary_reference)",
+        "citation": "json|null",
+        "text": "string|null",
+        "truncated": "boolean",
+        "tokens": "integer",
+        "countState": "enum(measured|estimated|unknown)"
+      },
+      "rules": [
+        "A reference kind carries no text and no bytes; it names the version so a reader can fetch a bounded projection deliberately.",
+        "countState records whether the token count was measured, estimated or unknown, because a confident total that hides a guess is worse than a visible estimate."
+      ],
+      "description": "One admitted item in the pack: either a bounded text window with its exact citation, or a reference to a version with no content.",
+      "fieldDescriptions": {
+        "itemId": "Caller's identifier for the candidate this item came from.",
+        "kind": "What the item is: bounded text, a text or log window with a byte range, or a reference to a version that carries no content.",
+        "citation": "Reproducible citation of the version and, for a window, its exact byte range and extractor; null for a caller-supplied text item.",
+        "text": "The bounded text admitted to the prompt, or null for every reference kind.",
+        "truncated": "Whether the window ends before the version does.",
+        "tokens": "What the item counted as under countState.",
+        "countState": "Whether tokens was measured, estimated from bounded metadata, or unknown."
+      }
+    },
+    "ContextPackOmission": {
+      "fields": [
+        "itemId",
+        "reason"
+      ],
+      "fieldTypes": {
+        "itemId": "string",
+        "reason": "enum(unbounded_unknown|over_budget|not_found)"
+      },
+      "description": "One candidate the pack does not carry, and why: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed.",
+      "fieldDescriptions": {
+        "itemId": "Caller's identifier for the candidate that was not admitted.",
+        "reason": "Why it was not admitted: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed."
+      }
+    },
+    "ContextPack": {
+      "fields": [
+        "decision",
+        "envelope",
+        "items",
+        "omitted",
+        "usedTokens",
+        "conversationCutoff",
+        "repository",
+        "packDigest"
+      ],
+      "fieldTypes": {
+        "decision": "enum(ready|needs_bounding|bound-more-before-dispatch|handoff_required)",
+        "envelope": "ContextPackEnvelope",
+        "items": "ContextPackItem[]",
+        "omitted": "ContextPackOmission[]",
+        "usedTokens": "integer",
+        "conversationCutoff": "integer|null",
+        "repository": "json|null",
+        "packDigest": "sha256|null"
+      },
+      "optionalFields": [
+        "conversationCutoff",
+        "repository"
+      ],
+      "rules": [
+        "A pack is a view over durable records and is never persisted: storing it would make a second transcript.",
+        "packDigest is the SHA-256 of the canonical selection and is null when the decision admitted nothing."
+      ],
+      "description": "The bounded context a step is handed: the decision, the envelope arithmetic, the admitted items with their citations, the omissions with reasons, and a digest pinning the selection.",
+      "fieldDescriptions": {
+        "decision": "What admission concluded for this pack.",
+        "envelope": "The arithmetic the pack was admitted under, including the reservations taken before any item.",
+        "items": "The admitted items in the caller's relevance order, never re-sorted by size.",
+        "omitted": "Every candidate the pack does not carry, with the reason it was left out.",
+        "usedTokens": "Sum of the admitted items' tokens.",
+        "conversationCutoff": "Minimum conversation sequence the step must see, or null when the caller did not name one.",
+        "repository": "Repository the step runs against, or null when the step is not repository-scoped.",
+        "packDigest": "SHA-256 of the canonical selection, or null when the decision admitted nothing."
       }
     },
     "Page<ProviderIncident>": {

@@ -51,6 +51,7 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
     type?: MediaGroup;
     kind?: string;
     by?: string;
+    fact?: string;
     in?: "all";
   };
   const searchState: SearchState = {
@@ -61,6 +62,7 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
       : undefined,
     kind: search.kind,
     by: search.by,
+    fact: search.fact,
     everywhere: search.in === "all",
   };
   const searching = isSearching(searchState);
@@ -70,12 +72,14 @@ export function LibraryFilesPage({ path }: { readonly path: string }) {
       type?: MediaGroup;
       kind?: string;
       by?: string;
+      fact?: string;
       in?: "all";
     } = {};
     if (next.q !== "") query.q = next.q;
     if (next.type !== undefined) query.type = next.type;
     if (next.kind !== undefined) query.kind = next.kind;
     if (next.by !== undefined) query.by = next.by;
+    if (next.fact !== undefined) query.fact = next.fact;
     if (next.everywhere) query.in = "all";
     void navigate({
       to: "/files/$",
