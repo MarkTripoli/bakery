@@ -33,6 +33,7 @@ import type {
   EnrollmentStatus,
   ExternalTicketListResponse,
   ExternalTicketResponse,
+  FileFactPage,
   FileSearchInput,
   FileSearchPage,
   InstallationCapabilities,
@@ -3366,6 +3367,8 @@ export function fileSearchQueryOptions(
       kind: input.kind ?? null,
       mediaGroup: input.mediaGroup ?? null,
       producerId: input.producerId ?? null,
+      factKey: input.factKey ?? null,
+      factValue: input.factValue ?? null,
     }),
     initialPageParam: null,
     getNextPageParam: (last) => last.nextCursor,
@@ -3378,6 +3381,29 @@ export function fileSearchQueryOptions(
         ),
       ),
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The facts the files of one kind record, for the Fact filter.
+ *
+ * The kind is in the key because a fact belongs to a kind: the list for one
+ * kind must never answer for another.
+ */
+export function fileFactsQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  kind: string,
+) {
+  return queryOptions<FileFactPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "files.facts", { kind }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.files.facts(requireOrganization(scope), kind, signal),
+      ),
+    enabled: Boolean(scope.organizationId) && kind !== "",
+    staleTime: 60_000,
     retry: retryNetworkOnce,
   });
 }

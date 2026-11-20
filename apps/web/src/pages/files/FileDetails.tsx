@@ -15,14 +15,26 @@ import {
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { sizeParts } from "./files-state.ts";
-import { FilePreview } from "./FilePreview.tsx";
+import { FilePreview, previewKind } from "./FilePreview.tsx";
 import { type ReactNode, useState } from "react";
 
 export type FileTab = "details" | "versions" | "uses";
 
 /** One file's details: what it is, its versions, and the runs that used it. */
 export function FileDetails(
-  { file, tab, onTab, onClose, revision, onRevision, phone, backLabel }: {
+  {
+    file,
+    tab,
+    onTab,
+    onClose,
+    revision,
+    onRevision,
+    phone,
+    backLabel,
+    opened,
+    onOpenView,
+    onCloseView,
+  }: {
     readonly file: StorageFolderItem;
     /** On a phone the file is a page of its own, with a back link. */
     readonly phone: boolean;
@@ -33,6 +45,10 @@ export function FileDetails(
     /** The version number being shown; undefined for the current version. */
     readonly revision: number | undefined;
     readonly onRevision: (revision: number | undefined) => void;
+    /** The file is opened full size: in the page column, or on a phone in this page. */
+    readonly opened: boolean;
+    readonly onOpenView: () => void;
+    readonly onCloseView: () => void;
   },
 ) {
   const api = useBakeryApi();
@@ -49,6 +65,8 @@ export function FileDetails(
   });
   const navigate = useNavigate();
   const [downloadFailed, setDownloadFailed] = useState(false);
+  // Whether the file has anything to open, as its preview reports it.
+  const [openable, setOpenable] = useState(true);
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
   const [moreOpen, setMoreOpen] = useState(false);
   const copyPath = async () => {
@@ -155,6 +173,15 @@ export function FileDetails(
   const artifactTarget = file.artifactId !== null && current?.workItemId
     ? { taskId: current.workItemId, artifactId: file.artifactId }
     : null;
+  // Open is offered only where there is something to open: not for a file with
+  // no preview, one too large or unreadable, or a video that cannot be played.
+  // A phone's file page already shows a picture or a player at full width, so
+  // only text, which it cuts to its first lines, has more to open there.
+  const showOpen = !(shown?.contentRemoved ?? file.contentRemoved) &&
+    openable &&
+    (phone
+      ? previewKind(shown?.mediaType ?? file.mediaType) === "text"
+      : !opened);
 
   const more = (
     query: {
@@ -386,23 +413,48 @@ export function FileDetails(
           </UI.Stack>
         )
         : null}
-      <FilePreview file={file} version={shown} />
+      {opened && !phone ? null : (
+        <FilePreview
+          file={file}
+          version={shown}
+          full={opened && phone}
+          onOpenable={setOpenable}
+        />
+      )}
       <UI.Inline gap="compact">
-        {artifactTarget === null ? null : (
-          <UI.Button
-            variant="primary"
-            onClick={() =>
-              void navigate({
-                to: "/tasks/$taskId/artifacts/$artifactId",
-                params: artifactTarget,
-              })}
-          >
-            {translate("files.action.open")}
-          </UI.Button>
-        )}
+        {artifactTarget !== null
+          ? (
+            <UI.Button
+              variant="primary"
+              onClick={() =>
+                void navigate({
+                  to: "/tasks/$taskId/artifacts/$artifactId",
+                  params: artifactTarget,
+                })}
+            >
+              {translate("files.action.open")}
+            </UI.Button>
+          )
+          : showOpen
+          ? (
+            <UI.Button
+              variant="primary"
+              aria-pressed={phone ? opened : undefined}
+              onClick={phone && opened ? onCloseView : onOpenView}
+            >
+              {phone && opened
+                ? translate("files.action.showLess")
+                : translate("files.action.open")}
+            </UI.Button>
+          )
+          : null}
         {(shown?.contentRemoved ?? file.contentRemoved) ? null : (
           <UI.Button
-            variant={artifactTarget === null ? "primary" : "secondary"}
+            // The first button in the row is the primary one: Download, when
+            // there is nothing to open (or the file is already open).
+            variant={artifactTarget !== null || showOpen
+              ? "secondary"
+              : "primary"}
             onClick={() => void download()}
           >
             {shown === null
