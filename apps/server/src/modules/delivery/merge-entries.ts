@@ -239,7 +239,7 @@ export function evidenceRefusal(
  * — this exact head, this exact base and this policy digest — and every named
  * check must have passed.
  */
-async function assertCandidateEvidence(
+export async function assertCandidateEvidence(
   transaction: PgTransactionClient,
   organizationId: string,
   input: MergeEntryCreateInput,
@@ -496,4 +496,30 @@ export async function listMergeEntries(
       })
       : null,
   };
+}
+
+/**
+ * Finishes the entry of a pull request once a settling read has decided an
+ * unknown attempt: merged if GitHub says it merged, blocked `not_merged` if it
+ * says it did not. Only an entry that is `merging` moves; nothing is sent.
+ */
+export async function settleEntriesOfPullRequest(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  pullRequestId: string,
+  settled: "merged" | "refused",
+): Promise<void> {
+  await transaction.query(
+    `update bakery.merge_entries
+        set status = $3, blocked_reason = $4, updated_at = now(),
+            version = version + 1
+      where organization_id = $1 and pull_request_id = $2
+        and status = 'merging'`,
+    [
+      organizationId,
+      pullRequestId,
+      settled === "merged" ? "merged" : "blocked",
+      settled === "merged" ? null : "not_merged",
+    ],
+  );
 }
