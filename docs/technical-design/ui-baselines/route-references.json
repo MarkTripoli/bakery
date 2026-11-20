@@ -5192,6 +5192,13 @@
       "status": "no-mock",
       "rationale": "Notification inbox page (NotificationsPage). No Paper artboard depicts a notifications list: the shipped design is design-ux's UX design comment on issue #455 (comment 6961347054), which specifies the bell, the popover and this page, and supersedes Paper as the source of truth for this surface.",
       "frames": []
+    },
+    {
+      "routeId": "installation-usage",
+      "path": "/installation/usage",
+      "status": "no-mock",
+      "rationale": "The installation usage page (#75) is designed by design-ux on #75 (revision 2, mock at pr-evidence design-75/v2/usage.png); Paper has no frame for it.",
+      "frames": []
     }
   ]
 }
