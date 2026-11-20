@@ -272,6 +272,7 @@ export async function prepareDraftSuggestion(
   principalId: string,
   draftId: string,
   input: DraftSuggestionCreateInput,
+  record: Omit<SuggestionRecordContext, "create" | "draftId">,
 ): Promise<DraftSuggestionRead | PreparedDraftEdit> {
   const scope = await loadDraftScope(transaction, organizationId, draftId);
   const digest = await suggestionDigest(draftId, principalId, input);
@@ -283,6 +284,23 @@ export async function prepareDraftSuggestion(
     input.mutationId,
   );
   if (recorded) return assertSuggestionDigest(recorded, digest);
+  // A proposal from an epoch that has closed (a client that was offline across
+  // a rollover) is kept, not lost: it is recorded as one the draft no longer
+  // fits, so a person can read it and apply it by hand. It is never anchored,
+  // because its checkpoint may have been compacted away.
+  if (input.epoch < scope.epoch) {
+    return await recordMovedOnSuggestion(
+      transaction,
+      organizationId,
+      {
+        ...record,
+        draftId,
+        create: input,
+      },
+      digest,
+      scope,
+    );
+  }
   if (scope.epoch !== input.epoch) throw refusedDraftEdit("draft_moved_on");
   return await prepareDraftEditStates(
     transaction,
@@ -291,6 +309,103 @@ export async function prepareDraftSuggestion(
     input,
     digest,
   );
+}
+
+/** What recording a suggestion needs besides the proposal itself. */
+export type SuggestionRecordContext = {
+  draftId: string;
+  attribution: ActionAttribution;
+  requestId: string;
+  traceId: string;
+  create: DraftSuggestionCreateInput;
+};
+
+async function recordMovedOnSuggestion(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  input: SuggestionRecordContext,
+  requestDigest: string,
+  scope: Awaited<ReturnType<typeof loadDraftScope>>,
+): Promise<DraftSuggestionRead> {
+  const inserted = await transaction.query<{ id: string }>(
+    `insert into bakery.artifact_draft_suggestions (
+       organization_id,draft_id,epoch,source_checkpoint_id,start_cursor,
+       end_cursor,expected_text,expected_digest,replacement,
+       client_mutation_id,request_digest,requested_by_id,actor_kind,
+       access_token_id,request_id,trace_id,state,refusal_reason
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+               'no_longer_fits','draft_moved_on')
+     on conflict (organization_id, draft_id, client_mutation_id) do nothing
+     returning id`,
+    [
+      organizationId,
+      input.draftId,
+      input.create.epoch,
+      input.create.sourceCheckpointId,
+      input.create.startCursor,
+      input.create.endCursor,
+      input.create.expectedText,
+      input.create.expectedDigest,
+      input.create.replacement,
+      input.create.mutationId,
+      requestDigest,
+      input.attribution.principalId,
+      input.attribution.actorKind,
+      input.attribution.accessTokenId,
+      input.requestId,
+      input.traceId,
+    ],
+  );
+  const id = inserted.rows[0]?.id;
+  if (!id) {
+    // Lost a race with the same proposal: answer with the recorded one.
+    const existing = await findSuggestionRow(
+      transaction,
+      organizationId,
+      input.draftId,
+      "mutation",
+      input.create.mutationId,
+    );
+    if (!existing) throw new StandardError({ code: "STATE_CONFLICT" });
+    return assertSuggestionDigest(existing, requestDigest);
+  }
+  const recorded = await findSuggestion(
+    transaction,
+    organizationId,
+    input.draftId,
+    "id",
+    id,
+  );
+  if (!recorded) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  await appendDomainEvent(transaction, {
+    organizationId,
+    applicationId: scope.application_id,
+    repositoryId: scope.repository_id,
+    taskId: scope.task_id,
+    conversationId: scope.conversation_id,
+    eventType: "draft.suggestion_created",
+    aggregateId: id,
+    aggregateVersion: 1,
+    payload: { resourceId: id, resourceVersion: 1 },
+    traceId: input.traceId,
+  });
+  await appendAudit(transaction, {
+    organizationId,
+    principalId: input.attribution.principalId,
+    operation: "draftSuggestions.create",
+    resourceType: "artifact_draft_suggestion",
+    resourceId: id,
+    requestId: input.requestId,
+    traceId: input.traceId,
+    details: {
+      draftId: input.draftId,
+      epoch: input.create.epoch,
+      sourceCheckpointId: input.create.sourceCheckpointId,
+      actorKind: input.attribution.actorKind,
+      movedOn: true,
+    },
+  });
+  return recorded;
 }
 
 /**

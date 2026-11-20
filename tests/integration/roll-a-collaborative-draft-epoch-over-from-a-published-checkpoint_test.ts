@@ -9,6 +9,7 @@ import {
   responseJson,
 } from "../helpers/draft-fixture.ts";
 
+type Json = Record<string, unknown>;
 type Draft = {
   id: string;
   epoch: number;
@@ -257,6 +258,73 @@ Deno.test("an agent may never roll a draft over, and nothing changes", async () 
       JSON.stringify(problem),
     );
     assertEquals((await readDraft(fixture, opened.id)).epoch, 1);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+Deno.test("a proposal built for a closed epoch is kept as one the draft no longer fits", async () => {
+  const fixture = await openDraftFixture("alpha target omega");
+  try {
+    const opened = await openDraft(fixture);
+    // What an offline client holds: an edit of the middle word, built at epoch 1.
+    const offline = await editBody(fixture, opened, "mine!!");
+    assertEquals((await publish(fixture, opened)).status, 201);
+    const rolled = await rollover(fixture, opened);
+    assertEquals(rolled.status, 201, await rolled.clone().text());
+
+    // The edit itself is refused: epoch 1 is closed.
+    const refused = await post(
+      fixture,
+      `/v1/drafts/${opened.id}/edits`,
+      offline,
+    );
+    assertEquals(refused.status, 412);
+    await refused.body?.cancel();
+
+    // As a proposal the same words are saved, never applied, and listed.
+    const proposed = await post(
+      fixture,
+      `/v1/drafts/${opened.id}/suggestions`,
+      offline,
+    );
+    assertEquals(proposed.status, 201, await proposed.clone().text());
+    const kept = await responseJson(proposed) as Json;
+    assertEquals(kept.state, "no_longer_fits");
+    assertEquals(kept.refusalReason, "draft_moved_on");
+    assertEquals(kept.epoch, 1);
+    assertEquals(kept.replacement, "mine!!");
+    assertEquals(kept.expectedText, "target");
+    assertEquals(
+      (await readDraft(fixture, opened.id)).text,
+      "alpha target omega",
+    );
+
+    // A retry answers with the same proposal; it is recorded once.
+    const retry = await post(
+      fixture,
+      `/v1/drafts/${opened.id}/suggestions`,
+      offline,
+    );
+    assertEquals(retry.status, 201);
+    assertEquals((await responseJson(retry) as Json).id, kept.id);
+    const listed = await fixture.app.fetch(draftRequest(
+      fixture,
+      `/v1/drafts/${opened.id}/suggestions?state=no_longer_fits`,
+    ));
+    assertEquals(
+      (await responseJson(listed) as { items: Json[] }).items.length,
+      1,
+    );
+
+    // An epoch that does not exist yet is still refused, and nothing is recorded.
+    const future = await post(
+      fixture,
+      `/v1/drafts/${opened.id}/suggestions`,
+      { ...offline, epoch: 9, mutationId: crypto.randomUUID() },
+    );
+    assertEquals(future.status, 412);
+    await future.body?.cancel();
   } finally {
     await cleanup(fixture);
   }
