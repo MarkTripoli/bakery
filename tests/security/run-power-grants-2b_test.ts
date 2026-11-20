@@ -63,6 +63,11 @@ async function open() {
     ask,
     as,
     finish: async () => {
+      // A comment on an artifact version keeps the version from being deleted.
+      await fixture.pgDatabase.query(
+        "delete from bakery.artifact_comments where organization_id = $1",
+        [fixture.organizationId],
+      );
       await cleanupAuthFixture(fixture.pgDatabase, [
         fixture.email,
         guest.email,
@@ -175,6 +180,92 @@ Deno.test("a review power comments on exactly its one artifact version", async (
     assertEquals(mineList.requests.map((r) => r.status), ["handled"]);
     assertEquals(await comment(o.guest.cookie, o.mine), 201);
   } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("an observer reads only the granted session's own messages, never the task's whole conversation", async () => {
+  const o = await open();
+  const developer = await addMember(o.fixture, "Dev", "developer");
+  try {
+    const say = (
+      sessionId: string | null,
+      authorId: string | null,
+      body: string,
+    ) =>
+      o.fixture.pgDatabase.query(
+        `insert into bakery.messages (
+           id, organization_id, conversation_id, author_id, agent_session_id,
+           message_type, body, client_message_id, sequence, intent)
+         select $1, $2, $3, $4, $5, $6, $7, $8,
+                coalesce((select max(sequence) from bakery.messages
+                           where conversation_id = $3), 0) + 1, 'note'`,
+        [
+          crypto.randomUUID(),
+          o.fixture.organizationId,
+          o.fixture.conversationId,
+          authorId,
+          sessionId,
+          sessionId === null ? "user" : "agent",
+          body,
+          crypto.randomUUID(),
+        ],
+      );
+    await say(null, o.fixture.principalId, "private team chat");
+    await say(o.buildSession, null, "build output");
+    await say(o.otherSession, null, "other output");
+    await say(o.siblingSession, null, "sibling output");
+    // The guest is asked to just look: that gives the run to see, not the chat.
+    assertEquals(
+      (await o.ask({ intent: "fyi" })).status,
+      201,
+    );
+    const bodies = async (cookie: string, session: string) => {
+      const response = await api(
+        o.fixture,
+        cookie,
+        "GET",
+        `/v1/sessions/${session}/feed?limit=100`,
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+      const page = await response.json() as {
+        items: { message: { body: string } | null }[];
+      };
+      return page.items.map((item) => item.message?.body).sort();
+    };
+    // Only the session's own messages: not the person's chat, not another
+    // session's output, not another run's.
+    assertEquals(await bodies(o.guest.cookie, o.buildSession), [
+      "build output",
+    ]);
+    assertEquals(await bodies(o.guest.cookie, o.otherSession), [
+      "other output",
+    ]);
+    // A session of another run is not theirs at all.
+    assertEquals(
+      await o.as(
+        o.guest.cookie,
+        "GET",
+        `/v1/sessions/${o.siblingSession}/feed`,
+      ),
+      404,
+    );
+    assertEquals(
+      await o.as(
+        o.stranger.cookie,
+        "GET",
+        `/v1/sessions/${o.buildSession}/feed`,
+      ),
+      404,
+    );
+    // Someone with standing access sees what they always saw: the whole
+    // conversation, unchanged.
+    const all = await bodies(developer.cookie, o.buildSession);
+    assertEquals(all.includes("private team chat"), true);
+    assertEquals(all.includes("build output"), true);
+    assertEquals(all.includes("sibling output"), true);
+  } finally {
+    await cleanupAuthFixture(o.fixture.pgDatabase, [developer.email]);
     await o.finish();
   }
 });

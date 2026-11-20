@@ -247,7 +247,7 @@ async function activeHuman(
  * holds run:read. A binding is not consulted: a grant on top of one is
  * harmless and removing it changes nothing.
  */
-async function hasStandingRunAccess(
+export async function hasStandingRunAccess(
   transaction: PgTransactionClient,
   organizationId: string,
   principalId: string,
