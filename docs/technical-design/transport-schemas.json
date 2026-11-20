@@ -21445,7 +21445,8 @@
         "version",
         "budgetSummary",
         "blockedReason",
-        "blockingTasks"
+        "blockingTasks",
+        "waitingOnModel"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -21471,7 +21472,8 @@
         "version": "integer",
         "budgetSummary": "RunBudgetSummary",
         "blockedReason": "string|null",
-        "blockingTasks": "RunBlockingTask[]"
+        "blockingTasks": "RunBlockingTask[]",
+        "waitingOnModel": "boolean"
       },
       "description": "Kind-aware safe run projection. Workflow runs retain task and workflow ownership; skill imports expose null workflow owners and one registered source owner.",
       "nullableFields": [
@@ -21495,13 +21497,15 @@
         "skillSourceId",
         "workspaceBaseSha",
         "blockedReason",
-        "blockingTasks"
+        "blockingTasks",
+        "waitingOnModel"
       ],
       "computedFields": {
         "budgetSummary": "Join budget_accounts + outstanding reservations for this run and the applicable installation period under one consistent read snapshot.",
         "workspaceBaseSha": "Base commit reported by the first completed harness step of this run: the step's output baseSha when it is a git SHA, else null. Read from run_steps joined to jobs by harness action; never written to workflow_runs.",
         "blockedReason": "snapshot.admission.reason of the run while status is blocked; null otherwise.",
-        "blockingTasks": "task_dependencies of the run's task joined to tasks of the same organization whose status is not completed, only while blockedReason is dependency_incomplete."
+        "blockingTasks": "task_dependencies of the run's task joined to tasks of the same organization whose status is not completed, only while blockedReason is dependency_incomplete.",
+        "waitingOnModel": "True when a live job of a non-terminal run is pinned to an active provider route with an open incident that the step has not been continued past; the same rule as routeContinuations.list."
       },
       "fieldDescriptions": {
         "id": "Stable UUID identifying the run record.",
@@ -21527,7 +21531,8 @@
         "kind": "Discriminator selecting task-owned workflow execution or source-owned skill import behavior.",
         "skillSourceId": "Registered source UUID for skill import runs; null for workflow runs.",
         "blockedReason": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses.",
-        "blockingTasks": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses."
+        "blockingTasks": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses.",
+        "waitingOnModel": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses."
       },
       "fieldBounds": {
         "blockingTasks": {
@@ -32172,6 +32177,31 @@
         "ineligibleReason": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
       }
     },
+    "RouteContinuationSource": {
+      "fields": [
+        "provider",
+        "model",
+        "harness",
+        "billingRoute",
+        "health"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "provider": "string",
+        "model": "string",
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "billingRoute": "enum(subscription|api_metered|local)",
+        "health": "enum(healthy|degraded|open|unverified)"
+      },
+      "description": "The route a stalled step is pinned to and waiting on, described well enough to name it to a person: which agent harness, which model of which provider, and how its spend is paid.",
+      "fieldDescriptions": {
+        "provider": "Provider key the source route sends to.",
+        "model": "Model identifier the source route pins; the model the step is waiting on.",
+        "harness": "Harness path (agent) the step runs on: pi, claude_code, codex or mastra.",
+        "billingRoute": "How the source route's spend is paid: subscription, api_metered or local.",
+        "health": "The source route's current circuit state: open while its incident is an outage, degraded while it still serves some work."
+      }
+    },
     "RouteContinuationOffer": {
       "fields": [
         "runStepId",
@@ -32179,11 +32209,16 @@
         "incidentId",
         "incidentGeneration",
         "sourceRouteId",
+        "source",
+        "reason",
+        "since",
+        "nextCheckAt",
         "runVersion",
         "estimatedIncrementalCost",
         "targets"
       ],
       "nullableFields": [
+        "nextCheckAt",
         "estimatedIncrementalCost"
       ],
       "fieldTypes": {
@@ -32192,6 +32227,10 @@
         "incidentId": "uuid",
         "incidentGeneration": "integer",
         "sourceRouteId": "uuid",
+        "source": "RouteContinuationSource",
+        "reason": "enum(rate_limited|credential_invalid|quota_exhausted|transport_failure|provider_error|timeout)",
+        "since": "timestamp",
+        "nextCheckAt": "timestamp|null",
         "runVersion": "integer",
         "estimatedIncrementalCost": "decimalString|null",
         "targets": "RouteContinuationTarget[]"
@@ -32203,6 +32242,10 @@
         "incidentId": "UUID of the open incident the step is stalled behind.",
         "incidentGeneration": "The incident's generation when this offer was made; a submission carrying a lower or different generation is stale.",
         "sourceRouteId": "UUID of the route the step is currently pinned to, whose incident this is.",
+        "source": "What the step is waiting on: the source route's provider, model, harness, billing route and health, so the card can name it without a second read.",
+        "reason": "Why the source route's incident is open, as the last failure classified it: rate_limited, credential_invalid, quota_exhausted, transport_failure, provider_error or timeout.",
+        "since": "When the incident the step is waiting behind was opened.",
+        "nextCheckAt": "When the source route is next checked, or null when no check is scheduled.",
         "runVersion": "The run's version when this offer was made, so a submission can be refused if the run changed in between.",
         "estimatedIncrementalCost": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice.",
         "targets": "Every other route of the organization, each marked eligible or not with the reason."

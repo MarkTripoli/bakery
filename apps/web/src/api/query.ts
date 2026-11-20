@@ -81,6 +81,7 @@ import type {
   ReviewCycleListResponse,
   ReviewFindingListResponse,
   RoleBindingListResponse,
+  RouteContinuationOffersResponse,
   RunControlCapabilities,
   RunListResponse,
   RunResponse,
@@ -952,6 +953,46 @@ export function runQueryOptions(
       return run;
     },
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The choices a run is waiting on. Read only while a step waits on a model; the
+ * page asks again every thirty seconds so a card goes when the incident closes.
+ * A Viewer is not served the offers: the 403 reads as nothing to choose.
+ */
+export function routeContinuationsQueryOptions(
+  client: Pick<BakeryApiClient, "listRouteContinuations">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<RouteContinuationOffersResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "routeContinuations.list", { runId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const offers = unwrap(
+        await client.listRouteContinuations({
+          organizationId: scope.organizationId,
+          runId,
+          signal,
+        }),
+      );
+      if (signal.aborted || offers.runId !== runId) {
+        throw { kind: "invalid-response", status: 200 } satisfies ApiFailure;
+      }
+      return offers;
+    },
+    enabled: Boolean(scope.organizationId),
+    // A Viewer is refused every read: stop asking.
+    refetchInterval: (query) => {
+      const error = query.state.error;
+      return error?.kind === "problem" && error.problem.status === 403
+        ? false
+        : 30_000;
+    },
     retry: retryNetworkOnce,
   });
 }
