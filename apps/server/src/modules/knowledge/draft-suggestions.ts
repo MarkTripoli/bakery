@@ -289,16 +289,13 @@ export async function prepareDraftSuggestion(
   // fits, so a person can read it and apply it by hand. It is never anchored,
   // because its checkpoint may have been compacted away.
   if (input.epoch < scope.epoch) {
-    return await recordMovedOnSuggestion(
+    return await insertSuggestion(
       transaction,
       organizationId,
-      {
-        ...record,
-        draftId,
-        create: input,
-      },
+      { ...record, draftId, create: input },
       digest,
       scope,
+      true,
     );
   }
   if (scope.epoch !== input.epoch) throw refusedDraftEdit("draft_moved_on");
@@ -320,12 +317,21 @@ export type SuggestionRecordContext = {
   create: DraftSuggestionCreateInput;
 };
 
-async function recordMovedOnSuggestion(
+type DraftScopeRow = Awaited<ReturnType<typeof loadDraftScope>>;
+
+/**
+ * Inserts one proposal and announces it: the row, the `draft.suggestion_created`
+ * event and the audit entry. `moved` records it as one the draft no longer fits
+ * (a closed epoch) instead of waiting. A lost insert race answers with the
+ * recorded proposal after the digest check, so a retry never records twice.
+ */
+async function insertSuggestion(
   transaction: PgTransactionClient,
   organizationId: string,
   input: SuggestionRecordContext,
   requestDigest: string,
-  scope: Awaited<ReturnType<typeof loadDraftScope>>,
+  scope: DraftScopeRow,
+  moved: boolean,
 ): Promise<DraftSuggestionRead> {
   const inserted = await transaction.query<{ id: string }>(
     `insert into bakery.artifact_draft_suggestions (
@@ -333,8 +339,7 @@ async function recordMovedOnSuggestion(
        end_cursor,expected_text,expected_digest,replacement,
        client_mutation_id,request_digest,requested_by_id,actor_kind,
        access_token_id,request_id,trace_id,state,refusal_reason
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-               'no_longer_fits','draft_moved_on')
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      on conflict (organization_id, draft_id, client_mutation_id) do nothing
      returning id`,
     [
@@ -354,11 +359,12 @@ async function recordMovedOnSuggestion(
       input.attribution.accessTokenId,
       input.requestId,
       input.traceId,
+      moved ? "no_longer_fits" : "waiting",
+      moved ? "draft_moved_on" : null,
     ],
   );
   const id = inserted.rows[0]?.id;
   if (!id) {
-    // Lost a race with the same proposal: answer with the recorded one.
     const existing = await findSuggestionRow(
       transaction,
       organizationId,
@@ -369,14 +375,6 @@ async function recordMovedOnSuggestion(
     if (!existing) throw new StandardError({ code: "STATE_CONFLICT" });
     return assertSuggestionDigest(existing, requestDigest);
   }
-  const recorded = await findSuggestion(
-    transaction,
-    organizationId,
-    input.draftId,
-    "id",
-    id,
-  );
-  if (!recorded) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   await appendDomainEvent(transaction, {
     organizationId,
     applicationId: scope.application_id,
@@ -402,9 +400,17 @@ async function recordMovedOnSuggestion(
       epoch: input.create.epoch,
       sourceCheckpointId: input.create.sourceCheckpointId,
       actorKind: input.attribution.actorKind,
-      movedOn: true,
+      ...(moved ? { movedOn: true } : {}),
     },
   });
+  const recorded = await findSuggestion(
+    transaction,
+    organizationId,
+    input.draftId,
+    "id",
+    id,
+  );
+  if (!recorded) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   return recorded;
 }
 
@@ -416,13 +422,7 @@ async function recordMovedOnSuggestion(
 export async function commitDraftSuggestion(
   transaction: PgTransactionClient,
   organizationId: string,
-  input: {
-    draftId: string;
-    attribution: ActionAttribution;
-    requestId: string;
-    traceId: string;
-    create: DraftSuggestionCreateInput;
-  },
+  input: SuggestionRecordContext,
   preparation: PreparedDraftEdit,
 ): Promise<{ suggestion: DraftSuggestionRead; traceId: string }> {
   const scope = await loadDraftScope(
@@ -448,85 +448,17 @@ export async function commitDraftSuggestion(
     scope.epoch !== preparation.epoch ||
     String(scope.server_sequence) !== preparation.highwater
   ) throw refusedDraftEdit("draft_moved_on");
-  const inserted = await transaction.query<{ id: string }>(
-    `insert into bakery.artifact_draft_suggestions (
-       organization_id,draft_id,epoch,source_checkpoint_id,start_cursor,
-       end_cursor,expected_text,expected_digest,replacement,
-       client_mutation_id,request_digest,requested_by_id,actor_kind,
-       access_token_id,request_id,trace_id,state
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'waiting')
-     on conflict (organization_id, draft_id, client_mutation_id) do nothing
-     returning id`,
-    [
-      organizationId,
-      input.draftId,
-      input.create.epoch,
-      input.create.sourceCheckpointId,
-      input.create.startCursor,
-      input.create.endCursor,
-      input.create.expectedText,
-      input.create.expectedDigest,
-      input.create.replacement,
-      input.create.mutationId,
-      preparation.requestDigest,
-      input.attribution.principalId,
-      input.attribution.actorKind,
-      input.attribution.accessTokenId,
-      input.requestId,
-      input.traceId,
-    ],
-  );
-  const id = inserted.rows[0]?.id;
-  if (!id) {
-    const existing = await findSuggestionRow(
+  return {
+    suggestion: await insertSuggestion(
       transaction,
       organizationId,
-      input.draftId,
-      "mutation",
-      input.create.mutationId,
-    );
-    if (!existing) throw new StandardError({ code: "STATE_CONFLICT" });
-    return {
-      suggestion: assertSuggestionDigest(existing, preparation.requestDigest),
-      traceId: input.traceId,
-    };
-  }
-  await appendDomainEvent(transaction, {
-    organizationId,
-    applicationId: scope.application_id,
-    repositoryId: scope.repository_id,
-    taskId: scope.task_id,
-    conversationId: scope.conversation_id,
-    eventType: "draft.suggestion_created",
-    aggregateId: id,
-    aggregateVersion: 1,
-    payload: { resourceId: id, resourceVersion: 1 },
+      input,
+      preparation.requestDigest,
+      scope,
+      false,
+    ),
     traceId: input.traceId,
-  });
-  await appendAudit(transaction, {
-    organizationId,
-    principalId: input.attribution.principalId,
-    operation: "draftSuggestions.create",
-    resourceType: "artifact_draft_suggestion",
-    resourceId: id,
-    requestId: input.requestId,
-    traceId: input.traceId,
-    details: {
-      draftId: input.draftId,
-      epoch: input.create.epoch,
-      sourceCheckpointId: input.create.sourceCheckpointId,
-      actorKind: input.attribution.actorKind,
-    },
-  });
-  const recorded = await findSuggestion(
-    transaction,
-    organizationId,
-    input.draftId,
-    "id",
-    id,
-  );
-  if (!recorded) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  return { suggestion: recorded, traceId: input.traceId };
+  };
 }
 
 /** How a suggestion is being decided. */
