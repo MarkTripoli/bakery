@@ -6037,11 +6037,14 @@
   "library.workflow.editor.skills.slot.badge": "⟪Needs attention⟫",
   "library.workflow.editor.skills.slot.missing.title": "⟪A skill is missing⟫",
   "library.workflow.editor.skills.slot.missing.titleUnnamed": "⟪A skill is missing⟫",
-  "library.workflow.editor.skills.slot.missing.body": "⟪This workflow was made with a private skill called \"{name}\", which did not come with it. Choose a skill to use instead, or remove it.⟫",
   "library.workflow.editor.skills.slot.unavailable.title": "⟪{name} is no longer available.⟫",
   "library.workflow.editor.skills.slot.unavailable.titleUnnamed": "⟪A skill is no longer available.⟫",
-  "library.workflow.editor.skills.slot.unavailable.body": "⟪It was removed or switched off, or its owner left. Choose another skill, or remove it.⟫",
   "library.workflow.editor.skills.slot.stopped.title": "⟪{name} cannot be used here.⟫",
   "library.workflow.editor.skills.slot.stopped.titleUnnamed": "⟪A skill cannot be used here.⟫",
-  "library.workflow.editor.skills.slot.stopped.body": "⟪Its owner has not allowed this workflow to use it. Remove it, or ask its owner.⟫"
+  "library.workflow.editor.skills.privateHelpUnnamed": "⟪Its owner let this workflow use a private skill. Anyone who can run the workflow runs it with the skill; only its owner can read or change it.⟫",
+  "library.workflow.editor.skills.row.theirsUnnamed": "⟪Version {version} · someone else's. You can run this workflow with it but cannot open its files.⟫",
+  "library.workflow.editor.skills.slot.missing.body": "⟪This workflow was made with a private skill called \"{name}\", which did not come with it.⟫",
+  "library.workflow.editor.skills.slot.missing.bodyUnnamed": "⟪This workflow was made with a private skill, which did not come with it.⟫",
+  "library.workflow.editor.skills.slot.unavailable.body": "⟪It was removed or switched off, or its owner left.⟫",
+  "library.workflow.editor.skills.slot.stopped.body": "⟪Its owner does not allow this workflow to use it. Only its owner can allow it.⟫"
 }

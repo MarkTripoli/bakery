@@ -6037,11 +6037,14 @@
   "library.workflow.editor.skills.slot.badge": "⟦Ñëëðš àŧŧëñŧïôñ ŧëš⟧",
   "library.workflow.editor.skills.slot.missing.title": "⟦À šķïļļ ïš ɱïššïñĝ ŧëšŧ⟧",
   "library.workflow.editor.skills.slot.missing.titleUnnamed": "⟦À šķïļļ ïš ɱïššïñĝ ŧëšŧ⟧",
-  "library.workflow.editor.skills.slot.missing.body": "⟦Ŧĥïš ŵôŕķƒļôŵ ŵàš ɱàðë ŵïŧĥ à þŕïṽàŧë šķïļļ çàļļëð \"{name}\", ŵĥïçĥ ðïð ñôŧ çôɱë ŵïŧĥ ïŧ. Çĥôôšë à šķïļļ ŧô ûšë ïñšŧëàð, ôŕ ŕëɱôṽë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "library.workflow.editor.skills.slot.unavailable.title": "⟦{name} ïš ñô ļôñĝëŕ àṽàïļàƀļë. ŧëšŧ çôþ⟧",
   "library.workflow.editor.skills.slot.unavailable.titleUnnamed": "⟦À šķïļļ ïš ñô ļôñĝëŕ àṽàïļàƀļë. ŧëšŧ çôþ⟧",
-  "library.workflow.editor.skills.slot.unavailable.body": "⟦Ïŧ ŵàš ŕëɱôṽëð ôŕ šŵïŧçĥëð ôƒƒ, ôŕ ïŧš ôŵñëŕ ļëƒŧ. Çĥôôšë àñôŧĥëŕ šķïļļ, ôŕ ŕëɱôṽë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "library.workflow.editor.skills.slot.stopped.title": "⟦{name} çàññôŧ ƀë ûšëð ĥëŕë. ŧëšŧ çô⟧",
   "library.workflow.editor.skills.slot.stopped.titleUnnamed": "⟦À šķïļļ çàññôŧ ƀë ûšëð ĥëŕë. ŧëšŧ çô⟧",
-  "library.workflow.editor.skills.slot.stopped.body": "⟦Ïŧš ôŵñëŕ ĥàš ñôŧ àļļôŵëð ŧĥïš ŵôŕķƒļôŵ ŧô ûšë ïŧ. Ŕëɱôṽë ïŧ, ôŕ àšķ ïŧš ôŵñëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "library.workflow.editor.skills.privateHelpUnnamed": "⟦Ïŧš ôŵñëŕ ļëŧ ŧĥïš ŵôŕķƒļôŵ ûšë à þŕïṽàŧë šķïļļ. Àñÿôñë ŵĥô çàñ ŕûñ ŧĥë ŵôŕķƒļôŵ ŕûñš ïŧ ŵïŧĥ ŧĥë šķïļļ; ôñļÿ ïŧš ôŵñëŕ çàñ ŕëàð ôŕ çĥàñĝë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "library.workflow.editor.skills.row.theirsUnnamed": "⟦Ṽëŕšïôñ {version} · šôɱëôñë ëļšë'š. Ÿôû çàñ ŕûñ ŧĥïš ŵôŕķƒļôŵ ŵïŧĥ ïŧ ƀûŧ çàññôŧ ôþëñ ïŧš ƒïļëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "library.workflow.editor.skills.slot.missing.body": "⟦Ŧĥïš ŵôŕķƒļôŵ ŵàš ɱàðë ŵïŧĥ à þŕïṽàŧë šķïļļ çàļļëð \"{name}\", ŵĥïçĥ ðïð ñôŧ çôɱë ŵïŧĥ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "library.workflow.editor.skills.slot.missing.bodyUnnamed": "⟦Ŧĥïš ŵôŕķƒļôŵ ŵàš ɱàðë ŵïŧĥ à þŕïṽàŧë šķïļļ, ŵĥïçĥ ðïð ñôŧ çôɱë ŵïŧĥ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "library.workflow.editor.skills.slot.unavailable.body": "⟦Ïŧ ŵàš ŕëɱôṽëð ôŕ šŵïŧçĥëð ôƒƒ, ôŕ ïŧš ôŵñëŕ ļëƒŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.workflow.editor.skills.slot.stopped.body": "⟦Ïŧš ôŵñëŕ ðôëš ñôŧ àļļôŵ ŧĥïš ŵôŕķƒļôŵ ŧô ûšë ïŧ. Ôñļÿ ïŧš ôŵñëŕ çàñ àļļôŵ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

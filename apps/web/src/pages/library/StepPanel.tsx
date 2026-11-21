@@ -235,7 +235,7 @@ function Skills(
         : skills.rows.length === 0
         ? <UI.Text variant="muted">{t("empty")}</UI.Text>
         : (
-          <UI.DescriptionList>
+          <UI.Stack gap="comfortable" role="list">
             {skills.rows.map((row) => (
               <SkillRow
                 key={row.key}
@@ -243,7 +243,7 @@ function Skills(
                 t={t}
               />
             ))}
-          </UI.DescriptionList>
+          </UI.Stack>
         )}
     </UI.Stack>
   );
@@ -260,48 +260,55 @@ function SkillRow(
 ) {
   const version = row.revision ?? 0;
   const name = row.name ?? "";
-  // A skill that cannot be used says so in words, and what to do about it.
+  // The owner may be unknown (they left): the lines then say "someone else's".
+  const owner = (row.owner ?? "").trim();
+  // A skill that cannot be used says what happened; what to do about it comes with the controls.
   if (row.status !== "available") {
     return (
-      <UI.DescriptionItem
-        description={t(`slot.${row.status}.body`, { name })}
-        title={
-          <UI.Inline gap="compact">
-            <span>
-              {row.name === null
-                ? t(`slot.${row.status}.titleUnnamed`)
-                : t(`slot.${row.status}.title`, { name })}
-            </span>
-            <UI.Badge tone="warning">{t("slot.badge")}</UI.Badge>
-          </UI.Inline>
-        }
-      />
+      <UI.Stack data-skill-status={row.status} gap="tight" role="listitem">
+        <UI.Inline gap="compact">
+          <UI.Text variant="strong">
+            {row.name === null
+              ? t(`slot.${row.status}.titleUnnamed`)
+              : t(`slot.${row.status}.title`, { name })}
+          </UI.Text>
+          <UI.Badge tone="warning">{t("slot.badge")}</UI.Badge>
+        </UI.Inline>
+        <UI.Text variant="muted">
+          {row.status === "missing" && row.name === null
+            ? t("slot.missing.bodyUnnamed")
+            : t(`slot.${row.status}.body`, { name })}
+        </UI.Text>
+      </UI.Stack>
     );
   }
   const personal = row.scope === "personal";
-  const owner = row.owner ?? "";
   return (
-    <UI.DescriptionItem
-      description={personal
-        ? row.mine
-          ? t("row.mine", { version })
-          : t("row.theirs", { version, owner })
-        : t(row.scope === "global" ? "row.global" : "row.organization", {
-          version,
-        })}
-      title={
-        <UI.Inline gap="compact">
-          <span>{name}</span>
-          {personal ? <UI.Badge tone="neutral">{t("private")}</UI.Badge> : null}
-          {personal && !row.mine
-            ? (
-              <UI.HelpTip label={t("privateHelpLabel", { name })}>
-                {t("privateHelp", { owner })}
-              </UI.HelpTip>
-            )
-            : null}
-        </UI.Inline>
-      }
-    />
+    <UI.Stack gap="tight" role="listitem">
+      <UI.Inline gap="compact">
+        <UI.Text variant="strong">{name}</UI.Text>
+        {personal ? <UI.Badge tone="neutral">{t("private")}</UI.Badge> : null}
+        {personal && !row.mine
+          ? (
+            <UI.HelpTip label={t("privateHelpLabel", { name })}>
+              {owner === ""
+                ? t("privateHelpUnnamed")
+                : t("privateHelp", { owner })}
+            </UI.HelpTip>
+          )
+          : null}
+      </UI.Inline>
+      <UI.Text variant="muted">
+        {personal
+          ? row.mine
+            ? t("row.mine", { version })
+            : owner === ""
+            ? t("row.theirsUnnamed", { version })
+            : t("row.theirs", { version, owner })
+          : t(row.scope === "global" ? "row.global" : "row.organization", {
+            version,
+          })}
+      </UI.Text>
+    </UI.Stack>
   );
 }
