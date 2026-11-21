@@ -1162,6 +1162,7 @@ export function createApp(options: {
       cursorSecret: options.config.auth.secret,
       skillFileRoot: options.config.skillFileRoot?.root,
       skillFileStore,
+      sourceAdapter: skillSourceAdapter,
       normalizeSourceLocator: options.skillSourceLocatorNormalizer,
       registry: catalogRegistry,
     }),

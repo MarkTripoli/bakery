@@ -41,7 +41,7 @@ function Pane(
       })}
       onVersionChange={setVersion}
       openHref="/artifact-fixture"
-      previewText={text}
+      preview={<pre dir="ltr">{text}</pre>}
       state={state}
       title={t("tasks.artifactPane.title")}
       version={version}

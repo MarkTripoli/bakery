@@ -10,6 +10,59 @@ import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
+/**
+ * The panel is one long-lived component on desktop: choosing another file swaps
+ * its contents without remounting it. On a phone the file is a page of its own,
+ * so there is no shared state to keep and nothing to prove.
+ */
+test.describe("desktop: a refusal belongs to one file", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test("a refusal stays on the file it was found on", async ({ page }) => {
+    // A damaged video is refused by Download, then a healthy file is chosen in
+    // the same panel. The refusal belongs to the bytes it was found on, so the
+    // next file must show its own preview rather than the previous file's
+    // verdict (#437 review). No page.goto: the panel is never remounted.
+    const damaged = {
+      ...TREE.find((entry) => entry.id === 41)!,
+      id: 84,
+      name: "damaged.webm",
+      path: "/projects/web-app/damaged.webm",
+    };
+    // Both sit in the folder the page is opened on, so the second is a click
+    // away in the same list.
+    const healthy = {
+      ...TREE.find((entry) => entry.id === 43)!,
+      id: 85,
+      parent: 20,
+      name: "diagram.png",
+      path: "/projects/web-app/diagram.png",
+    };
+    const tree = [...TREE, damaged, healthy];
+    await filesFixture(page, { tree, mismatchId: 84 });
+    await page.goto(`/files/projects/web-app?file=${uuid(84)}`);
+    const details = page.getByTestId("file-details");
+    await expect(details.getByRole("button", { name: "Download" }))
+      .toBeVisible();
+    await details.getByRole("button", { name: "Download" }).click();
+    await expect(details.getByText(/does not match its record/i))
+      .toBeVisible();
+    // Download goes with the refusal: there is nothing left to save.
+    await expect(details.getByRole("button", { name: "Download" }))
+      .toHaveCount(0);
+
+    // The healthy file, opened by clicking its row: same panel, new bytes.
+    await page.getByRole("link", { name: "diagram.png" }).click();
+    await expect(details.getByText(/does not match its record/i))
+      .toHaveCount(0);
+    await expect(details.getByRole("button", { name: "Download" }))
+      .toBeVisible();
+    await expect(details.getByText("Preview", { exact: true })).toBeVisible();
+    await page.mouse.move(700, 700);
+    await still(page, "files-refusal-does-not-follow-the-next-file");
+  });
+});
+
 /** The files browser (#445): folders, a file's details, its versions and uses. */
 for (
   const viewport of [
