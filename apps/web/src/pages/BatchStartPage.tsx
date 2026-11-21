@@ -579,13 +579,15 @@ export function BatchStartPage() {
                 </UI.Inline>
               </UI.Field>
             </UI.Inline>
-            {smallestText === null ? null : (
-              <UI.Text variant="hint">
-                {translate("batches.start.limits.smallestNote" as never, {
-                  amount: smallestText,
-                })}
-              </UI.Text>
-            )}
+            {smallestText === null || spendProblem !== undefined
+              ? null
+              : (
+                <UI.Text variant="hint">
+                  {translate("batches.start.limits.smallestNote" as never, {
+                    amount: smallestText,
+                  })}
+                </UI.Text>
+              )}
             <UI.Text variant="muted">
               {translate("batches.start.limits.note" as never)}
             </UI.Text>

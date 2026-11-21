@@ -286,6 +286,11 @@ for (
           "Use at least $12.50. That is the least that starts one issue.",
         ),
       ).toBeVisible();
+      // The error says it; the plain note is not repeated beside it.
+      await expect(
+        page.getByText("$12.50 is the least that starts one issue."),
+      ).toHaveCount(0);
+      await still(page, "batch-new-below-smallest");
       expect(seen.created).toEqual([]);
       await page.getByLabel("Spend").fill("12.50");
       await page.getByRole("button", { name: "Start batch" }).click();
@@ -307,6 +312,9 @@ for (
           "Use at least $12.50. That is the least that starts one issue.",
         ),
       ).toBeVisible();
+      await expect(
+        page.getByText("$12.50 is the least that starts one issue."),
+      ).toHaveCount(0);
       await expect(
         page.getByRole("alert").filter({
           hasText: "The batch could not be started",
