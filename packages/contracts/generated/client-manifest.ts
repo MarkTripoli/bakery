@@ -2890,7 +2890,7 @@ export const clientManifest = {
       "action": "skills.list",
       "access": "Developer",
       "permission": "skill:read",
-      "input": "CursorQuery",
+      "input": "SkillQuery",
       "output": "Page<Skill>",
       "event": "",
       "mcp": "bakery_skills_list",
@@ -10701,6 +10701,29 @@ export const clientManifest = {
     {
       "group": "Tickets",
       "method": "GET",
+      "path": "/v1/batches/startable",
+      "action": "batches.startable",
+      "access": "Developer",
+      "permission": "batch:read",
+      "input": "BatchStartableQuery",
+      "output": "BatchStartable",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
       "path": "/v1/batches/{id}",
       "action": "batches.get",
       "access": "Developer",
@@ -15046,7 +15069,7 @@ export const clientManifest = {
           }
         },
         "accessLevel": {
-          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also publish versions). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
           "type": "string",
           "enum": [
             "read_comment",
@@ -18315,9 +18338,10 @@ export const clientManifest = {
             "prs.mergeRate",
             "prs.turnaroundHours",
             "prs.changedLines",
+            "loc.changedLines",
             "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -18917,6 +18941,7 @@ export const clientManifest = {
             "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "batches.list",
+            "batches.startable",
             "batches.get",
             "batches.create",
             "batches.pause",
@@ -19308,6 +19333,35 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Lists questions using opaque keyset pagination bound to the current principal and scope; page/offset-style parameters are rejected."
+    },
+    "SkillQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scope": {
+          "description": "Restricts the listing to skills of one scope: global (comes with Bakery), organization (shared by everyone in the organization) or personal (private to the caller); omit to list every skill the caller can see.",
+          "type": "string",
+          "enum": [
+            "global",
+            "organization",
+            "personal"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of skills returned per page; defaults to 25 and cannot exceed 100. SkillQuery.limit must be at least 1. SkillQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -30049,7 +30103,7 @@ export const clientManifest = {
           "description": "The person to give access to: an active human member of this organization."
         },
         "level": {
-          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also publish new versions of it).",
+          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do.",
           "type": "string",
           "enum": [
             "read_comment",
@@ -30405,10 +30459,51 @@ export const clientManifest = {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "state": {
+          "description": "Only the batches in this state. Omit it for every state.",
+          "type": "string",
+          "enum": [
+            "running",
+            "waiting",
+            "paused",
+            "stopping",
+            "finishing",
+            "finished",
+            "stopped"
+          ]
         }
       },
       "additionalProperties": false,
-      "description": "Lists batches newest first, optionally for one repository."
+      "description": "Lists batches newest first, optionally for one repository and one state."
+    },
+    "BatchStartableQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The repository whose issues a batch would take."
+        },
+        "cursor": {
+          "description": "Opaque cursor from the previous page.",
+          "type": "string",
+          "maxLength": 65536
+        },
+        "limit": {
+          "description": "Page size. BatchStartableQuery.limit must be at least 1. BatchStartableQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "repositoryId"
+      ],
+      "additionalProperties": false,
+      "description": "Lists the open issues in a repository that a batch could start now, in the order a batch takes them (lowest issue number first), with the smallest spend that can start one."
     },
     "AgentFileGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -31118,9 +31213,10 @@ export const clientManifest = {
             "prs.mergeRate",
             "prs.turnaroundHours",
             "prs.changedLines",
+            "loc.changedLines",
             "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -46305,6 +46401,7 @@ export const clientManifest = {
                   "ticketTaskLinks.resyncNote",
                   "ticketRequests.create",
                   "batches.list",
+                  "batches.startable",
                   "batches.get",
                   "batches.create",
                   "batches.pause",
@@ -66786,6 +66883,7 @@ export const clientManifest = {
             "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "batches.list",
+            "batches.startable",
             "batches.get",
             "batches.create",
             "batches.pause",
@@ -69169,9 +69267,12 @@ export const clientManifest = {
                   "no_merged_time",
                   "no_closed_time",
                   "no_diff_totals",
+                  "no_line_count",
+                  "line_count_binary",
+                  "line_count_truncated",
                   "still_open"
                 ],
-                "description": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet."
+                "description": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; no_line_count: the merged head has not been counted yet; line_count_binary: the diff holds a binary file whose lines are unknown; line_count_truncated: the provider's file list stopped before every changed file; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet."
               },
               "count": {
                 "type": "integer",
@@ -100932,7 +101033,7 @@ export const clientManifest = {
               "displayName": {
                 "type": "string",
                 "maxLength": 200,
-                "description": "Their current display name; never an email address. AccessSharer.displayName must contain at most 200 characters."
+                "description": "Their current display name; never an email address. ConversationSharer.displayName must contain at most 200 characters."
               }
             },
             "required": [
@@ -100969,7 +101070,7 @@ export const clientManifest = {
               "displayName": {
                 "type": "string",
                 "maxLength": 200,
-                "description": "Their current display name; never an email address. AccessSharer.displayName must contain at most 200 characters."
+                "description": "Their current display name; never an email address. ArtifactSharer.displayName must contain at most 200 characters."
               }
             },
             "required": [
@@ -101021,7 +101122,7 @@ export const clientManifest = {
             "read_comment",
             "edit"
           ],
-          "description": "read_comment: read the document and comment on it. edit: also publish new versions of it."
+          "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
         },
         "grantedById": {
           "type": "string",
@@ -101132,7 +101233,7 @@ export const clientManifest = {
                   "read_comment",
                   "edit"
                 ],
-                "description": "read_comment: read the document and comment on it. edit: also publish new versions of it."
+                "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
               },
               "grantedById": {
                 "type": "string",
@@ -102305,6 +102406,34 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "The ticket (issue) this entry is for."
               },
+              "issueNumber": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The issue's number in its tracker, as last stored; null when the stored ticket has none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchIssue.issueNumber may be null in the safe projection."
+              },
+              "issueTitle": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The issue's title as last stored, at most 500 characters; null when none is stored."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchIssue.issueTitle may be null in the safe projection."
+              },
               "state": {
                 "type": "string",
                 "enum": [
@@ -102394,6 +102523,8 @@ export const clientManifest = {
               "id",
               "position",
               "externalTicketId",
+              "issueNumber",
+              "issueTitle",
               "state",
               "reason",
               "ticketRequestId",
@@ -102657,6 +102788,34 @@ export const clientManifest = {
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                       "description": "The ticket (issue) this entry is for."
                     },
+                    "issueNumber": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The issue's number in its tracker, as last stored; null when the stored ticket has none."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "BatchIssue.issueNumber may be null in the safe projection."
+                    },
+                    "issueTitle": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The issue's title as last stored, at most 500 characters; null when none is stored."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "BatchIssue.issueTitle may be null in the safe projection."
+                    },
                     "state": {
                       "type": "string",
                       "enum": [
@@ -102746,6 +102905,8 @@ export const clientManifest = {
                     "id",
                     "position",
                     "externalTicketId",
+                    "issueNumber",
+                    "issueTitle",
                     "state",
                     "reason",
                     "ticketRequestId",
@@ -102858,6 +103019,110 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of Batch."
+    },
+    "BatchStartable": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "externalTicketId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The ticket (issue) the batch would start."
+              },
+              "number": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The issue's number in its tracker."
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The issue's title as last stored, at most 500 characters; null when none is stored."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchStartableIssue.title may be null in the safe projection."
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "A link to the issue, or null when the tracker gave none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchStartableIssue.url may be null in the safe projection."
+              },
+              "checkedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the stored readiness check this answer rests on."
+              }
+            },
+            "required": [
+              "externalTicketId",
+              "number",
+              "title",
+              "url",
+              "checkedAt"
+            ],
+            "additionalProperties": false,
+            "description": "The startable issues on this page, lowest issue number first. Each array item follows this format."
+          },
+          "description": "The startable issues on this page, lowest issue number first."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque cursor for the next page, or null on the last page."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "BatchStartable.nextCursor may be null in the safe projection."
+        },
+        "smallestSpendUsd": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "The least a batch's spend limit can be and still start one issue: the reservation of one mandatory path plus one repair cycle. Null when the repository cannot run work now, so no amount would start one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "BatchStartable.smallestSpendUsd may be null in the safe projection."
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor",
+        "smallestSpendUsd"
+      ],
+      "additionalProperties": false,
+      "description": "The issues a batch in one repository would take now, in the order it takes them, and the smallest spend limit that can start one issue. Returned by `GET /v1/batches/startable`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "AgentFileGrant": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -108036,6 +108301,9 @@ export const clientManifest = {
                       "no_merged_time",
                       "no_closed_time",
                       "no_diff_totals",
+                      "no_line_count",
+                      "line_count_binary",
+                      "line_count_truncated",
                       "still_open"
                     ],
                     "description": "Why this record's value is unknown and it was left out of the number; null when it counted."
@@ -108173,6 +108441,121 @@ export const clientManifest = {
                   }
                 ],
                 "description": "MetricSource.waits may be null in this transport value."
+              },
+              "lineCount": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "counterVersion": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Version of the counting rules; counts under different versions are never compared."
+                      },
+                      "coverage": {
+                        "type": "string",
+                        "enum": [
+                          "complete",
+                          "binary",
+                          "truncated"
+                        ],
+                        "description": "complete: every changed file was listed and had line totals; binary: a binary file's lines are unknown; truncated: the provider's list stopped before every changed file. Only a complete count is a known number of lines."
+                      },
+                      "added": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Added lines over the counted files."
+                      },
+                      "deleted": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Deleted lines over the counted files."
+                      },
+                      "countedFiles": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Files whose lines were counted."
+                      },
+                      "excludedFiles": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Lock, vendored, generated, minified and source-map files, never counted as lines."
+                      },
+                      "binaryFiles": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Files listed with no patch and no line totals; their lines are unknown."
+                      },
+                      "categories": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "category": {
+                              "type": "string",
+                              "enum": [
+                                "source",
+                                "test",
+                                "docs",
+                                "config"
+                              ],
+                              "description": "source: code; test: test files and directories; docs: documentation and prose; config: configuration and data files."
+                            },
+                            "added": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "Added lines in this category."
+                            },
+                            "deleted": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "Deleted lines in this category."
+                            },
+                            "files": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "Counted files in this category."
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "added",
+                            "deleted",
+                            "files"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Counted lines by category, one entry per category with a file. Each array item follows this format."
+                        },
+                        "description": "Counted lines by category, one entry per category with a file."
+                      }
+                    },
+                    "required": [
+                      "counterVersion",
+                      "coverage",
+                      "added",
+                      "deleted",
+                      "countedFiles",
+                      "excludedFiles",
+                      "binaryFiles",
+                      "categories"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The line count of the pull request's merged head under the current counter version, the evidence behind loc.changedLines; null for a task or a pull request not counted yet."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.lineCount may be null in this transport value."
               }
             },
             "required": [
@@ -108193,7 +108576,8 @@ export const clientManifest = {
               "requestedAt",
               "deliveredAt",
               "deliveryPoint",
-              "waits"
+              "waits",
+              "lineCount"
             ],
             "additionalProperties": false,
             "description": "One record behind a metric: a pull request with its lifecycle times, or a delivered task with its lead time and where it went. Its value is its own contribution; a null value is unknown and was left out of the number."

@@ -1061,7 +1061,7 @@
           "name": "accessLevel",
           "type": "enum(read_comment|edit)",
           "required": false,
-          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also publish versions). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written."
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written."
         }
       ],
       "rules": [
@@ -2888,9 +2888,10 @@
             "prs.mergeRate",
             "prs.turnaroundHours",
             "prs.changedLines",
+            "loc.changedLines",
             "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         {
           "name": "from",
@@ -3222,6 +3223,46 @@
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
       "description": "Lists questions using opaque keyset pagination bound to the current principal and scope; page/offset-style parameters are rejected."
+    },
+    "SkillQuery": {
+      "fields": [
+        {
+          "name": "scope",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "global",
+            "organization",
+            "personal"
+          ],
+          "description": "Restricts the listing to skills of one scope: global (comes with Bakery), organization (shared by everyone in the organization) or personal (private to the caller); omit to list every skill the caller can see."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of skills returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "fields": [
@@ -12417,7 +12458,7 @@
           "name": "level",
           "type": "enum(read_comment|edit)",
           "required": false,
-          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also publish new versions of it)."
+          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do."
         }
       ],
       "rules": [
@@ -12827,9 +12868,51 @@
           "type": "uuid",
           "required": false,
           "description": "Only the batches of this repository."
+        },
+        {
+          "name": "state",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "running",
+            "waiting",
+            "paused",
+            "stopping",
+            "finishing",
+            "finished",
+            "stopped"
+          ],
+          "description": "Only the batches in this state. Omit it for every state."
         }
       ],
-      "description": "Lists batches newest first, optionally for one repository."
+      "description": "Lists batches newest first, optionally for one repository and one state."
+    },
+    "BatchStartableQuery": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "The repository whose issues a batch would take."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "description": "Opaque cursor from the previous page."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100
+          },
+          "description": "Page size."
+        }
+      ],
+      "description": "Lists the open issues in a repository that a batch could start now, in the order a batch takes them (lowest issue number first), with the smallest spend that can start one."
     },
     "AgentFileGrantCreate": {
       "fields": [
@@ -13629,9 +13712,10 @@
             "prs.mergeRate",
             "prs.turnaroundHours",
             "prs.changedLines",
+            "loc.changedLines",
             "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         {
           "name": "from",
@@ -32999,7 +33083,7 @@
       ],
       "description": "One person's direct, mention-granted access to one conversation, with who granted it and from which message."
     },
-    "AccessSharer": {
+    "ConversationSharer": {
       "fields": [
         "principalId",
         "displayName"
@@ -33017,14 +33101,14 @@
         "principalId": "The person who may give access.",
         "displayName": "Their current display name; never an email address."
       },
-      "description": "One person who may give someone access to a conversation or a document: their id and display name only."
+      "description": "One person who may give someone access to a conversation or a document."
     },
     "ConversationSharers": {
       "fields": [
         "items"
       ],
       "fieldTypes": {
-        "items": "AccessSharer[]"
+        "items": "ConversationSharer[]"
       },
       "fieldDescriptions": {
         "items": "Up to three active people in the reader's organization whose role may share the conversation, its author first when the author is one of them, then by display name. Empty when nobody may."
@@ -33034,12 +33118,32 @@
       ],
       "description": "Who can give access to one conversation: up to three people, so a writer who may not share can ask one of them. It grants nothing."
     },
+    "ArtifactSharer": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        }
+      },
+      "fieldDescriptions": {
+        "principalId": "The person who may give access.",
+        "displayName": "Their current display name; never an email address."
+      },
+      "description": "One person who may give someone access to a document: their id and display name only."
+    },
     "ArtifactSharers": {
       "fields": [
         "items"
       ],
       "fieldTypes": {
-        "items": "AccessSharer[]"
+        "items": "ArtifactSharer[]"
       },
       "fieldDescriptions": {
         "items": "Up to three active people in the reader's organization whose role may share documents, the document's author first when the author is one of them, then by display name. Empty when nobody may."
@@ -33096,7 +33200,7 @@
         "artifactId": "The one document this grant opens; it never reaches the task, its other documents or its conversation.",
         "principalId": "The person who holds the grant.",
         "displayName": "The holder's current display name; never an email address.",
-        "level": "read_comment: read the document and comment on it. edit: also publish new versions of it.",
+        "level": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet.",
         "grantedById": "Who gave the access most recently.",
         "grantedByName": "The granting person's current display name.",
         "sourceCommentId": "The comment whose mention created or renewed the grant, or null when it was given directly or that comment is gone.",
@@ -33311,6 +33415,8 @@
         "id",
         "position",
         "externalTicketId",
+        "issueNumber",
+        "issueTitle",
         "state",
         "reason",
         "ticketRequestId",
@@ -33319,6 +33425,8 @@
         "mergedAt"
       ],
       "nullableFields": [
+        "issueNumber",
+        "issueTitle",
         "reason",
         "ticketRequestId",
         "costUsd",
@@ -33329,6 +33437,8 @@
         "id": "uuid",
         "position": "integer",
         "externalTicketId": "uuid",
+        "issueNumber": "string",
+        "issueTitle": "string",
         "state": "enum(started|merged|failed|cancelled|passed_over)",
         "reason": "string",
         "ticketRequestId": "uuid",
@@ -33341,6 +33451,8 @@
         "id": "Stable UUID of this batch entry.",
         "position": "The order the batch considered it in, from 1.",
         "externalTicketId": "The ticket (issue) this entry is for.",
+        "issueNumber": "The issue's number in its tracker, as last stored; null when the stored ticket has none.",
+        "issueTitle": "The issue's title as last stored, at most 500 characters; null when none is stored.",
         "state": "started while it is being worked on; merged, failed or cancelled when it ended; passed_over when it could not start.",
         "reason": "For a passed-over issue, the readiness reason code; otherwise null.",
         "ticketRequestId": "The ordinary ticket request the batch made to start it, or null when it was passed over.",
@@ -33438,6 +33550,56 @@
     "Page<Batch>": {
       "pageOf": "Batch",
       "description": "Cursor page of batches, newest first, returned by `GET /v1/batches`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "BatchStartableIssue": {
+      "fields": [
+        "externalTicketId",
+        "number",
+        "title",
+        "url",
+        "checkedAt"
+      ],
+      "nullableFields": [
+        "title",
+        "url"
+      ],
+      "fieldTypes": {
+        "externalTicketId": "uuid",
+        "number": "string",
+        "title": "string",
+        "url": "string",
+        "checkedAt": "timestamp"
+      },
+      "description": "One open issue a batch could start now: its last stored readiness check passes every check except the request label and who applied it, which a batch's manual start does not need, and no request for it is open. A batch reads GitHub again before it starts an issue, so this is a forecast, not a promise.",
+      "fieldDescriptions": {
+        "externalTicketId": "The ticket (issue) the batch would start.",
+        "number": "The issue's number in its tracker.",
+        "title": "The issue's title as last stored, at most 500 characters; null when none is stored.",
+        "url": "A link to the issue, or null when the tracker gave none.",
+        "checkedAt": "UTC timestamp of the stored readiness check this answer rests on."
+      }
+    },
+    "BatchStartable": {
+      "fields": [
+        "items",
+        "nextCursor",
+        "smallestSpendUsd"
+      ],
+      "nullableFields": [
+        "nextCursor",
+        "smallestSpendUsd"
+      ],
+      "fieldTypes": {
+        "items": "BatchStartableIssue[]",
+        "nextCursor": "string",
+        "smallestSpendUsd": "decimal"
+      },
+      "description": "The issues a batch in one repository would take now, in the order it takes them, and the smallest spend limit that can start one issue. Returned by `GET /v1/batches/startable`. `nextCursor: null` marks the last page; there are no page numbers or offsets.",
+      "fieldDescriptions": {
+        "items": "The startable issues on this page, lowest issue number first.",
+        "nextCursor": "Opaque cursor for the next page, or null on the last page.",
+        "smallestSpendUsd": "The least a batch's spend limit can be and still start one issue: the reservation of one mandatory path plus one repair cycle. Null when the repository cannot run work now, so no amount would start one."
+      }
     },
     "AgentFileGrant": {
       "fields": [
@@ -34833,12 +34995,12 @@
         "count"
       ],
       "fieldTypes": {
-        "reason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|still_open)",
+        "reason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|no_line_count|line_count_binary|line_count_truncated|still_open)",
         "count": "integer"
       },
       "description": "One reason records were left out of a metric and how many.",
       "fieldDescriptions": {
-        "reason": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet.",
+        "reason": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; no_line_count: the merged head has not been counted yet; line_count_binary: the diff holds a binary file whose lines are unknown; line_count_truncated: the provider's file list stopped before every changed file; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet.",
         "count": "How many records were left out for this reason."
       }
     },
@@ -34952,7 +35114,8 @@
         "requestedAt",
         "deliveredAt",
         "deliveryPoint",
-        "waits"
+        "waits",
+        "lineCount"
       ],
       "fieldTypes": {
         "kind": "enum(pullRequest|task)",
@@ -34967,12 +35130,13 @@
         "closedAt": "timestamp|null",
         "countedAt": "timestamp|null",
         "value": "number|null",
-        "missingReason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|still_open)|null",
+        "missingReason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|no_line_count|line_count_binary|line_count_truncated|still_open)|null",
         "title": "string|null",
         "requestedAt": "timestamp|null",
         "deliveredAt": "timestamp|null",
         "deliveryPoint": "enum(merged_pull_request|completed_run)|null",
-        "waits": "MetricWaitShare[]|null"
+        "waits": "MetricWaitShare[]|null",
+        "lineCount": "MetricLineCount|null"
       },
       "nullableFields": [
         "openedAt",
@@ -34988,7 +35152,8 @@
         "requestedAt",
         "deliveredAt",
         "deliveryPoint",
-        "waits"
+        "waits",
+        "lineCount"
       ],
       "description": "One record behind a metric: a pull request with its lifecycle times, or a delivered task with its lead time and where it went. Its value is its own contribution; a null value is unknown and was left out of the number.",
       "fieldDescriptions": {
@@ -35009,7 +35174,62 @@
         "requestedAt": "When the task's first run was admitted; null for a pull request.",
         "deliveredAt": "When the task reached its delivery point; null for a pull request.",
         "deliveryPoint": "Which delivery point the task reached; null for a pull request.",
-        "waits": "Where the task's lead time went; null for a pull request."
+        "waits": "Where the task's lead time went; null for a pull request.",
+        "lineCount": "The line count of the pull request's merged head under the current counter version, the evidence behind loc.changedLines; null for a task or a pull request not counted yet."
+      }
+    },
+    "MetricLineCount": {
+      "fields": [
+        "counterVersion",
+        "coverage",
+        "added",
+        "deleted",
+        "countedFiles",
+        "excludedFiles",
+        "binaryFiles",
+        "categories"
+      ],
+      "fieldTypes": {
+        "counterVersion": "string",
+        "coverage": "enum(complete|binary|truncated)",
+        "added": "integer",
+        "deleted": "integer",
+        "countedFiles": "integer",
+        "excludedFiles": "integer",
+        "binaryFiles": "integer",
+        "categories": "MetricLineCategory[]"
+      },
+      "description": "One count of a pull request's diff at its merged head, from the provider's file list: what was counted, what was excluded and how complete it is.",
+      "fieldDescriptions": {
+        "counterVersion": "Version of the counting rules; counts under different versions are never compared.",
+        "coverage": "complete: every changed file was listed and had line totals; binary: a binary file's lines are unknown; truncated: the provider's list stopped before every changed file. Only a complete count is a known number of lines.",
+        "added": "Added lines over the counted files.",
+        "deleted": "Deleted lines over the counted files.",
+        "countedFiles": "Files whose lines were counted.",
+        "excludedFiles": "Lock, vendored, generated, minified and source-map files, never counted as lines.",
+        "binaryFiles": "Files listed with no patch and no line totals; their lines are unknown.",
+        "categories": "Counted lines by category, one entry per category with a file."
+      }
+    },
+    "MetricLineCategory": {
+      "fields": [
+        "category",
+        "added",
+        "deleted",
+        "files"
+      ],
+      "fieldTypes": {
+        "category": "enum(source|test|docs|config)",
+        "added": "integer",
+        "deleted": "integer",
+        "files": "integer"
+      },
+      "description": "The counted lines of one file category in a line count.",
+      "fieldDescriptions": {
+        "category": "source: code; test: test files and directories; docs: documentation and prose; config: configuration and data files.",
+        "added": "Added lines in this category.",
+        "deleted": "Deleted lines in this category.",
+        "files": "Counted files in this category."
       }
     },
     "Page<MetricSource>": {

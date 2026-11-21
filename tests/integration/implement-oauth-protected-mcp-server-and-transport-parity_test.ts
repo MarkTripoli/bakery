@@ -107,6 +107,10 @@ Deno.test("a pre-registered client uses PKCE, calls tools, is listed, and revoke
     assertEquals(await listTools(fixture, first.accessToken), [
       "bakery_applications_get",
       "bakery_applications_list",
+      "bakery_artifactAccess_grant",
+      "bakery_artifactAccess_list",
+      "bakery_artifactAccess_revoke",
+      "bakery_artifactAccess_sharers",
       "bakery_artifactComments_create",
       "bakery_artifactComments_list",
       "bakery_artifactComments_listAcrossVersions",

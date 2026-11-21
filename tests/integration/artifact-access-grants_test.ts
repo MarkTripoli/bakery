@@ -275,40 +275,19 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
         assertEquals(posted.status, 201, await posted.text());
         // Not the task, not publishing, not resharing, not the grant list's writes.
         assertDenied(await status(await as(ana, `/v1/tasks/${f.taskId}`)));
-        assertDenied(
-          await status(
-            await as(ana, `/v1/artifacts/${artifact}/versions/import`, {
-              method: "POST",
-              body: {},
-            }),
-          ),
-        );
-        // At level edit the same call gets past authority (the empty body is then
-        // refused as malformed), and back at read_comment it is denied again.
-        await json<Grant>(
-          await as(writer, `/v1/artifacts/${artifact}/access`, {
+        // `edit` is not served yet: it is refused, so no grant promises what it
+        // does not do, and a grantee still cannot reshare.
+        const refusedEdit = await as(
+          writer,
+          `/v1/artifacts/${artifact}/access`,
+          {
             method: "POST",
             body: { principalId: ana.principalId, level: "edit" },
-          }),
-          200,
+          },
         );
-        const editing = await status(
-          await as(ana, `/v1/artifacts/${artifact}/versions/import`, {
-            method: "POST",
-            body: {},
-          }),
-        );
-        assert(
-          editing !== 403 && editing !== 404 && editing !== 405,
-          `edit level reaches the handler, got ${editing}`,
-        );
-        await json<Grant>(
-          await as(writer, `/v1/artifacts/${artifact}/access`, {
-            method: "POST",
-            body: { principalId: ana.principalId, level: "read_comment" },
-          }),
-          200,
-        );
+        const refusedText = await refusedEdit.text();
+        assertEquals(refusedEdit.status, 422, refusedText);
+        assert(refusedText.includes("access_level_unavailable"), refusedText);
         assertDenied(
           await status(
             await as(ana, `/v1/artifacts/${artifact}/access`, {

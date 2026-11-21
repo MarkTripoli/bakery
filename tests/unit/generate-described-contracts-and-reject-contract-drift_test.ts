@@ -884,14 +884,18 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "ad5241ce6670eff3c31661b68d533e613cbccf0b",
+    "a90e69c734392ec761caf3fd8805c1c6355444c2",
   ];
   const approvedDigest =
-    "sha256:1c141ac78d679b2bc98ce7f6ce69d5aa91aeed6c893e5f18fa8e264b319de2c3";
+    "sha256:b0253a3aff00da400668344c5c722ef264a95cac2480a9daefb10d4a985f76e0";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced by the #46 slice C line-count rebind onto main a90e69c73: main's own approval, kept unchanged.
+    "sha256:2faab4e9a06dac179b8cea4f14b8d780bfbb6765d9439579a1c58695ba9ca689",
+    // Displaced by the #58 startable list rebind onto main 3f14137d0: the #76 plugin pages approval, kept unchanged.
+    "sha256:1c141ac78d679b2bc98ce7f6ce69d5aa91aeed6c893e5f18fa8e264b319de2c3",
     // Displaced by the #76 plugin pages main-merge rebind bind onto main ad5241ce6: main's own approval, kept unchanged.
     "sha256:da92d61ec30ee51d5af5b216449f1be52859fd22b13f921b6d078680cdc62bcb",
     // Displaced by the #75 evaluation names rebind onto main d5b78073a: main's own approval, kept unchanged.

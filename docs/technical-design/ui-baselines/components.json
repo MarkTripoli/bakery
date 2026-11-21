@@ -1,5 +1,5 @@
 {
-  "revision": "39b07ca803c388d2760a1a85efb39fe7ebb5000b14258df1c65aeda706a04ca3",
+  "revision": "cc9f0e7658333ee1578a0f67fde8f441551bf9142f01ac0a5bdb310df0dcb235",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -21086,6 +21086,177 @@
           "rtl"
         ]
       }
+    },
+    {
+      "id": "ui.mentionPicker",
+      "name": "MentionPicker",
+      "description": "A listbox of the people a writer may mention, hung above a text field: quiet rows, a badge only for the exception, muted rows that cannot be chosen, and its loading, empty and failed states.",
+      "level": "organism",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Organisms/MentionPicker",
+      "usage": {
+        "whenToUse": "Offer the people a writer may mention while they type an @ in a message or comment field.",
+        "whenNotToUse": "Do not use for choosing one value from a short fixed list (Combobox) or for commands (Command).",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy",
+          "ui.intentional-overflow"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "listbox",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "The text field keeps focus and owns the list: Up and Down move the highlight, Enter or Tab chooses, Escape closes and keeps the typed text."
+        ],
+        "notes": "Each option's accessible name includes its state; a person who cannot be chosen is aria-disabled. The caller wires aria-controls and aria-activedescendant on the field."
+      },
+      "tokens": [
+        "--border-default",
+        "--border-none",
+        "--color-border",
+        "--color-canvas",
+        "--color-control-border",
+        "--color-destructive",
+        "--color-destructive-surface",
+        "--color-fg",
+        "--color-fg-disabled",
+        "--color-fg-muted",
+        "--color-focus",
+        "--color-selection",
+        "--color-selection-surface",
+        "--color-status-neutral",
+        "--color-status-success",
+        "--color-status-success-surface",
+        "--color-status-warning",
+        "--color-status-warning-surface",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--focus-offset",
+        "--focus-width",
+        "--icon-stroke-compact",
+        "--radius-control",
+        "--radius-overlay",
+        "--radius-surface",
+        "--space-0",
+        "--space-0-5",
+        "--space-1",
+        "--space-1-5",
+        "--space-2",
+        "--space-2-5",
+        "--space-3",
+        "--space-4",
+        "--space-5",
+        "--space-6",
+        "--space-8",
+        "--target-coarse",
+        "--type-body",
+        "--type-caption",
+        "--type-control",
+        "--type-heading-subsection",
+        "--type-hint",
+        "--type-label",
+        "--type-meta",
+        "--type-notice",
+        "--type-time",
+        "--weight-medium",
+        "--weight-semibold"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises MentionPicker in its rows, loading, empty and failed states.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default",
+            "loading",
+            "empty",
+            "error"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.mentionPicker.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.mentionPicker.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.mentionPicker.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine",
+          "desktop-dark-fine",
+          "system-dark",
+          "phone-light-coarse",
+          "phone-dark-coarse",
+          "rtl"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 73 (revision 2), not in Paper; the Paper manifests have no mention picker."
     },
     {
       "id": "ui.paneSection",

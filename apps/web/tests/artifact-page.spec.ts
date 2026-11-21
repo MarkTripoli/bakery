@@ -5,6 +5,7 @@ import "./helpers/artifact-page-navigation.ts";
 import "./helpers/artifact-page-conflicts.ts";
 import "./helpers/artifact-page-accessibility.ts";
 import "./helpers/artifact-page-authoring.ts";
+import "./helpers/artifact-page-mentions.ts";
 import "./helpers/artifact-page-live-state.ts";
 import "./helpers/artifact-page-bounded-preview.ts";
 import "./helpers/artifact-page-preview-handoff.ts";

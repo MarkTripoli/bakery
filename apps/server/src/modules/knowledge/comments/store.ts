@@ -11,7 +11,11 @@ import {
   commitCommentMentions,
   resolveMentions,
 } from "../../conversation/mentions.ts";
-import { lockArtifactScope, upsertArtifactGrant } from "../artifact-access.ts";
+import {
+  assertAccessLevelAvailable,
+  lockArtifactScope,
+  upsertArtifactGrant,
+} from "../artifact-access.ts";
 import {
   type CommentRow,
   type CommentVersion,
@@ -100,6 +104,7 @@ export async function createComment(
   if (version.content === null) {
     throw new StandardError({ code: "STATE_CONFLICT" });
   }
+  assertAccessLevelAvailable(input.accessLevel);
   let rootVersion = 1;
   if (input.rootId) {
     if (input.anchor) throw new StandardError({ code: "UNPROCESSABLE" });

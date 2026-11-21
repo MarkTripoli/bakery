@@ -552,7 +552,6 @@ const ARTIFACT_GRANT_ACTIONS: ReadonlyMap<
     { target: "version", level: "read_comment" },
   ],
   ["artifactComments.update", { target: "comment", level: "read_comment" }],
-  ["artifactVersions.import", { target: "artifact", level: "edit" }],
 ]);
 
 /**
