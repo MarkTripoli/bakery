@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "547ccc62b40c98376db5f5ef44238a8d23c96495"
+    "1da8f36146ec3c5808c654a7984871838c38bfc2"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:fe08a78d6a08621cb2bd2347a27c7b32fb6503c3d4455b3eb586f2c8e47d8bb1",
-  "reason": "#70 one-paste link by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 547ccc62b40c98376db5f5ef44238a8d23c96495: link codes and link requests on worker enrollment. Main's own approval is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:f244e99e79e9d4bf2976ff8e7a6e23bd8a916e169baed3c8d201b0c2ac6fd769",
+  "reason": "#70 one-paste link QA fixes by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 1da8f36146ec3c5808c654a7984871838c38bfc2: link requests accept only linux or macos as os, and machine names refuse control characters. The approval it displaces is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "547ccc62b40c98376db5f5ef44238a8d23c96495"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:fe08a78d6a08621cb2bd2347a27c7b32fb6503c3d4455b3eb586f2c8e47d8bb1",
+      "reason": "#70 one-paste link by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 547ccc62b40c98376db5f5ef44238a8d23c96495: link codes and link requests on worker enrollment. Main's own approval is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
