@@ -1,0 +1,71 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>#77 slice 5</title><style>:root{--color-border:#E3E6EB;--color-border-strong:#CBD0D8;--color-canvas:#F5F6F8;--color-control-border:#8A939F;--color-destructive:#BE3341;--color-destructive-surface:#FCEEEF;--color-fg:#141A24;--color-fg-muted:#5D6675;--color-fg-disabled:#9AA3B1;--color-focus:#0B63C6;--color-primary:#141A24;--color-primary-foreground:#FFFFFF;--color-selection:#0B63C6;--color-selection-surface:#ECF1F8;--color-status-neutral:#374151;--color-status-neutral-surface:#E5E7EB;--color-status-warning:#8F5A0B;--color-status-warning-surface:#FBF3E4;--color-surface:#FFFFFF;--color-surface-subtle:#EEF0F4;--desk:#D9DCE2;--bar:#E9EBEF;--winb:#B9BFC9;--dot:#B4BAC4;--scrim:rgba(20,26,36,.36);}
+*{box-sizing:border-box}
+body{margin:0;background:var(--desk);font:400 14px/20px Geist,Inter,system-ui,sans-serif;color:var(--color-fg);display:flex;align-items:center;justify-content:center}
+.d7win{background:var(--color-surface);border-radius:10px;box-shadow:0 18px 50px rgba(20,26,36,.28);overflow:hidden;display:flex;flex-direction:column;border:1px solid var(--winb)}
+.d7bar{height:36px;background:var(--bar);border-bottom:1px solid var(--color-border-strong);display:flex;align-items:center;padding:0 12px;font:500 13px/18px Geist,system-ui,sans-serif;color:var(--color-fg-muted);flex:none}
+.d7dots{display:flex;gap:7px}.d7dots i{width:11px;height:11px;border-radius:50%;background:var(--dot);display:block}
+.d7bar .d7t{flex:1;text-align:center;margin-right:50px}
+.d7body{flex:1;display:flex;min-height:0;position:relative}
+.d7center{flex:1;display:flex;align-items:center;justify-content:center;background:var(--color-canvas)}
+.d7panel{width:420px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;padding:32px;display:flex;flex-direction:column;gap:16px}
+.d7sm .d7panel{width:auto;flex:1;margin:0 16px;padding:24px;min-width:0}
+.d7panel h1{font:600 24px/32px Geist,system-ui,sans-serif;letter-spacing:-.02em;margin:0}
+.d7panel p{margin:0;color:var(--color-fg-muted)}
+.d7kv{border:1px solid var(--color-border);border-radius:6px}
+.d7kv div{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border-top:1px solid var(--color-border)}
+.d7kv div:first-child{border-top:0}.d7kv span:first-child{color:var(--color-fg-muted)}
+.d7mono{font:400 13px/20px "Geist Mono",ui-monospace,monospace;overflow-wrap:anywhere}
+.d7btn{font:500 14px/20px Geist,system-ui,sans-serif;height:36px;padding:0 14px;border-radius:4px;border:1px solid var(--color-border-strong);background:var(--color-surface);color:var(--color-fg);display:flex;align-items:center;justify-content:center;white-space:nowrap}
+.d7btn.d7pri{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-foreground)}
+.d7sm .d7btn{height:44px}
+.d7stack{display:flex;flex-direction:column;gap:8px}
+.d7wait{display:flex;gap:10px;align-items:center;border:1px solid var(--color-border);border-radius:6px;padding:10px 12px;background:var(--color-surface-subtle)}
+.d7spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--color-border-strong);border-top-color:var(--color-fg);flex:none}
+.d7wait small{display:block;color:var(--color-fg-muted);font-size:12px;line-height:18px}
+.d7note{border:1px solid var(--color-border);background:var(--color-surface-subtle);border-radius:6px;padding:10px 12px}
+.d7warn{border:1px solid var(--color-status-warning);background:var(--color-status-warning-surface);color:var(--color-status-warning);border-radius:6px;padding:10px 12px}
+.d7side{width:220px;border-right:1px solid var(--color-border);background:var(--color-canvas);padding:16px 12px;display:flex;flex-direction:column;gap:4px;flex:none}
+.d7side b{font-weight:600;padding:6px 8px 12px}.d7side span{padding:7px 8px;border-radius:4px;color:var(--color-fg-muted)}
+.d7side span.d7on{background:var(--color-selection-surface);color:var(--color-fg);font-weight:500}
+.d7main{flex:1;padding:28px 40px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.d7main h1{font:600 24px/32px Geist,system-ui,sans-serif;margin:0}
+.d7ta{border:1px solid var(--color-control-border);border-radius:4px;padding:10px 12px;min-height:84px;font:400 16px/24px Geist,system-ui,sans-serif}
+.d7dim{opacity:.45}
+.d7scrim{position:absolute;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center}
+.d7dlg{background:var(--color-surface);border-radius:8px;box-shadow:0 8px 24px rgba(20,26,36,.16);width:460px;padding:24px;display:flex;flex-direction:column;gap:12px}
+.d7dlg h2{font:600 16px/24px Geist,system-ui,sans-serif;margin:0}.d7dlg p{margin:0;color:var(--color-fg-muted)}
+.d7row{display:flex;gap:8px;justify-content:flex-end}
+
+.q4srv{border:1px solid var(--color-border);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.q4srv small{color:var(--color-fg-muted);font-size:12px;line-height:18px}
+.q4srv .q4line{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.q4notice{border:1px solid var(--color-border);background:var(--color-surface-subtle);border-radius:6px;padding:10px 12px;color:var(--color-fg)}
+.d7panel p.q4notice{color:var(--color-fg)}
+.q4opts{display:flex;flex-direction:column;border:1px solid var(--color-border);border-radius:6px}
+.q4opt{display:flex;gap:10px;padding:12px;border-top:1px solid var(--color-border)}
+.q4opt:first-child{border-top:0}
+.q4radio{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--color-control-border);flex:none;margin-top:2px;display:flex;align-items:center;justify-content:center}
+.q4radio.q4on{border-color:var(--color-fg)}
+.q4radio.q4on::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--color-fg)}
+.q4optb{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.q4optb b{font-weight:500}
+.q4optb small{color:var(--color-fg-muted);font-size:12px;line-height:18px}
+.q4sub{display:flex;justify-content:space-between;gap:12px;color:var(--color-fg-muted)}
+.d7sm .q4sub{flex-direction:column;gap:0}
+.q4field{height:36px;border:1px solid var(--color-control-border);border-radius:4px;padding:0 10px;display:flex;align-items:center;background:var(--color-surface);font:400 14px/20px Geist,system-ui,sans-serif}
+.d7sm .q4field{height:44px}
+.q4field.q4bad{border-color:var(--color-destructive);box-shadow:0 0 0 1px var(--color-destructive)}
+.q4field.q4focus{outline:2px solid var(--color-focus);outline-offset:1px}
+.q4err{color:var(--color-destructive);font-size:13px;line-height:18px}
+.q4caret{width:1px;height:18px;background:var(--color-fg);margin-left:1px}
+
+.q5dlg{background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;box-shadow:0 8px 24px rgba(20,26,36,.16);width:460px;padding:24px;display:flex;flex-direction:column;gap:12px}
+.d7sm .q5dlg{width:auto;flex:1;margin:0 16px;padding:20px;min-width:0}
+.q5dlg h2{font:600 16px/24px Geist,system-ui,sans-serif;margin:0}.q5dlg p{margin:0;color:var(--color-fg-muted)}
+.q5row{display:flex;gap:8px;justify-content:flex-end}
+.d7sm .q5row{flex-direction:column-reverse}
+.q5link{border:1px solid var(--color-border);border-radius:6px;padding:8px 12px;background:var(--color-surface-subtle);display:flex;flex-direction:column;gap:2px}
+.q5link small{color:var(--color-fg-muted);font-size:12px;line-height:18px}
+.q5focus{outline:2px solid var(--color-focus);outline-offset:2px}
+.q5msg{display:flex;flex-direction:column;gap:2px}.q5msg b{font-weight:600}.q5msg span{color:var(--color-fg-muted)}
+body{width:1200px;height:800px}</style></head><body><div class="d7win" style="width:960px;height:640px"><div class="d7bar"><div class="d7dots"><i></i><i></i><i></i></div><div class="d7t">Bakery</div></div><div class="d7body"><div class="d7side d7dim"><b>Bakery</b><span class="d7on">Work</span><span>Issues</span><span>Projects</span><span>Machines</span><span>Library</span><span>Files</span><span>Settings</span></div><div class="d7main d7dim"><h1>Add repository onboarding</h1><div class="q5msg"><b>Agent</b><span>I reviewed the repository profile. The plan adds a readiness check.</span></div><div class="q5msg"><b>A teammate</b><span>Please show missing checks together.</span></div><div class="d7ta">The checks should list every failure at once, so</div></div><div class="d7scrim"><div class="q5dlg"><h2>Bakery can't open this link</h2><p>It does not name a page in Bakery, so nothing was opened. The page you had open has not changed.</p><p>If someone sent it to you, ask them for a new link.</p><div class="q5link"><small>The link</small><span class="d7mono">bakery://open?path=/v1/principals/export</span></div><div class="q5row"><span class="d7btn">Copy the link</span><span class="d7btn d7pri q5focus">Close</span></div></div></div></div></div></body></html>
