@@ -601,6 +601,9 @@ for (
       ).toContainText("Waiting");
       await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
+      // The one thing the reader must do is the primary button.
+      await expect(banner(page).getByRole("button", { name: "Open task" }))
+        .toHaveClass(/ui-button--primary/);
       await still(page, "batch-waiting-approval");
       await banner(page).getByRole("button", { name: "Open task" }).click();
       await expect(page).toHaveURL(new RegExp(`/tasks/${taskOf(421)}$`));
@@ -632,6 +635,8 @@ for (
       await expect(banner(page)).toContainText(
         "The batch carries on when it is answered.",
       );
+      await expect(banner(page).getByRole("button", { name: "Open task" }))
+        .toHaveClass(/ui-button--primary/);
       await still(page, "batch-waiting-question");
     });
 
@@ -686,6 +691,14 @@ for (
       await expect(page.getByRole("heading", { level: 1 })).toContainText(
         "Paused",
       );
+      // Beside Resume, Open task stays secondary, and the row agrees with the sentence.
+      await expect(banner(page).getByRole("button", { name: "Open task" }))
+        .toHaveClass(/ui-button--secondary/);
+      await expect(
+        page.getByRole("listitem").filter({ hasText: "#421" }).or(
+          page.locator("[data-batch-issue][data-selected]"),
+        ).first(),
+      ).toContainText("Waiting");
       await still(page, "batch-paused-waiting");
     });
 

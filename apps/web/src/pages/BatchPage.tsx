@@ -255,7 +255,10 @@ export function BatchPage({ batchId }: { batchId: string }) {
         return currentTask === null ? null : (
           <UI.Button
             key={action}
-            variant="secondary"
+            // The one thing a person must do is the primary button while the batch waits for them.
+            variant={waitingFor !== null && batch.state === "running"
+              ? "primary"
+              : "secondary"}
             onClick={openTask(currentTask)}
           >
             {translate("batches.action.openTask" as never)}
@@ -457,10 +460,8 @@ export function BatchPage({ batchId }: { batchId: string }) {
       );
   };
   const issueBadge = (issue: BatchIssueResponse) => {
-    const badge = issueBadgeFor(
-      issue.state,
-      waitingFor !== null && batch.state === "running",
-    );
+    // The row agrees with the banner in every state that says the issue waits.
+    const badge = issueBadgeFor(issue.state, waitingFor !== null);
     return (
       <UI.Badge tone={badge.tone}>{translate(badge.key as never)}</UI.Badge>
     );
