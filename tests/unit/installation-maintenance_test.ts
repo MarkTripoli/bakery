@@ -145,7 +145,7 @@ Deno.test("the guard lets work through while the switch is off, absent or lapsed
     ]
   ) {
     const { transaction, queries } = transactionWith(row);
-    await assertNotQuiesced(transaction);
+    await assertNotQuiesced(transaction, "intake");
     // One read: the switch row, and whether a restore holds the installation.
     assertEquals(queries.length, 1);
     assert(queries[0].includes("bakery.installation_maintenance"));
@@ -160,7 +160,7 @@ Deno.test("the guard refuses while draining or quiesced with a retryable 503", a
       now,
     });
     const error = await assertRejects(
-      () => assertNotQuiesced(transaction),
+      () => assertNotQuiesced(transaction, "intake"),
       StandardError,
     );
     assertEquals(error.code, "INSTALLATION_QUIESCED");
@@ -236,7 +236,9 @@ const restoring = (row: Row | null, held: boolean) => {
 Deno.test("a restore hold refuses with a non-retryable 503, in one read, and reads only", async () => {
   for (const row of [null, { state: "off", leaseExpiresAt: at(60_000), now }]) {
     const { transaction, queries } = restoring(row, true);
-    const error = await assertRejects(() => assertNotQuiesced(transaction));
+    const error = await assertRejects(() =>
+      assertNotQuiesced(transaction, "intake")
+    );
     assert(error instanceof StandardError);
     assertEquals(error.code, "INSTALLATION_RESTORING");
     assertEquals(error.params?.retryAfterSeconds, undefined);
@@ -251,7 +253,9 @@ Deno.test("a restore hold wins over a backup hold, and a released restore change
     { state: "quiesced", leaseExpiresAt: at(20_000), now },
     true,
   );
-  const error = await assertRejects(() => assertNotQuiesced(both.transaction));
+  const error = await assertRejects(() =>
+    assertNotQuiesced(both.transaction, "intake")
+  );
   assert(error instanceof StandardError);
   assertEquals(error.code, "INSTALLATION_RESTORING");
 
@@ -260,13 +264,13 @@ Deno.test("a restore hold wins over a backup hold, and a released restore change
     { state: "off", leaseExpiresAt: at(60_000), now },
     false,
   );
-  await assertNotQuiesced(released.transaction);
+  await assertNotQuiesced(released.transaction, "intake");
   const backupOnly = restoring(
     { state: "quiesced", leaseExpiresAt: at(20_000), now },
     false,
   );
   const quiesced = await assertRejects(() =>
-    assertNotQuiesced(backupOnly.transaction)
+    assertNotQuiesced(backupOnly.transaction, "intake")
   );
   assert(quiesced instanceof StandardError);
   assertEquals(quiesced.code, "INSTALLATION_QUIESCED");
@@ -277,6 +281,7 @@ Deno.test("the non-throwing check treats a restore hold as held", async () => {
     await isQuiesced(
       restoring({ state: "off", leaseExpiresAt: at(60_000), now }, true)
         .transaction,
+      "intake",
     ),
     true,
   );
@@ -284,6 +289,7 @@ Deno.test("the non-throwing check treats a restore hold as held", async () => {
     await isQuiesced(
       restoring({ state: "off", leaseExpiresAt: at(60_000), now }, false)
         .transaction,
+      "intake",
     ),
     false,
   );

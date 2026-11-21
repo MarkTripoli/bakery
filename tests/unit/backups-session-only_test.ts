@@ -25,6 +25,7 @@ const SESSION_ONLY_ACTIONS = [
   BackupImplementedAction.BackupSchedulePut,
   BackupImplementedAction.BackupOffsitePut,
   BackupImplementedAction.BackupOffsiteVerify,
+  BackupImplementedAction.InstallationRestoreStep,
 ] as const;
 
 /** The reads: an administrator may use them with a token. */
@@ -33,6 +34,7 @@ const READ_ACTIONS = [
   BackupImplementedAction.BackupsStatus,
   BackupImplementedAction.BackupScheduleGet,
   BackupImplementedAction.BackupOffsiteGet,
+  BackupImplementedAction.InstallationRestoreGet,
 ] as const;
 
 function registry() {
