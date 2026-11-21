@@ -1638,6 +1638,63 @@ a.bakery-application-rail__link:hover {
   inline-size: 100%;
   max-inline-size: 520px; /* auth.css:10 .settings-content>.form-content */
 }
+/* The batch start page (#58): the form (to 620px), a 300px summary beside it, the buttons under the form. */
+.ui-form-with-summary {
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: minmax(0, 1fr);
+  inline-size: 100%;
+  /* One column: no wider than the form is beside its summary, so the buttons end at the form's edge. */
+  max-inline-size: var(--layout-message);
+}
+.ui-form-with-summary__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-inline-size: 0;
+}
+.ui-form-with-summary__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+.ui-form-with-summary__actions {
+  border-block-start: var(--border-default) solid var(--color-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  padding-block-start: var(--space-6);
+}
+@media (min-width: 1280px) {
+  .ui-form-with-summary {
+    align-items: start;
+    column-gap: var(--space-8);
+    grid-template-areas:
+      "form aside"
+      "actions aside";
+    grid-template-columns: minmax(0, var(--layout-message))
+      var(--layout-form-summary);
+    max-inline-size: none;
+  }
+  .ui-form-with-summary__form {
+    grid-area: form;
+  }
+  .ui-form-with-summary__aside {
+    grid-area: aside;
+  }
+  .ui-form-with-summary__actions {
+    grid-area: actions;
+  }
+}
+@media (max-width: 743px) {
+  /* Stacked, the main step comes first: the buttons are written the way out first. */
+  .ui-form-with-summary__actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+}
 @media (max-width: 743px) {
   .ui-settings-content {
     gap: var(--space-6); /* auth.css:13 .settings-content 24px */

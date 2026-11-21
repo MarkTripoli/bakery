@@ -412,12 +412,42 @@ type BatchRow = {
   limits: unknown;
   state: string;
   canceled_at: Date | null;
+  canceled_by: string | null;
   completed_at: Date | null;
   created_at: Date;
   updated_at: Date;
   version: number;
   cursor_created_at?: string;
 };
+
+/**
+ * What a pin names, for display: the definition's id and its current name, or a
+ * null name when the pin names nothing this organization can resolve. The pin
+ * itself stays the opaque record of what was measured; this is only a read of
+ * the name it points at.
+ */
+async function pinDefinition(
+  tx: PgTransactionClient,
+  organizationId: string,
+  pin: unknown,
+): Promise<{ definitionId: string; name: string | null } | null> {
+  if (typeof pin !== "object" || pin === null) return null;
+  const { kind, id } = pin as { kind?: unknown; id?: unknown };
+  if (typeof id !== "string" || !UUID.test(id)) return null;
+  const table = kind === "agentVersion" || kind === "agent"
+    ? "agent_definitions"
+    : kind === "workflowVersion" || kind === "workflow"
+    ? "workflow_definitions"
+    : null;
+  if (table === null) return { definitionId: id, name: null };
+  const found = await tx.query<{ name: string }>(
+    `select name from bakery.${table} where organization_id = $1 and id = $2`,
+    [organizationId, id],
+  );
+  return { definitionId: id, name: found.rows[0]?.name ?? null };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type BatchCreate = {
   datasetId: string;
@@ -584,12 +614,21 @@ async function viewOf(
       order by ordinal, scorer_id, repetition limit 100`,
     [organizationId, row.id],
   );
+  const dataset = await tx.query<{ name: string }>(
+    "select name from bakery.evaluation_datasets where organization_id = $1 and id = $2",
+    [organizationId, row.dataset_id],
+  );
   return {
     id: row.id,
     datasetId: row.dataset_id,
+    datasetName: dataset.rows[0]?.name ?? "",
     datasetDigest: row.dataset_digest,
     candidate: row.candidate,
+    candidateDefinition: await pinDefinition(tx, organizationId, row.candidate),
     baseline: row.baseline,
+    baselineDefinition: row.baseline === null
+      ? null
+      : await pinDefinition(tx, organizationId, row.baseline),
     scorers: row.scorers,
     state,
     requiredCount: required,
@@ -602,6 +641,7 @@ async function viewOf(
     ),
     hiddenCount: 0,
     canceledAt: row.canceled_at ? iso(row.canceled_at) : null,
+    canceledBy: row.canceled_by,
     completedAt: row.completed_at ? iso(row.completed_at) : null,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
@@ -727,11 +767,15 @@ type ResultRow = {
   updated_at: Date;
 };
 
-const resultOut = (row: ResultRow) => ({
+/** A result as listed: with the name of the case it measured. */
+type ListedResultRow = ResultRow & { case_name: string };
+
+const resultOut = (row: ListedResultRow) => ({
   id: row.id,
   batchId: row.batch_id,
   role: row.role,
   caseId: row.case_id,
+  caseName: row.case_name,
   caseRevision: Number(row.case_revision),
   scorerId: row.scorer_id,
   scorerRevision: Number(row.scorer_revision),
@@ -768,12 +812,14 @@ export function createResultLister(secret: string) {
       schemaVersion: 1,
     };
     const position = await decodeCursor(secret, input.cursor, binding);
-    const found = await tx.query<ResultRow>(
-      `select * from bakery.evaluation_results
-        where organization_id = $1 and batch_id = $2
-          and ($3::text is null or state = $3)
-          and ($4::integer is null or (ordinal, id) > ($4, $5::uuid))
-        order by ordinal, id limit $6`,
+    const found = await tx.query<ListedResultRow>(
+      `select r.*, c.name as case_name from bakery.evaluation_results as r
+         join bakery.evaluation_cases as c
+           on c.organization_id = r.organization_id and c.id = r.case_id
+        where r.organization_id = $1 and r.batch_id = $2
+          and ($3::text is null or r.state = $3)
+          and ($4::integer is null or (r.ordinal, r.id) > ($4, $5::uuid))
+        order by r.ordinal, r.id limit $6`,
       [
         organizationId,
         batchId,
