@@ -5548,4 +5548,6 @@
   "library.evaluation.attempts.loading": "⟪Loading the attempts⟫",
   "library.evaluation.attempts.error": "⟪The attempts could not be loaded.⟫",
   "library.evaluation.attempts.line": "⟪Attempt {number} · {time} · {state}⟫",
+  "library.evaluations.gate.cannot.bodyMany": "⟪{count} of {required} required results were not measured, so nobody can say whether {rule}. This is not a pass. They are under {states} below.⟫",
+  "library.evaluation.gate.spreadItem": "⟪{state} ({count})⟫"
 }

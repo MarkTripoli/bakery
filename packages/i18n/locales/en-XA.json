@@ -5548,4 +5548,6 @@
   "library.evaluation.attempts.loading": "⟦Ļôàðïñĝ ŧĥë àŧŧëɱþŧš ŧëšŧ⟧",
   "library.evaluation.attempts.error": "⟦Ŧĥë àŧŧëɱþŧš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ⟧",
   "library.evaluation.attempts.line": "⟦Àŧŧëɱþŧ {number} · {time} · {state} ŧëšŧ çôþÿŧ⟧",
+  "library.evaluations.gate.cannot.bodyMany": "⟦{count} ôƒ {required} ŕëǫûïŕëð ŕëšûļŧš ŵëŕë ñôŧ ɱëàšûŕëð, šô ñôƀôðÿ çàñ šàÿ ŵĥëŧĥëŕ {rule}. Ŧĥïš ïš ñôŧ à þàšš. Ŧĥëÿ àŕë ûñðëŕ {states} ƀëļôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "library.evaluation.gate.spreadItem": "⟦{state} ({count}) ŧëš⟧"
 }
