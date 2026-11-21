@@ -33384,6 +33384,50 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version a stop must name in If-Match."
       }
     },
+    "SkillSourceUpdateCheck": {
+      "fields": [
+        "skillId",
+        "sourceId",
+        "status",
+        "requestedRevision",
+        "installedRevision",
+        "latestRevision",
+        "lastCheckedAt",
+        "problem",
+        "changes",
+        "changesTruncated"
+      ],
+      "fieldTypes": {
+        "skillId": "uuid",
+        "sourceId": "uuid",
+        "status": "enum(current|update_available|unreachable)",
+        "requestedRevision": "string",
+        "installedRevision": "string",
+        "latestRevision": "string|null",
+        "lastCheckedAt": "timestamp|null",
+        "problem": "string|null",
+        "changes": "json[]",
+        "changesTruncated": "boolean"
+      },
+      "nullableFields": [
+        "latestRevision",
+        "lastCheckedAt",
+        "problem"
+      ],
+      "description": "What a skill's source holds now compared with the installed version: whether an update is available and, file by file, what would change. Looking never installs anything; taking the update is a separate step.",
+      "fieldDescriptions": {
+        "skillId": "Stable UUID of the skill that was checked.",
+        "sourceId": "Stable UUID of the registered source the skill came from.",
+        "status": "current when the source holds the same files as the installed version, update_available when any file was added, removed or changed, unreachable when the source could not be read (the skill still works).",
+        "requestedRevision": "The branch, tag or commit the skill's latest import followed; the check reads the source at this same name, so a moving branch finds what is newer.",
+        "installedRevision": "The exact source revision the installed version was imported from.",
+        "latestRevision": "The exact revision the source's requested revision points to now, or null when the source could not be reached.",
+        "lastCheckedAt": "UTC time of the last check that reached the source, which this check moves forward when it succeeds; null when the source was never reached.",
+        "problem": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED or SOURCE_REVISION_MISMATCH); null otherwise.",
+        "changes": "One entry per file that differs, by path: path, change (added, removed or changed), installedSha256 and latestSha256 (or null on the side without the file), installedSizeBytes and latestSizeBytes (or null), diff (hunks of lines with three lines of context, a line kept starting with a space, removed with - and added with +; null when none is shown) and diffOmitted (binary, too_large or mode_only when diff is null for that reason, otherwise null). At most 200.",
+        "changesTruncated": "True when more than 200 files differ and the list stops at the first 200 by path."
+      }
+    },
     "SkillUsage": {
       "fields": [
         "kind",

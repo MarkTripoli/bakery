@@ -3149,6 +3149,32 @@
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/source-update",
+      "action": "skills.sourceUpdate",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "SkillSourceUpdateCheck",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "MALFORMED_REQUEST",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft/check",
       "action": "skillDrafts.check",
       "access": "Owner for personal; Admin for organization",
@@ -14004,6 +14030,7 @@
     "skillDrafts.update",
     "skillDrafts.discard",
     "skillDrafts.check",
+    "skills.sourceUpdate",
     "skillDrafts.publish",
     "skillDraftFiles.save",
     "skillDraftFiles.get",
@@ -22207,6 +22234,70 @@
             },
             "500": {
               "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/skills/{id}/source-update": {
+        "post": {
+          "operationId": "skills.sourceUpdate",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SkillSourceUpdateCheck"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdPath"
+                }
+              }
             }
           }
         }
@@ -55372,6 +55463,7 @@
                 "skillDrafts.get",
                 "skillDrafts.update",
                 "skillDrafts.discard",
+                "skills.sourceUpdate",
                 "skillDrafts.check",
                 "skillDrafts.publish",
                 "skillDraftFiles.save",
@@ -105477,6 +105569,7 @@
                 "skillDrafts.get",
                 "skillDrafts.update",
                 "skillDrafts.discard",
+                "skills.sourceUpdate",
                 "skillDrafts.check",
                 "skillDrafts.publish",
                 "skillDraftFiles.save",
@@ -106127,6 +106220,7 @@
                 "skillDrafts.get",
                 "skillDrafts.update",
                 "skillDrafts.discard",
+                "skills.sourceUpdate",
                 "skillDrafts.check",
                 "skillDrafts.publish",
                 "skillDraftFiles.save",
@@ -106777,6 +106871,7 @@
                 "skillDrafts.get",
                 "skillDrafts.update",
                 "skillDrafts.discard",
+                "skills.sourceUpdate",
                 "skillDrafts.check",
                 "skillDrafts.publish",
                 "skillDraftFiles.save",
@@ -152326,6 +152421,7 @@
                       "skillDrafts.get",
                       "skillDrafts.update",
                       "skillDrafts.discard",
+                      "skills.sourceUpdate",
                       "skillDrafts.check",
                       "skillDrafts.publish",
                       "skillDraftFiles.save",
@@ -254461,6 +254557,258 @@
           "additionalProperties": false,
           "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both."
         },
+        "SkillSourceUpdateCheck": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "skillId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the skill that was checked."
+            },
+            "sourceId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the registered source the skill came from."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "current",
+                "update_available",
+                "unreachable"
+              ],
+              "description": "current when the source holds the same files as the installed version, update_available when any file was added, removed or changed, unreachable when the source could not be read (the skill still works)."
+            },
+            "requestedRevision": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The branch, tag or commit the skill's latest import followed; the check reads the source at this same name, so a moving branch finds what is newer."
+            },
+            "installedRevision": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The exact source revision the installed version was imported from."
+            },
+            "latestRevision": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The exact revision the source's requested revision points to now, or null when the source could not be reached."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "SkillSourceUpdateCheck.latestRevision may be null in this transport value."
+            },
+            "lastCheckedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC time of the last check that reached the source, which this check moves forward when it succeeds; null when the source was never reached."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "SkillSourceUpdateCheck.lastCheckedAt may be null in this transport value."
+            },
+            "problem": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED or SOURCE_REVISION_MISMATCH); null otherwise."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "SkillSourceUpdateCheck.problem may be null in this transport value."
+            },
+            "changes": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SkillSourceUpdateCheck____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/SkillSourceUpdateCheck____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "One entry per file that differs, by path: path, change (added, removed or changed), installedSha256 and latestSha256 (or null on the side without the file), installedSizeBytes and latestSizeBytes (or null), diff (hunks of lines with three lines of context, a line kept starting with a space, removed with - and added with +; null when none is shown) and diffOmitted (binary, too_large or mode_only when diff is null for that reason, otherwise null). At most 200. Each array item follows this format."
+              },
+              "description": "One entry per file that differs, by path: path, change (added, removed or changed), installedSha256 and latestSha256 (or null on the side without the file), installedSizeBytes and latestSizeBytes (or null), diff (hunks of lines with three lines of context, a line kept starting with a space, removed with - and added with +; null when none is shown) and diffOmitted (binary, too_large or mode_only when diff is null for that reason, otherwise null). At most 200."
+            },
+            "changesTruncated": {
+              "type": "boolean",
+              "description": "True when more than 200 files differ and the list stops at the first 200 by path."
+            }
+          },
+          "required": [
+            "skillId",
+            "sourceId",
+            "status",
+            "requestedRevision",
+            "installedRevision",
+            "latestRevision",
+            "lastCheckedAt",
+            "problem",
+            "changes",
+            "changesTruncated"
+          ],
+          "additionalProperties": false,
+          "description": "What a skill's source holds now compared with the installed version: whether an update is available and, file by file, what would change. Looking never installs anything; taking the update is a separate step."
+        },
+        "SkillSourceUpdateCheck____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SkillSourceUpdateCheck____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/SkillSourceUpdateCheck____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SkillSourceUpdateCheck____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/SkillSourceUpdateCheck____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
         "SkillUsage": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -265615,7 +265963,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:d9303f6d7ee363e5d86ef3d73e065c016ce3fe6516c3020232fb0306c074bf0e",
+  "compatibilityDigest": "sha256:ff9a705a445e2ee0986d2f0babf2ac73d5e65c5bd317c0baa43aa2b21ea10a94",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -273009,6 +273357,7 @@
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
+            "skills.sourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
@@ -323288,6 +323637,7 @@
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
+            "skills.sourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
@@ -323938,6 +324288,7 @@
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
+            "skills.sourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
@@ -324588,6 +324939,7 @@
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
+            "skills.sourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
@@ -370287,6 +370639,7 @@
                   "skillDrafts.get",
                   "skillDrafts.update",
                   "skillDrafts.discard",
+                  "skills.sourceUpdate",
                   "skillDrafts.check",
                   "skillDrafts.publish",
                   "skillDraftFiles.save",
@@ -472555,6 +472908,260 @@
       ],
       "additionalProperties": false,
       "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both."
+    },
+    "SkillSourceUpdateCheck": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "skillId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the skill that was checked."
+        },
+        "sourceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the registered source the skill came from."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "current",
+            "update_available",
+            "unreachable"
+          ],
+          "description": "current when the source holds the same files as the installed version, update_available when any file was added, removed or changed, unreachable when the source could not be read (the skill still works)."
+        },
+        "requestedRevision": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The branch, tag or commit the skill's latest import followed; the check reads the source at this same name, so a moving branch finds what is newer."
+        },
+        "installedRevision": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The exact source revision the installed version was imported from."
+        },
+        "latestRevision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The exact revision the source's requested revision points to now, or null when the source could not be reached."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillSourceUpdateCheck.latestRevision may be null in this transport value."
+        },
+        "lastCheckedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC time of the last check that reached the source, which this check moves forward when it succeeds; null when the source was never reached."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillSourceUpdateCheck.lastCheckedAt may be null in this transport value."
+        },
+        "problem": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED or SOURCE_REVISION_MISMATCH); null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillSourceUpdateCheck.problem may be null in this transport value."
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "One entry per file that differs, by path: path, change (added, removed or changed), installedSha256 and latestSha256 (or null on the side without the file), installedSizeBytes and latestSizeBytes (or null), diff (hunks of lines with three lines of context, a line kept starting with a space, removed with - and added with +; null when none is shown) and diffOmitted (binary, too_large or mode_only when diff is null for that reason, otherwise null). At most 200. Each array item follows this format."
+          },
+          "description": "One entry per file that differs, by path: path, change (added, removed or changed), installedSha256 and latestSha256 (or null on the side without the file), installedSizeBytes and latestSizeBytes (or null), diff (hunks of lines with three lines of context, a line kept starting with a space, removed with - and added with +; null when none is shown) and diffOmitted (binary, too_large or mode_only when diff is null for that reason, otherwise null). At most 200."
+        },
+        "changesTruncated": {
+          "type": "boolean",
+          "description": "True when more than 200 files differ and the list stops at the first 200 by path."
+        }
+      },
+      "required": [
+        "skillId",
+        "sourceId",
+        "status",
+        "requestedRevision",
+        "installedRevision",
+        "latestRevision",
+        "lastCheckedAt",
+        "problem",
+        "changes",
+        "changesTruncated"
+      ],
+      "additionalProperties": false,
+      "description": "What a skill's source holds now compared with the installed version: whether an update is available and, file by file, what would change. Looking never installs anything; taking the update is a separate step.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "SkillUsage": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
