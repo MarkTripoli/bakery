@@ -147,6 +147,8 @@ export async function openAuthFixture(options: {
   draftIsolation?: Parameters<typeof createApp>[0]["draftIsolation"];
   skillFileRoot?: string;
   skillFileStore?: SkillFileStoreOperations;
+  /** Where a skill source is read again for an update; tests inject a fake so none reaches the network. */
+  skillSourceAdapter?: Parameters<typeof createApp>[0]["skillSourceAdapter"];
   /** Skill storage verification probe; tests inject one so none reaches R2. */
   skillStorageProbe?: Parameters<typeof createApp>[0]["skillStorageProbe"];
   emailSend?: Parameters<typeof createApp>[0]["emailSend"];
@@ -275,6 +277,7 @@ export async function openAuthFixture(options: {
       ticketNoteWriter: options.ticketNoteWriter,
       draftIsolation: options.draftIsolation,
       skillFileStore: options.skillFileStore,
+      skillSourceAdapter: options.skillSourceAdapter,
       skillStorageProbe: options.skillStorageProbe,
       backupDestinationProbe: options.backupDestinationProbe,
       backupDestinationResolver: options.backupDestinationResolver,
