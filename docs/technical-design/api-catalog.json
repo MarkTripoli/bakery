@@ -2859,7 +2859,7 @@
       "action": "skills.list",
       "access": "Developer",
       "permission": "skill:read",
-      "input": "CursorQuery",
+      "input": "SkillQuery",
       "output": "Page<Skill>",
       "event": "",
       "mcp": "bakery_skills_list",
