@@ -163,7 +163,18 @@ fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
                     }
                     false
                 }
-                Navigation::Refuse(reason) => {
+                Navigation::System => {
+                    let opened = webview
+                        .app_handle()
+                        .opener()
+                        .open_url(url.as_str(), None::<&str>)
+                        .is_ok();
+                    if let Some(shell) = shell {
+                        shell.report("link_to_system", json!({ "opened": opened }));
+                    }
+                    false
+                }
+                Navigation::Refuse { reason, .. } => {
                     if let Some(shell) = shell {
                         shell.report("link_refused", json!({ "reason": reason }));
                     }

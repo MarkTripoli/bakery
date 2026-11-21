@@ -16,8 +16,24 @@ pub enum Navigation {
     Stay,
     /// A web address elsewhere: the system browser opens it, the window stays where it is.
     Browser,
-    /// Not followed at all, with the reason kept for the log.
-    Refuse(&'static str),
+    /// `mailto:` and `tel:`: handed to the system, as a browser does.
+    System,
+    /// Not followed at all. The scheme is what the "not a web link" dialog names; it is empty when
+    /// the text is not an address at all.
+    Refuse { scheme: String, reason: &'static str },
+}
+
+/// Paths the server answers itself or that start or end a sign-in. The web router serves every
+/// other path, and a link may only open a page: never an API call, a health check, a sign-in or a
+/// sign-out.
+const SERVER_OWNED: [&str; 9] = [
+    "/v1", "/api", "/auth", "/health", "/mcp", "/_bakery", "/.well-known", "/desktop", "/oauth",
+];
+const SIGN_IN_OUT: [&str; 2] = ["/sign-in", "/sign-out"];
+
+fn owns(path: &str, prefix: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower == prefix || lower.starts_with(&format!("{prefix}/"))
 }
 
 /// The longest page address an `open` link may carry.
@@ -25,11 +41,14 @@ const MAX_PATH: usize = 2048;
 
 /// Decide a navigation. `server` is the connected server's address as configured.
 pub fn navigation(server: &str, target: &str) -> Navigation {
+    let refuse = |scheme: &str, reason| Navigation::Refuse { scheme: scheme.to_string(), reason };
     let Ok(url) = Url::parse(target) else {
-        return Navigation::Refuse("not a url");
+        return refuse("", "not a url");
     };
-    if !url.username().is_empty() || url.password().is_some() {
-        return Navigation::Refuse("carries a login");
+    if matches!(url.scheme(), "https" | "http")
+        && (!url.username().is_empty() || url.password().is_some())
+    {
+        return refuse(url.scheme(), "carries a login");
     }
     match url.scheme() {
         "https" | "http" => {
@@ -41,7 +60,8 @@ pub fn navigation(server: &str, target: &str) -> Navigation {
         }
         // The app's own pages, in the form the web view reports them.
         "tauri" if origin_of(&url) == ORIGIN_UNIX => Navigation::Stay,
-        _ => Navigation::Refuse("not a web address"),
+        "mailto" | "tel" => Navigation::System,
+        scheme => refuse(scheme, "not a web address"),
     }
 }
 
@@ -85,6 +105,9 @@ fn page_path(path: &str) -> Result<&str, &'static str> {
         return Err("path holds a forbidden character");
     }
     let before_query = path.split(['?', '#']).next().unwrap_or_default();
+    if SERVER_OWNED.iter().chain(SIGN_IN_OUT.iter()).any(|p| owns(before_query, p)) {
+        return Err("not a page of the web app");
+    }
     if before_query
         .split('/')
         .any(|segment| matches!(segment, ".." | "%2e%2e" | "%2E%2E" | ".%2e" | "%2e."))
@@ -142,7 +165,7 @@ mod tests {
     fn an_address_with_a_login_is_never_followed() {
         assert_eq!(
             navigation(SERVER, "https://bakery.example.com@evil.test/"),
-            Navigation::Refuse("carries a login")
+            Navigation::Refuse { scheme: "https".into(), reason: "carries a login" }
         );
     }
 
@@ -157,7 +180,50 @@ mod tests {
             "ftp://bakery.example.com/",
             "not a url",
         ] {
-            assert!(matches!(navigation(SERVER, odd), Navigation::Refuse(_)), "{odd}");
+            assert!(matches!(navigation(SERVER, odd), Navigation::Refuse { .. }), "{odd}");
+        }
+    }
+
+    #[test]
+    fn mail_and_phone_links_go_to_the_system() {
+        assert_eq!(navigation(SERVER, "mailto:ana@example.com"), Navigation::System);
+        assert_eq!(navigation(SERVER, "tel:+15550100"), Navigation::System);
+    }
+
+    #[test]
+    fn a_refusal_names_the_scheme_the_dialog_shows() {
+        assert_eq!(
+            navigation(SERVER, "javascript:alert(1)"),
+            Navigation::Refuse { scheme: "javascript".into(), reason: "not a web address" }
+        );
+        assert_eq!(
+            navigation(SERVER, "file:///etc/passwd"),
+            Navigation::Refuse { scheme: "file".into(), reason: "not a web address" }
+        );
+        assert_eq!(
+            navigation(SERVER, "nonsense"),
+            Navigation::Refuse { scheme: String::new(), reason: "not a url" }
+        );
+    }
+
+    #[test]
+    fn an_open_link_never_reaches_an_api_a_health_check_or_a_sign_in() {
+        for path in [
+            "/v1/tasks", "/v1", "/api/x", "/auth/callback", "/health/ready", "/health", "/mcp",
+            "/_bakery/preview/exchange", "/.well-known/x", "/desktop/handoff", "/oauth/authorize",
+            "/sign-in", "/sign-out", "/sign-in/two-factor", "/V1/tasks", "/Sign-Out",
+            "/v1?x=1", "/sign-out#x",
+        ] {
+            let raw = format!("bakery://open?path={}", path.replace('/', "%2F").replace('?', "%3F").replace('#', "%23"));
+            assert_eq!(open_target(&raw), Err("not a page of the web app"), "{path}");
+        }
+    }
+
+    #[test]
+    fn pages_that_merely_start_like_a_reserved_path_open() {
+        for path in ["/v10/x", "/healthy", "/authors", "/tasks/v1", "/settings/auth"] {
+            let raw = format!("bakery://open?path={}", path.replace('/', "%2F"));
+            assert_eq!(open_target(&raw), Ok(path.to_string()), "{path}");
         }
     }
 
