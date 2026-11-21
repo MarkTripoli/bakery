@@ -8,15 +8,17 @@
  *   state. A format that does not state a duration gets no duration, not
  *   "unknown" and not `0`; a reader who cannot tell measured numbers from
  *   placeholders learns to distrust the line.
- * - **The app's own formatting.** Bytes go through the same rule as
- *   `TaskRunArtifactCard` — `Intl.NumberFormat` with one fraction digit over
- *   kilobytes, and the catalog's own unit — so the facts line and the artifact
- *   card never disagree about how big a file is.
+ * - **The app's own formatting.** Bytes go through the Files screens' formatter
+ *   (`formatFileSize`: the catalog's unit keys, one fraction digit at most), so
+ *   this line and the Size row beside it never disagree about how big a file is.
+ *   "0.1 KiB" above "Size 77 B" is two facts, one of them wrong.
  *
  * A refusal produces no line at all: the refusal is already on screen as its
  * own state, and repeating it under an empty preview would say it twice.
  */
+import type { SupportedLocale } from "@bakery/i18n";
 import type { ArtifactProbeResult } from "@bakery/contracts/artifact-probe";
+import { formatFileSize } from "./file-size.ts";
 
 /** The translator this helper needs, injected so it stays free of React. */
 export type PreviewFactsTranslate = (
@@ -25,16 +27,16 @@ export type PreviewFactsTranslate = (
 ) => string;
 
 /**
- * A duration as minutes and seconds, which is how a player shows it.
- *
- * Rounded down, like a player's elapsed counter: 12.5 seconds is "0:12", not
- * "0:13". Rounding up would claim a length the file does not have yet.
+ * A duration split into minutes and seconds, which is how the catalog says it:
+ * "2 min 14 s". Rounded down, like a player's elapsed counter: 12.5 seconds is
+ * "0 min 12 s", not "0 min 13 s" -- rounding up would claim a length the file
+ * does not have yet.
  */
-function formatDuration(durationMs: number): string {
+function durationParts(
+  durationMs: number,
+): { minutes: number; seconds: number } {
   const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  return { minutes: Math.floor(totalSeconds / 60), seconds: totalSeconds % 60 };
 }
 
 /**
@@ -43,7 +45,7 @@ function formatDuration(durationMs: number): string {
  */
 export function previewFacts(
   probe: ArtifactProbeResult | null,
-  locale: string,
+  locale: SupportedLocale,
   t: PreviewFactsTranslate,
 ): string {
   if (probe === null || probe.status !== "described") return "";
@@ -61,20 +63,21 @@ export function previewFacts(
     );
   }
   if (probe.durationMs !== undefined) {
+    const { minutes, seconds } = durationParts(probe.durationMs);
+    // Under a minute, "0 min 2 s" states a zero that is not a measurement. The
+    // catalog has a seconds-only sentence for exactly this, and "2 min 14 s"
+    // keeps its minutes (#437, UX review).
     facts.push(
-      t("files.preview.facts.duration", {
-        duration: formatDuration(probe.durationMs),
-      }),
+      minutes === 0
+        ? t("files.preview.facts.durationSeconds", { seconds })
+        : t("files.preview.facts.duration", { minutes, seconds }),
     );
   }
   if (probe.lineCount !== undefined) {
     facts.push(t("files.preview.facts.lines", { lines: probe.lineCount }));
   }
-  facts.push(
-    t("tasks.run.artifact.size", {
-      size: new Intl.NumberFormat(locale, { maximumFractionDigits: 1 })
-        .format(probe.byteLength / 1024),
-    }),
-  );
+  // The Files screens' own formatter, so this line and the Size row beside it say
+  // the same thing in the same words.
+  facts.push(formatFileSize(probe.byteLength, locale, t));
   return facts.join(" · ");
 }
