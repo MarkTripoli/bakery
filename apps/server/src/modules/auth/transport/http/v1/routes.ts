@@ -1155,6 +1155,7 @@ export function createAuthV1Routes(
   });
   app.use("/v1/me", browserSession);
   app.use("/v1/me/sessions", browserSession);
+  app.use("/v1/desktop-handoffs", browserSession);
   app.use("/v1/me/sessions/*", browserSession);
   app.use("/v1/me/connected-clients", browserSession);
   app.use("/v1/me/connected-clients/*", browserSession);
