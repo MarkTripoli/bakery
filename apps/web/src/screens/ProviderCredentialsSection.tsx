@@ -135,6 +135,11 @@ export function ProviderCredentialsSection(
     >
       <UI.Stack gap="standard">
         <UI.Heading id={`${ids.clientId}-heading`} level="section">
+          <UI.ProviderMark
+            name={translate(`integrations.${provider}.name` as MessageKey)}
+            provider={provider}
+            size="header"
+          />
           {translate(`integrations.${provider}.name` as MessageKey)}
         </UI.Heading>
         {view === "loading"
