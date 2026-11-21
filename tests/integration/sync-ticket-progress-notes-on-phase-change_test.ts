@@ -187,11 +187,17 @@ Deno.test("a finished run waits for its pull request and the merge, then reads d
 Deno.test("a note that did not post keeps the request and the last good phase, and is retried after the wait", () =>
   withTicketFixture(async (fx) => {
     const { sourceId, request } = await admitted(fx, 1103);
-    await sync(fx, sourceId); // queued, posted
+    const labels = memoryLabels();
+    await sync(fx, sourceId, labels); // queued, posted, labelled
     const good = await link(fx, request.id);
     await setRun(fx, request.workflowRunId, "running");
     fx.notes.next.push({ kind: "failed", problemCode: "grant_missing" });
-    assertEquals((await sync(fx, sourceId)).failed, 1);
+    assertEquals((await sync(fx, sourceId, labels)).failed, 1);
+    assertEquals(
+      labels.changes,
+      [{ add: ["bakery:queued"], remove: [] }],
+      "a note that failed leaves Bakery's label as it was",
+    );
     const failed = await link(fx, request.id);
     assertEquals(failed.sync_health, "failed");
     assertEquals(failed.last_problem_code, "grant_missing");
@@ -215,8 +221,9 @@ Deno.test("a note that did not post keeps the request and the last good phase, a
 
     // Inside the wait nothing is written.
     const before = fx.notes.posts.length;
-    assertEquals((await sync(fx, sourceId)).posted, 0);
+    assertEquals((await sync(fx, sourceId, labels)).posted, 0);
     assertEquals(fx.notes.posts.length, before);
+    assertEquals(labels.changes.length, 1, "nor is a label");
 
     // After it, the note is written again and the link is healthy.
     await fx.owner.query(
@@ -225,7 +232,11 @@ Deno.test("a note that did not post keeps the request and the last good phase, a
         where organization_id = $2`,
       [PROGRESS_RETRY_SECONDS + 5, fx.organizationId],
     );
-    assertEquals((await sync(fx, sourceId)).posted, 1);
+    assertEquals((await sync(fx, sourceId, labels)).posted, 1);
+    assertEquals(labels.changes.at(-1), {
+      add: ["bakery:working"],
+      remove: ["bakery:queued"],
+    });
     const healed = await link(fx, request.id);
     assertEquals(healed.sync_health, "healthy");
     assertEquals(healed.last_problem_code, null);
@@ -299,4 +310,99 @@ Deno.test("a label that did not change leaves the one comment alone, and the nex
       add: ["bakery:working"],
       remove: ["bakery:queued"],
     });
+  }));
+
+Deno.test("a first note that posted but whose label failed is rewritten in place on the retry, never posted twice", () =>
+  withTicketFixture(async (fx) => {
+    const { sourceId } = await admitted(fx, 1106);
+    const labels = memoryLabels();
+    labels.failNext = "grant_missing";
+    assertEquals((await sync(fx, sourceId, labels)).failed, 1);
+    assertEquals(fx.notes.comments.size, 1, "the first note posted");
+    await fx.owner.query(
+      `update bakery.ticket_task_links
+          set updated_at = now() - make_interval(secs => $1)
+        where organization_id = $2`,
+      [PROGRESS_RETRY_SECONDS + 5, fx.organizationId],
+    );
+    assertEquals((await sync(fx, sourceId, labels)).posted, 1);
+    assertEquals(
+      fx.notes.comments.size,
+      1,
+      "the retry rewrites, it does not post a second comment",
+    );
+    assertEquals(
+      fx.notes.posts.at(-1)!.existingExternalId !== null,
+      true,
+      "the retry carries the first comment's id",
+    );
+    assertEquals(labels.changes.at(-1), { add: ["bakery:queued"], remove: [] });
+  }));
+
+Deno.test("two syncs at once write one note and one label change", () =>
+  withTicketFixture(async (fx) => {
+    const { sourceId } = await admitted(fx, 1107);
+    const labels = memoryLabels();
+    const [first, second] = await Promise.all([
+      sync(fx, sourceId, labels),
+      sync(fx, sourceId, labels),
+    ]);
+    assertEquals(
+      first.posted + second.posted,
+      1,
+      JSON.stringify([first, second]),
+    );
+    assertEquals(fx.notes.posts.length, 1);
+    assertEquals(labels.changes.length, 1);
+  }));
+
+Deno.test("deployed_healthy: a closed pull request, a merged one with no deployment and a closed issue are never read as delivered", () =>
+  withTicketFixture(async (fx) => {
+    const { sourceId, request, ticketId } = await admitted(
+      fx,
+      1108,
+      "deployed_healthy",
+    );
+    const labels = memoryLabels();
+    await setRun(fx, request.workflowRunId, "completed", 11);
+    await fx.registerPullRequest({
+      sourceId,
+      taskId: request.taskId,
+      number: 11080,
+      status: "open",
+    });
+    await sync(fx, sourceId, labels);
+    await fx.owner.query(
+      "update bakery.pull_requests set status = 'closed' where organization_id = $1 and provider_number = 11080",
+      [fx.organizationId],
+    );
+    await sync(fx, sourceId, labels);
+    assertEquals(
+      fx.notes.posts.at(-1)!.body.includes("Delivered"),
+      false,
+      fx.notes.posts.at(-1)!.body,
+    );
+    await fx.owner.query(
+      "update bakery.pull_requests set status = 'merged' where organization_id = $1 and provider_number = 11080",
+      [fx.organizationId],
+    );
+    await fx.owner.query(
+      "update bakery.external_tickets set state = 'closed' where organization_id = $1",
+      [fx.organizationId],
+    );
+    await sync(fx, sourceId, labels);
+    const last = fx.notes.posts.at(-1)!.body;
+    assertEquals(last.includes("Delivered"), false, last);
+    assertStringIncludes(last, "waiting for a healthy release");
+    assertEquals(
+      labels.changes.some((change) => change.add.includes("bakery:done")),
+      false,
+      JSON.stringify(labels.changes),
+    );
+    const rechecked = await fx.recheck(ticketId);
+    assertEquals(
+      rechecked.request?.disposition === "completed",
+      false,
+      "the request does not complete without a deployment",
+    );
   }));

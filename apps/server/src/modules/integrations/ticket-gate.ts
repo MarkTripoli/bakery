@@ -3,9 +3,11 @@ import type { PgDatabase } from "../../platform/database.ts";
 import { withPgTransaction } from "../../platform/database.ts";
 import type {
   ActiveIntegrationRegistry,
+  AuthoritySnapshotPort,
   ProviderRequestPort,
 } from "../catalog/integration-gate.ts";
 import { invokeIntegration } from "../catalog/integration-invoke.ts";
+import { SEND_ARGUMENTS_REFUSED } from "../work/ticket-create.ts";
 import { connectionInvokeDeps } from "./invoke.ts";
 
 /** An exact registered action reference. */
@@ -38,14 +40,22 @@ export type GateSendResult =
  * progress label): one registered write action, sent as the asking principal
  * through `invokeIntegration`, so the gate checks that principal's grant and
  * the ledger records the write as an effect. A refusal by the gate and an
- * effect that failed are failures with a fixed code; nothing here retries.
+ * effect that failed are failures with a fixed code; nothing here retries. A
+ * write whose arguments the action's own input rules refuse is told apart
+ * (`arguments_refused`): nothing was sent and the caller's input is at fault.
  */
 export function createGateSender(deps: {
   database: PgDatabase;
   registry: ActiveIntegrationRegistry;
   providerRequests: ProviderRequestPort;
+  /** Reads authority from here instead of the database. For tests that fake the authority. */
+  snapshots?: AuthoritySnapshotPort;
 }): (send: GateSend) => Promise<GateSendResult> {
-  const invoke = connectionInvokeDeps(deps.registry, deps.providerRequests);
+  const connection = connectionInvokeDeps(deps.registry, deps.providerRequests);
+  const invoke = deps.snapshots === undefined ? connection : {
+    ...connection,
+    snapshotsFor: () => deps.snapshots!,
+  };
   return async (send) => {
     try {
       const result = await invokeIntegration({
@@ -53,7 +63,7 @@ export function createGateSender(deps: {
         registry: deps.registry,
         snapshotsFor: invoke.snapshotsFor,
         providerRequests: deps.providerRequests,
-        snapshots: {
+        snapshots: deps.snapshots ?? {
           load: (snapshotKey) =>
             withPgTransaction(
               deps.database,
@@ -83,6 +93,9 @@ export function createGateSender(deps: {
         : { kind: "sent", effectId: result.prepare.effectId, outcome };
     } catch (error) {
       if (!(error instanceof StandardError)) throw error;
+      if (error.code === "UNPROCESSABLE") {
+        return { kind: "failed", problemCode: SEND_ARGUMENTS_REFUSED };
+      }
       const reason = error.params?.reason;
       return {
         kind: "failed",

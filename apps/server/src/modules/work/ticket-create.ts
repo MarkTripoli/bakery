@@ -43,6 +43,13 @@ import { requireWorkTransaction } from "./work-transaction.ts";
 type Receipt = z.output<typeof contractSchemas.IntegrationActionReceipt>;
 type Create = z.output<typeof contractSchemas.RemoteTicketCreate>;
 
+/**
+ * The failure code of a send whose arguments the provider action's own input
+ * rules refused. Nothing was sent; the caller's input is at fault, so the
+ * answer is 422, not a dependency outage.
+ */
+export const SEND_ARGUMENTS_REFUSED = "arguments_refused";
+
 /** One ticket to create: who asks, through which connection, in which repository. */
 export type RemoteTicketRequest = {
   organizationId: string;
@@ -315,6 +322,11 @@ export async function recordRemoteTicketCreate(
     context,
   );
   const { claim, result } = outcome;
+  if (
+    result.kind === "failed" && result.problemCode === SEND_ARGUMENTS_REFUSED
+  ) {
+    throw unprocessable([], "provider_refused_input");
+  }
   if (result.kind === "failed") {
     // A 503 names no reason (only a fixed allowlist is echoed); the ledger
     // and the gate's own refusal record why.

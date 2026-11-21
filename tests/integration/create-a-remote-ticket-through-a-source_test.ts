@@ -3,6 +3,7 @@ import {
   type TicketFixture,
   withTicketFixture,
 } from "../helpers/ticket-admission/fixtures.ts";
+import { SEND_ARGUMENTS_REFUSED } from "../../apps/server/src/modules/work/ticket-create.ts";
 import {
   type Json,
   type Problem,
@@ -148,6 +149,14 @@ Deno.test("a send that failed is a 503 with a fixed reason, and one with no answ
     const failed = await read<Problem>(await create(fx, sourceId, ISSUE), 503);
     assertEquals(failed.code, "DEPENDENCY_UNAVAILABLE");
 
+    // Input the provider action refuses is the caller's to fix: 422, not an outage.
+    fx.creator.next.push({
+      kind: "failed",
+      problemCode: SEND_ARGUMENTS_REFUSED,
+    });
+    const refused = await read<Problem>(await create(fx, sourceId, ISSUE), 422);
+    assertEquals(refused.code, "UNPROCESSABLE");
+
     fx.creator.next.push({
       kind: "sent",
       effectId: crypto.randomUUID(),
@@ -158,5 +167,5 @@ Deno.test("a send that failed is a 503 with a fixed reason, and one with no answ
       202,
     );
     assertEquals(uncertain.status, "uncertain");
-    assert(fx.creator.requests.length === 2);
+    assert(fx.creator.requests.length === 3);
   }));
