@@ -1199,6 +1199,10 @@
   inline-size: 100%;
   margin: var(--space-0);
   min-block-size: calc(var(--space-6) - var(--space-0-5));
+  /* The field grows with what is typed, up to six lines, then scrolls inside. */
+  field-sizing: content;
+  max-block-size: calc(var(--space-6) * 6);
+  overflow-y: auto;
   padding: var(--space-0);
   resize: none;
 }
@@ -1757,7 +1761,7 @@
 @media (pointer: coarse) {
   /* A 44px touch target around the 22px field line, without moving layout. */
   .ui-message-composer__field textarea {
-    block-size: var(--target-coarse);
+    min-block-size: var(--target-coarse);
     margin-block: calc((var(--space-6) - var(--space-0-5) -
       var(--target-coarse)) / 2);
     padding-block: calc((var(--target-coarse) - var(--space-6) +
