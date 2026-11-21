@@ -282,6 +282,16 @@ export function versionEtag(version: number): string {
   return `"v${version}"`;
 }
 export type { AccessAdminClient } from "./access-client.ts";
+export type MentionCandidatePage = ClientOutputMap["Page<MentionCandidate>"];
+export type MentionCandidate = MentionCandidatePage["items"][number];
+export type ConversationAccessPage =
+  ClientOutputMap["Page<ConversationAccessGrant>"];
+export type ConversationAccessGrant = ConversationAccessPage["items"][number];
+/** Where a mention is being written: a task's conversation, or a document's comment thread. */
+export type MentionSource =
+  | { readonly kind: "conversation"; readonly id: string }
+  | { readonly kind: "comment"; readonly id: string };
+
 export type EvaluationBatch = ClientOutputMap["EvaluationBatch"];
 export type EvaluationBatchPage = ClientOutputMap["Page<EvaluationBatch>"];
 export type EvaluationBatchResultPage =
@@ -2266,6 +2276,32 @@ export type BakeryApiClient = {
   readonly createMessage: (
     options: CreateMessageOptions,
   ) => Promise<ApiResult<MessageResponse>>;
+  /** The people a writer may mention here, by name or email, ten at a time. */
+  readonly listMentionCandidates: (options: {
+    readonly organizationId: string;
+    readonly source: MentionSource;
+    readonly query?: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MentionCandidatePage>>;
+  /** The people a conversation was opened to by a mention. */
+  readonly listConversationAccess: (options: {
+    readonly organizationId: string;
+    readonly conversationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ConversationAccessPage>>;
+  /** Takes one person's mention access back. `version` is the grant's own, sent as If-Match. */
+  readonly revokeConversationAccess: (options: {
+    readonly organizationId: string;
+    readonly conversationId: string;
+    readonly principalId: string;
+    readonly version: number;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ConversationAccessGrant>>;
   readonly listMessages: (options: {
     readonly organizationId: string;
     readonly conversationId: string;
@@ -5208,6 +5244,70 @@ export function createBakeryApiClient({
         const data = await client.actions["messages.create"](
           { id: options.conversationId, ...options.input },
           { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMentionCandidates(options) {
+      organizationId = options.organizationId;
+      try {
+        const query = {
+          id: options.source.id,
+          ...(options.query === undefined || options.query === ""
+            ? {}
+            : { query: options.query }),
+          ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+          ...(options.limit === undefined ? {} : { limit: options.limit }),
+        };
+        const data = options.source.kind === "conversation"
+          ? await client.actions["conversations.mentionCandidates"](query, {
+            signal: options.signal,
+          })
+          : await client.actions["artifactComments.mentionCandidates"](query, {
+            signal: options.signal,
+          });
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listConversationAccess(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["conversationAccess.list"](
+          {
+            id: options.conversationId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async revokeConversationAccess(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["conversationAccess.revoke"](
+          { id: options.conversationId, principalId: options.principalId },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
         );
         return { ok: true, data };
       } catch (error) {
