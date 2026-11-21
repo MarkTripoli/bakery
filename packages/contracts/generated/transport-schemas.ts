@@ -34718,13 +34718,34 @@ const transportSchemas = {
         "state": "Its result state."
       }
     },
+    "EvaluationPinDefinition": {
+      "fields": [
+        "definitionId",
+        "name"
+      ],
+      "fieldTypes": {
+        "definitionId": "uuid",
+        "name": "string|null"
+      },
+      "nullableFields": [
+        "name"
+      ],
+      "description": "The definition an evaluation pin names, for display: the pin stays the record of what was measured.",
+      "fieldDescriptions": {
+        "definitionId": "The agent or workflow definition the pin names, for linking to it.",
+        "name": "Its current name; null when this organization cannot resolve it."
+      }
+    },
     "EvaluationBatch": {
       "fields": [
         "id",
         "datasetId",
+        "datasetName",
         "datasetDigest",
         "candidate",
+        "candidateDefinition",
         "baseline",
+        "baselineDefinition",
         "scorers",
         "state",
         "requiredCount",
@@ -34733,6 +34754,7 @@ const transportSchemas = {
         "gate",
         "hiddenCount",
         "canceledAt",
+        "canceledBy",
         "completedAt",
         "createdAt",
         "updatedAt",
@@ -34741,9 +34763,12 @@ const transportSchemas = {
       "fieldTypes": {
         "id": "uuid",
         "datasetId": "uuid",
+        "datasetName": "string",
         "datasetDigest": "string",
         "candidate": "json",
+        "candidateDefinition": "EvaluationPinDefinition|null",
         "baseline": "json|null",
+        "baselineDefinition": "EvaluationPinDefinition|null",
         "scorers": "EvaluationScorerPin[]",
         "state": "enum(queued|running|completed|completed_with_errors|canceled|failed)",
         "requiredCount": "integer",
@@ -34752,23 +34777,30 @@ const transportSchemas = {
         "gate": "EvaluationGate",
         "hiddenCount": "integer",
         "canceledAt": "timestamp|null",
+        "canceledBy": "uuid|null",
         "completedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
       },
       "nullableFields": [
+        "candidateDefinition",
         "baseline",
+        "baselineDefinition",
         "canceledAt",
+        "canceledBy",
         "completedAt"
       ],
       "description": "An evaluation batch with what it used, its state, counts and coverage of the candidate's required results, and the gate's answer.",
       "fieldDescriptions": {
         "id": "Batch id.",
         "datasetId": "The dataset measured, for linking to it.",
+        "datasetName": "The dataset's name, so a list can show it without a second read.",
         "datasetDigest": "The dataset revision's digest.",
         "candidate": "What is measured, as pinned at admission.",
+        "candidateDefinition": "The definition the candidate pin names and its current name, for display; null when the pin names no definition.",
         "baseline": "What it is compared with, as pinned; null without a baseline.",
+        "baselineDefinition": "The definition the baseline pin names and its current name, for display; null without a baseline or when the pin names no definition.",
         "scorers": "The scorer revisions pinned.",
         "state": "queued, running, completed, completed_with_errors (some required results unmeasured), canceled or failed.",
         "requiredCount": "Required candidate results.",
@@ -34777,6 +34809,7 @@ const transportSchemas = {
         "gate": "The gate's answer.",
         "hiddenCount": "Results the reader may not open; 0, since readers see the organization's evaluations.",
         "canceledAt": "When it was canceled.",
+        "canceledBy": "The person who stopped it; null while it has not been canceled.",
         "completedAt": "When it settled.",
         "createdAt": "When it was admitted.",
         "updatedAt": "Last change.",
@@ -34793,6 +34826,7 @@ const transportSchemas = {
         "batchId",
         "role",
         "caseId",
+        "caseName",
         "caseRevision",
         "scorerId",
         "scorerRevision",
@@ -34810,6 +34844,7 @@ const transportSchemas = {
         "batchId": "uuid",
         "role": "enum(candidate|baseline)",
         "caseId": "uuid",
+        "caseName": "string",
         "caseRevision": "integer",
         "scorerId": "uuid",
         "scorerRevision": "integer",
@@ -34833,6 +34868,7 @@ const transportSchemas = {
         "batchId": "Its batch.",
         "role": "candidate or baseline side.",
         "caseId": "The case, for linking to it.",
+        "caseName": "The case's name, so a list can show it without a second read.",
         "caseRevision": "The case revision measured.",
         "scorerId": "The scorer, for linking to it.",
         "scorerRevision": "The scorer revision used.",
