@@ -1077,7 +1077,7 @@ Deno.test("issue 71 sweep: a repository whose authority is gone gets no checkpoi
     }
     assertEquals(
       (await ensureCheckpoints(database)).created,
-      3,
+      4,
       "control: with the authority intact every stream is created",
     );
 
@@ -1131,14 +1131,14 @@ Deno.test("issue 71 sweep: a repository whose authority is gone gets no checkpoi
       );
       assertEquals(
         (await checkpointRows(f)).map(({ status }) => status),
-        ["blocked", "blocked", "blocked"],
+        ["blocked", "blocked", "blocked", "blocked"],
         `${state.name}: still blocked`,
       );
       await state.restore();
     }
     assertEquals(
       await ensureCheckpoints(database),
-      { created: 0, rearmed: 3 },
+      { created: 0, rearmed: 4 },
       "control: armed again once the authority is back",
     );
   });
@@ -1179,13 +1179,16 @@ Deno.test("issue 71 sweep: concurrent claims take disjoint checkpoints and a cla
     await ensureCheckpoints(f.runtimePgDatabase!);
     const claims = await Promise.all(
       Array.from(
-        { length: 9 },
+        { length: 12 },
         () => claimDueCheckpoint(f.runtimePgDatabase!),
       ),
     );
     const ids = claims.map((claim) => claim?.id);
-    assert(ids.every((id) => typeof id === "string"), "nine due, nine claimed");
-    assertEquals(new Set(ids).size, 9, "no checkpoint is claimed twice");
+    assert(
+      ids.every((id) => typeof id === "string"),
+      "twelve due, twelve claimed",
+    );
+    assertEquals(new Set(ids).size, 12, "no checkpoint is claimed twice");
     assertEquals(await claimDueCheckpoint(f.runtimePgDatabase!), null);
     const rows = await checkpointRows(f);
     for (const row of rows) {
