@@ -14,6 +14,7 @@ import {
   approvalMatches,
   type InstallReadExtras,
   installReadExtras,
+  issueStateCasVersion,
   liveStateRange,
   loadSnapshot,
   restoreSnapshotState,
@@ -1162,11 +1163,18 @@ export async function putPluginState(
         params: { reason: "plugin_state_key_limit_reached" },
       });
     }
+    // The first number of a new key comes from the install's mark, not 1: a
+    // restore may have deleted this key at a number a stale writer still holds.
+    const casVersion = await issueStateCasVersion(
+      transaction,
+      organizationId,
+      installId,
+    );
     const inserted = await transaction.query<StateRow>(
       `insert into bakery.plugin_state
          (organization_id, plugin_install_id, owner_principal_id, namespace, key,
           schema_version, cas_version, value)
-       values ($1, $2, $3, $4, $5, $6, 1, $7::jsonb)
+       values ($1, $2, $3, $4, $5, $6, $8, $7::jsonb)
        returning ${STATE_COLUMNS.replaceAll("s.", "")}`,
       [
         organizationId,
@@ -1176,15 +1184,21 @@ export async function putPluginState(
         input.key,
         input.schemaVersion,
         JSON.stringify(input.value),
+        casVersion,
       ],
     );
     return toState(inserted.rows[0], organizationId);
   }
 
+  const nextCas = await issueStateCasVersion(
+    transaction,
+    organizationId,
+    installId,
+  );
   const updated = await transaction.query<StateRow>(
     `update bakery.plugin_state s
         set value = $3::jsonb, schema_version = $4,
-            cas_version = s.cas_version + 1, updated_at = now(),
+            cas_version = $6, updated_at = now(),
             version = s.version + 1
       where s.organization_id = $1 and s.id = $2
         and s.cas_version = $5
@@ -1195,6 +1209,7 @@ export async function putPluginState(
       JSON.stringify(input.value),
       input.schemaVersion,
       input.expectedCasVersion,
+      nextCas,
     ],
   );
   if (updated.rows.length !== 1) {

@@ -188,16 +188,44 @@ export async function snapshotLiveState(
 }
 
 /**
+ * Issues the install's next state CAS number and records it as issued.
+ *
+ * The caller holds the install row's lock, so two writers cannot take the same
+ * number. Every write of plugin_state takes its number here: a key's own counter
+ * is not enough once a restore can delete a key and a later write recreate it.
+ */
+export async function issueStateCasVersion(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  installId: string,
+): Promise<number> {
+  const issued = await transaction.query<{ issued: string }>(
+    `update bakery.plugin_installs
+        set state_cas_issued = state_cas_issued + 1
+      where organization_id = $1 and id = $2
+      returning state_cas_issued::text as issued`,
+    [organizationId, installId],
+  );
+  const next = Number(issued.rows[0]?.issued);
+  if (!Number.isSafeInteger(next) || next > 2147483647) {
+    throw new Error("plugin_state_cas_version_exhausted");
+  }
+  return next;
+}
+
+/**
  * Puts a snapshot's state back as the install's live state.
  *
  * What was saved after the snapshot is discarded; that is what the person who
  * asked for a restore asked for, and why it is a separate request field rather
  * than something a rollback does on its own.
  *
- * Every restored row gets a CAS version above any the install has issued, so a
- * writer that read the state before the restore cannot succeed against it. A
- * row's own next number is not enough: a key deleted by the restore and put back
- * by it would otherwise return to a number a stale writer already holds.
+ * Every restored row gets the install's next CAS number from
+ * plugin_installs.state_cas_issued, which is above any number the install has
+ * issued for any key, so a writer that read the state before the restore cannot
+ * succeed against it. Later writes, including the first write of a key the
+ * restore deleted, also take their numbers from that mark, so the stale number
+ * is never issued again.
  */
 export async function restoreSnapshotState(
   transaction: PgTransactionClient,
@@ -205,13 +233,11 @@ export async function restoreSnapshotState(
   installId: string,
   rows: readonly SnapshotRow[],
 ): Promise<void> {
-  const issued = await transaction.query<{ top: number | null }>(
-    `select max(cas_version)::int as top
-       from bakery.plugin_state
-      where organization_id = $1 and plugin_install_id = $2`,
-    [organizationId, installId],
+  const next = await issueStateCasVersion(
+    transaction,
+    organizationId,
+    installId,
   );
-  const next = (issued.rows[0]?.top ?? 0) + 1;
   await transaction.query(
     `delete from bakery.plugin_state
       where organization_id = $1 and plugin_install_id = $2`,

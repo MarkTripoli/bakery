@@ -534,3 +534,112 @@ Deno.test("a list says, for each install on the page, its own copy and its own u
     assertEquals(byId.get(other.installId)?.stateCopy, null);
     assertEquals(byId.get(other.installId)?.cannotReadVersionIds, []);
   }));
+
+Deno.test("a key a restore deleted and the plugin wrote again cannot take a number a stale writer holds", () =>
+  withPluginFixture(async (fixture, store) => {
+    const first = await installFirst(fixture, store);
+    const second = await publishVersion(
+      fixture,
+      store,
+      manifestOf({ stateSchemaVersion: 1 }),
+      first.packageId,
+    );
+    // The first version leaves no state, so its snapshot has no "theme".
+    await moveInstall(fixture, first.installId, {
+      versionId: second.versionId,
+    });
+    for (let held = 0; held < 7; held += 1) {
+      await writeState(fixture, first.installId, {
+        key: "theme",
+        value: { theme: `v${held}` },
+        schemaVersion: 1,
+        expectedCasVersion: held,
+      });
+    }
+    const before = await stateRows(fixture, first.installId);
+    assertEquals(before.map((row) => row.cas_version), [7]);
+
+    // The restore deletes the key; the plugin writes it again from absent and
+    // keeps writing with whatever numbers it is given.
+    const restored = await moveInstall(fixture, first.installId, {
+      versionId: first.versionId,
+      restoreState: true,
+    });
+    assertEquals(restored.pluginVersionId, first.versionId);
+    assertEquals(await stateRows(fixture, first.installId), []);
+    let held = 0;
+    for (let write = 0; write < 7; write += 1) {
+      await writeState(fixture, first.installId, {
+        key: "theme",
+        value: { theme: `again${write}` },
+        schemaVersion: 1,
+        expectedCasVersion: held,
+      });
+      held = (await stateRows(fixture, first.installId))[0].cas_version;
+      assert(held > 7, `write ${write} reissued ${held}`);
+    }
+
+    // A writer that read the key at 7 before the restore must not succeed.
+    const stale = await putState(fixture, first.installId, {
+      key: "theme",
+      value: { theme: "stale" },
+      schemaVersion: 1,
+      expectedCasVersion: 7,
+    });
+    assertEquals(stale.status, 409);
+    await stale.body?.cancel();
+  }));
+
+Deno.test("a restore after a restore that emptied the state issues numbers above every one issued before", () =>
+  withPluginFixture(async (fixture, store) => {
+    const first = await installFirst(fixture, store);
+    const second = await publishVersion(
+      fixture,
+      store,
+      manifestOf({ stateSchemaVersion: 1 }),
+      first.packageId,
+    );
+    await moveInstall(fixture, first.installId, {
+      versionId: second.versionId,
+    });
+    for (let held = 0; held < 3; held += 1) {
+      await writeState(fixture, first.installId, {
+        key: "theme",
+        value: { theme: `v${held}` },
+        schemaVersion: 1,
+        expectedCasVersion: held,
+      });
+    }
+    const issuedBefore = (await stateRows(fixture, first.installId))[0]
+      .cas_version;
+
+    // Restoring the first version's empty snapshot leaves no rows to count.
+    await moveInstall(fixture, first.installId, {
+      versionId: first.versionId,
+      restoreState: true,
+    });
+    assertEquals(await stateRows(fixture, first.installId), []);
+
+    // Restoring the second version's snapshot brings "theme" back above 3.
+    const forward = await moveInstall(fixture, first.installId, {
+      versionId: second.versionId,
+      restoreState: true,
+    });
+    assertEquals(forward.pluginVersionId, second.versionId);
+    const after = await stateRows(fixture, first.installId);
+    assertEquals(after.map((row) => row.key), ["theme"]);
+    assert(
+      after[0].cas_version > issuedBefore,
+      `restored at ${after[0].cas_version}`,
+    );
+    for (let held = 1; held <= issuedBefore; held += 1) {
+      const stale = await putState(fixture, first.installId, {
+        key: "theme",
+        value: { theme: "stale" },
+        schemaVersion: 1,
+        expectedCasVersion: held,
+      });
+      assertEquals(stale.status, 409, `a writer holding ${held}`);
+      await stale.body?.cancel();
+    }
+  }));

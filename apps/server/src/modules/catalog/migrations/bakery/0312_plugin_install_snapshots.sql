@@ -69,5 +69,22 @@ create unique index plugin_install_snapshot_state_shared_unique
     (organization_id, plugin_install_snapshot_id, namespace, key)
   where owner_principal_id is null;
 
+-- The CAS numbers an install has issued for its state. A restore deletes keys,
+-- so a key's own counter can go back down; every writer takes the next number
+-- from this mark instead, under the install row's lock, so no number is ever
+-- issued twice for one install and a writer holding an old number cannot match.
+-- Backfilled with the highest number each install's live state already holds.
+alter table bakery.plugin_installs
+  add column state_cas_issued bigint not null default 0;
+
+update bakery.plugin_installs i
+   set state_cas_issued = s.top
+  from (
+    select organization_id, plugin_install_id, max(cas_version) as top
+      from bakery.plugin_state
+     group by organization_id, plugin_install_id
+  ) s
+ where i.organization_id = s.organization_id and i.id = s.plugin_install_id;
+
 grant select, insert, delete on bakery.plugin_install_snapshots to bakery_app;
 grant select, insert, delete on bakery.plugin_install_snapshot_state to bakery_app;
