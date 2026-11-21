@@ -3,6 +3,7 @@
 mod net;
 mod shell;
 mod store;
+mod update;
 
 use bakery_desktop_core::copy::{press, ButtonId, Press};
 use bakery_desktop_core::csp;
@@ -112,6 +113,14 @@ fn test_hooks(app: &tauri::App, shell: &Arc<Shell>, server: &str) {
     }
     if let Ok(dir) = std::env::var("BAKERY_DESKTOP_COMMANDS") {
         shell.watch_commands(std::path::PathBuf::from(dir));
+    }
+    if let Ok(endpoint) = std::env::var("BAKERY_DESKTOP_UPDATE_TEST") {
+        let app = app.handle().clone();
+        let shell = Arc::clone(shell);
+        tauri::async_runtime::spawn(async move {
+            let result = update::check_and_verify(&app, &endpoint).await;
+            shell.report("update_checked", result);
+        });
     }
     if std::env::var("BAKERY_DESKTOP_CSP_PROBE").is_ok() {
         let script = include_str!("probe.js").replace("__SERVER__", server);
