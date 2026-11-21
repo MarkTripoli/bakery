@@ -876,3 +876,67 @@ Deno.test("installation settings save sends the read version and explicit stable
   );
   assertEquals(sink.request?.headers.get("Bakery-Organization-Id"), null);
 });
+
+Deno.test("a byte-range read asks the server for one byte and no more", async () => {
+  const organizationId = "00000000-0000-4000-8000-000000000000";
+  const fileId = "00000000-0000-4000-8000-0000000000aa";
+  let captured: Request | undefined;
+  const client = createBakeryApiClient({
+    baseUrl: "https://bakery.example",
+    fetchImpl: ((input: RequestInfo | URL, init?: RequestInit) => {
+      captured = new Request(input, init);
+      return Promise.resolve(
+        new Response(new Uint8Array([0x00]), {
+          status: 206,
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-range": "bytes 0-0/1838",
+            "content-length": "1",
+            etag: `"${"0".repeat(64)}"`,
+          },
+        }),
+      );
+    }) as typeof fetch,
+  });
+  const result = await client.files.content(
+    organizationId,
+    fileId,
+    undefined,
+    undefined,
+    "bytes=0-0",
+  );
+  assertEquals(result.ok, true);
+  assertEquals(captured?.headers.get("Range"), "bytes=0-0");
+  // The panel asks; a whole read would pull the file into the page to answer a
+  // question about its digest, and the server checks the digest first either way.
+  assertEquals(captured?.url.includes("range="), false);
+});
+
+Deno.test("a file read with no range asks for the whole file", async () => {
+  const organizationId = "00000000-0000-4000-8000-000000000000";
+  const fileId = "00000000-0000-4000-8000-0000000000ab";
+  let captured: Request | undefined;
+  const client = createBakeryApiClient({
+    baseUrl: "https://bakery.example",
+    fetchImpl: ((input: RequestInfo | URL, init?: RequestInit) => {
+      captured = new Request(input, init);
+      return Promise.resolve(
+        new Response(new Uint8Array([0x00, 0x01]), {
+          status: 200,
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-length": "2",
+            etag: `"${"0".repeat(64)}"`,
+          },
+        }),
+      );
+    }) as typeof fetch,
+  });
+  const result = await client.files.content(
+    organizationId,
+    fileId,
+    undefined,
+  );
+  assertEquals(result.ok, true);
+  assertEquals(captured?.headers.get("Range"), null);
+});
