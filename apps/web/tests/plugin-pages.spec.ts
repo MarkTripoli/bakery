@@ -194,6 +194,14 @@ const openRail = async (page: Page) => {
 const open = (page: Page) =>
   page.goto(`/plugins/${INSTALL}/${PAGE}`, { waitUntil: "domcontentloaded" });
 
+/** The drawer is tall: scroll it to its end so the account menu is in the still. */
+const railShot = async (page: Page, name: string) => {
+  const drawer = page.getByRole("dialog");
+  if (await drawer.count() > 0) {
+    await shot(page, name, [], { only: "mobile", scrollToEnd: drawer });
+  } else await shot(page, name);
+};
+
 test("a plugin page opens under Bakery's strip in a sealed frame that is told how Bakery looks", async ({ page }) => {
   const state = await pluginPagesFixture(page);
   await open(page);
@@ -240,7 +248,7 @@ test("a plugin page opens under Bakery's strip in a sealed frame that is told ho
   expect(mine.y).toBeGreaterThan(settings.y);
   // Opening a page is not an update: no notice says the plugin changed.
   await expect(page.getByText(/was updated to/)).toHaveCount(0);
-  await shot(page, "plugin-page-rail");
+  await railShot(page, "plugin-page-rail");
 });
 
 test("a page that cannot be shown says why in place of the frame", async ({ page }) => {
@@ -284,7 +292,7 @@ test("seven pages show the first six and a way to the rest", async ({ page }) =>
   );
   await expect(group.getByRole("link", { name: "More plugin pages" }))
     .toBeVisible();
-  await shot(page, "plugin-rail-seven");
+  await railShot(page, "plugin-rail-seven");
 });
 
 test("on the compact rail the pages keep their names as tooltips", async ({ page }) => {
