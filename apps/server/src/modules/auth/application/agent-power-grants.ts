@@ -1,6 +1,7 @@
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "../../../platform/database.ts";
+import { assignedAgentSessionSql } from "@bakery/persistence/claims";
 import {
   type ActionAttribution,
   attributeAction,
@@ -88,16 +89,8 @@ export async function attemptOrigin(
   }>(
     `select run.id as "runId", run.task_id as "taskId",
             version.workflow_id as "workflowId",
-            (
-              select session.id
-                from bakery.agent_sessions as session
-               where session.organization_id = job.organization_id
-                 and session.run_step_id = job.run_step_id
-               -- The newest session of the step: a retried attempt opens a new
-               -- one, so the earliest would name an earlier attempt's session.
-               order by session.created_at desc, session.id desc
-               limit 1
-            ) as "agentSessionId"
+            -- The session the attempt's claim handed it, not a later one.
+            ${assignedAgentSessionSql("job")} as "agentSessionId"
        from bakery.job_attempts as attempt
        join bakery.jobs as job
          on job.organization_id = attempt.organization_id
