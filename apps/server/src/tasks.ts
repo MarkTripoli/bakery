@@ -19,6 +19,7 @@ import {
 import { BAKERY_MIGRATION_SOURCES } from "./migration-sources.ts";
 import { runSlackReceiptPurgesTask } from "./platform/slack-receipt-purges-task.ts";
 import { runStoragePurgesTask } from "./platform/storage-purges-task.ts";
+import { runRestoreFenceTask } from "./platform/restore-fence-task.ts";
 import { AuthErrorCode } from "./modules/auth/domain/errors.ts";
 import {
   authEnvironmentNames,
@@ -149,6 +150,7 @@ const tasks = [
   "reset",
   "storage-purges",
   "slack-receipt-purges",
+  "restore-fence",
   "probe-runner",
 ];
 if (!task || !tasks.includes(task)) {
@@ -192,6 +194,17 @@ if (task === "storage-purges") {
 if (task === "slack-receipt-purges") {
   console.log(
     JSON.stringify(await runSlackReceiptPurgesTask(databaseConfig.url)),
+  );
+  Deno.exit(0);
+}
+
+if (task === "restore-fence") {
+  // Run by restore.sh after the stores were restored and before any service
+  // starts; the owner role, one transaction, no migrations here.
+  console.log(
+    JSON.stringify(
+      await runRestoreFenceTask(databaseConfig.url, Deno.args.slice(1)),
+    ),
   );
   Deno.exit(0);
 }

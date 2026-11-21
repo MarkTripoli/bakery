@@ -799,7 +799,8 @@ export const clientManifest = {
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2668,7 +2669,8 @@ export const clientManifest = {
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2817,7 +2819,8 @@ export const clientManifest = {
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -6349,7 +6352,8 @@ export const clientManifest = {
         "IDEMPOTENCY_IN_FLIGHT",
         "DEPENDENCY_UNAVAILABLE",
         "DEPENDENCY_TIMEOUT",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true

@@ -5530,6 +5530,8 @@
   "tasks.waiting.refused.confirming": "⟪Bakery is still confirming what the last attempt did. Try again in a moment.⟫",
   "tasks.waiting.refused.noBudget": "⟪This step has no budget or attempts left, so it cannot be moved.⟫",
   "tasks.waiting.refused.other": "⟪Nothing was switched. Try again.⟫",
+  "problems.INSTALLATION_RESTORING.description": "⟪Bakery was restored from a backup and is held until an administrator completes the restore steps. Asking again does not help.⟫",
+  "problems.INSTALLATION_RESTORING.title": "⟪Installation held after a restore⟫",
   "batches.title": "⟪Batches⟫",
   "batches.description": "⟪A batch works through several ready issues in a row, within limits you set.⟫",
   "batches.link": "⟪Batches⟫",
