@@ -174,6 +174,11 @@ import {
 } from "./modules/projects/index.ts";
 
 import { createExecutionRoutes } from "./modules/execution/index.ts";
+import {
+  type BrokerOperation,
+  createPluginBroker,
+} from "./modules/catalog/plugin-broker.ts";
+import { createPostgresInstallAuthority } from "./modules/catalog/plugin-broker-postgres.ts";
 import { createRunControlRegistry } from "./modules/execution/control.ts";
 import { createCatalogActionRegistry } from "./modules/catalog/actions.ts";
 import { createCatalogHandlers } from "./modules/catalog/persistence.ts";
@@ -231,6 +236,12 @@ export function createApp(options: {
   installationSettings?: InstallationSettingsReader;
   taskHandlers?: TaskActionHandlers;
   secretsFetch?: typeof fetch;
+  /**
+   * The typed operations a plugin job may ask the host for (#29). Production
+   * registers none yet, so a job's every request is refused as unknown; tests
+   * inject operations to drive the broker.
+   */
+  pluginBrokerOperations?: readonly BrokerOperation[];
   /** GitHub App API port; the fetch client against api.github.com by default. */
   githubAppClient?: GitHubAppClient;
   /**
@@ -747,6 +758,14 @@ export function createApp(options: {
       new StandardError({ code: "METHOD_NOT_ALLOWED" }),
       { publicBaseUrl: options.config.publicBaseUrl, allow: "GET" },
     ));
+  // One broker per process. Its key and epoch exist only here: the relay calls
+  // it with claims the server built, so no token is ever issued or sent.
+  const pluginBroker = createPluginBroker({
+    key: crypto.getRandomValues(new Uint8Array(32)),
+    epoch: crypto.randomUUID(),
+    authority: createPostgresInstallAuthority(options.pgDatabase),
+    operations: options.pluginBrokerOperations ?? [],
+  });
   app.route(
     "/",
     createExecutionRoutes({
@@ -764,6 +783,10 @@ export function createApp(options: {
       inngest: options.config.inngest,
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,
+      pluginBroker,
+      ...(skillFileStore
+        ? { pluginBundles: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
       artifactPreviewOrigin: previewOrigin,
       artifactActions,
       integrations,
@@ -1077,6 +1100,7 @@ export function createApp(options: {
       inngest: options.config.inngest,
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,
+      pluginBroker,
       artifactPreviewOrigin: previewOrigin,
     }),
   );

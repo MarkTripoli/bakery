@@ -128,6 +128,11 @@ export const withPluginFixture = (
     fixture: Fixture,
     store: ReturnType<typeof memoryStore>,
   ) => Promise<void>,
+  options: {
+    pluginBrokerOperations?: Parameters<typeof withWorkerFixture>[1] extends
+      infer O ? O extends { pluginBrokerOperations?: infer P } ? P : never
+      : never;
+  } = {},
 ) => {
   const store = memoryStore();
   return withWorkerFixture(async (fixture) => {
@@ -138,6 +143,7 @@ export const withPluginFixture = (
     }
   }, {
     skillFileStore: store,
+    pluginBrokerOperations: options.pluginBrokerOperations,
   });
 };
 
