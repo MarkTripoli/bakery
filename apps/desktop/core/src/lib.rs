@@ -5,6 +5,7 @@ pub mod compat;
 pub mod copy;
 pub mod csp;
 pub mod links;
+pub mod menu;
 pub mod pkce;
 pub mod platform;
 pub mod session;

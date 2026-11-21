@@ -1,5 +1,6 @@
 //! The Bakery desktop app: the Tauri shell around `bakery-desktop-core` (#77, slice 3).
 
+mod menu;
 mod net;
 mod shell;
 mod store;
@@ -222,6 +223,26 @@ fn main() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(links_plugin(server.clone()))
+        .on_menu_event(|app, event| {
+            let Some(shell) = app.try_state::<Arc<Shell>>() else {
+                return;
+            };
+            let shell = Arc::clone(&shell);
+            match event.id().as_ref() {
+                "use_different_server" => {
+                    tauri::async_runtime::spawn(async move {
+                        shell.dispatch(Event::UseDifferentServer).await
+                    });
+                }
+                "sign_out" => {
+                    tauri::async_runtime::spawn(async move {
+                        shell.dispatch(Event::SignOutPressed).await
+                    });
+                }
+                "quit" => app.exit(0),
+                _ => {}
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_view,
             press_button,
@@ -242,6 +263,7 @@ fn main() {
                 startup,
             );
             app.manage(Arc::clone(&shell));
+            shell.install_menu();
             test_hooks(app, &shell, &server);
             if let Some(place) = restored {
                 shell.report(

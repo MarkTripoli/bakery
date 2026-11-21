@@ -19,6 +19,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::menu::BakeryMenu;
+
 /// How long the server keeps a sign-in request open, and so how long the app waits for the answer.
 const ATTEMPT_LIFETIME: Duration = Duration::from_secs(10 * 60);
 
@@ -75,6 +77,8 @@ pub struct Shell {
     /// A page of the server a `bakery://open` link asked for, kept until the window can show the
     /// server's pages (the desktop session handoff, #77 slice 5).
     pending_open: Mutex<Option<String>>,
+    /// The Bakery menu, kept in step with the view.
+    menu: Mutex<Option<BakeryMenu>>,
 }
 
 const SETTINGS_FILE: &str = "settings.json";
@@ -166,6 +170,7 @@ impl Shell {
             handoff: startup.handoff,
             retry_after,
             pending_open: Mutex::new(None),
+            menu: Mutex::new(None),
         })
     }
 
@@ -194,7 +199,24 @@ impl Shell {
         view(&st.session, &st.facts)
     }
 
+    /// Install the Bakery menu and keep it in step from now on.
+    pub fn install_menu(&self) {
+        let model = self.menu_model();
+        match BakeryMenu::install(&self.app, &model) {
+            Ok(menu) => *self.menu.lock().unwrap() = Some(menu),
+            Err(_) => self.report("menu_failed", json!({})),
+        }
+    }
+
+    fn menu_model(&self) -> bakery_desktop_core::menu::Model {
+        let st = self.state.lock().unwrap();
+        bakery_desktop_core::menu::model(st.session.shown_server(), st.session.is_signed_in())
+    }
+
     fn push(&self) {
+        if let Some(menu) = &*self.menu.lock().unwrap() {
+            menu.update(&self.menu_model());
+        }
         let v = self.current_view();
         {
             let mut last = self.last_view.lock().unwrap();
