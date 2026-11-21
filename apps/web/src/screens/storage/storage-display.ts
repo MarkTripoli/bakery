@@ -1,6 +1,7 @@
 import type { StorageSettings, StorageSettingsPut } from "../../api/client.ts";
 
-/** A gigabyte the way the server counts it: 1024 cubed bytes. */
+/** A megabyte and a gigabyte the way the server counts them: powers of 1024. */
+export const MEGABYTE = 1024 ** 2;
 export const GIGABYTE = 1024 ** 3;
 
 /** The marks on the usage meter: where Bakery starts warning, and where saving new files pauses. */
@@ -13,14 +14,27 @@ export const STORAGE_FIELDS = [
   "projectQuotaBytes",
   "personalQuotaBytes",
   "maxFileBytes",
+  "stepWriteBytes",
+  "stepWriteFiles",
   "workingVersionsKept",
   "trashRetentionDays",
   "scratchRetentionDays",
 ] as const;
 export type StorageField = typeof STORAGE_FIELDS[number];
 
-/** Gigabytes, or a plain count of versions or days. */
-export type StorageFieldUnit = "gigabytes" | "count";
+/** Gigabytes, megabytes, or a plain count of versions, days or files. */
+export type StorageFieldUnit = "gigabytes" | "megabytes" | "count";
+
+/** The fields an empty box saves as Bakery's default: one agent step's write limits. */
+export const DEFAULTED_FIELDS: readonly StorageField[] = [
+  "stepWriteBytes",
+  "stepWriteFiles",
+];
+
+/** Bytes in one of a field's units; 1 for a plain count. */
+export function unitBytes(unit: StorageFieldUnit): number {
+  return unit === "gigabytes" ? GIGABYTE : unit === "megabytes" ? MEGABYTE : 1;
+}
 
 type FieldRule = {
   readonly unit: StorageFieldUnit;
@@ -53,6 +67,14 @@ export const FIELD_RULES: Readonly<Record<StorageField, FieldRule>> = {
     fallback: 10,
   },
   maxFileBytes: { unit: "gigabytes", min: 1, max: 5, fallback: 5 },
+  // The server accepts 1 MiB to 1,024 GiB of writing per step, and 1 to a million files.
+  stepWriteBytes: {
+    unit: "megabytes",
+    min: 1,
+    max: 1024 * 1024,
+    fallback: 2048,
+  },
+  stepWriteFiles: { unit: "count", min: 1, max: 1_000_000, fallback: 2000 },
   workingVersionsKept: { unit: "count", min: 1, max: 1000, fallback: 20 },
   trashRetentionDays: { unit: "count", min: 1, max: 3650, fallback: 30 },
   scratchRetentionDays: { unit: "count", min: 1, max: 3650, fallback: 30 },
@@ -61,13 +83,14 @@ export const FIELD_RULES: Readonly<Record<StorageField, FieldRule>> = {
 /** What the Admin has typed, one string per field. */
 export type StorageDraft = Readonly<Record<StorageField, string>>;
 
-/** A saved value as the field shows it: whole gigabytes, or the count. */
+/** A saved value as the field shows it: whole gigabytes or megabytes, or the count. */
 export function fieldText(field: StorageField, value: number): string {
-  if (FIELD_RULES[field].unit === "count") return String(value);
-  const gigabytes = value / GIGABYTE;
-  return Number.isInteger(gigabytes)
-    ? String(gigabytes)
-    : String(Math.round(gigabytes * 100) / 100);
+  const unit = FIELD_RULES[field].unit;
+  if (unit === "count") return String(value);
+  const shown = value / unitBytes(unit);
+  return Number.isInteger(shown)
+    ? String(shown)
+    : String(Math.round(shown * 100) / 100);
 }
 
 /** The draft that shows the saved settings. */
@@ -102,6 +125,8 @@ export function fieldProblem(
   saved: StorageSettings,
 ): FieldProblem | null {
   const trimmed = text.trim();
+  // An empty agent-step box saves Bakery's default.
+  if (trimmed === "" && DEFAULTED_FIELDS.includes(field)) return null;
   // An untouched field keeps its saved value, even one an API client set that
   // is not a whole number of gigabytes.
   if (trimmed === fieldText(field, saved[field])) return null;
@@ -133,8 +158,11 @@ export function putOf(
   const value = (field: StorageField): number => {
     const text = draft[field].trim();
     if (text === fieldText(field, saved[field])) return saved[field];
-    const number = Number(text);
-    return FIELD_RULES[field].unit === "gigabytes" ? number * GIGABYTE : number;
+    const rule = FIELD_RULES[field];
+    const number = text === "" && DEFAULTED_FIELDS.includes(field)
+      ? rule.fallback
+      : Number(text);
+    return number * unitBytes(rule.unit);
   };
   return {
     workingVersionsKept: value("workingVersionsKept"),
@@ -144,9 +172,8 @@ export function putOf(
     organizationQuotaBytes: value("organizationQuotaBytes"),
     projectQuotaBytes: value("projectQuotaBytes"),
     personalQuotaBytes: value("personalQuotaBytes"),
-    // The step write limits have no field here yet; a save keeps what is stored.
-    stepWriteBytes: saved.stepWriteBytes,
-    stepWriteFiles: saved.stepWriteFiles,
+    stepWriteBytes: value("stepWriteBytes"),
+    stepWriteFiles: value("stepWriteFiles"),
   };
 }
 
