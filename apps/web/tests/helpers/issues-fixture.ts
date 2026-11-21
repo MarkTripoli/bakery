@@ -190,6 +190,11 @@ export type WorkSeed = {
 };
 
 export type Options = {
+  /**
+   * The batches the server lists (as `batch()` of batches-fixture builds them);
+   * giving any also gives the person `batch:read`, which the notice needs.
+   */
+  batches?: readonly { repositoryId: string }[];
   work?: WorkSeed;
   /** The work that exists once somebody else's start has been refused (start: "alreadyRunning"). */
   workWhenRunning?: WorkSeed;
@@ -244,9 +249,27 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         body: JSON.stringify({
           organizationId: MOCK_ORGANIZATION_ID,
           role: options.role ?? "admin",
-          capabilities: [],
+          capabilities: options.batches === undefined ? [] : ["batch:read"],
         }),
       }),
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/batches",
+    (route) => {
+      const repository = new URL(route.request().url()).searchParams.get(
+        "repositoryId",
+      );
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: (options.batches ?? []).filter((batch) =>
+            repository === null || batch.repositoryId === repository
+          ),
+          nextCursor: null,
+        }),
+      });
+    },
   );
   const sourcesMode = options.sources ?? "healthy";
   await page.route(

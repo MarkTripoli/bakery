@@ -5915,5 +5915,9 @@
   "mentions.failed.retry": "⟪Try again: give access and send⟫",
   "mentions.share.failed": "⟪We could not find who can give access. Try again, or remove the mention to send.⟫",
   "mentions.share.reason": "⟪{count, plural, one {Ask {first} or remove the mention to send.} other {Ask {first} or {second}, or remove the mention to send.}}⟫",
-  "mentions.offer.questionNotSent": "⟪{count, plural, one {Not sent. {name} can't see this conversation. Give them access?} other {Not sent. # people can't see this conversation. Give them access?}}⟫"
+  "mentions.offer.questionNotSent": "⟪{count, plural, one {Not sent. {name} can't see this conversation. Give them access?} other {Not sent. # people can't see this conversation. Give them access?}}⟫",
+  "issues.batch.notice": "⟪A batch is running{where, select, named { in {repository}} other {}}: {done} of {max} merged{state, select, working {, working on #{number}} approval {, #{number} is waiting for approval} question {, #{number} is waiting for an answer} choosing {, choosing the next issue} other {}}.⟫",
+  "issues.batch.open": "⟪Open⟫",
+  "issues.batch.openNamed": "⟪Open the batch{named, select, yes { in {repository}} other {}}⟫",
+  "issues.batch.inBatch": "⟪In the batch⟫"
 }
