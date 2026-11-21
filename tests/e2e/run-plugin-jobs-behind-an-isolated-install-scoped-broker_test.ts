@@ -283,6 +283,209 @@ dockerTest(
   },
 );
 
+async function inspectWhileRunning(name: string) {
+  for (let waited = 0; waited < 40; waited++) {
+    const out = await new Deno.Command("docker", {
+      args: ["ps", "-q", "--filter", `name=${name}`],
+      stdout: "piped",
+    }).output();
+    const id = new TextDecoder().decode(out.stdout).trim();
+    if (id.length > 0) {
+      const inspect = await new Deno.Command("docker", {
+        args: ["inspect", id],
+        stdout: "piped",
+      }).output();
+      return JSON.parse(new TextDecoder().decode(inspect.stdout))[0];
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error("the job's container never appeared");
+}
+
+dockerTest(
+  "a running job's container carries every limit and drop it is meant to",
+  async () => {
+    const dir = await job(`sleep 4; echo '{"result":1}'`);
+    const { go, name } = run(dir);
+    const ended = go();
+    const info = await inspectWhileRunning(name);
+    const host = info.HostConfig;
+    assertEquals(host.NetworkMode, "none");
+    assertEquals(host.ReadonlyRootfs, true);
+    assertEquals(host.CapDrop, ["ALL"]);
+    assert(
+      (host.SecurityOpt as string[]).some((o) =>
+        o.startsWith("no-new-privileges")
+      ),
+      "no-new-privileges is missing",
+    );
+    assertEquals(host.PidsLimit, LIMITS.pids);
+    assertEquals(host.Memory, LIMITS.memoryBytes);
+    // Swap equal to memory means no swap at all.
+    assertEquals(host.MemorySwap, LIMITS.memoryBytes);
+    assertEquals(host.NanoCpus, LIMITS.cpus * 1e9);
+    assertEquals(host.IpcMode, "none");
+    // A log driver would keep the job's output on the host past every cap.
+    assertEquals(host.LogConfig.Type, "none");
+    assertEquals(info.Config.User, "65534:65534");
+    assertEquals((await ended).kind, "result");
+  },
+);
+
+dockerTest(
+  "inside, the job holds no capabilities, no privilege gain, no root, no exec from /tmp and no write to its code",
+  async () => {
+    const dir = await job(
+      [
+        `cap=$(awk '/^CapEff/ {print $2}' /proc/self/status)`,
+        `nnp=$(awk '/^NoNewPrivs/ {print $2}' /proc/self/status)`,
+        `uid=$(id -u)`,
+        `cp /bin/busybox /tmp/busybox 2>/dev/null; /tmp/busybox true 2>/dev/null && ex=ran || ex=refused`,
+        `touch /code/x 2>/dev/null && code=wrote || code=refused`,
+        `echo "{\\"result\\":{\\"cap\\":\\"$cap\\",\\"nnp\\":$nnp,\\"uid\\":$uid,\\"exec\\":\\"$ex\\",\\"code\\":\\"$code\\"}}"`,
+      ].join("\n"),
+    );
+    // Writable by anyone on the host, so only the read-only mount refuses a write.
+    await Deno.chmod(dir, 0o777);
+    const { go } = run(dir);
+    const end = await go();
+    assertEquals(end.kind, "result");
+    assertEquals((end as { value: unknown }).value, {
+      cap: "0000000000000000",
+      nnp: 1,
+      uid: 65534,
+      exec: "refused",
+      code: "refused",
+    });
+  },
+);
+
+dockerTest(
+  "a job that floods stderr is stopped on its budget and keeps nothing on the host",
+  async () => {
+    const dir = await job(
+      `while :; do echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 1>&2; done`,
+    );
+    const { go, name } = run(dir, { timeoutMs: 2_000 });
+    const ended = go();
+    const info = await inspectWhileRunning(name);
+    assertEquals(info.HostConfig.LogConfig.Type, "none");
+    assertEquals((await ended).kind, "timeout");
+    assertEquals(await containerExists(name), false);
+  },
+);
+
+dockerTest(
+  "a job named like a container that already exists does not touch it, and same-named jobs do not collide",
+  async () => {
+    const decoy = `bakery-plugin-test-decoy-${crypto.randomUUID().slice(0, 8)}`;
+    const started = await new Deno.Command("docker", {
+      args: ["run", "-d", "--name", decoy, IMAGE, "sleep", "60"],
+      stdout: "null",
+      stderr: "null",
+    }).output();
+    assertEquals(started.code, 0);
+    try {
+      const dir = await job(`sleep 2; echo '{"result":1}'`);
+      const one = run(dir);
+      const two = run(dir);
+      // Both runs carry the decoy's exact name as their label.
+      const spec = (name: string) => ({
+        runtime: createDockerRuntime({ env: ENV, image: IMAGE }),
+        spec: {
+          name,
+          codeDir: dir,
+          command: ["sh", "/code/main.sh"],
+          limits: LIMITS,
+        },
+        relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
+        sink: memoryResultSink(),
+      });
+      const [a, b] = await Promise.all([
+        runPluginJob({ ...spec(decoy), identity: "i:j:1" }),
+        runPluginJob({ ...spec(decoy), identity: "i:j:2" }),
+      ]);
+      assertEquals(a.kind, "result");
+      assertEquals(b.kind, "result");
+      assertEquals(await containerExists(decoy), true);
+      void one;
+      void two;
+    } finally {
+      await new Deno.Command("docker", {
+        args: ["rm", "-fv", decoy],
+        stdout: "null",
+        stderr: "null",
+      }).output();
+    }
+  },
+);
+
+dockerTest(
+  "a relay that never answers cannot hold the job past its budget",
+  async () => {
+    const dir = await job(
+      `echo '{"call":{"requestId":"r","sequence":1,"operation":"a.b","args":{}}}'; sleep 30`,
+    );
+    const runtime = createDockerRuntime({ env: ENV, image: IMAGE });
+    const name = `bakery-plugin-test-${crypto.randomUUID()}`;
+    const started = Date.now();
+    const end = await runPluginJob({
+      runtime,
+      spec: {
+        name,
+        codeDir: dir,
+        command: ["sh", "/code/main.sh"],
+        limits: { ...LIMITS, timeoutMs: 2_000 },
+      },
+      relay: () => new Promise(() => {}),
+      identity: "i:j:1",
+      sink: memoryResultSink(),
+    });
+    assertEquals(end.kind, "timeout");
+    assert(
+      Date.now() - started < 12_000,
+      "the relay held the job past its budget",
+    );
+    assertEquals(await containerExists(name), false);
+  },
+);
+
+dockerTest("a caller abort ends the job as aborted", async () => {
+  const dir = await job(`sleep 30`);
+  const controller = new AbortController();
+  const runtime = createDockerRuntime({ env: ENV, image: IMAGE });
+  const name = `bakery-plugin-test-${crypto.randomUUID()}`;
+  const ended = runPluginJob({
+    runtime,
+    spec: {
+      name,
+      codeDir: dir,
+      command: ["sh", "/code/main.sh"],
+      limits: LIMITS,
+    },
+    relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
+    identity: "i:j:1",
+    sink: memoryResultSink(),
+    signal: controller.signal,
+  });
+  await inspectWhileRunning(name);
+  controller.abort();
+  assertEquals((await ended).kind, "aborted");
+  assertEquals(await containerExists(name), false);
+});
+
+dockerTest(
+  "byte caps count bytes: a short multibyte line is over a byte cap",
+  async () => {
+    // 5000 two-byte characters are 5000 UTF-16 units but 10000 bytes.
+    const dir = await job(
+      `awk 'BEGIN{printf "{\\"result\\":\\""; for(i=0;i<5000;i++) printf "é"; print "\\"}"}'`,
+    );
+    const { go } = run(dir, { lineBytes: 8 * 1024 });
+    assertEquals((await go()).kind, "output_limit");
+  },
+);
+
 Deno.test("the identity of one piece of work is install, job and fence", () => {
   assertEquals(
     effectIdentity({ installId: "i", jobId: "j", fence: 3 }),

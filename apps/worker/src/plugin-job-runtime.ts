@@ -82,7 +82,13 @@ export type JobRelay = (
 >;
 
 export type PluginJobEnd =
-  | Readonly<{ kind: "result"; value: unknown }>
+  | Readonly<{
+    kind: "result";
+    value: unknown;
+    /** False when a result for this identity already existed and this one was discarded. */
+    recorded: boolean;
+  }>
+  | Readonly<{ kind: "aborted" }>
   | Readonly<{ kind: "unsupported"; reason: string }>
   | Readonly<{ kind: "timeout" }>
   | Readonly<{ kind: "output_limit" }>
@@ -139,24 +145,41 @@ export async function runPluginJob(
   const job = await input.runtime.start(input.spec);
   const { limits } = input.spec;
   let timedOut = false;
+  let aborted = false;
+  // Settles when the budget ends or the caller aborts. Every wait on something
+  // the job or the relay controls races this, so neither can outlast it.
+  let expire!: () => void;
+  const expired = new Promise<"expired">((resolve) => {
+    expire = () => resolve("expired");
+  });
   const timer = setTimeout(() => {
     timedOut = true;
+    expire();
     void job.kill();
   }, limits.timeoutMs);
-  const onAbort = () => void job.kill();
+  const onAbort = () => {
+    aborted = true;
+    expire();
+    void job.kill();
+  };
   input.signal?.addEventListener("abort", onAbort, { once: true });
   if (input.signal?.aborted) onAbort();
+  const encoder = new TextEncoder();
+  const stopped = (): PluginJobEnd =>
+    aborted && !timedOut ? { kind: "aborted" } : { kind: "timeout" };
 
   let bytes = 0;
   let end: PluginJobEnd | null = null;
   try {
     for await (const line of job.lines) {
-      bytes += line.length + 1;
+      // Bytes, not UTF-16 units: a multibyte line is three times its length.
+      const lineBytes = encoder.encode(line).byteLength;
+      bytes += lineBytes + 1;
       if (bytes > limits.outputBytes) {
         end = { kind: "output_limit" };
         break;
       }
-      if (line.length > limits.lineBytes) {
+      if (lineBytes > limits.lineBytes) {
         end = { kind: "output_limit" };
         break;
       }
@@ -174,7 +197,7 @@ export async function runPluginJob(
       const record = message as Record<string, unknown>;
       if ("result" in record && Object.keys(record).length === 1) {
         // The first result is the only one; the job ends here either way.
-        end = { kind: "result", value: record.result };
+        end = { kind: "result", value: record.result, recorded: false };
         break;
       }
       const call = record.call;
@@ -194,13 +217,27 @@ export async function runPluginJob(
         end = { kind: "protocol_violation", detail: "malformed call" };
         break;
       }
-      const answer = await input.relay({
-        requestId: c.requestId,
-        sequence: c.sequence,
-        operation: c.operation,
-        args: c.args as Record<string, unknown>,
-      });
-      await job.write(JSON.stringify({ requestId: c.requestId, ...answer }));
+      const answer = await Promise.race([
+        input.relay({
+          requestId: c.requestId,
+          sequence: c.sequence,
+          operation: c.operation,
+          args: c.args as Record<string, unknown>,
+        }).catch(() => ({ ok: false as const, denial: "relay_failed" })),
+        expired,
+      ]);
+      if (answer === "expired") {
+        end = stopped();
+        break;
+      }
+      const written = await Promise.race([
+        job.write(JSON.stringify({ requestId: c.requestId, ...answer })),
+        expired,
+      ]);
+      if (written === "expired") {
+        end = stopped();
+        break;
+      }
     }
   } finally {
     clearTimeout(timer);
@@ -209,7 +246,7 @@ export async function runPluginJob(
   }
   const exit = await job.exited;
   if (end === null) {
-    if (timedOut) return { kind: "timeout" };
+    if (timedOut || aborted) return stopped();
     return {
       kind: "crashed",
       code: exit.code,
@@ -217,7 +254,10 @@ export async function runPluginJob(
     };
   }
   if (end.kind === "result") {
-    await input.sink.record(input.identity, end.value);
+    return {
+      ...end,
+      recorded: await input.sink.record(input.identity, end.value),
+    };
   }
   return end;
 }

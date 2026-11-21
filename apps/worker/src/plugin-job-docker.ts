@@ -54,6 +54,10 @@ export function hardeningArgs(
     String(limits.cpus),
     "--ipc",
     "none",
+    // Docker would keep a job's stdout and stderr in a log file on the host,
+    // past every cap the runner enforces. Nothing reads that log.
+    "--log-driver",
+    "none",
   ];
 }
 
@@ -65,6 +69,9 @@ export type DockerRuntimeOptions = Readonly<{
   /** Builds the hardening list; a test swaps this to prove the probe notices. */
   hardening?: typeof hardeningArgs;
 }>;
+
+const encoder = new TextEncoder();
+const byteLength = (text: string) => encoder.encode(text).byteLength;
 
 type Output = { code: number; stdout: string; stderr: string };
 
@@ -168,11 +175,17 @@ export function createDockerRuntime(
     },
 
     start(spec: PluginJobSpec): Promise<RunningPluginJob> {
+      // The name a caller gives is a label for people. The container gets a
+      // name nobody else holds, so this attempt can neither remove another's
+      // container nor be removed by one, and `docker run` cannot collide.
+      const name = `${
+        spec.name.replace(/[^A-Za-z0-9_.-]/g, "-").slice(0, 60)
+      }-${crypto.randomUUID().slice(0, 8)}`;
       const child = new Deno.Command(bin, {
         args: [
           "run",
           "-i",
-          ...harden(spec.name, spec.limits),
+          ...harden(name, spec.limits),
           "--volume",
           `${spec.codeDir}:/code:ro`,
           "--workdir",
@@ -211,10 +224,10 @@ export function createDockerRuntime(
             "inspect",
             "-f",
             "{{.State.OOMKilled}}",
-            spec.name,
+            name,
           ]).catch(() => null);
           oomKilled = inspected?.stdout.trim() === "true";
-          await docker(bin, ["rm", "-fv", spec.name]).catch(() => undefined);
+          await docker(bin, ["rm", "-fv", name]).catch(() => undefined);
         })();
         return removal;
       };
@@ -226,7 +239,8 @@ export function createDockerRuntime(
           pending += value;
           // A line the job never ends is cut off by the host's line cap.
           if (
-            pending.length > spec.limits.lineBytes && !pending.includes("\n")
+            byteLength(pending) > spec.limits.lineBytes &&
+            !pending.includes("\n")
           ) {
             yield pending;
             return;
