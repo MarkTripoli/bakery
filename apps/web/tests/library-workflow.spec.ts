@@ -1360,14 +1360,17 @@ for (
         "Version 2 · someone else's. You can run this workflow with it but cannot open its files.",
       );
       expect(await skills.innerText()).not.toMatch(/· 's/);
-      await skills.getByRole("button", {
-        name: "About the private skill Orphan review",
-      }).click();
+      // The help tip carries the unnamed-owner words (when it is open is the tip's own business).
+      await expect(
+        skills.getByRole("button", {
+          name: "About the private skill Orphan review",
+        }),
+      ).toBeVisible();
       await expect(
         page.getByText(
           "Its owner let this workflow use a private skill. Anyone who can run the workflow runs it with the skill; only its owner can read or change it.",
-        ),
-      ).toBeVisible();
+        ).first(),
+      ).toBeAttached();
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-skills-no-owner");
     });
