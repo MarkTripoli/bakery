@@ -4111,6 +4111,20 @@ Deno.test("step skills, roles and slots each report their own code", async () =>
       { ...noop("aa"), outputs: [{ name: "../escape" }] },
       "action_slots_invalid",
     ],
+    // #448 adds the files section: a malformed one, and a write area that
+    // only a person's grant can open.
+    [{ ...noop("aa"), files: { read: ["nowhere"] } }, "action_files_invalid"],
+    [
+      { ...noop("aa"), files: { write: ["shared"] } },
+      "action_files_write_needs_grant",
+    ],
+    // S7: sealed is sugar for an inputs-only, outputs-only files section; a
+    // non-boolean or a contradicting files section is refused by name.
+    [{ ...noop("aa"), sealed: "yes" }, "action_sealed_invalid"],
+    [
+      { ...noop("aa"), sealed: true, files: { read: ["inputs", "shared"] } },
+      "action_sealed_conflicts_files",
+    ],
   ];
   for (const [step, code] of cases) {
     const result = await compileWorkflowDocument(workflow([step]));

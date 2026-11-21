@@ -884,14 +884,55 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "c0afffaa276d15d62a0c2dc68190e757490c02b1",
+    "76b0d8e448facf07eef4c78af3e77386ebadab2c",
   ];
   const approvedDigest =
-    "sha256:5f21fc22924aa26340da277a3d286d70b5517b8bde6fb02c1e53b453a917491e";
+    "sha256:1cf004af3771a81ff0bf65260951658a68ad86256ac348a92f3a29fe91d3f759";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced when main moved again (#808 merged): the digest follows the tree; my previous approval on the earlier main.
+    "sha256:6be79e65f8d6390329197e6eeb666584a52b9104710badda9373f31cf33eb4ad",
+    // Displaced by the #64 slice C cutoff re-bind onto main 35f272370: main's own approval, kept unchanged.
+    "sha256:8e68e8856af05cf093594afce7f54f58b31f1ee7e41065c23fcfeea17847cd05",
+    // Displaced by the #64 slice B quiesce re-bind onto main e321e76af: main's own approval, kept unchanged.
+    "sha256:1f25130262c7f1a06b80a55cf63474047fd0dbd37cf8234a0898539354af3c69",
+    // Displaced by the #70 slice 2 re-bind onto main 064ca6fd: main's own approval, then this PR's previous one, kept unchanged.
+    "sha256:8a47341c72a1ca31d7f92cd3abdcfe15f9276ecca081f9947301907b1b16ee7b",
+    "sha256:4c7ce0ae4caa534c2ceec4f5b125ffe45a2e213b8f9d484be0365ab13c20c517",
+    // Displaced by the #739 cursor wording fix: this PR's previous approval, kept unchanged.
+    "sha256:ea083571589f6da83d51efd60ecc88fbd387f29186d2f2c3bc01a7b685481c53",
+    // Displaced by the #739 re-bind onto main 8d403f12: main's own approval (#57 merge-queue reads), kept unchanged.
+    "sha256:af4c0cec80238c9475b30cfa542fdfbf918f4f1b892a86332649bd1a90474480",
+    // Displaced by the #739 re-bind onto main 8d403f12: this PR's previous approval, kept unchanged.
+    "sha256:78b2f8ca7fbaddc4dad1b5aa7aa413fc35aa31bfd8480a2839765308b1d021f2",
+    // Displaced by the #739 re-bind onto main 49a52678: this PR's previous approval, kept unchanged.
+    "sha256:b6340fefd73f1155f0b70b57f61530f9a538d482b7816f4588851b78f52c1123",
+    // Displaced by the #739 provider re-bind onto main 168b504d: this PR's previous approval, kept unchanged.
+    "sha256:a2990005fe2611b63e5122a6bea9699a1d73c4030c7f11b2c4e1cfe541674f77",
+    // Displaced by the #57 merge-queue reads re-bind onto main 536ca2f6 (#788 merged): this PR's previous approval, kept unchanged.
+    "sha256:5e6cbf87fc5f188cc0b7baf0b42f9b86c72229e09937616145eabbbb79c8f48c",
+    // Displaced by the #57 merge-queue reads re-bind onto main 2de7c9744: main's own approval, kept unchanged.
+    "sha256:9ba189cc43ffbe02eeddd3a250f68eb0a6fcd143089fa3732b2fdf597d4085a9",
+    // Displaced by the #14 context pack limits re-bind onto main e1326d79: main's own approval, kept unchanged.
+    "sha256:4b34d06824ea03e2862a772e2f7f1c56f85fc63037820b671eeba8b490a42d3e",
+    // Displaced by the #448 S3-S6 re-bind onto main 8476585c: main's own approval, kept unchanged.
+    "sha256:766a91a3406a6ef488de878590269f396d6b646fb70be95418e27e01a7071c2c",
+    // Displaced by the #445 pin re-bind onto main a3a5a3400: main's own
+    // approval, kept unchanged.
+    "sha256:01305743634c3447fe91302c0a64559bbcd7503cb16ec7a76eeb1cff3f878713",
+    // Displaced by the #44 evaluation batches re-bind onto main 133085d15: main's own approval, kept unchanged.
+    "sha256:fdb9ae6084d1d4db3514b3596518187e565c6c128e770507f105f676b33e84e4",
+    // Displaced by the #445 Library under Files re-bind onto main c8cf571ea: main's
+    // own approval, kept unchanged.
+    "sha256:f204f40485b2c391f018f947955664f5e1d9315c7dd5838cd8785bd12ead618d",
+    // Displaced by the #46 development metrics re-bind onto main 2dcf89040: main's own approval, then this PR's previous one, kept unchanged.
+    "sha256:7173fd9bec99984de1ef3b84f3b010c1fd28eb98a6776b08fbc4e19bc22908a3",
+    "sha256:69c0243b9bd49da8b9278b63702507e0bdaac7fd701731cd4ec39ed1372ab67a",
+    // Displaced by the #19 private previews re-bind onto main 0aceacbe: main's own
+    // approval, kept unchanged.
+    "sha256:5f21fc22924aa26340da277a3d286d70b5517b8bde6fb02c1e53b453a917491e",
     // Displaced by the #400 S2 plan admission re-bind onto main c0afffaa2 (#741 merged): main's own approval, then this PR's previous approval, kept unchanged.
     "sha256:e57de0de36c4f5a4aea4e34f5c1bffcd3c9ab0ea5823cd8137a28bafb2f24154",
     "sha256:8f13900a664e97c69caa28ca9c2d4855d57374d7e8db6a0c5d37721d9603a819",

@@ -4,6 +4,7 @@ import {
 } from "../../platform/storage-capacity.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
+import { enqueueProbeSubject } from "./probe-runner.ts";
 import {
   publicationRetention,
   type PublicationSource,
@@ -220,6 +221,21 @@ export async function commitArtifactVersion(
     ],
   );
   const versionRow = versionResult.rows[0];
+  // Queue the probe here, in the write's own transaction, so a version cannot
+  // exist that nobody has asked about. Nothing is probed on this path: the probe
+  // needs a sandbox, and a write must not wait for one. A blob-backed version is
+  // asked about once however many versions share the bytes; an inline one -- a
+  // server with no object store -- is keyed on its own version id, because those
+  // bytes are its own.
+  await enqueueProbeSubject(
+    transaction,
+    blobId === null
+      ? {
+        organizationId: scope.organizationId,
+        artifactVersionId: versionRow.id,
+      }
+      : { organizationId: scope.organizationId, blobId },
+  );
   const createdAt = iso(versionRow.created_at);
   const response = {
     id: versionRow.id,

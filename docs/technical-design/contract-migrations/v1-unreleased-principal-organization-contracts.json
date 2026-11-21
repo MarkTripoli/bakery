@@ -1,13 +1,212 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "c0afffaa276d15d62a0c2dc68190e757490c02b1"
+    "76b0d8e448facf07eef4c78af3e77386ebadab2c"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:5f21fc22924aa26340da277a3d286d70b5517b8bde6fb02c1e53b453a917491e",
-  "reason": "#400 S2 plan admission re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main c0afffaa276d15d62a0c2dc68190e757490c02b1 (#741 merged): the breaking drift is unchanged (SecretIdentityReadInput.secretRef renamed identityRef, SecretIdentityToolResult published as SecretIdentityOutput, secret.identity added to the workflow action capability vocabulary). Earlier approval text: main 889c2fbfb938191e56ede7ed5dc7458216f131bd: secret.identity.read becomes a plan action, so the flat-era input field SecretIdentityReadInput.secretRef is renamed identityRef (the plan compiler refuses any action input field whose name carries a secret word, and the field is an opaque uuid reference, not a secret). The worker action's published output name changes from SecretIdentityToolResult to the flat plan-facing SecretIdentityOutput (the worker result is still checked against the strict SecretIdentityToolResult union), and the workflow action capability vocabulary gains secret.identity. The breaking drift is the one renamed input field; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 are preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 5b8d39e853b302f1424cf36da10a1e8ca0d71c4d after #400 merged origin/main; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:b810e7ccc1b92adfbd41c4baee6b7ab89bb7ea2496b80e255731454eaff4e19a is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main a83b7ec57da9bf29078c23b24d3cdda776f255fe (#702 and #711 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:8f194c24ed520a1644c7d1e0575ceeb56761f2675962b0b9c0d8adfbc927b726 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 9da88825036edcc588db4c2ac892297a8638b8cb (#706 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:d6aa2d82f6414d196b7ee0780b964513e0c25772e3b499c65c775e04a7fa43c7 is preserved first below. Base extended again to main 968c2ab9257fad06adb6132eb743a4f62c578e17 (#719 merged): same digest, same drift, no approval displaced. Re-bound again by dev-workflows on 2026-11-19 to main 6eefa213893fcce48b6511332ef3798e3524602b (#721 and #710 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:ed93d6ab9c60fe57f298963e296af917252d61894392c63eec098f47242eb94d is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main de64639a4d4cfbf49bc3402f7d21deffd06ef74a; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:5178d631d0dfff391ce01c4b044cb87ed2684f95e529dba270b3a7aea30440c8 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:5746a2c129a47b9dba605b034d3d1e4968b55ca95e922c75cbff0207d1057fc5 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 1ce09ba92c2007f4837308efdbabfc93baaaff67 (#714 merged) on top of main's own #69 approval, preserved unchanged first below at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926; the breaking drift is unchanged (the one renamed input field) and my previous approval at sha256:1d16dc619e99c9bae62393095f6a862b1005d4e455d11016fa4ba6899cbd6ecf follows it. Re-bound again by dev-workflows on 2026-11-20 to main a5f21505dd4b98a965c6ddb3f2d6a756e835ce06 (#729 and #732 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:fa3cd4919cad71a56ef317c528e412072e557e35f49069c2ea18ec9a1dcb3f4f is preserved first below. Re-bound again by dev-workflows on 2026-11-20 to main a001079c230bfd1d039b46b5fb6cc88deb876dd5 (#735 and #731 merged); the breaking drift is unchanged and the approval it displaced at sha256:98b0efb7a692f2c55762b24d4fab7fba8c50d6d401db96d229bcf701dc869f0c is preserved first below. Re-bound again by dev-workflows on 2026-11-20 to main 4bd35c217d584662c4550c6a956fee67ec0e4577 (#728 merged, carrying #431's own approval, preserved unchanged first below at sha256:f61c0f4a77facec344684ffb9915710f8ea65201a8c67b62bbef25382a56b7c3); the breaking drift is unchanged (the one renamed input field) and my previous approval at sha256:0253d09fb13a6878f5a5fb87369641346eb187c8362e663b1628fc0937074929 follows it. Re-bound again by dev-workflows on 2026-11-20 to main 7af7d8692f3c06834a7192c596341ff6d0cf9079 (#730 merged) on top of main's own #72 approval, which is preserved unchanged first below at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96; the breaking drift is unchanged. Re-bound again by dev-workflows on 2026-11-20 to main 04c3fa8ffeccac98872c7cb9af1a7f35d43707d7 (#400 S2 plan admission) on top of main's own approval, preserved unchanged first below at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96; the breaking drift is unchanged. Re-bound again by dev-workflows on 2026-11-20 to main 82208cd19ee685a73f12fe8c8d7d4f97d9138ce2 (#400 S2 plan admission) on top of main's own approval, preserved unchanged first below at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96; the breaking drift is unchanged. Re-bound again by dev-workflows on 2026-11-20 to main dd04161d9c178f90553b2e7b086c18bb5f848203 (#400 S2 plan admission) on top of main's own approval, preserved unchanged first below at sha256:1e96091b9990086d17c09e0bae292465d0f9ce34f5b698b29d9fceb229246276; the breaking drift is unchanged. This PR's previous approval at sha256:8f13900a664e97c69caa28ca9c2d4855d57374d7e8db6a0c5d37721d9603a819 (bound to dd04161d9c178f90553b2e7b086c18bb5f848203) and main's own approval at sha256:e57de0de36c4f5a4aea4e34f5c1bffcd3c9ab0ea5823cd8137a28bafb2f24154 (#72 live updates, bound to 2f2c8e83a44a3a781914cf0348a1671a80ddd759) is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:1cf004af3771a81ff0bf65260951658a68ad86256ac348a92f3a29fe91d3f759",
+  "reason": "#64 slice C cutoff re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 76b0d8e448facf07eef4c78af3e77386ebadab2c: BackupStatus gains lastBackupCutoffAt, required (the cutoff record of the last backup); the runner route backupRunner.cutoff is new, with BackupRunCutoff, BackupCutoff and BackupCutoffOperation. The digest follows the tree when main moved again (#808 merged); my previous approval on the earlier main is displaced, kept unchanged.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "35f272370446c45c9e1f79177a3836a7d1903a2b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:6be79e65f8d6390329197e6eeb666584a52b9104710badda9373f31cf33eb4ad",
+      "reason": "#64 slice C cutoff re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 35f272370446c45c9e1f79177a3836a7d1903a2b: BackupStatus gains lastBackupCutoffAt, required (the cutoff record of the last backup); the runner route backupRunner.cutoff is new, with BackupRunCutoff, BackupCutoff and BackupCutoffOperation. Main's own approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "e321e76af1ce1933149b3345d832e98295ccc364"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8e68e8856af05cf093594afce7f54f58b31f1ee7e41065c23fcfeea17847cd05",
+      "reason": "#64 slice B quiesce re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main e321e76af1ce1933149b3345d832e98295ccc364: BackupStatus gains maintenanceState and maintenanceSince, both required (the installation maintenance switch a backup holds); the retryable 503 INSTALLATION_QUIESCED is added to the errors of five actions that start or change work, and the runner route backupRunner.maintain is new. A webhook delivery is accepted during a hold, so intake.webhook does not list it. Main's own approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "064ca6fd61b59fe9eae31cfe2469f62f9e635687"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1f25130262c7f1a06b80a55cf63474047fd0dbd37cf8234a0898539354af3c69",
+      "reason": "#70 slice 2 waiting-on-a-model reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 064ca6fd61b59fe9eae31cfe2469f62f9e635687: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8d403f1221dc327bbb871c1eebc0b41b99b31619"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8a47341c72a1ca31d7f92cd3abdcfe15f9276ecca081f9947301907b1b16ee7b",
+      "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8d403f1221dc327bbb871c1eebc0b41b99b31619: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged first below, then this PR's previous ones. The cursor description now names the provider filter, which the cursor was already bound to."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8d403f1221dc327bbb871c1eebc0b41b99b31619"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:4c7ce0ae4caa534c2ceec4f5b125ffe45a2e213b8f9d484be0365ab13c20c517",
+      "reason": "#70 slice 2 waiting-on-a-model reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8d403f1221dc327bbb871c1eebc0b41b99b31619: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8d403f1221dc327bbb871c1eebc0b41b99b31619"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:ea083571589f6da83d51efd60ecc88fbd387f29186d2f2c3bc01a7b685481c53",
+      "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8d403f1221dc327bbb871c1eebc0b41b99b31619: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged first below, then this PR's previous ones. [Displaced by the #739 cursor wording fix: this PR's previous approval, kept unchanged otherwise.]"
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "536ca2f627dbd9fdb8ba2500830bd8b508645b40"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:af4c0cec80238c9475b30cfa542fdfbf918f4f1b892a86332649bd1a90474480",
+      "reason": "#57 slice 2 merge-queue reads re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 536ca2f627dbd9fdb8ba2500830bd8b508645b40 (#788 and handoff manifests merged): PullRequest gains targetBranch, required and not nullable; MergeEntry gains blockedReason, nullable. This PR's previous approval is kept unchanged first below, then main's own."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "49a52678dd508066cbaf33db1178a066945a87f6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:78b2f8ca7fbaddc4dad1b5aa7aa413fc35aa31bfd8480a2839765308b1d021f2",
+      "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 49a52678dd508066cbaf33db1178a066945a87f6: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged below, then this PR's previous ones."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "168b504d36e82f366c73d7931d4b9c82afe389da"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b6340fefd73f1155f0b70b57f61530f9a538d482b7816f4588851b78f52c1123",
+      "reason": "#739 Monitoring server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 168b504d36e82f366c73d7931d4b9c82afe389da: TelemetryDestinationList gains destinationLimit, nextCursor, total, stateCounts and providers, all required, and takes search, state, kind, provider, cursor and limit; TelemetryDestination gains provider (required); telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged below, then this PR's previous one."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "283ceeaf7750a9d6bfac79dce642a0b0bdf28224"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a2990005fe2611b63e5122a6bea9699a1d73c4030c7f11b2c4e1cfe541674f77",
+      "reason": "#739 Monitoring list server items re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 283ceeaf7750a9d6bfac79dce642a0b0bdf28224: TelemetryDestinationList gains destinationLimit, nextCursor, total and stateCounts, all required, and the list now takes search, state, kind, cursor and limit; telemetryDestinations.get and telemetryDestinations.dropped are new. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "2de7c9744ef72c605c415b6fc2ba846b95f98eee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5e6cbf87fc5f188cc0b7baf0b42f9b86c72229e09937616145eabbbb79c8f48c",
+      "reason": "#57 slice 2 merge-queue reads by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2de7c9744ef72c605c415b6fc2ba846b95f98eee: PullRequest gains targetBranch, required and not nullable, the repository's default branch that mergeEntries.create takes; MergeEntry gains blockedReason, nullable. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "e1326d79aceb7704529567b7d6e1dda58569ff14"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:9ba189cc43ffbe02eeddd3a250f68eb0a6fcd143089fa3732b2fdf597d4085a9",
+      "reason": "#14 context pack limits re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main e1326d79aceb7704529567b7d6e1dda58569ff14: ContextPackItem gains limits (why an item carries no content, or null) and redactions (credentials redacted from the item), both required, so a reader of a pack is told what it is missing. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "006746add1aff121cc9ccdf46c7eb4d54d7cd0e1"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:4b34d06824ea03e2862a772e2f7f1c56f85fc63037820b671eeba8b490a42d3e",
+      "reason": "#448 S3-S6 write set, limits, undo and read set re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 006746add1aff121cc9ccdf46c7eb4d54d7cd0e1: the breaking drift is this PR's own (step write and read sets, limits, revert). Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "a3a5a3400dc79a9ad646fc8631cf184dc8642d05"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:766a91a3406a6ef488de878590269f396d6b646fb70be95418e27e01a7071c2c",
+      "reason": "#445 pin re-bind by dev-web on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a3a5a3400dc79a9ad646fc8631cf184dc8642d05: StorageFolderItem gains pinned, required and not nullable, whether an administrator pinned the file's artifact, so the file browser and the command line's stat show it; storageFiles.pin is a new action. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "70f783249d02ba6493a0fc4f413cf3ef34e11392"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:01305743634c3447fe91302c0a64559bbcd7503cb16ec7a76eeb1cff3f878713",
+      "reason": "#44 evaluation batches re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 133085d155d6af34566063e17a68bdd70bbebdbe: the breaking drift is unchanged (WorkerResult fault refineScope and the evaluation batch contracts). Re-bound onto main 70f783249d02ba6493a0fc4f413cf3ef34e11392 after merging it; drift unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "c8cf571ea9fea05e16ae93dfa83ccfd414687a29",
+        "7b27af0ec5771c8deab67b80326829d0ddc2dbcd"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:fdb9ae6084d1d4db3514b3596518187e565c6c128e770507f105f676b33e84e4",
+      "reason": "#445 Library under Files re-bind by dev-web on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main c8cf571ea9fea05e16ae93dfa83ccfd414687a29: LibraryEntry gains id and FileSearchHit gains itemId, both required and nullable, the id of the catalog item a Library entry or search hit mirrors (null for a folder and for a file), so the Library copy under Files and its search open the workflow or agent page itself. Re-bound again onto main 7b27af0ec5771c8deab67b80326829d0ddc2dbcd (#767 merged): the digest is unchanged. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "2dcf890407e62d5cf83f528eb59479696280688e"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:f204f40485b2c391f018f947955664f5e1d9315c7dd5838cd8785bd12ead618d",
+      "reason": "#46 development metrics re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2dcf890407e62d5cf83f528eb59479696280688e: the breaking drift is unchanged."
+    },
+    {
+      "fromBaseRefs": [
+        "0aceacbe938b7d2b3bacc9073849fd32552a3e4e"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7173fd9bec99984de1ef3b84f3b010c1fd28eb98a6776b08fbc4e19bc22908a3",
+      "reason": "#19 private previews re-bind by dev-agx3 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 0aceacbe938b7d2b3bacc9073849fd32552a3e4e: the running-app preview contracts (previews.list, previews.access, worker.previews; no client or handler existed) change shape. Preview drops routeKey, upstreamPort and workspaceId from what a client reads and gains runId, attemptId, stopReason, stoppedBy and stoppedAt; PreviewAccess.expiresInSeconds becomes sessionSeconds so the one-use grant is exchangeable for 30 seconds and the session length is separate; PreviewAccessResult gains grantId and sessionSeconds; previews.list takes a PreviewQuery. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "b6307002a2978e10e83d7b28d2a676866b90080c"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:69c0243b9bd49da8b9278b63702507e0bdaac7fd701731cd4ec39ed1372ab67a",
+      "reason": "#46 development metrics re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main b6307002a2978e10e83d7b28d2a676866b90080c: the breaking drift is unchanged (MetricsQuery and the metrics read contracts from #746)."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "c0afffaa276d15d62a0c2dc68190e757490c02b1"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5f21fc22924aa26340da277a3d286d70b5517b8bde6fb02c1e53b453a917491e",
+      "reason": "#400 S2 plan admission re-bind by dev-workflows on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main c0afffaa276d15d62a0c2dc68190e757490c02b1 (#741 merged): the breaking drift is unchanged (SecretIdentityReadInput.secretRef renamed identityRef, SecretIdentityToolResult published as SecretIdentityOutput, secret.identity added to the workflow action capability vocabulary). Earlier approval text: main 889c2fbfb938191e56ede7ed5dc7458216f131bd: secret.identity.read becomes a plan action, so the flat-era input field SecretIdentityReadInput.secretRef is renamed identityRef (the plan compiler refuses any action input field whose name carries a secret word, and the field is an opaque uuid reference, not a secret). The worker action's published output name changes from SecretIdentityToolResult to the flat plan-facing SecretIdentityOutput (the worker result is still checked against the strict SecretIdentityToolResult union), and the workflow action capability vocabulary gains secret.identity. The breaking drift is the one renamed input field; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 are preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 5b8d39e853b302f1424cf36da10a1e8ca0d71c4d after #400 merged origin/main; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:b810e7ccc1b92adfbd41c4baee6b7ab89bb7ea2496b80e255731454eaff4e19a is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main a83b7ec57da9bf29078c23b24d3cdda776f255fe (#702 and #711 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:8f194c24ed520a1644c7d1e0575ceeb56761f2675962b0b9c0d8adfbc927b726 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 9da88825036edcc588db4c2ac892297a8638b8cb (#706 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:d6aa2d82f6414d196b7ee0780b964513e0c25772e3b499c65c775e04a7fa43c7 is preserved first below. Base extended again to main 968c2ab9257fad06adb6132eb743a4f62c578e17 (#719 merged): same digest, same drift, no approval displaced. Re-bound again by dev-workflows on 2026-11-19 to main 6eefa213893fcce48b6511332ef3798e3524602b (#721 and #710 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:ed93d6ab9c60fe57f298963e296af917252d61894392c63eec098f47242eb94d is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main de64639a4d4cfbf49bc3402f7d21deffd06ef74a; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:5178d631d0dfff391ce01c4b044cb87ed2684f95e529dba270b3a7aea30440c8 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa; the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:5746a2c129a47b9dba605b034d3d1e4968b55ca95e922c75cbff0207d1057fc5 is preserved first below. Re-bound again by dev-workflows on 2026-11-19 to main 1ce09ba92c2007f4837308efdbabfc93baaaff67 (#714 merged) on top of main's own #69 approval, preserved unchanged first below at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926; the breaking drift is unchanged (the one renamed input field) and my previous approval at sha256:1d16dc619e99c9bae62393095f6a862b1005d4e455d11016fa4ba6899cbd6ecf follows it. Re-bound again by dev-workflows on 2026-11-20 to main a5f21505dd4b98a965c6ddb3f2d6a756e835ce06 (#729 and #732 merged); the breaking drift is unchanged (the one renamed input field) and the approval it displaced at sha256:fa3cd4919cad71a56ef317c528e412072e557e35f49069c2ea18ec9a1dcb3f4f is preserved first below. Re-bound again by dev-workflows on 2026-11-20 to main a001079c230bfd1d039b46b5fb6cc88deb876dd5 (#735 and #731 merged); the breaking drift is unchanged and the approval it displaced at sha256:98b0efb7a692f2c55762b24d4fab7fba8c50d6d401db96d229bcf701dc869f0c is preserved first below. Re-bound again by dev-workflows on 2026-11-20 to main 4bd35c217d584662c4550c6a956fee67ec0e4577 (#728 merged, carrying #431's own approval, preserved unchanged first below at sha256:f61c0f4a77facec344684ffb9915710f8ea65201a8c67b62bbef25382a56b7c3); the breaking drift is unchanged (the one renamed input field) and my previous approval at sha256:0253d09fb13a6878f5a5fb87369641346eb187c8362e663b1628fc0937074929 follows it. Re-bound again by dev-workflows on 2026-11-20 to main 7af7d8692f3c06834a7192c596341ff6d0cf9079 (#730 merged) on top of main's own #72 approval, which is preserved unchanged first below at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96; the breaking drift is unchanged. Re-bound again by dev-workflows on 2026-11-20 to main 04c3fa8ffeccac98872c7cb9af1a7f35d43707d7 (#400 S2 plan admission) on top of main's own approval, preserved unchanged first below at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96; the breaking drift is unchanged. Re-bound again by dev-workflows on 2026-11-20 to main 82208cd19ee685a73f12fe8c8d7d4f97d9138ce2 (#400 S2 plan admission) on top of main's own approval, preserved unchanged first below at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96; the breaking drift is unchanged. Re-bound again by dev-workflows on 2026-11-20 to main dd04161d9c178f90553b2e7b086c18bb5f848203 (#400 S2 plan admission) on top of main's own approval, preserved unchanged first below at sha256:1e96091b9990086d17c09e0bae292465d0f9ce34f5b698b29d9fceb229246276; the breaking drift is unchanged. This PR's previous approval at sha256:8f13900a664e97c69caa28ca9c2d4855d57374d7e8db6a0c5d37721d9603a819 (bound to dd04161d9c178f90553b2e7b086c18bb5f848203) and main's own approval at sha256:e57de0de36c4f5a4aea4e34f5c1bffcd3c9ab0ea5823cd8137a28bafb2f24154 (#72 live updates, bound to 2f2c8e83a44a3a781914cf0348a1671a80ddd759) is preserved unchanged first below. [Displaced by the #19 private previews re-bind: main's own approval, preserved unchanged.]"
+    },
     {
       "fromBaseRefs": [
         "2f2c8e83a44a3a781914cf0348a1671a80ddd759"

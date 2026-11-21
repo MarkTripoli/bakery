@@ -1,3 +1,4 @@
+import { LOCAL_SERVER_HOST, LOCAL_SERVER_PORT } from "./local-server.ts";
 import { z } from "zod";
 import { readSentryConfig, type SentryConfig } from "./sentry.ts";
 import {
@@ -39,10 +40,27 @@ export function availableLocalesFor(
   return environment === "production" ? ["en"] : ["en", "en-XA", "ar-XB"];
 }
 
+/**
+ * The origins a desktop web view loads its pages from: Tauri 2 serves the bundled pages as
+ * `tauri://localhost` on macOS and Linux, and as `http://tauri.localhost` (or the https form)
+ * on Windows. They are not network addresses: the host name is answered inside the app.
+ * Only these three can be configured, so an operator can narrow the list and never widen it.
+ */
+export const DESKTOP_WEB_VIEW_ORIGINS: readonly string[] = [
+  "tauri://localhost",
+  "http://tauri.localhost",
+  "https://tauri.localhost",
+];
+
 export type ServerAuthConfig = {
   secret: string;
   publicOrigin: string;
   trustedOrigins: readonly string[];
+  /**
+   * Origins whose pages may call the API cross-origin with a bearer credential (CORS). Absent
+   * or empty means none. Never used for cookie sessions: those stay on `trustedOrigins`.
+   */
+  desktopOrigins?: readonly string[];
   github?: { clientId: string; clientSecret: string };
 };
 
@@ -372,8 +390,9 @@ export type RuntimeConfig = {
    */
   draftIsolationLauncher?: DraftIsolationLauncher;
   /**
-   * Where telemetry goes (`BAKERY_TELEMETRY_LOG_DIR`, `BAKERY_OTLP_ENDPOINT`);
-   * server only. Absent means export stays disabled, which is the default.
+   * Where the server writes its rotated telemetry log (`BAKERY_TELEMETRY_LOG_DIR`);
+   * server only. Absent means no log is written. Destinations that receive
+   * measurements are saved in the app, not configured here.
    */
   telemetry?: TelemetrySinkConfig;
 };
@@ -671,6 +690,24 @@ export function readTestDatabaseResetOptions(
   };
 }
 
+/**
+ * `BAKERY_DESKTOP_ORIGINS`: unset allows every desktop web view origin, an empty value allows
+ * none, and a comma list may name only the origins in `DESKTOP_WEB_VIEW_ORIGINS`.
+ */
+function readDesktopOrigins(
+  value: string | undefined,
+): { origins: readonly string[]; valid: boolean } {
+  if (value === undefined) {
+    return { origins: DESKTOP_WEB_VIEW_ORIGINS, valid: true };
+  }
+  if (value.trim() === "") return { origins: [], valid: true };
+  const named = value.split(",").map((entry) => entry.trim());
+  if (!named.every((entry) => DESKTOP_WEB_VIEW_ORIGINS.includes(entry))) {
+    return { origins: DESKTOP_WEB_VIEW_ORIGINS, valid: false };
+  }
+  return { origins: [...new Set(named)], valid: true };
+}
+
 function normalizeOrigin(value: string | undefined): string | undefined {
   if (!value?.trim()) return undefined;
   try {
@@ -757,11 +794,11 @@ export function readRuntimeConfig(
   const host = readRequiredText(
     env[kind === "server" ? "BAKERY_SERVER_HOST" : "BAKERY_WORKER_HOST"],
     "HOST_INVALID",
-    "127.0.0.1",
+    LOCAL_SERVER_HOST,
   );
   const port = readPort(
     env[kind === "server" ? "BAKERY_SERVER_PORT" : "BAKERY_WORKER_PORT"],
-    kind === "server" ? 8000 : 8001,
+    kind === "server" ? LOCAL_SERVER_PORT : 8001,
   );
   const databaseEnvironmentName = kind === "server"
     ? "BAKERY_APP_DATABASE_URL"
@@ -878,6 +915,11 @@ export function readRuntimeConfig(
     ? [...new Set(normalizedTrustedOrigins as string[])]
     : [publicOrigin];
 
+  const desktop = readDesktopOrigins(env.BAKERY_DESKTOP_ORIGINS);
+  if (kind === "server" && !desktop.valid) {
+    invalidConfig.push("BAKERY_DESKTOP_ORIGINS");
+  }
+
   let artifactPreviewOrigin: string | undefined;
   const configuredPreviewOrigin = env.BAKERY_ARTIFACT_PREVIEW_ORIGIN?.trim();
   if (kind === "server" && configuredPreviewOrigin) {
@@ -991,6 +1033,7 @@ export function readRuntimeConfig(
       secret,
       publicOrigin,
       trustedOrigins,
+      desktopOrigins: desktop.origins,
       ...(githubClientId && githubClientSecret
         ? {
           github: {

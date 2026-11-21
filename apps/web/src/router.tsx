@@ -62,6 +62,7 @@ import {
   InstallationBreadcrumbs,
 } from "./shell/SettingsShellSlots.tsx";
 import { OrganizationSettingsPage } from "./pages/OrganizationSettingsPage.tsx";
+import { OrganizationStoragePage } from "./pages/OrganizationStoragePage.tsx";
 import {
   InstallationIntegrationsPage,
   parseRegistrationOutcome,
@@ -86,6 +87,10 @@ import {
 import { ConnectionPage } from "./pages/integrations/ConnectionPage.tsx";
 import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
+import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
+import { MonitoringDestinationPage } from "./pages/MonitoringDestinationPage.tsx";
+import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
+import { DeliveryPage } from "./pages/DeliveryPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
 import { SettingsIndexPage } from "./pages/SettingsIndexPage.tsx";
 import { ProfilePage } from "./pages/ProfilePage.tsx";
@@ -208,6 +213,24 @@ export const routeCoverage = [
       "stale",
       "offline",
       "long-copy",
+    ],
+  },
+  {
+    id: "delivery",
+    path: "/delivery",
+    classification: "production",
+    // Not a fifth kind of failure: `partial` is the page with figures and a
+    // note that some records are missing, and `degraded` is a source that
+    // stopped, whose figures are unknown rather than zero.
+    states: [
+      "loading",
+      "default",
+      "partial",
+      "degraded",
+      "stale",
+      "empty",
+      "error",
+      "forbidden",
     ],
   },
   {
@@ -603,6 +626,41 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "installation-monitoring-new",
+    path: "/installation/monitoring/new",
+    classification: "production",
+    states: ["loading", "default", "error", "forbidden"],
+  },
+  {
+    id: "installation-monitoring-destination",
+    path: "/installation/monitoring/$destinationId",
+    classification: "production",
+    states: ["loading", "default", "error", "forbidden", "unavailable"],
+  },
+  {
+    id: "installation-monitoring",
+    path: "/installation/monitoring",
+    classification: "production",
+    states: ["loading", "default", "empty", "error", "forbidden"],
+  },
+  {
+    id: "installation-usage",
+    path: "/installation/usage",
+    classification: "production",
+    // `unknown` is not a fifth kind of failure: it is the state where the
+    // records exist but Bakery cannot say how complete they are, and the page
+    // must still render figures with that warning rather than an error.
+    states: [
+      "loading",
+      "default",
+      "partial",
+      "degraded",
+      "empty",
+      "error",
+      "forbidden",
+    ],
+  },
+  {
     id: "installation-audit",
     path: "/installation/audit",
     classification: "production",
@@ -711,6 +769,21 @@ export const routeCoverage = [
       "ready",
       "default",
       "long-copy",
+      "error",
+      "forbidden",
+      "conflict",
+      "offline",
+      "reconnecting",
+    ],
+  },
+  {
+    id: "organization-storage",
+    path: "/organization/storage",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "default",
       "error",
       "forbidden",
       "conflict",
@@ -1221,6 +1294,10 @@ function validateFilesSearch(
   version?: number;
   q?: string;
   type?: "text" | "image" | "video" | "audio" | "data" | "archive" | "other";
+  kind?: string;
+  by?: string;
+  fact?: string;
+  view?: "open";
   in?: "all";
 } {
   return {
@@ -1236,12 +1313,31 @@ function validateFilesSearch(
           .includes(search.type)
       ? { type: search.type as "text" }
       : {}),
+    ...(typeof search.kind === "string" && search.kind !== ""
+      ? { kind: search.kind.slice(0, 64) }
+      : {}),
+    ...(typeof search.by === "string" && search.by !== ""
+      ? { by: search.by.slice(0, 64) }
+      : {}),
+    ...(search.view === "open" ? { view: "open" as const } : {}),
+    ...(typeof search.fact === "string" && search.fact.includes(":")
+      ? { fact: search.fact.slice(0, 700) }
+      : {}),
     ...(search.in === "all" ? { in: "all" as const } : {}),
     ...(Number.isInteger(Number(search.version)) && Number(search.version) > 0
       ? { version: Number(search.version) }
       : {}),
   };
 }
+
+const deliveryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/delivery",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <DeliveryPage />,
+  errorComponent: ProtectedRouteError,
+});
 
 const filesRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -1552,6 +1648,15 @@ const organizationSettingsRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const organizationStorageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/organization/storage",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: OrganizationStoragePage,
+  errorComponent: ProtectedRouteError,
+});
+
 const installationSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/installation/settings",
@@ -1582,6 +1687,52 @@ const installationIntegrationsRoute = createRoute({
       <InstallationIntegrationsPage outcome={githubAppRegistration ?? null} />
     );
   },
+  errorComponent: ProtectedRouteError,
+});
+
+const installationMonitoringRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/monitoring",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="shell.navigation.monitoring">
+      <InstallationMonitoringPage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const installationMonitoringNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/monitoring/new",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  // The page claims its own breadcrumbs: the last crumb is its name.
+  component: () => <MonitoringDestinationPage />,
+  errorComponent: ProtectedRouteError,
+});
+
+const installationMonitoringDestinationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/monitoring/$destinationId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  // The page claims its own breadcrumbs: the last crumb is its name.
+  component: () => <MonitoringDestinationPage />,
+  errorComponent: ProtectedRouteError,
+});
+
+const installationUsageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/usage",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.usage.title">
+      <InstallationUsagePage />
+    </InstallationBreadcrumbs>
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -2424,7 +2575,13 @@ const routeTree = rootRoute.addChildren([
   invitationRoute,
   organizationsRoute,
   organizationSettingsRoute,
+  organizationStorageRoute,
   installationSettingsRoute,
+  installationMonitoringRoute,
+  installationMonitoringNewRoute,
+  installationMonitoringDestinationRoute,
+  installationUsageRoute,
+  deliveryRoute,
   installationAuditRoute,
   installationIntegrationsRoute,
   organizationAccessRoute,

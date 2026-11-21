@@ -226,6 +226,11 @@ const transportSchemas = {
       "retryable": true,
       "slug": "worker-unavailable"
     },
+    "INSTALLATION_QUIESCED": {
+      "status": 503,
+      "retryable": true,
+      "slug": "installation-quiesced"
+    },
     "SNAPSHOT_SCOPE_TOO_LARGE": {
       "status": 413,
       "retryable": false,
@@ -353,6 +358,11 @@ const transportSchemas = {
       "status": 422,
       "retryable": false,
       "slug": "storage-file-too-large"
+    },
+    "STEP_WRITE_LIMIT_EXCEEDED": {
+      "status": 409,
+      "retryable": false,
+      "slug": "step-write-limit-exceeded"
     }
   },
   "conventions": {
@@ -2868,12 +2878,19 @@ const transportSchemas = {
       "fields": [
         {
           "name": "metric",
-          "type": "string",
+          "type": "enum",
           "required": true,
-          "bounds": {
-            "maxLength": 200
-          },
-          "description": "Key selecting which registered metric series to return; the catalog is migrating this from an unrestricted string to an allowlisted metric key with repository/application filters."
+          "enum": [
+            "prs.opened",
+            "prs.merged",
+            "prs.closedUnmerged",
+            "prs.openAtCutoff",
+            "prs.mergeRate",
+            "prs.turnaroundHours",
+            "prs.changedLines",
+            "tasks.leadTimeHours"
+          ],
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         {
           "name": "from",
@@ -2897,9 +2914,15 @@ const transportSchemas = {
             "day"
           ],
           "description": "Time-bucket size for the returned series: minute, hour, or day; finer buckets over a long window are limited by the 1,000-point series cap."
+        },
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Only count pull requests of this repository of the organization; another organization's repository counts nothing."
         }
       ],
-      "description": "Query for GET /v1/metrics: selects one metric over a bounded UTC time window (default 30 days, capped at 366) and a bucket resolution, returning at most 1,000 chart points."
+      "description": "Query for GET /v1/metrics: one allowlisted metric key over a bounded half-open UTC window [from, to) (default 30 days, capped at 366) and a bucket resolution, optionally one repository, returning at most 1,000 chart points."
     },
     "NamedDefinitionCreate": {
       "fields": [
@@ -3007,7 +3030,7 @@ const transportSchemas = {
     "PreviewAccess": {
       "fields": [
         {
-          "name": "expiresInSeconds",
+          "name": "sessionSeconds",
           "type": "integer",
           "required": false,
           "bounds": {
@@ -3015,10 +3038,10 @@ const transportSchemas = {
             "max": 86400,
             "default": 3600
           },
-          "description": "How long the issued preview access grant stays valid before the caller must request a new one; bounded between one minute and 24 hours."
+          "description": "How long the signed-in preview session lasts once the grant is exchanged, from 60 seconds to 24 hours; it does not change how long the one-use grant can be exchanged, which is always 30 seconds."
         }
       ],
-      "description": "Requests a one-use access grant for a running preview; the caller's client posts the grant to the separate preview origin, which exchanges it for its own short-lived HttpOnly cookie."
+      "description": "Requests a one-use access grant for a running preview. The grant is exchangeable for 30 seconds only; the session it opens lasts sessionSeconds. The caller's client posts the grant to the separate preview origin, which exchanges it for its own HttpOnly cookie."
     },
     "PrincipalCreate": {
       "fields": [
@@ -3967,6 +3990,101 @@ const transportSchemas = {
         }
       ],
       "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published, as an organization skill or as a personal skill that belongs to the calling person."
+    },
+    "SkillDraftUpdate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose draft to change; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "license",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The license the published version declares, printable ASCII; omit to keep the draft's current one. A draft started from a version keeps that version's license."
+        },
+        {
+          "name": "entryPath",
+          "type": "relativePath",
+          "required": false,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "The file a worker reads first, usually SKILL.md; it must be one of the draft's files when the draft is checked. Omit to keep the current one."
+        }
+      ],
+      "rules": [
+        "Skill author (the owner of a personal skill, an Admin for an organization skill; a skill shared by Bakery has no draft). Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft)."
+      ],
+      "description": "Changes the settings of a skill's draft that are not files: its license and its entry file."
+    },
+    "SkillDraftFileSave": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose draft receives the file; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "path",
+          "type": "relativePath",
+          "required": true,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "Relative path of the file inside the skill, such as SKILL.md or scripts/build.sh. Saving a path the draft already has replaces that file; a path that matches another file ignoring capitals is refused."
+        },
+        {
+          "name": "mediaType",
+          "type": "mediaType",
+          "required": true,
+          "description": "MIME media type of the file's content, for example text/markdown."
+        },
+        {
+          "name": "isExecutable",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether the file is marked runnable on a worker; defaults to false and only a script may be marked."
+        },
+        {
+          "name": "contentBase64",
+          "type": "base64",
+          "required": true,
+          "description": "The file's complete bytes, base64-encoded; all files of the draft together are capped at 10MiB and 256 files."
+        }
+      ],
+      "rules": [
+        "Skill author. Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft). The answer is the draft with its new version."
+      ],
+      "description": "Adds a file to a skill's draft or replaces the one at the same path."
+    },
+    "SkillDraftFilePath": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the skill whose draft holds the file; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "fileId",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the file inside the draft, as listed by the draft; supplied via the request's {fileId} path segment."
+        }
+      ],
+      "rules": [],
+      "description": "Addresses one file of a skill's draft by the id the draft lists it under."
     },
     "SkillCopy": {
       "fields": [
@@ -4932,9 +5050,89 @@ const transportSchemas = {
           "type": "gitSha",
           "required": true,
           "description": "Commit SHA the running preview was built from."
+        },
+        {
+          "name": "workerSessionId",
+          "type": "uuid",
+          "required": false,
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts."
+        },
+        {
+          "name": "workerSessionGeneration",
+          "type": "decimalString",
+          "required": false,
+          "description": "Generation of that worker session; required with workerSessionId."
         }
       ],
       "description": "Registers a running preview upstream for an attempt so Bakery can proxy client traffic to it; the record tracks its route, port and expiry until the preview stops."
+    },
+    "WorkerHandoffManifest": {
+      "fields": [
+        {
+          "name": "leaseToken",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "Proof of the attempt's current lease backing this manifest; the manifest is refused once a newer attempt has advanced the job's fence."
+        },
+        {
+          "name": "fence",
+          "type": "decimalString",
+          "required": true,
+          "bounds": {
+            "min": 0
+          },
+          "description": "Monotonic fence value bound to the current attempt; the manifest is rejected once a newer attempt has advanced this job's fence."
+        },
+        {
+          "name": "manifest",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 32768
+          },
+          "description": "The bounded handoff manifest the source session writes before it stops: repository state as immutable artifact references, accepted decisions, the exact context selection, recent checks, effects still to reconcile, a durable checkpoint and a grant comparison digest. The server verifies every identifier and artifact digest, ignores the source's own safe-boundary and pending-effect claims and stores its own; it never holds a transcript, a secret or a lease token."
+        },
+        {
+          "name": "workerSessionId",
+          "type": "uuid",
+          "required": false,
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts."
+        },
+        {
+          "name": "workerSessionGeneration",
+          "type": "decimalString",
+          "required": false,
+          "description": "Generation of that worker session; required with workerSessionId."
+        }
+      ],
+      "rules": [
+        "The lease, the fence and the worker session are proved first, exactly as for every other attempt mutation, so a fenced, expired or foreign attempt can never write a manifest.",
+        "One manifest per source attempt: the same manifest replays, a different one for the same attempt is STATE_CONFLICT. A manifest over 32 KiB inline is BODY_TOO_LARGE; long content belongs in artifacts the manifest references.",
+        "The manifest is a record, never the authority: run, step, task, agent version, workflow version, source session, repository and every artifact reference are checked against the server's own rows, and a mismatch is UNPROCESSABLE."
+      ],
+      "description": "Persists the handoff manifest of an attempt before the source session stops, so a continuation can resume from a verified record or start fresh without replaying uncertain effects."
+    },
+    "HandoffContinue": {
+      "fields": [
+        {
+          "name": "runVersion",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The run version the person saw when they chose to hand the step off. If the run changed since, the submission is refused as a failed precondition and nothing is committed."
+        }
+      ],
+      "rules": [
+        "Exactly one submission wins however many handoff, cancel and recovery submissions race: the source attempt is fenced, the job's fence advances and the job is queued again in one transaction, or nothing is written.",
+        "A refusal names why and commits nothing: run_not_active, already_continued, manifest_blocked, source_not_live, fence_moved, job_terminal, cancel_requested, awaiting_reconciliation, attempt_budget_exhausted or capture_incomplete. An effect that has not settled is not a refusal: it retires the source and parks the job in awaiting_reconciliation.",
+        "The job's input, billing and agent configuration are not changed; the continuation reads the stored manifest by its id."
+      ],
+      "description": "A person's choice to retire a live source attempt that stored a handoff manifest and admit its job again for a continuation, submitted against the run version they saw."
     },
     "WorkerEnrollmentInspect": {
       "fields": [
@@ -7448,6 +7646,76 @@ const transportSchemas = {
       "pagination": "pagination",
       "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
     },
+    "TicketRequestQuery": {
+      "fields": [
+        {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": true,
+          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted."
+        }
+      ],
+      "rules": [
+        "Keyset pages newest request first, ordered by createdAt then id."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
+    },
+    "TicketSourceLabelQuery": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 100
+          },
+          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer."
+        }
+      ],
+      "rules": [
+        "A live provider read, never cached; a provider failure answers 503 DEPENDENCY_UNAVAILABLE, a provider without labels 422 labels_unsupported."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
+    },
     "TicketTaskLinkNoteSync": {
       "fields": [],
       "rules": [
@@ -8516,7 +8784,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -9218,6 +9486,27 @@ const transportSchemas = {
         }
       ],
       "description": "Bounded UTF-16 slice coordinates used to obtain text and opaque stable Loro cursors from a retained authorized checkpoint."
+    },
+    "DraftRollover": {
+      "fields": [
+        {
+          "name": "epoch",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 2147483647
+          },
+          "description": "Draft epoch being closed, as last read from drafts.get; a call naming any other epoch fails without changing the draft."
+        },
+        {
+          "name": "checkpointId",
+          "type": "uuid",
+          "required": true,
+          "description": "The draft's current checkpoint, which must already be published as an artifact version; the new epoch starts from exactly this text."
+        }
+      ],
+      "description": "Closes the draft's current epoch and opens the next one from the published current checkpoint. Old-epoch edits can no longer be applied and stay available as proposals for reconciliation. No actor, organization or content can be supplied by the caller."
     },
     "DraftEdit": {
       "fields": [
@@ -10183,6 +10472,343 @@ const transportSchemas = {
       ],
       "description": "Saves the R2 account, bucket and credentials that hold skill bundle objects for this installation. Credentials are write-only and never appear in a response, error, log, trace, event or audit record."
     },
+    "BackupRunReport": {
+      "fields": [
+        {
+          "name": "leaseToken",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 32,
+            "maxLength": 128
+          },
+          "description": "Proof that the runner still holds the claim on this backup run, returned once by the claim. A report with any other token is refused, and a report after the lease has lapsed answers 409 STATE_CONFLICT."
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1000000
+          },
+          "description": "Position of this report in the run's report series, starting at 1 and rising by one each time. Sending the stored sequence again with the identical body replays the stored answer; a gap or an older number answers 409 STATE_CONFLICT."
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "running",
+            "completed",
+            "failed"
+          ],
+          "description": "What the runner reports: running while it works (also extends the lease), completed when the encrypted backup is written and checked on the host (with a failureCode when the off-site copy then failed), failed when it gave up before or while taking the backup. Completed and failed end the run."
+        },
+        {
+          "name": "progressPercent",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 0,
+            "max": 100
+          },
+          "description": "How far along the backup is, from 0 to 100, for a running report; it never goes down between reports."
+        },
+        {
+          "name": "sizeBytes",
+          "type": "decimalString",
+          "required": false,
+          "bounds": {
+            "min": 0
+          },
+          "description": "Total size in bytes of the finished encrypted backup set as a decimal string; required with a completed report and refused with any other."
+        },
+        {
+          "name": "locations",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 2
+          },
+          "description": "Where the finished backup is kept, drawn from the words server-host and off-site; required with a completed report (at least one) and refused with any other. With a failureCode on a completed report it is exactly server-host: the backup was taken but not copied off-site."
+        },
+        {
+          "name": "failureCode",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "disk_full",
+            "destination_refused",
+            "destination_unreachable",
+            "key_missing",
+            "incomplete_set",
+            "drain_timeout",
+            "runner_error"
+          ],
+          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report (drain_timeout when the installation did not go quiet in time for the snapshot). A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site."
+        },
+        {
+          "name": "failureDetail",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 1000
+          },
+          "description": "The runner's own plain-text answer for the failure, such as what the destination replied, at most 1000 characters; it is shown to administrators and must not contain key material. Allowed only together with a failureCode."
+        }
+      ],
+      "rules": [
+        "Authenticated by the backup runner credential only; a browser session or an access token is refused. The body is strict: a field that would carry backup bytes or key material is not part of the contract and is rejected with 422 UNPROCESSABLE.",
+        "The first report of a claimed run moves it to running. A completed report needs sizeBytes and at least one location, a failed report needs failureCode, and a running report may carry progressPercent; any other combination answers 422 UNPROCESSABLE.",
+        "Idempotent per run and sequence: the next sequence is applied, the stored sequence with an identical body is answered from the stored row, the stored sequence with a different body answers 422 IDEMPOTENCY_PAYLOAD_MISMATCH, and any other sequence answers 409 STATE_CONFLICT."
+      ],
+      "description": "One progress or result report from the host backup runner for a run it has claimed: the lease token, the report sequence, the status and the figures that status needs. The server records what happened; it never receives backup bytes or the age private key."
+    },
+    "TelemetryDestinationCreate": {
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Which kind of destination this is, as listed by telemetryDestinations.list (for example otlp for OpenTelemetry); it decides which values the destination needs and which measurements it can receive."
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "The provider the person chose in the Add destination chooser: a key from the list's providers whose kind is this destination's kind. Omitted means the kind's default provider. It is a label and cannot be changed later."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Name people see in the list and in alerts, unique across destinations ignoring case."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether the destination receives measurements now; defaults to true. Turning it off keeps its settings and queues nothing for it."
+        },
+        {
+          "name": "measurements",
+          "type": "string[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 6
+          },
+          "description": "The kinds of measurement to send: any of cost, durations, results, skills, health and errors that the destination's kind can take; at least one."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8000
+          },
+          "description": "The destination's settings by field name, as the kind lists them: a string for each. Fields the kind marks secret are write-only and stored encrypted; they are never returned."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session; access tokens are refused. Idempotency-Key is required.",
+        "An unknown kind, a missing required value or a value the kind refuses answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 200 destinations exist; one more answers 409 STATE_CONFLICT. A provider that is unknown, or belongs to another kind, answers 422 UNPROCESSABLE naming the provider field. Storing a secret value with no secrets key configured answers 409 STATE_CONFLICT and stores nothing."
+      ],
+      "description": "Adds a telemetry destination: a place Bakery sends the measurements it takes, with its own queue, its own settings and encrypted credentials."
+    },
+    "TelemetryDestinationUpdate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the destination to change; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "New name, unique across destinations ignoring case; omit to keep the current one."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Turns the destination on or off without losing its settings; omit to keep the current state."
+        },
+        {
+          "name": "measurements",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 6
+          },
+          "description": "Replaces the kinds of measurement the destination receives; omit to keep them."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8000
+          },
+          "description": "Only the settings to change, by field name. A secret field supplied here replaces the stored value; one left out keeps it. An empty string clears an optional field."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session. Idempotency-Key and a strong If-Match with the destination's version are required (428 when missing, 412 when stale)."
+      ],
+      "description": "Changes a telemetry destination's name, on or off state, measurements or settings; the stored secret is replaced only when a new one is supplied."
+    },
+    "TelemetryDestinationListQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page of this list, bound to the same search, state, kind and provider filters and to the caller; pass it back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Most destinations returned in one page; defaults to 25 and cannot exceed 100."
+        },
+        {
+          "name": "search",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Text to look for in the destination's name, ignoring case; omitted means every name."
+        },
+        {
+          "name": "state",
+          "type": "enum",
+          "enum": [
+            "working",
+            "not_tested_yet",
+            "failing",
+            "dropping_data",
+            "off"
+          ],
+          "required": false,
+          "description": "Only destinations in this state now; omitted means every state."
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 63
+          },
+          "description": "Only destinations of this kind, named by an identifier from the list's kinds; omitted means every kind."
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Only destinations added for this provider, named by a key from the list's providers; omitted means every provider."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, offset and skip. The order is failing, then dropping_data, then everything else by name ignoring case, then id; a cursor is good only with the same search, state, kind and provider."
+      ],
+      "description": "Filters and the page window for the Monitoring destination list; an unknown state or a malformed cursor is rejected."
+    },
+    "TelemetryDestinationDroppedQuery": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The destination whose drop reports are read; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page of this destination's drop reports; pass it back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Most drop reports returned in one page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Newest first by report id; reject page, offset and skip."
+      ],
+      "description": "Page window for the reports of records Bakery could not deliver to one destination."
+    },
+    "TelemetryDestinationTest": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": false,
+          "description": "A saved destination whose stored settings and secrets are used for any value not supplied; omit to test values that are not saved."
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "The kind of destination to test when no saved destination is named."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8000
+          },
+          "description": "Unsaved settings to test, by field name; they win over the saved ones. Nothing here is stored or returned."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session. Idempotency-Key is required. The address must be https and not private or local, no redirect is followed, and the test gives up after 10 seconds."
+      ],
+      "description": "Sends one harmless test message to a destination, using unsaved values or a saved destination's own, and reports the destination's real answer."
+    },
     "TicketSourcePersonPath": {
       "fields": [
         {
@@ -10263,7 +10889,7 @@ const transportSchemas = {
             "min": 1,
             "max": 2147483647
           },
-          "description": "Draft epoch observed with the source checkpoint; a suggestion from any other epoch is refused with reason draft_moved_on."
+          "description": "Draft epoch observed with the source checkpoint. A suggestion from a closed epoch is recorded as no_longer_fits with reason draft_moved_on, so offline words are kept for a person to apply; one from an epoch that does not exist yet is refused with draft_moved_on."
         },
         {
           "name": "sourceCheckpointId",
@@ -11017,6 +11643,53 @@ const transportSchemas = {
       ],
       "description": "Publishes the next revision of one project's scope profile: the step defaults every later run of the project inherits and pins at admission."
     },
+    "ContextPackBuild": {
+      "fields": [
+        {
+          "name": "envelope",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 4096
+          },
+          "description": "Budget envelope for the step: the model context window, the reservations held back for output, tool results, compaction and safety margin, and an optional operator cap on input tokens."
+        },
+        {
+          "name": "candidates",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Ordered candidate context items. An artifact candidate names an authorized artifact version and the bounded window to project; a text candidate carries its own bounded text. The order is the caller's relevance order and is never re-sorted by size."
+        },
+        {
+          "name": "conversationCutoff",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 0,
+            "max": 9007199254740991
+          },
+          "description": "Minimum conversation sequence the step must see, recorded in the pack so a reader can tell which messages were in scope."
+        },
+        {
+          "name": "repository",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 4096
+          },
+          "description": "Repository the step runs against: the commit SHA and the safe paths the pack may name. Omitted when the step is not repository-scoped."
+        }
+      ],
+      "rules": [
+        "A candidate that is not in the caller's organization, or whose content was removed, is reported in omitted with reason not_found, never silently dropped and never allowed to fail the whole build. Who may build a pack is the action's permission on the organization; there is no narrower per-version permission.",
+        "An artifact candidate's version digest is read from the version row rather than accepted from the caller, so a citation cannot name a digest the version does not have.",
+        "The same request with the same inputs returns the same packDigest; the digest covers the selection, not the time of the call."
+      ],
+      "description": "Builds one bounded context pack for a step: candidates are admitted against the envelope, artifact candidates are projected into cited windows or references, and everything that did not fit is reported with a reason."
+    },
     "ProviderRouteQuery": {
       "fields": [
         {
@@ -11366,41 +12039,6 @@ const transportSchemas = {
       ],
       "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     },
-    "AgentFileGrantCreate": {
-      "fields": [
-        {
-          "name": "workflowId",
-          "type": "uuid",
-          "required": true,
-          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
-        },
-        {
-          "name": "folderId",
-          "type": "uuid",
-          "required": true,
-          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
-        },
-        {
-          "name": "access",
-          "type": "enum(read|write)",
-          "required": true,
-          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
-        },
-        {
-          "name": "expiresAt",
-          "type": "timestamp",
-          "required": true,
-          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
-        }
-      ],
-      "rules": [
-        "A person with a browser session only; an agent is refused with AUTH_FORBIDDEN reason agent_file_grant_requires_person, so an agent never widens its own file scope (O52).",
-        "An unknown or foreign workflow, or a folder that is missing, trashed, foreign or another member's personal folder, answers RESOURCE_NOT_FOUND.",
-        "A folder in the library, a record area, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with the reason the agent would get; an expiry in the past or more than 30 days ahead is 422.",
-        "A grant adds scope, never authority: an agent's write still needs the person it acts for to be able to write the folder themselves."
-      ],
-      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
-    },
     "AgentPowerGrantCreate": {
       "fields": [
         {
@@ -11474,200 +12112,6 @@ const transportSchemas = {
         }
       ],
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
-    },
-    "IntegrationProviderPath": {
-      "fields": [
-        {
-          "name": "provider",
-          "type": "string",
-          "required": true,
-          "bounds": {
-            "maxLength": 64
-          },
-          "description": "Provider slug the installation setting belongs to, as the provider registry names it (for example linear). Only a provider whose manifest asks for client credentials is served."
-        }
-      ],
-      "description": "Names the integration provider a client-credentials setting is read for."
-    },
-    "IntegrationClientCredentialsPut": {
-      "fields": [
-        {
-          "name": "clientId",
-          "type": "string",
-          "required": true,
-          "bounds": {
-            "maxLength": 200
-          },
-          "description": "The OAuth application's client ID, as the provider shows it. It is not a secret and is shown back to installation administrators."
-        },
-        {
-          "name": "clientSecret",
-          "type": "secretString",
-          "required": true,
-          "description": "The OAuth application's client secret. Write-only: it is sealed under the installation key and never returned; saving always replaces the stored secret with this one."
-        }
-      ],
-      "rules": [
-        "clientSecret is write-only and is never returned by any operation, audit row or log."
-      ],
-      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. Both fields are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree."
-    },
-    "TicketRequestQuery": {
-      "fields": [
-        {
-          "name": "externalTicketId",
-          "type": "uuid",
-          "required": true,
-          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 25
-          },
-          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted."
-        }
-      ],
-      "rules": [
-        "Keyset pages newest request first, ordered by createdAt then id."
-      ],
-      "pagination": "pagination",
-      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
-    },
-    "TicketSourceLabelQuery": {
-      "fields": [
-        {
-          "name": "id",
-          "type": "uuid",
-          "required": true,
-          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
-        },
-        {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "bounds": {
-            "maxBytes": 512
-          },
-          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim."
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": false,
-          "bounds": {
-            "min": 1,
-            "max": 100,
-            "default": 100
-          },
-          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer."
-        }
-      ],
-      "rules": [
-        "A live provider read, never cached; a provider failure answers 503 DEPENDENCY_UNAVAILABLE, a provider without labels 422 labels_unsupported."
-      ],
-      "pagination": "pagination",
-      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
-    },
-    "PasswordResetLinkCreate": {
-      "fields": [
-        {
-          "name": "principalId",
-          "type": "uuid",
-          "required": true,
-          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
-        }
-      ],
-      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
-    },
-    "PasswordResetRedemption": {
-      "fields": [
-        {
-          "name": "token",
-          "type": "secretString",
-          "required": true,
-          "bounds": {
-            "maxLength": 256
-          },
-          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
-        },
-        {
-          "name": "newPassword",
-          "type": "secretString",
-          "required": true,
-          "bounds": {
-            "maxLength": 1024
-          },
-          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
-        }
-      ],
-      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
-    },
-    "McpToolClassificationPut": {
-      "fields": [
-        {
-          "name": "effectClass",
-          "type": "enum",
-          "required": true,
-          "enum": [
-            "read",
-            "write_idempotent",
-            "write_reconcilable",
-            "write_opaque"
-          ],
-          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
-        },
-        {
-          "name": "effectKeyArgument",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "bounds": {
-            "maxLength": 128
-          },
-          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
-        },
-        {
-          "name": "pairedReadTool",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "bounds": {
-            "maxLength": 128
-          },
-          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
-        }
-      ],
-      "rules": [
-        "effectKeyArgument is required for write_idempotent and refused for any other class",
-        "pairedReadTool is required for write_reconcilable and refused for any other class",
-        "the tool must be in the connection's current snapshot"
-      ],
-      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
-    },
-    "McpUseGrantCreate": {
-      "fields": [
-        {
-          "name": "workflowId",
-          "type": "uuid",
-          "required": true,
-          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
-        }
-      ],
-      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
     },
     "GroupCreate": {
       "fields": [
@@ -11915,6 +12359,40 @@ const transportSchemas = {
       ],
       "description": "Removes one person's mention-granted access to one conversation under compare-and-set on the grant version."
     },
+    "PasswordResetLinkCreate": {
+      "fields": [
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
+        }
+      ],
+      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
+    },
+    "PasswordResetRedemption": {
+      "fields": [
+        {
+          "name": "token",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
+        },
+        {
+          "name": "newPassword",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
+        }
+      ],
+      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
     "FileSearchQuery": {
       "fields": [
         {
@@ -12024,6 +12502,24 @@ const transportSchemas = {
       ],
       "description": "Searches the organization's file tree and its read-only library mirror by name, path, kind, media type, producer and a metadata fact, newest first. Only files and library items the caller may read are returned, and nothing of another organization is ever counted or listed."
     },
+    "FileFactQuery": {
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "Restricts the list to one kind: the artifact type of the files whose facts are listed. Omit it to list the facts of every kind the caller can read."
+        }
+      ],
+      "rules": [
+        "Returns one bounded list, never continued: at most 50 fact keys per kind, at most 50 values per key and at most 500 rows in all, ordered by kind, key and value. Files the caller may not read are never counted; another organization's are never listed."
+      ],
+      "description": "Lists the facts files carry, by kind: each fact key with each string value it holds on the current version of a file the caller may read, and how many files hold it. It is the source for the file search's fact filter (files.search factKey and factValue). Until kind validators publish typed facts, a version's metadata is where its facts live."
+    },
     "LibraryFolderQuery": {
       "fields": [
         {
@@ -12078,6 +12574,238 @@ const transportSchemas = {
       ],
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
     },
+    "BatchCreate": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "The repository the batch works through. It must be taking issues (an enabled ticket source), and no other batch may be live in it."
+        },
+        {
+          "name": "maxIssues",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 20
+          },
+          "description": "Stop after this many issues have been merged. Required: a batch without all three limits is refused."
+        },
+        {
+          "name": "maxHours",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 24
+          },
+          "description": "Stop starting new issues after this many hours from the start. Checked before each new issue starts, so the issue then running finishes."
+        },
+        {
+          "name": "maxSpendUsd",
+          "type": "decimal",
+          "required": true,
+          "bounds": {
+            "min": 0,
+            "max": 4000
+          },
+          "description": "Stop starting new issues once this much has been spent across the batch's issues. Checked before each new issue starts, so one running issue can go over it."
+        },
+        {
+          "name": "continueMode",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "carry_on",
+            "ask_first"
+          ],
+          "description": "What happens after each issue is merged: carry_on starts the next by itself; ask_first waits for a person. No default: this is the choice that makes a batch unattended."
+        }
+      ],
+      "rules": [
+        "all of maxIssues, maxHours, maxSpendUsd and continueMode are required",
+        "one live batch per repository"
+      ],
+      "description": "Starts a bounded run of issues in one repository. It stops at whichever of the three limits it reaches first, and never skips a plan or merge approval the repository requires."
+    },
+    "BatchStop": {
+      "fields": [
+        {
+          "name": "cancelCurrent",
+          "type": "boolean",
+          "required": true,
+          "description": "False lets the issue being worked on finish before the batch stops; true cancels its run too."
+        }
+      ],
+      "description": "Stops a batch. Nothing new starts either way; whether the current issue finishes or is cancelled is the caller's choice."
+    },
+    "BatchQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "description": "Opaque cursor from the previous page."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100
+          },
+          "description": "Page size."
+        },
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Only the batches of this repository."
+        }
+      ],
+      "description": "Lists batches newest first, optionally for one repository."
+    },
+    "AgentFileGrantCreate": {
+      "fields": [
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
+        },
+        {
+          "name": "folderId",
+          "type": "uuid",
+          "required": true,
+          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
+        },
+        {
+          "name": "access",
+          "type": "enum(read|write)",
+          "required": true,
+          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
+        },
+        {
+          "name": "expiresAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
+        }
+      ],
+      "rules": [
+        "A person with a browser session only; an agent is refused with AUTH_FORBIDDEN reason agent_file_grant_requires_person, so an agent never widens its own file scope (O52).",
+        "An unknown or foreign workflow, or a folder that is missing, trashed, foreign or another member's personal folder, answers RESOURCE_NOT_FOUND.",
+        "A folder in the library, a record area, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with the reason the agent would get; an expiry in the past or more than 30 days ahead is 422.",
+        "A grant adds scope, never authority: an agent's write still needs the person it acts for to be able to write the folder themselves."
+      ],
+      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
+    },
+    "IntegrationProviderPath": {
+      "fields": [
+        {
+          "name": "provider",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Provider slug the installation setting belongs to, as the provider registry names it (for example linear). Only a provider whose manifest asks for client credentials is served."
+        }
+      ],
+      "description": "Names the integration provider a client-credentials setting is read for."
+    },
+    "IntegrationClientCredentialsPut": {
+      "fields": [
+        {
+          "name": "clientId",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The OAuth application's client ID, as the provider shows it. It is not a secret and is shown back to installation administrators."
+        },
+        {
+          "name": "clientSecret",
+          "type": "secretString",
+          "required": true,
+          "description": "The OAuth application's client secret. Write-only: it is sealed under the installation key and never returned; saving always replaces the stored secret with this one."
+        }
+      ],
+      "rules": [
+        "clientSecret is write-only and is never returned by any operation, audit row or log."
+      ],
+      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. Both fields are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree."
+    },
+    "McpToolClassificationPut": {
+      "fields": [
+        {
+          "name": "effectClass",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+        },
+        {
+          "name": "effectKeyArgument",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
+        },
+        {
+          "name": "pairedReadTool",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
+        }
+      ],
+      "rules": [
+        "effectKeyArgument is required for write_idempotent and refused for any other class",
+        "pairedReadTool is required for write_reconcilable and refused for any other class",
+        "the tool must be in the connection's current snapshot"
+      ],
+      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "McpUseGrantCreate": {
+      "fields": [
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
+        }
+      ],
+      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
+    },
+    "StorageFilePin": {
+      "fields": [
+        {
+          "name": "pinned",
+          "type": "boolean",
+          "required": true,
+          "description": "Whether the file's artifact is pinned against retention collection; true protects its versions from expiry-based purge, false lets normal retention apply again. Asking for the state a file is already in changes nothing."
+        }
+      ],
+      "rules": [
+        "Admin permission (artifact:manage); an access token may call it. A file with no artifact (a working-area file) is refused with UNPROCESSABLE."
+      ],
+      "description": "Sets or clears the administrator pin of a record-area file by its storage-tree id, so the command line can pin without knowing the artifact id or its version. It is the same pin as the artifact PATCH."
+    },
     "StorageFilePut": {
       "fields": [
         {
@@ -12118,7 +12846,7 @@ const transportSchemas = {
       ],
       "rules": [
         "Idempotency-Key is required. Writing a new file needs no If-Match and refuses one (412). Replacing an existing file needs a strong If-Match with the entry's version (428 when missing, 412 when stale).",
-        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal.",
+        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal. An agent's write that would take its step past the step write limits (stepWriteFiles, stepWriteBytes) is 409 STEP_WRITE_LIMIT_EXCEEDED with reason files or bytes and the limit it hit.",
         "A parent in a record area, the library, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with a reason; a missing parent, or another member's personal folder, is 404."
       ],
       "description": "Writes a file at a path in a working area (O42, chapter 25 section 17.4 put and upload): the first write makes the file entry, each later write adds a version. Working areas keep the newest versions up to the organization's setting; scratch keeps only the latest."
@@ -12231,6 +12959,26 @@ const transportSchemas = {
             "max": 1125899906842624
           },
           "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB."
+        },
+        {
+          "name": "stepWriteBytes",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1048576,
+            "max": 1099511627776
+          },
+          "description": "Bytes one agent step (one run step attempt) may write to Bakery Files through its puts and copies before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason bytes (O49). Left out, the organization follows Bakery's default of 2 GiB. A person's own writes are never limited by it."
+        },
+        {
+          "name": "stepWriteFiles",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 1000000
+          },
+          "description": "Distinct files and folders one agent step (one run step attempt) may write, make, copy, move or trash before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason files (O49). Left out, the organization follows Bakery's default of 2,000. A person's own writes are never limited by it."
         }
       ],
       "rules": [
@@ -12309,6 +13057,12 @@ const transportSchemas = {
             "maxBytes": 100
           },
           "description": "Standard HTTP Range header value selecting one byte range, as a media player sends while it seeks; multiple ranges are rejected, and an unsatisfiable range returns 416 with the total size."
+        },
+        {
+          "name": "organizationId",
+          "type": "uuid",
+          "required": false,
+          "description": "Organization that owns the file, as a query parameter for a video or audio src, which cannot send the Bakery-Organization-Id header. Parsed and membership-checked exactly like the header; the header wins when present, and a header and query that differ are refused. Omitting both is SCOPE_REQUIRED."
         }
       ],
       "rules": [
@@ -12540,45 +13294,675 @@ const transportSchemas = {
       ],
       "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
     },
-    "IntegrationSlackAppPut": {
+    "BackupSchedulePut": {
       "fields": [
         {
-          "name": "appId",
+          "name": "enabled",
+          "type": "boolean",
+          "required": true,
+          "description": "Whether scheduled backups run. Off keeps the other settings and stops new scheduled runs; a backup a person starts is never affected."
+        },
+        {
+          "name": "interval",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly"
+          ],
+          "description": "How often a scheduled backup is taken: hourly, daily or weekly. Weekly runs on Monday, UTC."
+        },
+        {
+          "name": "timeOfDayUtc",
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "minLength": 5,
+            "maxLength": 5
           },
-          "description": "The Slack app's ID, as Slack shows it under Basic Information: the A followed by letters and digits that names this app in every Slack API call and in the event URLs Bakery shows back. Not a secret."
+          "description": "Time of the scheduled run as HH:MM on a 24-hour UTC clock. For hourly runs only the minutes count: the backup is due at that minute of every hour."
         },
         {
-          "name": "clientId",
-          "type": "string",
+          "name": "daysToKeep",
+          "type": "integer",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "min": 1,
+            "max": 3650
           },
-          "description": "The Slack app's client ID, as Slack shows it under Basic Information. Not a secret; it is shown back to installation administrators."
-        },
-        {
-          "name": "clientSecret",
-          "type": "secretString",
-          "required": false,
-          "description": "The Slack app's client secret. Write-only. Omitted means keep the stored one, which is how a person changes only the signing secret without re-pasting both."
-        },
-        {
-          "name": "signingSecret",
-          "type": "secretString",
-          "required": false,
-          "description": "The Slack app's signing secret, which verifies that an inbound request came from Slack. Write-only. Omitted means keep the stored one."
+          "description": "How many days the host runner keeps a finished backup before it removes it, from 1 to 3650."
         }
       ],
       "rules": [
-        "clientSecret and signingSecret are write-only and are never returned by any operation, audit row or log.",
-        "A secret that is omitted is kept, not cleared: the status date for that secret does not move.",
-        "Replacing a secret clears the last sign-in check, because a check of a secret that is gone says nothing about its replacement."
+        "Installation administrator with a browser session and permission backup:manage; access tokens are refused. Idempotency-Key is required. When settings exist a strong If-Match with their version is required (428 when missing, 412 when stale); when none exist If-Match must be absent.",
+        "timeOfDayUtc must be HH:MM from 00:00 to 23:59 (422 UNPROCESSABLE otherwise)."
       ],
-      "description": "Saves the details of this installation's Slack app: which app it is, and the two secrets Bakery needs to speak as it and to trust its requests. A replacement sends only what changed."
+      "description": "The schedule an administrator sets for automatic backups: on or off, how often, at what UTC time and how many days a finished backup is kept."
+    },
+    "BackupOffsitePut": {
+      "fields": [
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 8,
+            "maxLength": 512
+          },
+          "description": "Address of the S3-compatible service as an https origin such as https://s3.example.com, with no path, query or credentials. Private and loopback addresses are refused. Not a secret."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 63
+          },
+          "description": "Region name the service signs requests for, for example us-east-1; some services accept any value. Not a secret."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 3,
+            "maxLength": 63
+          },
+          "description": "Name of the bucket that receives the encrypted backups: lowercase letters, digits, dots and hyphens, starting and ending with a letter or digit. Not a secret."
+        },
+        {
+          "name": "prefix",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Folder inside the bucket where backups are kept, such as bakery/prod; empty means the bucket root. Not a secret."
+        },
+        {
+          "name": "accessKeyId",
+          "type": "secretString",
+          "required": false,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Access key id of the account that writes the backups. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save and whenever the endpoint, region or bucket changes (the saved pair is never reused for another host, and a move without it answers 422 credentials_required). Omit both on a later save to keep the stored credentials for the same destination, including a change to the prefix only."
+        },
+        {
+          "name": "secretAccessKey",
+          "type": "secretString",
+          "required": false,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "Secret access key of that account. Write-only: stored encrypted next to the access key id and never returned, echoed, logged or audited. Supply it together with accessKeyId."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session and permission backup:manage; access tokens are refused. Idempotency-Key is required. When a destination exists a strong If-Match with its version is required (428 when missing, 412 when stale); when none exists If-Match must be absent.",
+        "endpoint, region, bucket and prefix are validated (422 UNPROCESSABLE otherwise). accessKeyId and secretAccessKey are supplied together or not at all (400 MALFORMED_REQUEST); the first save needs both. With no secrets key configured the request answers 409 STATE_CONFLICT and stores nothing.",
+        "A save that supplies credentials, or changes the endpoint, region, bucket or prefix, first sends a test object to the destination; if the destination refuses it or cannot be reached the request answers 422 UNPROCESSABLE with the stable cause and stores nothing."
+      ],
+      "description": "The off-site destination an administrator sets for copies of every backup: an S3-compatible bucket with its address, region, folder and a write-only credential pair."
+    },
+    "PreviewQuery": {
+      "fields": [
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to the previews registered by attempts of this workflow run, newest first."
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 50
+          },
+          "description": "Restrict results to the current state of the preview: starting, ready, stopped or expired."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque cursor carried from a prior page of this exact query; leave unset to start from the newest page."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of items returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Filters for listing the running-app previews of an organization, newest first."
+    },
+    "MetricSourcesQuery": {
+      "fields": [
+        {
+          "name": "metric",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "prs.opened",
+            "prs.merged",
+            "prs.closedUnmerged",
+            "prs.openAtCutoff",
+            "prs.mergeRate",
+            "prs.turnaroundHours",
+            "prs.changedLines",
+            "tasks.leadTimeHours"
+          ],
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+        },
+        {
+          "name": "from",
+          "type": "timestamp",
+          "required": false,
+          "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days."
+        },
+        {
+          "name": "to",
+          "type": "timestamp",
+          "required": false,
+          "description": "End of the UTC reporting window, exclusive of later data; combined with `from`, the span is capped at 366 days and 1,000 returned chart points."
+        },
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Only count pull requests of this repository of the organization; another organization's repository counts nothing."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only, bound to this operation, principal, organization, metric, window and repository filter.",
+        "Rows are the pull requests that make up the metric's cohort over the whole window, in the order of the provider time the metric counts, then id."
+      ],
+      "description": "Query for GET /v1/metrics/sources: the same metric key, window and repository filter as metrics.get, plus a cursor, listing the exact pull requests behind the numbers."
+    },
+    "EvaluationCheckSpec": {
+      "description": "The deterministic check evaluation.check runs over one output. kind selects the check and config carries its parameters: json_schema reads config.schema (a JSON-schema subset of type, required, properties and items), contains reads config.substring (non-empty text the output must include), equals reads config.expected (the JSON value the parsed output must deep-equal).",
+      "fields": [
+        {
+          "name": "kind",
+          "type": "enum(json_schema|contains|equals)",
+          "required": true,
+          "description": "Which deterministic check to run: json_schema validates the parsed JSON output against config.schema, contains looks for config.substring in the output text, equals compares the parsed JSON output with config.expected."
+        },
+        {
+          "name": "config",
+          "type": "json",
+          "required": true,
+          "description": "Parameters of the selected check, an object holding schema, substring or expected as kind requires. A config the check cannot use makes the attempt an error, never a pass."
+        }
+      ]
+    },
+    "EvaluationCheckInput": {
+      "description": "Input to the evaluation.check workflow action: the evaluation result to record against, the immutable output artifact version to score, and the deterministic check to run over its bytes. No model runs.",
+      "fields": [
+        {
+          "name": "evaluationResultId",
+          "type": "uuid",
+          "required": true,
+          "description": "Evaluation result row the attempt is recorded against; the server records one attempt per worker attempt, so a duplicate delivery changes nothing."
+        },
+        {
+          "name": "outputArtifactVersionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Immutable artifact version holding the output to score. It must be one of the attempt's pinned inputs; the worker reads its bytes through the attempt-context route."
+        },
+        {
+          "name": "check",
+          "type": "EvaluationCheckSpec",
+          "required": true,
+          "description": "The deterministic check to run over the output bytes."
+        }
+      ]
+    },
+    "EvaluationScoreInput": {
+      "description": "Input to the evaluation.score workflow action: the evaluation result to record against, the immutable output artifact version a model judge scores, the rubric it applies and the schema its answer must satisfy.",
+      "fields": [
+        {
+          "name": "evaluationResultId",
+          "type": "uuid",
+          "required": true,
+          "description": "Evaluation result row the attempt is recorded against; the server records one attempt per worker attempt, so a duplicate delivery changes nothing."
+        },
+        {
+          "name": "outputArtifactVersionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Immutable artifact version holding the output the judge scores; it must be one of the attempt's pinned inputs."
+        },
+        {
+          "name": "rubric",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "description": "Plain-language rubric the judge applies to the output. It instructs the judge only and grants no authority."
+        },
+        {
+          "name": "outputSchema",
+          "type": "json",
+          "required": true,
+          "description": "JSON-schema subset (type, required, properties, items) the judge's structured answer must satisfy. The server validates the answer against it and records the attempt as unscored when it does not match."
+        }
+      ]
+    },
+    "EvaluationDatasetCreate": {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Display name of the dataset revision.",
+          "bounds": {
+            "maxLength": 200
+          }
+        },
+        {
+          "name": "caseIds",
+          "type": "uuid[]",
+          "required": true,
+          "description": "Case revisions in the order they are measured; each case's current revision is pinned at creation and never changes.",
+          "bounds": {
+            "minItems": 1,
+            "maxItems": 1000
+          }
+        }
+      ],
+      "description": "Creates an immutable dataset: an ordered list of case revisions and its digest. A changed list is a new dataset."
+    },
+    "EvaluationBatchCreate": {
+      "fields": [
+        {
+          "name": "datasetId",
+          "type": "uuid",
+          "required": true,
+          "description": "The immutable dataset the batch measures."
+        },
+        {
+          "name": "candidate",
+          "type": "json",
+          "required": true,
+          "description": "What is measured: a pin naming the workflow or agent and its exact version, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}.",
+          "bounds": {
+            "maxBytes": 4000
+          }
+        },
+        {
+          "name": "baseline",
+          "type": "json",
+          "required": false,
+          "description": "Optional pin of what the candidate is compared with, in the same shape.",
+          "bounds": {
+            "maxBytes": 4000
+          }
+        },
+        {
+          "name": "scorerIds",
+          "type": "uuid[]",
+          "required": true,
+          "description": "Scorer revisions applied to every case; deterministic checks run before model scorers.",
+          "bounds": {
+            "minItems": 1,
+            "maxItems": 50
+          }
+        },
+        {
+          "name": "requireAllPassed",
+          "type": "boolean",
+          "required": false,
+          "description": "Gate rule: every required result must pass. Defaults to true."
+        },
+        {
+          "name": "minPassRate",
+          "type": "number",
+          "required": false,
+          "description": "Gate rule: the smallest share of required measured results that must pass, 0 to 1.",
+          "bounds": {
+            "min": 0,
+            "max": 1
+          }
+        },
+        {
+          "name": "repetitions",
+          "type": "integer",
+          "required": false,
+          "description": "Times each case is measured per scorer; every observation is kept. Defaults to 1.",
+          "bounds": {
+            "min": 1,
+            "max": 5
+          }
+        },
+        {
+          "name": "budgetLimitUsd",
+          "type": "decimal",
+          "required": false,
+          "description": "Most this batch may spend, in USD.",
+          "bounds": {
+            "min": 0,
+            "max": 200
+          }
+        }
+      ],
+      "description": "Admits an evaluation batch. Every required case x scorer x side x repetition becomes a result in state missing at once, so a case that never runs is listed, not absent."
+    },
+    "EvaluationBatchCancel": {
+      "fields": [],
+      "description": "Cancels a batch: no new attempts start, completed results are kept and still-missing results become canceled. Requires If-Match with the batch version."
+    },
+    "EvaluationCompareQuery": {
+      "fields": [
+        {
+          "name": "other",
+          "type": "uuid",
+          "required": true,
+          "description": "The batch to compare this one with; the path batch is the left side."
+        }
+      ],
+      "description": "Compares the candidate sides of two batches of the organization."
+    },
+    "EvaluationResultQuery": {
+      "fields": [
+        {
+          "name": "state",
+          "type": "enum",
+          "required": false,
+          "description": "Only results in this state, so 'needs attention' is one request.",
+          "enum": [
+            "passed",
+            "failed",
+            "error",
+            "unscored",
+            "canceled",
+            "skipped",
+            "missing"
+          ]
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Cursor page of a batch's results in case order, optionally one state."
+    },
+    "BackupRunMaintenance": {
+      "fields": [
+        {
+          "name": "leaseToken",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 32,
+            "maxLength": 128
+          },
+          "description": "Proof that the runner still holds the claim on this backup run, returned once by the claim. Any other token is refused, and a request after the lease has lapsed answers 409 STATE_CONFLICT."
+        }
+      ],
+      "rules": [],
+      "description": "The runner asks to hold the installation for the backup it has claimed, and keeps asking until the installation is quiet. The first ask enters maintenance, which stops new work from being admitted; each later ask checks whether everything in flight has finished. Asking again while it holds is safe and changes nothing."
+    },
+    "BackupRunCutoff": {
+      "fields": [
+        {
+          "name": "leaseToken",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 32,
+            "maxLength": 128
+          },
+          "description": "Proof that the runner still holds the claim on this backup run, returned once by the claim. Any other token is refused, and a request after the lease has lapsed answers 409 STATE_CONFLICT."
+        }
+      ],
+      "rules": [],
+      "description": "The runner asks for the cutoff of the backup it has claimed: the database clock at the moment the installation is quiet, with a census of the external effects that could still reach a provider. It is only answered while the run holds the installation quiesced, otherwise 409 STATE_CONFLICT not_quiesced. Asking again for the same run returns the same cutoff."
+    },
+    "AlertChannelCreate": {
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Which kind of channel this is; webhook is the only one for now."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Name people see in the list and beside each alert, unique across channels ignoring case."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether alerts are sent to it now; defaults to true."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 2000
+          },
+          "description": "The settings by field name: address, an https address that is not private or local, for a webhook."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session; access tokens are refused. Idempotency-Key is required.",
+        "An unknown kind, or an address that is not https, is private or local, answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 20 channels exist; one more answers 409 STATE_CONFLICT. With no secrets key configured the signing secret cannot be stored: 409 STATE_CONFLICT, and nothing is created.",
+        "The answer carries the new signing secret once; it is never returned again."
+      ],
+      "description": "Adds an alert channel: a place Bakery sends an alert message, signed so the receiver can tell it came from this Bakery."
+    },
+    "AlertChannelUpdate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the channel to change; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "New name, unique across channels ignoring case; omit to keep the current one."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Turns the channel on or off without losing its settings; omit to keep the current state."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 2000
+          },
+          "description": "Only the settings to change, by field name, such as a new address. The signing secret is replaced by its own action."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session. Idempotency-Key and a strong If-Match with the channel version are required (428 when missing, 412 when stale)."
+      ],
+      "description": "Changes an alert channel's name, on or off state or address; the signing secret is untouched."
+    },
+    "AlertRuleUpdate": {
+      "fields": [
+        {
+          "name": "rule",
+          "type": "enum(service_down|worker_lost|queue_age|route_incident|export_loss)",
+          "required": true,
+          "description": "Which of the five alert rules to change."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Turns the rule on or off without losing its limit; omit to keep the current state."
+        },
+        {
+          "name": "threshold",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 0,
+            "max": 1000000
+          },
+          "description": "The new limit in the rule's own unit, seconds or records; omit to keep it. A rule that has no limit refuses one, and so does a value above that rule's own maximum."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session. Idempotency-Key and a strong If-Match with the rule version are required (428 when missing, 412 when stale)."
+      ],
+      "description": "Changes one alert rule: turns it on or off, or sets the limit it fires at."
+    },
+    "AlertListQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of the same list, bound to the principal; it pages the history only."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum history entries returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Newest-first keyset on occurredAt DESC, id DESC; reject page and offset parameters. The firing list is not paged: it is at most one entry per rule and subject, bounded by the number of troubles open now."
+      ],
+      "description": "Pages the alert history, newest first; the alerts firing now come with the first page."
+    },
+    "RunStepRevertWrites": {
+      "fields": [
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Why the person reverted the step's writes, recorded verbatim in the audit record of the undo."
+        }
+      ],
+      "rules": [
+        "A person with run control and a browser session or access token; an agent session is refused with AUTH_FORBIDDEN, so no agent undoes a step's writes, its own or another's.",
+        "Only while no attempt of the step's job is live; otherwise STATE_CONFLICT with reason attempt_live. Failed and finished attempts are reverted the same way.",
+        "All or nothing: when any entry was changed after the step wrote it, the answer is STATE_CONFLICT with reason step_writes_conflict and one issue per refused entry (its path, and a code such as changed_since_step, folder_not_empty, previous_version_gone, entry_gone, name_taken or restore_parent_gone), and nothing is reverted.",
+        "A step with nothing left to revert answers 200 with reverted 0; an undone write is never undone twice."
+      ],
+      "description": "Reverts the Bakery Files writes the agent of one workflow step made, across all of the step's attempts, newest first and in one transaction (chapter 25 section 17.6, O48): a file or folder the step created goes to trash, a new version gives way to the version before it, a move is moved back and a trashed entry is restored. Writes that leave Bakery are external effects and are not covered."
+    },
+    "ArtifactProbeAnswer": {
+      "description": "Ask for the measured facts about one stored file's bytes. Address the bytes by the version's id in the path; nothing else is needed, because the id already names one immutable set of bytes. The answer may be that nobody has asked yet, in which case read it again later rather than treating the file as unreadable.",
+      "fields": []
+    },
+    "StorageFileProbeQuery": {
+      "description": "Ask for the measured facts about one storage file, optionally as of one numbered version. Name the organization explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing.",
+      "fields": [
+        {
+          "name": "revision",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 999999999
+          },
+          "description": "Which version's bytes to describe, by its revision number from storageFileVersions.list; omit it for the file's current version. Use it to ask about a version a link pinned, so the answer describes the bytes that link will show rather than whatever is current now."
+        },
+        {
+          "name": "organizationId",
+          "type": "uuid",
+          "required": true,
+          "description": "The organization whose storage tree holds the file. A caller must send the organization it is already acting in; it is stated rather than inferred so a file id from elsewhere cannot be probed by accident."
+        }
+      ]
     }
   },
   "projections": {
@@ -15425,11 +16809,13 @@ const transportSchemas = {
     "previews": {
       "fields": [
         "id",
-        "workspaceId",
+        "runId",
+        "attemptId",
         "headSha",
-        "routeKey",
-        "upstreamPort",
         "status",
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt",
         "expiresAt",
         "createdAt",
         "updatedAt",
@@ -15437,24 +16823,32 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "workspaceId": "uuid",
         "headSha": "string",
-        "routeKey": "string",
-        "upstreamPort": "integer",
         "status": "enum(starting|ready|stopped|expired)",
         "expiresAt": "timestamp",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "runId": "uuid",
+        "attemptId": "uuid",
+        "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
+        "stoppedBy": "uuid",
+        "stoppedAt": "timestamp"
       },
-      "nullableFields": [],
+      "nullableFields": [
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt"
+      ],
       "sourceColumns": {
         "id": "id",
-        "workspaceId": "workspace_id",
+        "runId": "run_id",
+        "attemptId": "attempt_id",
         "headSha": "head_sha",
-        "routeKey": "route_key",
-        "upstreamPort": "upstream_port",
         "status": "status",
+        "stopReason": "stop_reason",
+        "stoppedBy": "stopped_by",
+        "stoppedAt": "stopped_at",
         "expiresAt": "expires_at",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
@@ -15463,15 +16857,17 @@ const transportSchemas = {
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the preview record.",
-        "workspaceId": "Stable UUID linking this preview record to the related workspace entity.",
-        "headSha": "Head commit SHA associated with the record.",
-        "routeKey": "Routing key used to reach the preview.",
-        "upstreamPort": "Local port exposed by the preview upstream.",
-        "status": "Current lifecycle status of the preview record.",
-        "expiresAt": "UTC timestamp when the preview record expires.",
-        "createdAt": "UTC timestamp when the preview record was created.",
-        "updatedAt": "UTC timestamp when the preview record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the preview record."
+        "headSha": "Commit SHA the running preview was built from.",
+        "status": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready.",
+        "expiresAt": "UTC timestamp when the preview stops by itself.",
+        "createdAt": "UTC timestamp when the record was created.",
+        "updatedAt": "UTC timestamp when the record was last updated.",
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "runId": "The workflow run whose attempt registered this preview.",
+        "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
+        "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
+        "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
       }
     },
     "pull_requests": {
@@ -15842,7 +17238,8 @@ const transportSchemas = {
         "reviewCycleId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "blockedReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -15858,10 +17255,12 @@ const transportSchemas = {
         "reviewCycleId": "uuid",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "blockedReason": "enum(already_merged|not_open|head_moved|base_moved|checks_not_passed|not_permitted|evidence_changed|github_refused|not_merged|unavailable)|null"
       },
       "nullableFields": [
-        "externalEffectId"
+        "externalEffectId",
+        "blockedReason"
       ],
       "sourceColumns": {
         "id": "id",
@@ -15877,7 +17276,8 @@ const transportSchemas = {
         "reviewCycleId": "review_cycle_id",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
-        "version": "version"
+        "version": "version",
+        "blockedReason": "blocked_reason"
       },
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
@@ -15894,7 +17294,8 @@ const transportSchemas = {
         "reviewCycleId": "Stable UUID linking this merge entry record to the related review cycle entity.",
         "createdAt": "UTC timestamp when the merge entry record was created.",
         "updatedAt": "UTC timestamp when the merge entry record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the merge entry record."
+        "version": "Optimistic-concurrency version used when updating the merge entry record.",
+        "blockedReason": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded."
       }
     },
     "deployments": {
@@ -19332,7 +20733,8 @@ const transportSchemas = {
         "updatedAt",
         "version",
         "mayMerge",
-        "mergeMethod"
+        "mergeMethod",
+        "targetBranch"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -19349,7 +20751,8 @@ const transportSchemas = {
         "version": "integer",
         "runId": "uuid|null",
         "mayMerge": "boolean",
-        "mergeMethod": "enum(merge|squash|rebase)"
+        "mergeMethod": "enum(merge|squash|rebase)",
+        "targetBranch": "string"
       },
       "nullableFields": [
         "mergedSha",
@@ -19371,7 +20774,8 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version used when updating the record.",
         "runId": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run.",
         "mayMerge": "Whether the caller holds the permission to merge this pull request from Bakery (the pullRequest:merge permission). It says nothing about whether the pull request is ready to merge; the checks and the dispatch still decide that.",
-        "mergeMethod": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one."
+        "mergeMethod": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one.",
+        "targetBranch": "Branch this pull request merges into: its repository's default branch, the branch Bakery opens pull requests against and the one mergeEntries.create takes."
       }
     },
     "ReviewCycle": {
@@ -20136,7 +21540,8 @@ const transportSchemas = {
         "version",
         "budgetSummary",
         "blockedReason",
-        "blockingTasks"
+        "blockingTasks",
+        "waitingOnModel"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -20162,7 +21567,8 @@ const transportSchemas = {
         "version": "integer",
         "budgetSummary": "RunBudgetSummary",
         "blockedReason": "string|null",
-        "blockingTasks": "RunBlockingTask[]"
+        "blockingTasks": "RunBlockingTask[]",
+        "waitingOnModel": "boolean"
       },
       "description": "Kind-aware safe run projection. Workflow runs retain task and workflow ownership; skill imports expose null workflow owners and one registered source owner.",
       "nullableFields": [
@@ -20186,13 +21592,15 @@ const transportSchemas = {
         "skillSourceId",
         "workspaceBaseSha",
         "blockedReason",
-        "blockingTasks"
+        "blockingTasks",
+        "waitingOnModel"
       ],
       "computedFields": {
         "budgetSummary": "Join budget_accounts + outstanding reservations for this run and the applicable installation period under one consistent read snapshot.",
         "workspaceBaseSha": "Base commit reported by the first completed harness step of this run: the step's output baseSha when it is a git SHA, else null. Read from run_steps joined to jobs by harness action; never written to workflow_runs.",
         "blockedReason": "snapshot.admission.reason of the run while status is blocked; null otherwise.",
-        "blockingTasks": "task_dependencies of the run's task joined to tasks of the same organization whose status is not completed, only while blockedReason is dependency_incomplete."
+        "blockingTasks": "task_dependencies of the run's task joined to tasks of the same organization whose status is not completed, only while blockedReason is dependency_incomplete.",
+        "waitingOnModel": "True when a live job of a non-terminal run is pinned to an active provider route with an open incident that the step has not been continued past; the same rule as routeContinuations.list."
       },
       "fieldDescriptions": {
         "id": "Stable UUID identifying the run record.",
@@ -20218,7 +21626,8 @@ const transportSchemas = {
         "kind": "Discriminator selecting task-owned workflow execution or source-owned skill import behavior.",
         "skillSourceId": "Registered source UUID for skill import runs; null for workflow runs.",
         "blockedReason": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses.",
-        "blockingTasks": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses."
+        "blockingTasks": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses.",
+        "waitingOnModel": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses."
       },
       "fieldBounds": {
         "blockingTasks": {
@@ -22160,11 +23569,13 @@ const transportSchemas = {
       "projection": "previews",
       "fields": [
         "id",
-        "workspaceId",
+        "runId",
+        "attemptId",
         "headSha",
-        "routeKey",
-        "upstreamPort",
         "status",
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt",
         "expiresAt",
         "createdAt",
         "updatedAt",
@@ -22172,29 +23583,122 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "workspaceId": "uuid",
         "headSha": "string",
-        "routeKey": "string",
-        "upstreamPort": "integer",
         "status": "enum(starting|ready|stopped|expired)",
         "expiresAt": "timestamp",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "runId": "uuid",
+        "attemptId": "uuid",
+        "stopReason": "enum(person|run_cancelled|run_ended|machine_lost|time_limit|replaced)",
+        "stoppedBy": "uuid",
+        "stoppedAt": "timestamp"
       },
-      "nullableFields": [],
-      "description": "Registration for an authenticated developer preview URL exposing a worker's live workspace port during an attempt; returned when worker.previews registers it. status tracks starting/ready/stopped/expired, and access is private, session-bound, and served from a separate origin with no API cookies forwarded.",
+      "nullableFields": [
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt"
+      ],
+      "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the preview record.",
-        "workspaceId": "Stable UUID linking this record to the related workspace entity.",
-        "headSha": "Head commit SHA associated with the record.",
-        "routeKey": "Contract-defined route key associated with the preview record.",
-        "upstreamPort": "Contract-defined upstream port associated with the preview record.",
-        "status": "Current lifecycle status of the record.",
-        "expiresAt": "UTC timestamp when the record expires.",
+        "headSha": "Commit SHA the running preview was built from.",
+        "status": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready.",
+        "expiresAt": "UTC timestamp when the preview stops by itself.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "runId": "The workflow run whose attempt registered this preview.",
+        "attemptId": "The attempt that registered this preview; only the newest attempt's preview is offered.",
+        "stopReason": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready.",
+        "stoppedBy": "The principal who stopped it; set only when stopReason is person.",
+        "stoppedAt": "UTC timestamp when it stopped being live; null while it is starting or ready."
+      }
+    },
+    "HandoffManifestRecord": {
+      "fields": [
+        "id",
+        "taskId",
+        "runId",
+        "runStepId",
+        "sourceAttemptId",
+        "sourceFence",
+        "mode",
+        "digest",
+        "safeBoundary",
+        "status",
+        "manifest",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "taskId": "uuid",
+        "runId": "uuid",
+        "runStepId": "uuid",
+        "sourceAttemptId": "uuid",
+        "sourceFence": "decimalString",
+        "mode": "enum(fresh_session|exact_harness_resume)",
+        "digest": "string",
+        "safeBoundary": "boolean",
+        "status": "enum(pending|continued|blocked)",
+        "manifest": "json",
+        "createdAt": "timestamp"
+      },
+      "description": "A stored handoff manifest: where one source attempt stopped, with the server's own safe-boundary computation and the digest a continuation pins. It is a record to be re-verified, never the authority for run state.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the stored manifest.",
+        "taskId": "Task the manifest continues.",
+        "runId": "Workflow run the manifest continues.",
+        "runStepId": "Workflow step whose attempt wrote the manifest.",
+        "sourceAttemptId": "Attempt that wrote the manifest; there is at most one manifest per attempt.",
+        "sourceFence": "Fence of the source attempt when the manifest was written; decimal string.",
+        "mode": "Whether the source asked for a fresh session or an exact harness resume; the receiving side decides eligibility again.",
+        "digest": "SHA-256 of the canonical stored manifest, so a reader can tell two manifests apart and a continuation can pin exactly one.",
+        "safeBoundary": "Whether resuming here cannot repeat a non-replay-safe operation, computed by the server from the event journal and the effect ledger; the source's own claim is ignored.",
+        "status": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused).",
+        "manifest": "The stored manifest with the server's pending-effect list and safe boundary in place of the source's claims.",
+        "createdAt": "UTC timestamp when the manifest was stored."
+      }
+    },
+    "HandoffContinuation": {
+      "fields": [
+        "id",
+        "manifestId",
+        "runId",
+        "runStepId",
+        "jobId",
+        "sourceAttemptId",
+        "previousFence",
+        "newFence",
+        "mode",
+        "admittedAt"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "id": "uuid",
+        "manifestId": "uuid",
+        "runId": "uuid",
+        "runStepId": "uuid",
+        "jobId": "uuid",
+        "sourceAttemptId": "uuid",
+        "previousFence": "decimalString",
+        "newFence": "decimalString",
+        "mode": "enum(fresh_session|exact_harness_resume)",
+        "admittedAt": "timestamp"
+      },
+      "description": "The record that a source attempt was retired and its job admitted again for a continuation. The source is fenced, so it can no longer publish; the job is queued again on the same pin with the same input; the manifest is marked used.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this continuation.",
+        "manifestId": "UUID of the handoff manifest the continuation was admitted from; at most one continuation exists per manifest.",
+        "runId": "UUID of the run the step belongs to.",
+        "runStepId": "UUID of the step that was continued.",
+        "jobId": "UUID of the job that was queued again.",
+        "sourceAttemptId": "UUID of the attempt that was retired.",
+        "previousFence": "Fence of the source attempt before the handoff; decimal string.",
+        "newFence": "The job's fence now; any event, artifact or result under the previous fence is refused as lease-fenced.",
+        "mode": "What the continuation will do: a fresh session now, an exact harness resume only after the server has matched the session, host, version, commit and checkpoint.",
+        "admittedAt": "UTC timestamp when the continuation was admitted."
       }
     },
     "MergeEntry": {
@@ -22213,7 +23717,8 @@ const transportSchemas = {
         "reviewCycleId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "blockedReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -22229,10 +23734,12 @@ const transportSchemas = {
         "reviewCycleId": "uuid",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "blockedReason": "enum(already_merged|not_open|head_moved|base_moved|checks_not_passed|not_permitted|evidence_changed|github_refused|not_merged|unavailable)|null"
       },
       "nullableFields": [
-        "externalEffectId"
+        "externalEffectId",
+        "blockedReason"
       ],
       "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds.",
       "fieldDescriptions": {
@@ -22249,7 +23756,8 @@ const transportSchemas = {
         "reviewCycleId": "Stable UUID linking this record to the related review cycle entity.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "blockedReason": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded."
       }
     },
     "Deployment": {
@@ -22359,26 +23867,63 @@ const transportSchemas = {
         "points",
         "from",
         "to",
-        "resolution"
+        "resolution",
+        "unit",
+        "cohort",
+        "sampleCount",
+        "missingCount",
+        "measurementRevision",
+        "lastSyncAt",
+        "completeness",
+        "missingReasons",
+        "hiddenCount",
+        "repositories",
+        "summary"
       ],
       "fieldTypes": {
         "name": "string",
         "points": "MetricPoint[]",
         "from": "timestamp",
         "to": "timestamp",
-        "resolution": "enum(minute|hour|day)"
+        "resolution": "enum(minute|hour|day)",
+        "unit": "enum(count|ratio|hours|lines)",
+        "cohort": "string",
+        "sampleCount": "integer",
+        "missingCount": "integer",
+        "measurementRevision": "string",
+        "lastSyncAt": "timestamp|null",
+        "completeness": "enum(complete|partial|unknown)",
+        "missingReasons": "MetricMissingReason[]",
+        "hiddenCount": "integer",
+        "repositories": "MetricRepositorySource[]",
+        "summary": "MetricTaskSummary|null"
       },
       "bounds": {
         "pointsMaxItems": 1000
       },
-      "description": "The bounded time series GET /v1/metrics returns for one allowed metric key: its name, the half-open [from, to) UTC window actually covered, the aggregation resolution (minute, hour, or day), and its ordered points. Longer analysis than the proposed 30-day default and 1,000-point cap is an explicitly budgeted report, not this interactive query.",
+      "description": "The bounded time series GET /v1/metrics returns for one allowlisted metric key: half-open [from, to) UTC window, resolution, ordered points, and the provenance every card shows: unit, cohort, sample and missing counts, measurement revision, last sync and completeness. A null point is unknown, never zero.",
       "fieldDescriptions": {
-        "name": "Human-readable name displayed for the record.",
+        "name": "The metric key the series answers.",
         "points": "Ordered metric points included in the series.",
         "from": "Start of the requested time range.",
         "to": "End of the requested time range.",
-        "resolution": "Aggregation resolution used for the metric series."
-      }
+        "resolution": "Aggregation resolution used for the metric series.",
+        "unit": "Unit of every point value: count of pull requests, ratio from 0 to 1, hours, or lines.",
+        "cohort": "Plain-language description of which pull requests each point counts, for the card's subtitle.",
+        "sampleCount": "Distinct pull requests that contributed a known value across the window.",
+        "missingCount": "Distinct pull requests in the cohort whose value is unknown (no provider time or no diff totals); they are left out, never counted as zero.",
+        "measurementRevision": "Identifier of the metric's definition; it changes whenever the definition changes, so two answers compare only when it matches.",
+        "lastSyncAt": "Latest time Bakery stored a provider read for a pull request in scope; null when none has been read.",
+        "completeness": "complete when every cohort member has a known value and none is still open where that matters; partial when some are unknown or still open; unknown when no pull request has been read.",
+        "missingReasons": "Why records were left out, one entry per reason with its count; empty when nothing was left out.",
+        "hiddenCount": "Records in scope the reader may not open; always 0 today, since every member who may read metrics may open every pull request of the organization.",
+        "repositories": "Each repository in scope with the state of its source, so a disconnected or stale source is never read as zero.",
+        "summary": "For tasks.leadTimeHours: the cohort's median, 9-in-10 and mean lead time, where the time went and how many tasks reached each delivery point; null for pull request metrics."
+      },
+      "nullableFields": [
+        "lastSyncAt",
+        "summary"
+      ]
     },
     "UsageSummary": {
       "fields": [
@@ -22434,7 +23979,7 @@ const transportSchemas = {
         "id": "uuid",
         "slug": "string",
         "revision": "integer",
-        "evaluatorType": "enum(code|model)",
+        "evaluatorType": "enum(deterministic|model)",
         "config": "json",
         "digest": "string",
         "enabled": "boolean",
@@ -22448,7 +23993,7 @@ const transportSchemas = {
         "id": "Stable UUID identifying the evaluation definition record.",
         "slug": "URL-safe stable name used to address the record.",
         "revision": "Monotonic revision number used to order updates to the record.",
-        "evaluatorType": "Evaluation method used by the definition.",
+        "evaluatorType": "deterministic: a code check (schema, citations, identity, prohibited effects, limits); model: a pinned rubric scored by a model.",
         "config": "Validated configuration associated with the record.",
         "digest": "Content digest used to verify the record.",
         "enabled": "Whether new evaluation runs may be created from this definition. Disabling rejects only new starts; runs already in progress keep their pinned definition.",
@@ -22756,7 +24301,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -22801,7 +24346,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -22943,26 +24488,32 @@ const transportSchemas = {
     },
     "PreviewAccessResult": {
       "fields": [
+        "grantId",
         "grant",
         "exchangeUrl",
         "previewUrl",
-        "expiresAt"
+        "expiresAt",
+        "sessionSeconds"
       ],
       "fieldTypes": {
         "grant": "secretString",
         "exchangeUrl": "uri",
         "previewUrl": "uri",
-        "expiresAt": "timestamp"
+        "expiresAt": "timestamp",
+        "grantId": "uuid",
+        "sessionSeconds": "integer"
       },
       "sensitiveFields": [
         "grant"
       ],
-      "description": "One-use grant is POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs.",
+      "description": "One-use grant, exchangeable for 30 seconds, POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs. The session it opens lasts sessionSeconds.",
       "fieldDescriptions": {
-        "grant": "Capability grant issued for the preview.",
-        "exchangeUrl": "One-time URL used to exchange preview access.",
-        "previewUrl": "URL used to access the preview.",
-        "expiresAt": "UTC timestamp when the record expires."
+        "grant": "One-use secret handoff value: 32 random bytes, base64url. Post it once, in a form body; never put it in a URL, log, event or cache. Only its sha256 is stored.",
+        "exchangeUrl": "Absolute URL on the separate preview origin that exchanges the posted grant for a preview session.",
+        "previewUrl": "Absolute URL on the preview origin where the preview is shown after the exchange.",
+        "expiresAt": "When the grant stops being exchangeable, 30 seconds after it was issued. This is not the session length.",
+        "grantId": "Identifier of this access grant, used to end one person's access before it expires. Not a secret.",
+        "sessionSeconds": "How long the session lasts after the grant is exchanged."
       }
     },
     "BinaryArtifact": {
@@ -24583,17 +26134,24 @@ const transportSchemas = {
     "MetricPoint": {
       "fields": [
         "at",
-        "value"
+        "value",
+        "unknownReason"
       ],
       "fieldTypes": {
         "at": "timestamp",
-        "value": "number|null"
+        "value": "number|null",
+        "unknownReason": "enum(no_records|no_known_values)|null"
       },
-      "description": "One sample in a metric time series: a UTC timestamp within the query's half-open [from, to) window and its measured value, or null when that interval has no recorded data rather than a false zero.",
+      "description": "One bucket of a metric time series: the bucket's start in UTC and its value, or null when no pull request in the bucket had a known value (unknown, not zero).",
       "fieldDescriptions": {
-        "at": "UTC timestamp when the metric point was recorded.",
-        "value": "Measured value for this interval in the unit the series card declares (lines, counts, durations or USD); null means no data was recorded for the interval and must be shown as missing, not as zero."
-      }
+        "at": "UTC start of the bucket.",
+        "value": "Value for the bucket in the series unit; null means unknown and must be shown as missing, not as zero.",
+        "unknownReason": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; null when value is known."
+      },
+      "nullableFields": [
+        "value",
+        "unknownReason"
+      ]
     },
     "ValidationIssue": {
       "fields": [
@@ -24777,7 +26335,7 @@ const transportSchemas = {
         "resetRequired": "Whether the client must discard its local state and request a fresh snapshot.",
         "retainedFrom": "Earliest retained event sequence that can be used to establish a fresh sync position.",
         "retryWithoutAfter": "Whether the client should retry the sync request without its after cursor.",
-        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, rollover_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
         "existingResourceId": "Identifier of the existing resource a 409 STATE_CONFLICT points the caller to instead of creating another: for reason workflow_copy_exists, the listed definition already copied from that source version. Absent for every other problem."
       }
     },
@@ -26207,6 +27765,132 @@ const transportSchemas = {
     "Page<TicketRequest>": {
       "pageOf": "TicketRequest"
     },
+    "TicketRequestView": {
+      "projection": "ticket_requests",
+      "fields": [
+        "id",
+        "externalTicketId",
+        "ticketTaskLinkId",
+        "intent",
+        "origin",
+        "requestedByPrincipalId",
+        "triggerLabelName",
+        "disposition",
+        "dispositionReasonCode",
+        "pausedAt",
+        "pausedReason",
+        "progress",
+        "workflowRunId",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "targets"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "externalTicketId": "uuid",
+        "ticketTaskLinkId": "uuid",
+        "intent": "enum(plan|start)",
+        "origin": "enum(manual|adoption|webhook|poll)",
+        "requestedByPrincipalId": "uuid|null",
+        "triggerLabelName": "string|null",
+        "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
+        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
+        "pausedAt": "timestamp|null",
+        "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
+        "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
+        "workflowRunId": "uuid|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer",
+        "targets": "TicketRequestViewTarget[]"
+      },
+      "nullableFields": [
+        "requestedByPrincipalId",
+        "triggerLabelName",
+        "dispositionReasonCode",
+        "pausedAt",
+        "pausedReason",
+        "workflowRunId"
+      ],
+      "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this ticket request.",
+        "externalTicketId": "External ticket this request admitted.",
+        "ticketTaskLinkId": "Link between the ticket and the task this request owns.",
+        "intent": "Requested scope: plan stops after the plan for review, start plans and then runs.",
+        "origin": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync.",
+        "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
+        "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
+        "disposition": "Stored lifecycle state of the request.",
+        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
+        "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
+        "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
+        "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
+        "workflowRunId": "Workflow run the request owns; null before one starts.",
+        "createdAt": "When the request was admitted.",
+        "updatedAt": "When the request last changed.",
+        "version": "Monotonic revision of the request.",
+        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
+      }
+    },
+    "Page<TicketRequestView>": {
+      "pageOf": "TicketRequestView"
+    },
+    "TicketRequestViewTarget": {
+      "projection": "ticket_request_targets",
+      "fields": [
+        "repositoryId",
+        "role",
+        "routingRuleId",
+        "routingRuleVersion",
+        "childTaskId"
+      ],
+      "fieldTypes": {
+        "repositoryId": "uuid",
+        "role": "string",
+        "routingRuleId": "uuid|null",
+        "routingRuleVersion": "integer|null",
+        "childTaskId": "uuid|null"
+      },
+      "nullableFields": [
+        "routingRuleId",
+        "routingRuleVersion",
+        "childTaskId"
+      ],
+      "description": "One repository a ticket request was routed to, as pinned at admission.",
+      "fieldDescriptions": {
+        "repositoryId": "Repository this target is scoped to.",
+        "role": "Role the repository plays; default for the fallback to the source's own repository.",
+        "routingRuleId": "Rule that routed the ticket here as pinned at admission, or null for the fallback.",
+        "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
+        "childTaskId": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
+      }
+    },
+    "TicketSourceLabel": {
+      "fields": [
+        "id",
+        "name",
+        "color"
+      ],
+      "fieldTypes": {
+        "id": "string",
+        "name": "string",
+        "color": "string|null"
+      },
+      "nullableFields": [
+        "color"
+      ],
+      "description": "One label the ticket source's provider holds, read live (#69).",
+      "fieldDescriptions": {
+        "id": "The provider's stable, opaque label id; the value a routing rule stores, which survives a rename.",
+        "name": "The label's current name.",
+        "color": "The label's colour as six hex digits without a leading #, or null when the provider gives none."
+      }
+    },
+    "Page<TicketSourceLabel>": {
+      "pageOf": "TicketSourceLabel"
+    },
     "PluginPackage": {
       "projection": "plugin_packages",
       "fields": [
@@ -26387,7 +28071,8 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "value"
+        "value",
+        "sizeBytes"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -26401,7 +28086,8 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "value": "json"
+        "value": "json",
+        "sizeBytes": "integer"
       },
       "nullableFields": [
         "ownerPrincipalId"
@@ -26409,7 +28095,7 @@ const transportSchemas = {
       "rules": [
         "Owner-authorized response only; JSON validates against its pinned schema and size limit. Never contains credentials or raw provider payloads. Not a public catalog/list projection."
       ],
-      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration.",
+      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration. sizeBytes is the size of the stored value.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying this plugin state record.",
         "organizationId": "UUID of the organization that owns this record.",
@@ -26422,8 +28108,12 @@ const transportSchemas = {
         "createdAt": "Timestamp recording when the created event occurred for this plugin state record.",
         "updatedAt": "Timestamp recording the last update to this plugin state record.",
         "version": "Monotonic revision used to order or conditionally update this plugin state record.",
-        "value": "Measured value recorded at the metric point."
-      }
+        "value": "Measured value recorded at the metric point.",
+        "sizeBytes": "Size in bytes of the stored value's JSON text, so a caller can say how much a plugin has saved without holding the value. Read from the stored row, never from a caller."
+      },
+      "optionalFields": [
+        "sizeBytes"
+      ]
     },
     "Page<PluginState>": {
       "pageOf": "PluginState"
@@ -28557,6 +30247,367 @@ const transportSchemas = {
         "checkedAt": "When the probe finished."
       }
     },
+    "BackupRun": {
+      "fields": [
+        "id",
+        "triggerKind",
+        "status",
+        "requestedAt",
+        "requestedByPrincipalId",
+        "claimedAt",
+        "startedAt",
+        "finishedAt",
+        "leaseExpiresAt",
+        "progressPercent",
+        "sizeBytes",
+        "locations",
+        "failureCode",
+        "failureDetail"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "triggerKind": "enum(manual|scheduled)",
+        "status": "enum(requested|claimed|running|completed|failed)",
+        "requestedAt": "timestamp",
+        "requestedByPrincipalId": "uuid|null",
+        "claimedAt": "timestamp|null",
+        "startedAt": "timestamp|null",
+        "finishedAt": "timestamp|null",
+        "leaseExpiresAt": "timestamp|null",
+        "progressPercent": "integer|null",
+        "sizeBytes": "decimalString|null",
+        "locations": "string[]",
+        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|incomplete_set|drain_timeout|runner_error)|null",
+        "failureDetail": "string|null"
+      },
+      "nullableFields": [
+        "requestedByPrincipalId",
+        "claimedAt",
+        "startedAt",
+        "finishedAt",
+        "leaseExpiresAt",
+        "progressPercent",
+        "sizeBytes",
+        "failureCode",
+        "failureDetail"
+      ],
+      "description": "One backup as the installation administrator sees it: who asked and when, the runner's claim, progress, the result, where the finished set is kept and, for a failed run, the stable cause. No lease token, hash, backup byte or key appears here.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the backup run.",
+        "triggerKind": "manual when a person asked for it now; scheduled is reserved for the schedule that a later slice adds.",
+        "status": "requested while it waits for the runner, claimed once the runner holds it, running after the first progress report, then completed or failed.",
+        "requestedAt": "When the request was recorded.",
+        "requestedByPrincipalId": "Principal that asked for the backup, or null for a scheduled run or after that principal was removed.",
+        "claimedAt": "When the runner last claimed the run, or null while it waits.",
+        "startedAt": "When the runner first reported that it was working, or null before then.",
+        "finishedAt": "When the run completed or failed, or null while it is not finished.",
+        "leaseExpiresAt": "When the runner's claim lapses unless it reports again, or null when no claim is held.",
+        "progressPercent": "Latest reported progress from 0 to 100, or null before any report.",
+        "sizeBytes": "Size of the finished encrypted backup set in bytes as a decimal string, or null until completed.",
+        "locations": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site.",
+        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), drain_timeout (the installation did not go quiet in time for the snapshot, so no backup was taken and the installation was released), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise.",
+        "failureDetail": "The runner's plain-text answer for the failure or the failed off-site copy, or null."
+      }
+    },
+    "Page<BackupRun>": {
+      "pageOf": "BackupRun",
+      "description": "Cursor page of backup runs returned by `GET /v1/installation/backups`, newest request first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "BackupStatus": {
+      "fields": [
+        "state",
+        "lastGoodBackupAt",
+        "lastBackupCutoffAt",
+        "lastAttemptAt",
+        "runningRunId",
+        "runningProgressPercent",
+        "waitingRunId",
+        "runnerConfigured",
+        "runnerLastUsedAt",
+        "maintenanceState",
+        "maintenanceSince"
+      ],
+      "fieldTypes": {
+        "state": "enum(protected|running|not_copied|stale|failed)",
+        "lastGoodBackupAt": "timestamp|null",
+        "lastBackupCutoffAt": "timestamp|null",
+        "lastAttemptAt": "timestamp|null",
+        "runningRunId": "uuid|null",
+        "runningProgressPercent": "integer|null",
+        "waitingRunId": "uuid|null",
+        "runnerConfigured": "boolean",
+        "runnerLastUsedAt": "timestamp|null",
+        "maintenanceState": "enum(off|draining|quiesced)",
+        "maintenanceSince": "timestamp|null"
+      },
+      "nullableFields": [
+        "lastGoodBackupAt",
+        "lastBackupCutoffAt",
+        "lastAttemptAt",
+        "runningRunId",
+        "runningProgressPercent",
+        "waitingRunId",
+        "runnerLastUsedAt",
+        "maintenanceSince"
+      ],
+      "description": "The one answer to whether this installation is protected: a state word, the last good backup, the run in progress and whether a host runner has been set up and has been heard from.",
+      "fieldDescriptions": {
+        "state": "running while a backup is claimed or running; failed when the newest finished attempt failed; not_copied when the newest finished attempt took the backup on the host but could not copy it off-site (a later good full backup replaces it); stale when the last good backup is older than twice the schedule interval (7 days when no schedule is on) or none exists; protected otherwise.",
+        "lastGoodBackupAt": "When the newest completed backup finished, or null when none has completed. A backup taken on the host but not copied off-site counts: the local copy exists.",
+        "lastBackupCutoffAt": "The database-clock cutoff of the newest completed backup that recorded one: the moment its snapshot began, so a restore of it knows what may have happened afterwards; null when no completed backup has recorded a cutoff.",
+        "lastAttemptAt": "When the newest finished attempt ended, completed or failed, or null when none has finished.",
+        "runningRunId": "Run the runner currently holds, or null.",
+        "runningProgressPercent": "Latest progress of the held run, or null.",
+        "waitingRunId": "Request that waits for the runner to pick it up, or null.",
+        "runnerConfigured": "True once a runner credential has been issued.",
+        "runnerLastUsedAt": "When the runner last authenticated, or null when it never has.",
+        "maintenanceState": "off normally; draining or quiesced while a backup holds the installation and new work is refused with 503 INSTALLATION_QUIESCED. A hold whose lease has lapsed reads as off.",
+        "maintenanceSince": "When the current hold began, or null when the installation is not held."
+      }
+    },
+    "BackupRunnerCredentialIssued": {
+      "fields": [
+        "credential",
+        "generation",
+        "issuedAt"
+      ],
+      "fieldTypes": {
+        "credential": "secretString",
+        "generation": "integer",
+        "issuedAt": "timestamp"
+      },
+      "sensitiveFields": [
+        "credential"
+      ],
+      "description": "The backup runner credential, shown once when it is issued or rotated. Only its hash is stored, it is never returned again and it is never replayed. Issuing again replaces it and ends the old one.",
+      "fieldDescriptions": {
+        "credential": "Bearer secret the host runner presents on every runner request; copy it now, it cannot be read back.",
+        "generation": "Counts how many times the credential has been issued; 1 for the first.",
+        "issuedAt": "When this credential was issued."
+      }
+    },
+    "BackupRunClaim": {
+      "fields": [
+        "claimed",
+        "runId",
+        "leaseToken",
+        "leaseExpiresAt",
+        "triggerKind"
+      ],
+      "fieldTypes": {
+        "claimed": "boolean",
+        "runId": "uuid|null",
+        "leaseToken": "secretString|null",
+        "leaseExpiresAt": "timestamp|null",
+        "triggerKind": "enum(manual|scheduled)|null"
+      },
+      "nullableFields": [
+        "runId",
+        "leaseToken",
+        "leaseExpiresAt",
+        "triggerKind"
+      ],
+      "sensitiveFields": [
+        "leaseToken"
+      ],
+      "description": "The runner's answer to asking for work: either one backup run it now holds, with the lease token shown once, or claimed false when nothing is waiting or another run still holds a live lease.",
+      "fieldDescriptions": {
+        "claimed": "True when the runner now holds a run; false when there is nothing for it to do.",
+        "runId": "Run the runner holds, or null when claimed is false.",
+        "leaseToken": "Proof of the claim that every report must carry; returned once and stored only as a hash, or null when claimed is false.",
+        "leaseExpiresAt": "When the claim lapses unless the runner reports again before then, or null when claimed is false.",
+        "triggerKind": "Why the run exists, manual or scheduled, or null when claimed is false."
+      }
+    },
+    "TelemetryDestination": {
+      "fields": [
+        "id",
+        "kind",
+        "provider",
+        "name",
+        "enabled",
+        "measurements",
+        "settings",
+        "secretFieldsSet",
+        "credentialUpdatedAt",
+        "state",
+        "lastAcceptedAt",
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason",
+        "dropped",
+        "droppedSince",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "kind": "string",
+        "provider": "string",
+        "name": "string",
+        "enabled": "boolean",
+        "measurements": "string[]",
+        "settings": "json",
+        "secretFieldsSet": "string[]",
+        "credentialUpdatedAt": "timestamp|null",
+        "state": "enum(working|not_tested_yet|failing|dropping_data|off)",
+        "lastAcceptedAt": "timestamp|null",
+        "lastAnswerAt": "timestamp|null",
+        "lastAnswerOk": "boolean|null",
+        "lastAnswerReason": "string|null",
+        "dropped": "integer",
+        "droppedSince": "timestamp|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "credentialUpdatedAt",
+        "lastAcceptedAt",
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason",
+        "droppedSince"
+      ],
+      "description": "One telemetry destination as an installation administrator may see it, with how it is doing. Secret values are reported only as the names of the fields that are set and when they were last replaced; no value, ciphertext or key identifier is ever returned.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the destination.",
+        "kind": "Which kind of destination this is, for example otlp.",
+        "provider": "Which provider the destination was added for, one of the keys in the list's providers (opentelemetry, grafana, datadog, honeycomb or sentry). It is a label chosen when the destination is added, never worked out from its name or address; destinations saved before it existed read as the default provider of their kind.",
+        "name": "Name shown in the list and in alerts.",
+        "enabled": "Whether the destination receives measurements now.",
+        "measurements": "The kinds of measurement it receives: cost, durations, results, skills, health, errors.",
+        "settings": "The non-secret values saved for it, by field name.",
+        "secretFieldsSet": "Names of the secret fields that hold a stored value; the values are never returned.",
+        "credentialUpdatedAt": "When its secret values were last replaced, or null when it has none.",
+        "state": "working, not_tested_yet (on, nothing sent yet), failing (the last sends were refused or timed out), dropping_data (its queue overflowed recently) or off.",
+        "lastAcceptedAt": "When it last accepted a batch, or null when it never has since the server started.",
+        "lastAnswerAt": "When it last answered a send, accepted or not, or null.",
+        "lastAnswerOk": "Whether that last answer was an acceptance, or null before any.",
+        "lastAnswerReason": "A short plain reason when the last answer was a refusal, or null.",
+        "dropped": "Records dropped for this destination since the server started.",
+        "droppedSince": "When the first of those was dropped, or null when none were.",
+        "createdAt": "UTC time the destination was added.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Monotonic revision; submit it as If-Match when changing or removing the destination."
+      }
+    },
+    "TelemetryDestinationList": {
+      "fields": [
+        "kinds",
+        "measurements",
+        "destinations",
+        "destinationLimit",
+        "nextCursor",
+        "total",
+        "stateCounts",
+        "providers"
+      ],
+      "fieldTypes": {
+        "kinds": "json[]",
+        "measurements": "json[]",
+        "destinations": "json[]",
+        "destinationLimit": "integer",
+        "nextCursor": "string|null",
+        "total": "integer",
+        "stateCounts": "json",
+        "providers": "json[]"
+      },
+      "nullableFields": [
+        "nextCursor"
+      ],
+      "description": "Everything the Monitoring list needs in one read: the kinds the server can deliver to with their fields, the six kinds of measurement, one page of the destinations that match the search and filters, and the counts the page's notice and filters show.",
+      "fieldDescriptions": {
+        "kinds": "Each kind of destination: its identifier, label, fields (name, label, help, secret, required), the measurements it can take and why any it cannot take is unavailable.",
+        "measurements": "The six kinds of measurement, each with its identifier, label and one line of help.",
+        "destinations": "This page of destinations, each shaped as a TelemetryDestination: failing first, then dropping_data, then the rest by name ignoring case.",
+        "destinationLimit": "The most destinations an installation can have; creating one past it is refused with destination_limit.",
+        "nextCursor": "Opaque token for the next page with the same filters, or null on the last page.",
+        "total": "How many destinations match the search and filters, across every page.",
+        "stateCounts": "How many destinations are in each state with no search or filter applied: an object with all, working, not_tested_yet, failing, dropping_data and off.",
+        "providers": "The providers a destination can be added for, for the Add destination chooser: key, name, one plain sentence (description), the kind it uses and the values filled in when it is chosen (prefill, by field name)."
+      }
+    },
+    "TelemetryDestinationDetail": {
+      "fields": [
+        "destination",
+        "kind",
+        "provider",
+        "measurements"
+      ],
+      "fieldTypes": {
+        "destination": "json",
+        "kind": "json|null",
+        "provider": "json|null",
+        "measurements": "json[]"
+      },
+      "nullableFields": [
+        "kind",
+        "provider"
+      ],
+      "description": "One destination with what its page needs to show and edit it: the destination, the description of its kind and the measurement list.",
+      "fieldDescriptions": {
+        "destination": "The destination shaped as a TelemetryDestination, with its live state.",
+        "kind": "The description of the destination's kind (identifier, label, fields, measurements it can take), or null when the server no longer has that kind installed.",
+        "provider": "The destination's provider as the list's providers describe it (key, name, description, kind, prefill), or null when the server no longer knows that provider.",
+        "measurements": "The six kinds of measurement, each with its identifier, label and one line of help."
+      }
+    },
+    "TelemetryDestinationDropped": {
+      "fields": [
+        "items",
+        "nextCursor",
+        "droppedTotal",
+        "droppedSince"
+      ],
+      "fieldTypes": {
+        "items": "json[]",
+        "nextCursor": "string|null",
+        "droppedTotal": "integer",
+        "droppedSince": "timestamp|null"
+      },
+      "nullableFields": [
+        "nextCursor",
+        "droppedSince"
+      ],
+      "description": "One page of the reports of records Bakery could not deliver to a destination, newest first. Bakery keeps how many were lost, when and why, never the records themselves, and only the last 200 reports in memory, so a restart empties the list.",
+      "fieldDescriptions": {
+        "items": "This page of reports, each with id (counts up from 1 since the server started), at (UTC time), reason (queue_full, send_failed or shutdown) and count (records lost in that report).",
+        "nextCursor": "Opaque token for the next, older page, or null on the last page.",
+        "droppedTotal": "Records dropped for this destination since the server started, the same number as the destination's dropped.",
+        "droppedSince": "When the first of them was dropped, or null when none were."
+      }
+    },
+    "TelemetryDestinationTestResult": {
+      "fields": [
+        "ok",
+        "status",
+        "reason",
+        "answer",
+        "tookMs"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "status": "integer|null",
+        "reason": "string|null",
+        "answer": "string|null",
+        "tookMs": "integer"
+      },
+      "nullableFields": [
+        "status",
+        "reason",
+        "answer"
+      ],
+      "description": "The destination's real answer to one test message: whether it accepted it, its HTTP status, a short plain reason when it did not, a bounded piece of what it said and how long it took.",
+      "fieldDescriptions": {
+        "ok": "True only when the destination accepted the test message.",
+        "status": "The destination's HTTP status, or null when it never answered.",
+        "reason": "A short plain reason when it did not accept, or null.",
+        "answer": "At most 300 characters of what it answered, or null; never a credential.",
+        "tookMs": "Milliseconds the test took."
+      }
+    },
     "IntegrationAppManifestStart": {
       "fields": [
         "provider",
@@ -29635,6 +31686,129 @@ const transportSchemas = {
         "updatedAt": "When the profile was last published, or null for the empty baseline."
       }
     },
+    "ContextPackEnvelope": {
+      "fields": [
+        "modelContextTokens",
+        "reservedTokens",
+        "countedInputTokens",
+        "availableTokens",
+        "maxInputTokens",
+        "decision"
+      ],
+      "fieldTypes": {
+        "modelContextTokens": "integer",
+        "reservedTokens": "integer",
+        "countedInputTokens": "integer",
+        "availableTokens": "integer",
+        "maxInputTokens": "integer|null",
+        "decision": "enum(ready|needs_bounding|bound-more-before-dispatch|handoff_required)"
+      },
+      "description": "The arithmetic the pack was admitted under: what the window allows, what was held back before any item was added, what the inputs counted as, and what remained.",
+      "fieldDescriptions": {
+        "modelContextTokens": "Context window the resolved model and harness report.",
+        "reservedTokens": "Tokens held back before any item was added: output, tool results, compaction and the safety margin.",
+        "countedInputTokens": "What the admitted inputs counted as, with a bounded unknown counted at its bound.",
+        "availableTokens": "Tokens left for input after the reservations: negative means the reservations alone exceed the window.",
+        "maxInputTokens": "Operator cap on input tokens when one applies, or null when the window alone bounds it.",
+        "decision": "What admission concluded: ready, needs_bounding, bound_more_before_dispatch, or handoff_required."
+      }
+    },
+    "ContextPackItem": {
+      "fields": [
+        "itemId",
+        "kind",
+        "citation",
+        "text",
+        "truncated",
+        "limits",
+        "redactions",
+        "tokens",
+        "countState"
+      ],
+      "fieldTypes": {
+        "itemId": "string",
+        "kind": "enum(text|text_window|log_window|image_reference|pdf_reference|binary_reference)",
+        "citation": "json|null",
+        "text": "string|null",
+        "truncated": "boolean",
+        "limits": "enum(binary_media|no_text_extractor|extraction_failed)|null",
+        "redactions": "integer",
+        "tokens": "integer",
+        "countState": "enum(measured|estimated|unknown)"
+      },
+      "rules": [
+        "A reference kind carries no text and no bytes; it names the version so a reader can fetch a bounded projection deliberately.",
+        "countState records whether the token count was measured, estimated or unknown, because a confident total that hides a guess is worse than a visible estimate."
+      ],
+      "description": "One admitted item in the pack: either a bounded text window with its exact citation, or a reference to a version with no content.",
+      "fieldDescriptions": {
+        "itemId": "Caller's identifier for the candidate this item came from.",
+        "kind": "What the item is: bounded text, a text or log window with a byte range, or a reference to a version that carries no content.",
+        "citation": "Reproducible citation of the version and, for a window, its exact byte range and extractor; null for a caller-supplied text item.",
+        "text": "The bounded text admitted to the prompt, or null for every reference kind.",
+        "truncated": "Whether the window ends before the version does.",
+        "limits": "Why the item carries no content: binary_media (images, audio, video and unknown binaries are references only), no_text_extractor (PDFs have no text extractor yet) or extraction_failed (a text window could not be produced); null when the item carries text.",
+        "redactions": "How many credentials were replaced by a redaction marker in the text of this item; 0 for a reference or for text with none.",
+        "tokens": "What the item counted as under countState.",
+        "countState": "Whether tokens was measured, estimated from bounded metadata, or unknown."
+      }
+    },
+    "ContextPackOmission": {
+      "fields": [
+        "itemId",
+        "reason"
+      ],
+      "fieldTypes": {
+        "itemId": "string",
+        "reason": "enum(unbounded_unknown|over_budget|not_found)"
+      },
+      "description": "One candidate the pack does not carry, and why: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed.",
+      "fieldDescriptions": {
+        "itemId": "Caller's identifier for the candidate that was not admitted.",
+        "reason": "Why it was not admitted: its size is unknown and unbounded, it did not fit, or the version is not in the caller's organization or has had its content removed."
+      }
+    },
+    "ContextPack": {
+      "fields": [
+        "decision",
+        "envelope",
+        "items",
+        "omitted",
+        "usedTokens",
+        "conversationCutoff",
+        "repository",
+        "packDigest"
+      ],
+      "fieldTypes": {
+        "decision": "enum(ready|needs_bounding|bound-more-before-dispatch|handoff_required)",
+        "envelope": "ContextPackEnvelope",
+        "items": "ContextPackItem[]",
+        "omitted": "ContextPackOmission[]",
+        "usedTokens": "integer",
+        "conversationCutoff": "integer|null",
+        "repository": "json|null",
+        "packDigest": "sha256|null"
+      },
+      "optionalFields": [
+        "conversationCutoff",
+        "repository"
+      ],
+      "rules": [
+        "A pack is a view over durable records and is never persisted: storing it would make a second transcript.",
+        "packDigest is the SHA-256 of the canonical selection and is null when the decision admitted nothing."
+      ],
+      "description": "The bounded context a step is handed: the decision, the envelope arithmetic, the admitted items with their citations, the omissions with reasons, and a digest pinning the selection.",
+      "fieldDescriptions": {
+        "decision": "What admission concluded for this pack.",
+        "envelope": "The arithmetic the pack was admitted under, including the reservations taken before any item.",
+        "items": "The admitted items in the caller's relevance order, never re-sorted by size.",
+        "omitted": "Every candidate the pack does not carry, with the reason it was left out.",
+        "usedTokens": "Sum of the admitted items' tokens.",
+        "conversationCutoff": "Minimum conversation sequence the step must see, or null when the caller did not name one.",
+        "repository": "Repository the step runs against, or null when the step is not repository-scoped.",
+        "packDigest": "SHA-256 of the canonical selection, or null when the decision admitted nothing."
+      }
+    },
     "Page<ProviderIncident>": {
       "pageOf": "ProviderIncident",
       "description": "Cursor page of provider incidents, newest first, returned by `GET /v1/provider-incidents`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
@@ -30039,49 +32213,6 @@ const transportSchemas = {
         "createdAt": "When the note was recorded."
       }
     },
-    "AgentFileGrant": {
-      "fields": [
-        "id",
-        "workflowId",
-        "folderId",
-        "access",
-        "grantedBy",
-        "expiresAt",
-        "revokedAt",
-        "revokedBy",
-        "createdAt",
-        "version"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "workflowId": "uuid",
-        "folderId": "uuid",
-        "access": "enum(read|write)",
-        "grantedBy": "uuid",
-        "expiresAt": "timestamp",
-        "revokedAt": "timestamp|null",
-        "revokedBy": "uuid|null",
-        "createdAt": "timestamp",
-        "version": "integer"
-      },
-      "nullableFields": [
-        "revokedAt",
-        "revokedBy"
-      ],
-      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn.",
-      "fieldDescriptions": {
-        "id": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId.",
-        "workflowId": "Immutable id of the workflow whose agent sessions the grant covers.",
-        "folderId": "The storage folder granted; the grant covers it and everything under it.",
-        "access": "read, or write (which includes the destructive verbs mv and rm).",
-        "grantedBy": "Person who made the grant.",
-        "expiresAt": "When the grant stops working; judged at the time of each write.",
-        "revokedAt": "When a person revoked the grant; null while it stands.",
-        "revokedBy": "Person who revoked the grant; null while it stands.",
-        "createdAt": "When the grant was made.",
-        "version": "Optimistic-concurrency version a revoke must name in If-Match."
-      }
-    },
     "AgentPowerGrant": {
       "fields": [
         "id",
@@ -30152,6 +32283,31 @@ const transportSchemas = {
         "ineligibleReason": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
       }
     },
+    "RouteContinuationSource": {
+      "fields": [
+        "provider",
+        "model",
+        "harness",
+        "billingRoute",
+        "health"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "provider": "string",
+        "model": "string",
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "billingRoute": "enum(subscription|api_metered|local)",
+        "health": "enum(healthy|degraded|open|unverified)"
+      },
+      "description": "The route a stalled step is pinned to and waiting on, described well enough to name it to a person: which agent harness, which model of which provider, and how its spend is paid.",
+      "fieldDescriptions": {
+        "provider": "Provider key the source route sends to.",
+        "model": "Model identifier the source route pins; the model the step is waiting on.",
+        "harness": "Harness path (agent) the step runs on: pi, claude_code, codex or mastra.",
+        "billingRoute": "How the source route's spend is paid: subscription, api_metered or local.",
+        "health": "The source route's current circuit state: open while its incident is an outage, degraded while it still serves some work."
+      }
+    },
     "RouteContinuationOffer": {
       "fields": [
         "runStepId",
@@ -30159,11 +32315,16 @@ const transportSchemas = {
         "incidentId",
         "incidentGeneration",
         "sourceRouteId",
+        "source",
+        "reason",
+        "since",
+        "nextCheckAt",
         "runVersion",
         "estimatedIncrementalCost",
         "targets"
       ],
       "nullableFields": [
+        "nextCheckAt",
         "estimatedIncrementalCost"
       ],
       "fieldTypes": {
@@ -30172,6 +32333,10 @@ const transportSchemas = {
         "incidentId": "uuid",
         "incidentGeneration": "integer",
         "sourceRouteId": "uuid",
+        "source": "RouteContinuationSource",
+        "reason": "enum(rate_limited|credential_invalid|quota_exhausted|transport_failure|provider_error|timeout)",
+        "since": "timestamp",
+        "nextCheckAt": "timestamp|null",
         "runVersion": "integer",
         "estimatedIncrementalCost": "decimalString|null",
         "targets": "RouteContinuationTarget[]"
@@ -30183,6 +32348,10 @@ const transportSchemas = {
         "incidentId": "UUID of the open incident the step is stalled behind.",
         "incidentGeneration": "The incident's generation when this offer was made; a submission carrying a lower or different generation is stale.",
         "sourceRouteId": "UUID of the route the step is currently pinned to, whose incident this is.",
+        "source": "What the step is waiting on: the source route's provider, model, harness, billing route and health, so the card can name it without a second read.",
+        "reason": "Why the source route's incident is open, as the last failure classified it: rate_limited, credential_invalid, quota_exhausted, transport_failure, provider_error or timeout.",
+        "since": "When the incident the step is waiting behind was opened.",
+        "nextCheckAt": "When the source route is next checked, or null when no check is scheduled.",
         "runVersion": "The run's version when this offer was made, so a submission can be refused if the run changed in between.",
         "estimatedIncrementalCost": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice.",
         "targets": "Every other route of the organization, each marked eligible or not with the reason."
@@ -30202,279 +32371,6 @@ const transportSchemas = {
       "fieldDescriptions": {
         "runId": "UUID of the run these offers belong to.",
         "offers": "The open choices, empty when no step of the run is stalled behind an incident."
-      }
-    },
-    "IntegrationClientCredentials": {
-      "fields": [
-        "provider",
-        "configured",
-        "clientId",
-        "clientSecretSavedAt",
-        "callbackUrl",
-        "version"
-      ],
-      "nullableFields": [
-        "clientId",
-        "clientSecretSavedAt"
-      ],
-      "fieldTypes": {
-        "provider": "string",
-        "configured": "boolean",
-        "clientId": "string",
-        "clientSecretSavedAt": "timestamp",
-        "callbackUrl": "uri",
-        "version": "integer"
-      },
-      "description": "Whether an integration provider's OAuth client credentials are registered on this installation, which client ID, when the secret was last saved, and the callback URL to give the provider. The secret itself is never part of it. Version is 0 until credentials are saved and is the If-Match value for the next save.",
-      "fieldDescriptions": {
-        "provider": "Provider slug these credentials belong to.",
-        "configured": "True once a client ID and secret have been saved for this provider.",
-        "clientId": "The registered client ID, or null while nothing is registered.",
-        "clientSecretSavedAt": "UTC timestamp at which the current client secret was saved, or null while nothing is registered. A secret is never shown, so this is how an administrator tells it was replaced.",
-        "callbackUrl": "The URL to enter in the provider's OAuth application as its callback, derived from this installation's public address.",
-        "version": "Registration version: 0 while nothing is registered, then the optimistic-concurrency value to send as If-Match when replacing the credentials."
-      }
-    },
-    "TicketRequestView": {
-      "projection": "ticket_requests",
-      "fields": [
-        "id",
-        "externalTicketId",
-        "ticketTaskLinkId",
-        "intent",
-        "origin",
-        "requestedByPrincipalId",
-        "triggerLabelName",
-        "disposition",
-        "dispositionReasonCode",
-        "pausedAt",
-        "pausedReason",
-        "progress",
-        "workflowRunId",
-        "createdAt",
-        "updatedAt",
-        "version",
-        "targets"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "externalTicketId": "uuid",
-        "ticketTaskLinkId": "uuid",
-        "intent": "enum(plan|start)",
-        "origin": "enum(manual|adoption|webhook|poll)",
-        "requestedByPrincipalId": "uuid|null",
-        "triggerLabelName": "string|null",
-        "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
-        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
-        "pausedAt": "timestamp|null",
-        "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
-        "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
-        "workflowRunId": "uuid|null",
-        "createdAt": "timestamp",
-        "updatedAt": "timestamp",
-        "version": "integer",
-        "targets": "TicketRequestViewTarget[]"
-      },
-      "nullableFields": [
-        "requestedByPrincipalId",
-        "triggerLabelName",
-        "dispositionReasonCode",
-        "pausedAt",
-        "pausedReason",
-        "workflowRunId"
-      ],
-      "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
-      "fieldDescriptions": {
-        "id": "Stable UUID of this ticket request.",
-        "externalTicketId": "External ticket this request admitted.",
-        "ticketTaskLinkId": "Link between the ticket and the task this request owns.",
-        "intent": "Requested scope: plan stops after the plan for review, start plans and then runs.",
-        "origin": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync.",
-        "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
-        "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
-        "disposition": "Stored lifecycle state of the request.",
-        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
-        "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
-        "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
-        "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
-        "workflowRunId": "Workflow run the request owns; null before one starts.",
-        "createdAt": "When the request was admitted.",
-        "updatedAt": "When the request last changed.",
-        "version": "Monotonic revision of the request.",
-        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
-      }
-    },
-    "Page<TicketRequestView>": {
-      "pageOf": "TicketRequestView"
-    },
-    "TicketRequestViewTarget": {
-      "projection": "ticket_request_targets",
-      "fields": [
-        "repositoryId",
-        "role",
-        "routingRuleId",
-        "routingRuleVersion",
-        "childTaskId"
-      ],
-      "fieldTypes": {
-        "repositoryId": "uuid",
-        "role": "string",
-        "routingRuleId": "uuid|null",
-        "routingRuleVersion": "integer|null",
-        "childTaskId": "uuid|null"
-      },
-      "nullableFields": [
-        "routingRuleId",
-        "routingRuleVersion",
-        "childTaskId"
-      ],
-      "description": "One repository a ticket request was routed to, as pinned at admission.",
-      "fieldDescriptions": {
-        "repositoryId": "Repository this target is scoped to.",
-        "role": "Role the repository plays; default for the fallback to the source's own repository.",
-        "routingRuleId": "Rule that routed the ticket here as pinned at admission, or null for the fallback.",
-        "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
-        "childTaskId": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
-      }
-    },
-    "TicketSourceLabel": {
-      "fields": [
-        "id",
-        "name",
-        "color"
-      ],
-      "fieldTypes": {
-        "id": "string",
-        "name": "string",
-        "color": "string|null"
-      },
-      "nullableFields": [
-        "color"
-      ],
-      "description": "One label the ticket source's provider holds, read live (#69).",
-      "fieldDescriptions": {
-        "id": "The provider's stable, opaque label id; the value a routing rule stores, which survives a rename.",
-        "name": "The label's current name.",
-        "color": "The label's colour as six hex digits without a leading #, or null when the provider gives none."
-      }
-    },
-    "Page<TicketSourceLabel>": {
-      "pageOf": "TicketSourceLabel"
-    },
-    "PasswordResetLinkIssued": {
-      "fields": [
-        "id",
-        "url",
-        "expiresAt"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "url": "secretString",
-        "expiresAt": "timestamp"
-      },
-      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
-      "fieldDescriptions": {
-        "id": "Stable UUID of the reset link record, as the audit trail names it.",
-        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
-        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
-      }
-    },
-    "McpToolClassification": {
-      "fields": [
-        "toolName",
-        "effectClass",
-        "classified",
-        "effectKeyArgument",
-        "pairedReadTool",
-        "classifiedAgainstCurrentSnapshot",
-        "classifiedAt",
-        "version"
-      ],
-      "nullableFields": [
-        "effectKeyArgument",
-        "pairedReadTool",
-        "classifiedAt"
-      ],
-      "fieldTypes": {
-        "toolName": "string",
-        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
-        "classified": "boolean",
-        "effectKeyArgument": "string",
-        "pairedReadTool": "string",
-        "classifiedAgainstCurrentSnapshot": "boolean",
-        "classifiedAt": "timestamp",
-        "version": "integer"
-      },
-      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it.",
-      "fieldDescriptions": {
-        "toolName": "The tool's name in the pinned snapshot.",
-        "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
-        "classified": "True once an Admin has classified this tool.",
-        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
-        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
-        "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
-        "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
-        "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."
-      }
-    },
-    "McpToolClassificationList": {
-      "fields": [
-        "items"
-      ],
-      "nullableFields": [],
-      "fieldTypes": {
-        "items": "McpToolClassification[]"
-      },
-      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered.",
-      "fieldDescriptions": {
-        "items": "The snapshot's tools with their classifications."
-      }
-    },
-    "McpUseGrant": {
-      "fields": [
-        "id",
-        "connectionId",
-        "workflowId",
-        "grantedBy",
-        "createdAt",
-        "revokedAt",
-        "revokedBy"
-      ],
-      "nullableFields": [
-        "revokedAt",
-        "revokedBy"
-      ],
-      "fieldTypes": {
-        "id": "uuid",
-        "connectionId": "uuid",
-        "workflowId": "uuid",
-        "grantedBy": "uuid",
-        "createdAt": "timestamp",
-        "revokedAt": "timestamp",
-        "revokedBy": "uuid"
-      },
-      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record.",
-      "fieldDescriptions": {
-        "id": "Stable UUID identifying the grant.",
-        "connectionId": "The personal connection the grant covers.",
-        "workflowId": "The workflow the grant lets use the connection.",
-        "grantedBy": "The owner who granted it.",
-        "createdAt": "UTC timestamp when the grant was made.",
-        "revokedAt": "UTC timestamp when the grant was revoked, or null while it is live.",
-        "revokedBy": "The principal who revoked it, or null while it is live."
-      }
-    },
-    "McpUseGrantList": {
-      "fields": [
-        "items"
-      ],
-      "nullableFields": [],
-      "fieldTypes": {
-        "items": "McpUseGrant[]"
-      },
-      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant.",
-      "fieldDescriptions": {
-        "items": "The connection's grants, newest first."
       }
     },
     "GroupMember": {
@@ -30744,10 +32640,29 @@ const transportSchemas = {
       "pageOf": "ConversationAccessGrant",
       "description": "Cursor page of live direct grants on one conversation, oldest first. `nextCursor: null` marks the last page."
     },
+    "PasswordResetLinkIssued": {
+      "fields": [
+        "id",
+        "url",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "url": "secretString",
+        "expiresAt": "timestamp"
+      },
+      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the reset link record, as the audit trail names it.",
+        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
+        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
+      }
+    },
     "FileSearchHit": {
       "fields": [
         "source",
         "entryId",
+        "itemId",
         "path",
         "name",
         "kind",
@@ -30767,6 +32682,7 @@ const transportSchemas = {
       "fieldTypes": {
         "source": "enum(files|library)",
         "entryId": "uuid|null",
+        "itemId": "uuid|null",
         "path": "string",
         "name": "string",
         "kind": "string",
@@ -30785,6 +32701,7 @@ const transportSchemas = {
       },
       "nullableFields": [
         "entryId",
+        "itemId",
         "mediaType",
         "mediaGroup",
         "sizeBytes",
@@ -30801,6 +32718,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "source": "Where the hit lives: the organization's file tree, or the read-only library mirror.",
         "entryId": "Stable UUID of the file's tree entry; null for a library item, which is shown by path.",
+        "itemId": "Id of the catalog item a library hit mirrors, the same id its Library page and its catalog reads use; null for a file.",
         "path": "Absolute path of the hit in the tree, for example /projects/<project>/artifacts/<work item>/plan.md or /library/skills/<slug>.",
         "name": "Name of the file or library item.",
         "kind": "The artifact type of a file, or the library kind of a library item.",
@@ -30821,6 +32739,7 @@ const transportSchemas = {
     "LibraryEntry": {
       "fields": [
         "type",
+        "id",
         "path",
         "name",
         "kind",
@@ -30828,18 +32747,21 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "type": "enum(folder|item)",
+        "id": "uuid|null",
         "path": "string",
         "name": "string",
         "kind": "string|null",
         "createdAt": "timestamp|null"
       },
       "nullableFields": [
+        "id",
         "kind",
         "createdAt"
       ],
       "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path.",
       "fieldDescriptions": {
         "type": "folder for a section, item for a published catalog item.",
+        "id": "Id of the catalog item the entry mirrors, the same id its Library page and its catalog reads use; null for a folder.",
         "path": "Absolute path: /library/<section> or /library/<section>/<slug>.",
         "name": "Display name of the section or item.",
         "kind": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder.",
@@ -30850,9 +32772,339 @@ const transportSchemas = {
       "pageOf": "FileSearchHit",
       "description": "Cursor page of file search hits, newest first, returned by GET /v1/files/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
+    "FileFact": {
+      "fields": [
+        "kind",
+        "key",
+        "value",
+        "files"
+      ],
+      "fieldTypes": {
+        "kind": "string",
+        "key": "string",
+        "value": "string",
+        "files": "integer"
+      },
+      "description": "One fact a kind of file carries: a metadata key and one string value it holds on the current version of some files the caller may read, with the number of those files. Pass key and value to files.search as factKey and factValue, and kind as kind, to list the files.",
+      "fieldDescriptions": {
+        "kind": "The artifact type of the files that hold the fact.",
+        "key": "The metadata key, at most 100 characters.",
+        "value": "One value the key holds on the current version of at least one such file, at most 500 characters; an empty value is not listed.",
+        "files": "How many files of this kind the caller may read hold this key with this value on their current version."
+      }
+    },
+    "Page<FileFact>": {
+      "pageOf": "FileFact",
+      "description": "The facts of the files the caller may read, by kind, key and value, returned by GET /v1/files/facts. items and nextCursor are always present; the list is one bounded page, so nextCursor is always null and there are no page numbers or offsets."
+    },
     "Page<LibraryEntry>": {
       "pageOf": "LibraryEntry",
       "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "BatchIssue": {
+      "fields": [
+        "id",
+        "position",
+        "externalTicketId",
+        "state",
+        "reason",
+        "ticketRequestId",
+        "costUsd",
+        "startedAt",
+        "mergedAt"
+      ],
+      "nullableFields": [
+        "reason",
+        "ticketRequestId",
+        "costUsd",
+        "startedAt",
+        "mergedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "position": "integer",
+        "externalTicketId": "uuid",
+        "state": "enum(started|merged|failed|cancelled|passed_over)",
+        "reason": "string",
+        "ticketRequestId": "uuid",
+        "costUsd": "decimal",
+        "startedAt": "timestamp",
+        "mergedAt": "timestamp"
+      },
+      "description": "One issue a batch considered: started and being worked on, merged, failed, cancelled, or passed over with the reason it could not start.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this batch entry.",
+        "position": "The order the batch considered it in, from 1.",
+        "externalTicketId": "The ticket (issue) this entry is for.",
+        "state": "started while it is being worked on; merged, failed or cancelled when it ended; passed_over when it could not start.",
+        "reason": "For a passed-over issue, the readiness reason code; otherwise null.",
+        "ticketRequestId": "The ordinary ticket request the batch made to start it, or null when it was passed over.",
+        "costUsd": "What the issue cost, recorded when it ended; null while it runs or when passed over.",
+        "startedAt": "UTC timestamp when it was started, or null.",
+        "mergedAt": "UTC timestamp when it merged, or null."
+      }
+    },
+    "Batch": {
+      "fields": [
+        "id",
+        "repositoryId",
+        "startedBy",
+        "maxIssues",
+        "maxHours",
+        "maxSpendUsd",
+        "continueMode",
+        "state",
+        "pauseReason",
+        "pausedBy",
+        "pausedAt",
+        "finishReason",
+        "finishedAt",
+        "stoppedBy",
+        "stopCancelledCurrent",
+        "startedAt",
+        "issuesDone",
+        "elapsedSeconds",
+        "spentUsd",
+        "issues",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "pauseReason",
+        "pausedBy",
+        "pausedAt",
+        "finishReason",
+        "finishedAt",
+        "stoppedBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "repositoryId": "uuid",
+        "startedBy": "uuid",
+        "maxIssues": "integer",
+        "maxHours": "integer",
+        "maxSpendUsd": "decimal",
+        "continueMode": "enum(carry_on|ask_first)",
+        "state": "enum(running|waiting|paused|stopping|finishing|finished|stopped)",
+        "pauseReason": "string",
+        "pausedBy": "uuid",
+        "pausedAt": "timestamp",
+        "finishReason": "string",
+        "finishedAt": "timestamp",
+        "stoppedBy": "uuid",
+        "stopCancelledCurrent": "boolean",
+        "startedAt": "timestamp",
+        "issuesDone": "integer",
+        "elapsedSeconds": "integer",
+        "spentUsd": "decimal",
+        "issues": "BatchIssue[]",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "A bounded run of issues in one repository: its three limits, the carry-on choice, its state and the reason it paused or ended, what is used of each limit, and the issues it considered. It is a supervisor's record: each issue is an ordinary ticket request and task. Spend is summed after the fact and the limit is checked before each new issue starts.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the batch.",
+        "repositoryId": "The repository it works in.",
+        "startedBy": "The person who started it; their authority is re-checked before every issue.",
+        "maxIssues": "Limit: issues to merge.",
+        "maxHours": "Limit: hours before nothing new starts.",
+        "maxSpendUsd": "Limit: dollars before nothing new starts.",
+        "continueMode": "carry_on or ask_first.",
+        "state": "running, waiting (for a person), paused, stopping or finishing (the current issue ends, nothing new starts), finished or stopped.",
+        "pauseReason": "Why it is paused: paused_by_person or the named finding of the supervisor; null otherwise.",
+        "pausedBy": "Who paused it, when a person did.",
+        "pausedAt": "When it was paused.",
+        "finishReason": "Why it ended: a limit, nothing left to start, a failure, a change on GitHub or lost authority; null while live.",
+        "finishedAt": "When it ended.",
+        "stoppedBy": "Who stopped it, when a person did.",
+        "stopCancelledCurrent": "True when the stop also cancelled the issue being worked on.",
+        "startedAt": "When the limit clock started.",
+        "issuesDone": "Issues merged so far, against maxIssues.",
+        "elapsedSeconds": "Seconds since startedAt (to finishedAt once ended), against maxHours.",
+        "spentUsd": "Spend so far across the batch's issues, against maxSpendUsd.",
+        "issues": "The issues it considered, in order.",
+        "createdAt": "UTC timestamp when the batch was created.",
+        "updatedAt": "UTC timestamp of the last change.",
+        "version": "Optimistic-concurrency version."
+      }
+    },
+    "Page<Batch>": {
+      "pageOf": "Batch",
+      "description": "Cursor page of batches, newest first, returned by `GET /v1/batches`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "AgentFileGrant": {
+      "fields": [
+        "id",
+        "workflowId",
+        "folderId",
+        "access",
+        "grantedBy",
+        "expiresAt",
+        "revokedAt",
+        "revokedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "workflowId": "uuid",
+        "folderId": "uuid",
+        "access": "enum(read|write)",
+        "grantedBy": "uuid",
+        "expiresAt": "timestamp",
+        "revokedAt": "timestamp|null",
+        "revokedBy": "uuid|null",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId.",
+        "workflowId": "Immutable id of the workflow whose agent sessions the grant covers.",
+        "folderId": "The storage folder granted; the grant covers it and everything under it.",
+        "access": "read, or write (which includes the destructive verbs mv and rm).",
+        "grantedBy": "Person who made the grant.",
+        "expiresAt": "When the grant stops working; judged at the time of each write.",
+        "revokedAt": "When a person revoked the grant; null while it stands.",
+        "revokedBy": "Person who revoked the grant; null while it stands.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+      }
+    },
+    "IntegrationClientCredentials": {
+      "fields": [
+        "provider",
+        "configured",
+        "clientId",
+        "clientSecretSavedAt",
+        "callbackUrl",
+        "version"
+      ],
+      "nullableFields": [
+        "clientId",
+        "clientSecretSavedAt"
+      ],
+      "fieldTypes": {
+        "provider": "string",
+        "configured": "boolean",
+        "clientId": "string",
+        "clientSecretSavedAt": "timestamp",
+        "callbackUrl": "uri",
+        "version": "integer"
+      },
+      "description": "Whether an integration provider's OAuth client credentials are registered on this installation, which client ID, when the secret was last saved, and the callback URL to give the provider. The secret itself is never part of it. Version is 0 until credentials are saved and is the If-Match value for the next save.",
+      "fieldDescriptions": {
+        "provider": "Provider slug these credentials belong to.",
+        "configured": "True once a client ID and secret have been saved for this provider.",
+        "clientId": "The registered client ID, or null while nothing is registered.",
+        "clientSecretSavedAt": "UTC timestamp at which the current client secret was saved, or null while nothing is registered. A secret is never shown, so this is how an administrator tells it was replaced.",
+        "callbackUrl": "The URL to enter in the provider's OAuth application as its callback, derived from this installation's public address.",
+        "version": "Registration version: 0 while nothing is registered, then the optimistic-concurrency value to send as If-Match when replacing the credentials."
+      }
+    },
+    "McpToolClassification": {
+      "fields": [
+        "toolName",
+        "effectClass",
+        "classified",
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAgainstCurrentSnapshot",
+        "classifiedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAt"
+      ],
+      "fieldTypes": {
+        "toolName": "string",
+        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
+        "classified": "boolean",
+        "effectKeyArgument": "string",
+        "pairedReadTool": "string",
+        "classifiedAgainstCurrentSnapshot": "boolean",
+        "classifiedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it.",
+      "fieldDescriptions": {
+        "toolName": "The tool's name in the pinned snapshot.",
+        "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
+        "classified": "True once an Admin has classified this tool.",
+        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
+        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
+        "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
+        "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
+        "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+      }
+    },
+    "McpToolClassificationList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpToolClassification[]"
+      },
+      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered.",
+      "fieldDescriptions": {
+        "items": "The snapshot's tools with their classifications."
+      }
+    },
+    "McpUseGrant": {
+      "fields": [
+        "id",
+        "connectionId",
+        "workflowId",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "revokedBy"
+      ],
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "connectionId": "uuid",
+        "workflowId": "uuid",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "revokedAt": "timestamp",
+        "revokedBy": "uuid"
+      },
+      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "connectionId": "The personal connection the grant covers.",
+        "workflowId": "The workflow the grant lets use the connection.",
+        "grantedBy": "The owner who granted it.",
+        "createdAt": "UTC timestamp when the grant was made.",
+        "revokedAt": "UTC timestamp when the grant was revoked, or null while it is live.",
+        "revokedBy": "The principal who revoked it, or null while it is live."
+      }
+    },
+    "McpUseGrantList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpUseGrant[]"
+      },
+      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant.",
+      "fieldDescriptions": {
+        "items": "The connection's grants, newest first."
+      }
     },
     "StorageEntry": {
       "fields": [
@@ -30955,6 +33207,8 @@ const transportSchemas = {
         "organizationQuotaBytes",
         "projectQuotaBytes",
         "personalQuotaBytes",
+        "stepWriteBytes",
+        "stepWriteFiles",
         "organizationUsedBytes",
         "organizationQuotaState",
         "customized",
@@ -30968,6 +33222,8 @@ const transportSchemas = {
         "organizationQuotaBytes": "integer",
         "projectQuotaBytes": "integer",
         "personalQuotaBytes": "integer",
+        "stepWriteBytes": "integer",
+        "stepWriteFiles": "integer",
         "organizationUsedBytes": "integer",
         "organizationQuotaState": "enum(ok|warning|paused)",
         "customized": "boolean",
@@ -30983,6 +33239,8 @@ const transportSchemas = {
         "organizationQuotaBytes": "Bytes the organization's working-area files may hold.",
         "projectQuotaBytes": "Bytes each project's working-area files may hold.",
         "personalQuotaBytes": "Bytes each member's personal folder may hold.",
+        "stepWriteBytes": "Bytes one agent step may write before its writes are refused (O49); the default 2 GiB unless an Admin saved another value.",
+        "stepWriteFiles": "Distinct files and folders one agent step may write before its writes are refused (O49); the default 2,000 unless an Admin saved another value.",
         "organizationUsedBytes": "Bytes working-area file versions hold now, trash included until it is swept or purged.",
         "organizationQuotaState": "Where usage stands against the organization quota: warning from 75%, paused from 90%, when new writes are refused.",
         "customized": "False while the organization uses Bakery's defaults; true once an Admin saved its own values.",
@@ -31050,6 +33308,138 @@ const transportSchemas = {
         "createdAt": "When the grant was made.",
         "version": "Optimistic-concurrency version a stop must name in If-Match."
       }
+    },
+    "SkillUsage": {
+      "fields": [
+        "kind",
+        "definitionId",
+        "definitionName",
+        "versionId",
+        "revision",
+        "skillVersionIds",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "kind": "enum(workflow|agent)",
+        "definitionId": "uuid",
+        "definitionName": "string",
+        "versionId": "uuid",
+        "revision": "integer",
+        "skillVersionIds": "uuid[]",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [],
+      "description": "One workflow version or agent version that pins a version of a skill: what it is, which version of it, and which versions of the skill it names. A workflow version uses a skill when one of its steps lists the version; an agent version uses it when its skill bindings name the version.",
+      "fieldDescriptions": {
+        "kind": "workflow for a published workflow version, agent for an agent version.",
+        "definitionId": "Stable UUID of the workflow or agent the version belongs to.",
+        "definitionName": "Name of that workflow or agent, as shown in the Library.",
+        "versionId": "Immutable UUID of the workflow version or agent version that names the skill.",
+        "revision": "Revision number of that workflow or agent version.",
+        "skillVersionIds": "The versions of this skill the workflow or agent version pins, oldest first; at least one.",
+        "createdAt": "UTC time that workflow or agent version was created, which orders the list newest first."
+      }
+    },
+    "SkillDraft": {
+      "fields": [
+        "id",
+        "skillId",
+        "baseVersionId",
+        "baseRevision",
+        "entryPath",
+        "license",
+        "files",
+        "totalBytes",
+        "version",
+        "createdAt",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "skillId": "uuid",
+        "baseVersionId": "uuid|null",
+        "baseRevision": "integer|null",
+        "entryPath": "string",
+        "license": "string|null",
+        "files": "json[]",
+        "totalBytes": "integer",
+        "version": "integer",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      },
+      "nullableFields": [
+        "baseVersionId",
+        "baseRevision",
+        "license"
+      ],
+      "description": "A skill's authoring draft: the files being edited, where it started from, and the version to submit as If-Match when changing it. It changes nothing for agents or workflows until it is published; contents are read one file at a time.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the draft.",
+        "skillId": "Stable UUID of the skill the draft belongs to.",
+        "baseVersionId": "The published version the draft started from, or null for an empty draft.",
+        "baseRevision": "Revision number of that version, or null.",
+        "entryPath": "The file a worker reads first.",
+        "license": "The license the published version will declare, or null before one is set.",
+        "files": "The draft's files in name order, each with id, path, mediaType, isExecutable, sizeBytes and sha256; contents are never listed.",
+        "totalBytes": "Decoded bytes of all files together; the limit is 10MiB.",
+        "version": "Monotonic revision of the draft; submit it as If-Match when changing it.",
+        "createdAt": "UTC time the draft was started.",
+        "updatedAt": "UTC time it last changed."
+      }
+    },
+    "SkillDraftFile": {
+      "fields": [
+        "id",
+        "path",
+        "mediaType",
+        "isExecutable",
+        "sizeBytes",
+        "sha256",
+        "contentBase64"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "path": "string",
+        "mediaType": "string",
+        "isExecutable": "boolean",
+        "sizeBytes": "integer",
+        "sha256": "sha256",
+        "contentBase64": "base64"
+      },
+      "nullableFields": [],
+      "description": "One file of a skill's draft with its complete contents.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the file inside the draft.",
+        "path": "Relative path of the file inside the skill.",
+        "mediaType": "MIME media type of the content.",
+        "isExecutable": "Whether the file is marked runnable.",
+        "sizeBytes": "Decoded size in bytes.",
+        "sha256": "SHA-256 of the decoded bytes, lowercase hex.",
+        "contentBase64": "The complete bytes, base64-encoded."
+      }
+    },
+    "SkillDraftCheck": {
+      "fields": [
+        "ok",
+        "problems",
+        "draftVersion"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "problems": "json[]",
+        "draftVersion": "integer"
+      },
+      "nullableFields": [],
+      "description": "The result of checking a skill's draft as a publish would: whether it can be published, and each problem as a sentence tied to its file and, where known, its line.",
+      "fieldDescriptions": {
+        "ok": "True when the draft can be published as it is.",
+        "problems": "Each problem with file (the file's path, or null when it is about the skill as a whole), line (or null), code and message in plain words; at most 50.",
+        "draftVersion": "The draft version that was checked; a later change makes the result stale."
+      }
+    },
+    "Page<SkillUsage>": {
+      "pageOf": "SkillUsage",
+      "description": "Cursor page of SkillUsage rows, newest first. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
     },
     "Page<SkillUseGrant>": {
       "pageOf": "SkillUseGrant",
@@ -31169,6 +33559,7 @@ const transportSchemas = {
         "mediaType",
         "sizeBytes",
         "artifactId",
+        "pinned",
         "contentRemoved",
         "updatedAt"
       ],
@@ -31184,6 +33575,7 @@ const transportSchemas = {
         "mediaType": "string|null",
         "sizeBytes": "integer|null",
         "artifactId": "uuid|null",
+        "pinned": "boolean",
         "contentRemoved": "boolean",
         "updatedAt": "timestamp"
       },
@@ -31208,6 +33600,7 @@ const transportSchemas = {
         "mediaType": "Media type of the file's current version; null for folders.",
         "sizeBytes": "Size of the file's current version in bytes; null for folders.",
         "artifactId": "The artifact a work item's document shows; the page opens the artifact page for it instead of the plain file view. Null for working-area files and folders.",
+        "pinned": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin.",
         "contentRemoved": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders.",
         "updatedAt": "When the entry or its current version last changed."
       }
@@ -31235,7 +33628,8 @@ const transportSchemas = {
         "runId",
         "workItemId",
         "workItemTitle",
-        "sessionId"
+        "sessionId",
+        "agentName"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -31247,7 +33641,7 @@ const transportSchemas = {
         "sha256": "string",
         "contentRemoved": "boolean",
         "removedAt": "timestamp|null",
-        "makerKind": "enum(person|step)",
+        "makerKind": "enum(person|step|agent)",
         "makerPrincipalId": "uuid",
         "makerName": "string|null",
         "stepId": "uuid|null",
@@ -31255,7 +33649,8 @@ const transportSchemas = {
         "runId": "uuid|null",
         "workItemId": "uuid|null",
         "workItemTitle": "string|null",
-        "sessionId": "uuid|null"
+        "sessionId": "uuid|null",
+        "agentName": "string|null"
       },
       "nullableFields": [
         "removedAt",
@@ -31265,7 +33660,8 @@ const transportSchemas = {
         "runId",
         "workItemId",
         "workItemTitle",
-        "sessionId"
+        "sessionId",
+        "agentName"
       ],
       "description": "One version of a storage-tree file: its number, when and by whom or which step it was saved, its size, and whether its contents are still there.",
       "fieldDescriptions": {
@@ -31278,15 +33674,16 @@ const transportSchemas = {
         "sha256": "Lowercase hexadecimal SHA-256 of the version's bytes.",
         "contentRemoved": "True when retention or an Admin purge removed the version's bytes; the version stays listed and cannot be read.",
         "removedAt": "When the bytes were removed; null while they are there.",
-        "makerKind": "Who made the version: step when a run step published it, person when a member or service wrote it.",
-        "makerPrincipalId": "Principal that wrote the version: the member for a person, the run's acting principal for a step.",
+        "makerKind": "Who made the version: step when a run step published it, agent when an agent's session wrote it with a member's access, person when a member or service wrote it.",
+        "makerPrincipalId": "Principal that wrote the version: the member for a person, the run's acting principal for a step, the member whose access the agent used for an agent.",
         "makerName": "Display name of makerPrincipalId.",
         "stepId": "The run step that published the version; null for a person's version.",
         "stepName": "The step's key in its workflow; null for a person's version.",
         "runId": "The run the step belongs to, for Open the run; null for a person's version.",
         "workItemId": "The work item the run worked on; null for a person's version.",
         "workItemTitle": "That work item's title; null for a person's version.",
-        "sessionId": "The step's most recent agent session, for Open the session; null when the step had none or for a person's version."
+        "sessionId": "The agent session behind the version, for Open the session: the step's most recent session for a step, the session that wrote it for an agent; null when there was none or for a person's version.",
+        "agentName": "Name of the agent whose session wrote the version, for an agent's version; null otherwise, or when the agent is not recorded."
       }
     },
     "Page<StorageFileVersion>": {
@@ -31517,78 +33914,1214 @@ const transportSchemas = {
         "admittedAt": "UTC timestamp at which the continuation was admitted."
       }
     },
-    "IntegrationSlackApp": {
+    "BackupSchedule": {
       "fields": [
-        "appId",
-        "clientId",
-        "configured",
-        "signingSecretSavedAt",
-        "clientSecretSavedAt",
-        "detailsCheckedAt",
-        "detailsCheckResult",
-        "lastRequestAt",
-        "lastRequestFailedAt",
-        "redirectUrl",
-        "eventsUrl",
-        "interactivityUrl",
+        "enabled",
+        "interval",
+        "timeOfDayUtc",
+        "daysToKeep",
+        "updatedAt",
         "version"
       ],
-      "nullableFields": [
-        "appId",
-        "clientId",
-        "signingSecretSavedAt",
-        "clientSecretSavedAt",
-        "detailsCheckedAt",
-        "detailsCheckResult",
-        "lastRequestAt",
-        "lastRequestFailedAt"
-      ],
       "fieldTypes": {
-        "appId": "string",
-        "clientId": "string",
-        "configured": "boolean",
-        "signingSecretSavedAt": "timestamp",
-        "clientSecretSavedAt": "timestamp",
-        "detailsCheckedAt": "timestamp",
-        "detailsCheckResult": "string",
-        "lastRequestAt": "timestamp",
-        "lastRequestFailedAt": "timestamp",
-        "redirectUrl": "uri",
-        "eventsUrl": "uri",
-        "interactivityUrl": "uri",
+        "enabled": "boolean",
+        "interval": "enum(hourly|daily|weekly)",
+        "timeOfDayUtc": "string",
+        "daysToKeep": "integer",
+        "updatedAt": "timestamp|null",
         "version": "integer"
       },
-      "description": "Whether this installation has a Slack app saved, what Slack says when asked about the client ID and secret, and what the signing secret's last real request proved. No secret, and no ciphertext, is part of it.",
+      "nullableFields": [
+        "updatedAt"
+      ],
+      "description": "The automatic backup schedule as an installation administrator sees it. Before any save it reads as off with a daily 03:00 UTC default and a 30 day keep.",
       "fieldDescriptions": {
-        "appId": "The Slack app's own ID, when Slack has told us and a check confirmed it; null until then.",
-        "clientId": "The saved client ID, or null while nothing is saved.",
-        "configured": "True once a client ID and both secrets have been saved.",
-        "signingSecretSavedAt": "When the current signing secret was saved. A replaced secret moves this; an omitted one does not.",
-        "clientSecretSavedAt": "When the current client secret was saved.",
-        "detailsCheckedAt": "When Slack was last asked whether it recognises the client ID and secret, or null if nobody has asked.",
-        "detailsCheckResult": "What Slack answered: accepted, client_id_refused, client_secret_refused or unreachable. Null when nobody has asked.",
-        "lastRequestAt": "When a request last passed the signature check. The signing secret has no other test.",
-        "lastRequestFailedAt": "When a request last failed it, so the screen can say so without blaming the secret.",
-        "redirectUrl": "The URL to enter in the Slack app as its OAuth redirect URL, derived from this installation's public address.",
-        "eventsUrl": "The URL to enter as the Events API request URL.",
-        "interactivityUrl": "The URL to enter as the Interactivity request URL.",
-        "version": "Saving version: 0 while nothing is saved, then the If-Match value for the next save."
+        "enabled": "Whether scheduled backups run.",
+        "interval": "hourly, daily or weekly; weekly runs on Monday, UTC.",
+        "timeOfDayUtc": "HH:MM in UTC; for hourly runs only the minutes count.",
+        "daysToKeep": "How many days the host runner keeps a finished backup.",
+        "updatedAt": "When the schedule last changed, or null before any save.",
+        "version": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
       }
     },
-    "IntegrationSlackAppCheck": {
+    "BackupOffsite": {
       "fields": [
-        "result",
+        "configured",
+        "endpoint",
+        "region",
+        "bucket",
+        "prefix",
+        "credentialUpdatedAt",
+        "credentialRevision",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "configured": "boolean",
+        "endpoint": "string|null",
+        "region": "string|null",
+        "bucket": "string|null",
+        "prefix": "string|null",
+        "credentialUpdatedAt": "timestamp|null",
+        "credentialRevision": "integer|null",
+        "updatedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "endpoint",
+        "region",
+        "bucket",
+        "prefix",
+        "credentialUpdatedAt",
+        "credentialRevision",
+        "updatedAt"
+      ],
+      "description": "The off-site backup destination as an installation administrator sees it. The access key id and secret access key are reported only as the configured flag and the active revision; no credential value, ciphertext, key identifier or secret record id is ever returned.",
+      "fieldDescriptions": {
+        "configured": "True when a credential pair is stored encrypted; the values are never returned.",
+        "endpoint": "Saved https origin of the S3-compatible service, or null before any save.",
+        "region": "Saved region name, or null before any save.",
+        "bucket": "Saved bucket name, or null before any save.",
+        "prefix": "Saved folder inside the bucket, empty for the bucket root, or null before any save.",
+        "credentialUpdatedAt": "When the stored credentials were last replaced, or null when none are stored.",
+        "credentialRevision": "Revision number of the active credential version, or null when none is stored; earlier revisions are kept for audit and never returned.",
+        "updatedAt": "When the destination last changed, or null before any save.",
+        "version": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+      }
+    },
+    "BackupOffsiteVerification": {
+      "fields": [
+        "outcome",
+        "detail",
         "checkedAt"
       ],
-      "nullableFields": [],
       "fieldTypes": {
-        "result": "string",
+        "outcome": "enum(verified|not_configured|destination_refused|destination_unreachable|destination_private_address|integrity_failed)",
+        "detail": "string|null",
         "checkedAt": "timestamp"
       },
-      "description": "What Slack answered when asked whether it recognises the saved client ID and secret, and when. Recorded on the app so the screen can show it after a reload.",
+      "nullableFields": [
+        "detail"
+      ],
+      "description": "Result of the bounded test that puts, reads back and deletes one small object in the saved destination with the stored credentials. A failed test still answers 200 with a stable outcome; the credentials are never returned.",
       "fieldDescriptions": {
-        "result": "accepted, client_id_refused, client_secret_refused or unreachable.",
-        "checkedAt": "When the check ran."
+        "outcome": "verified when the test object round-tripped; not_configured without a saved destination; destination_refused when the service answered and said no (wrong key, no access, missing bucket); destination_unreachable on a network failure, a timeout or a name that cannot be resolved; destination_private_address when the host resolves to an address the server may not connect to (private, loopback, link-local, metadata and similar); integrity_failed when the bytes read back differ.",
+        "detail": "The service's own answer text, at most 500 characters and with both credential halves removed, or null when it said nothing or the test passed.",
+        "checkedAt": "When the test finished."
+      }
+    },
+    "BackupRunnerSettings": {
+      "fields": [
+        "scheduleEnabled",
+        "scheduleInterval",
+        "scheduleTimeOfDayUtc",
+        "daysToKeep",
+        "scheduleVersion",
+        "offsiteConfigured",
+        "offsiteEndpoint",
+        "offsiteRegion",
+        "offsiteBucket",
+        "offsitePrefix",
+        "offsiteAccessKeyId",
+        "offsiteSecretAccessKey",
+        "offsiteRefusal",
+        "offsiteVersion"
+      ],
+      "fieldTypes": {
+        "scheduleEnabled": "boolean",
+        "scheduleInterval": "enum(hourly|daily|weekly)",
+        "scheduleTimeOfDayUtc": "string",
+        "daysToKeep": "integer",
+        "scheduleVersion": "integer",
+        "offsiteConfigured": "boolean",
+        "offsiteEndpoint": "string|null",
+        "offsiteRegion": "string|null",
+        "offsiteBucket": "string|null",
+        "offsitePrefix": "string|null",
+        "offsiteAccessKeyId": "secretString|null",
+        "offsiteSecretAccessKey": "secretString|null",
+        "offsiteRefusal": "enum(destination_private_address|destination_unresolvable|destination_invalid)|null",
+        "offsiteVersion": "integer"
+      },
+      "nullableFields": [
+        "offsiteEndpoint",
+        "offsiteRegion",
+        "offsiteBucket",
+        "offsitePrefix",
+        "offsiteAccessKeyId",
+        "offsiteSecretAccessKey",
+        "offsiteRefusal"
+      ],
+      "sensitiveFields": [
+        "offsiteAccessKeyId",
+        "offsiteSecretAccessKey"
+      ],
+      "description": "What the host backup runner needs to do its work: the schedule and the off-site destination including its decrypted credential pair. This is the one route that returns the credentials, and only to the runner credential, never to a user session. It carries no backup key material: the operator keeps the age keys on the host. Every read that releases the credentials, or refuses to, is audited. The destination's host is resolved again on each read, so a name re-pointed at a private address is not released.",
+      "fieldDescriptions": {
+        "scheduleEnabled": "Whether scheduled backups run.",
+        "scheduleInterval": "hourly, daily or weekly.",
+        "scheduleTimeOfDayUtc": "HH:MM in UTC.",
+        "daysToKeep": "How many days to keep a finished backup.",
+        "scheduleVersion": "Schedule settings revision, 0 before any save.",
+        "offsiteConfigured": "True when a destination with credentials is saved, whether or not the credentials were released.",
+        "offsiteEndpoint": "Https origin of the S3-compatible service, or null when none is saved.",
+        "offsiteRegion": "Region name, or null when none is saved.",
+        "offsiteBucket": "Bucket name, or null when none is saved.",
+        "offsitePrefix": "Folder inside the bucket, empty for the root, or null when none is saved.",
+        "offsiteAccessKeyId": "Access key id, shown only to the runner, or null when none is saved or the credentials were withheld (see offsiteRefusal).",
+        "offsiteSecretAccessKey": "Secret access key, shown only to the runner and never stored by it, or null when none is saved or the credentials were withheld (see offsiteRefusal).",
+        "offsiteRefusal": "Why the credentials were withheld for a saved destination: destination_private_address when its host now resolves to a private, loopback, link-local, metadata or other refused address, destination_unresolvable when its name cannot be resolved, destination_invalid when the saved destination is not a valid one. Null when the credentials were released or no destination is saved. The runner must not upload while this is set.",
+        "offsiteVersion": "Destination settings revision, 0 before any save."
+      }
+    },
+    "PluginStateItem": {
+      "fields": [
+        "id",
+        "pluginInstallId",
+        "namespace",
+        "key",
+        "sizeBytes",
+        "createdAt",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "pluginInstallId": "uuid",
+        "namespace": "string",
+        "key": "string",
+        "sizeBytes": "integer",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      },
+      "description": "What one plugin install has saved under one namespaced key, without the saved value: where it is kept, how big it is and when it was created and last saved. For a caller that needs to say what a plugin keeps without being shown, or sent, the data itself. Authorized exactly like the full state read.",
+      "fieldDescriptions": {
+        "id": "Identifier of the saved item.",
+        "pluginInstallId": "The install that saved it.",
+        "namespace": "The group the plugin keeps it under, one the plugin's manifest declared.",
+        "key": "The name the plugin saved it under, within its namespace.",
+        "sizeBytes": "Size in bytes of the stored value's JSON text.",
+        "createdAt": "UTC time the item was first saved.",
+        "updatedAt": "UTC time the item was last saved."
+      }
+    },
+    "Page<PluginStateItem>": {
+      "pageOf": "PluginStateItem",
+      "description": "Cursor page of saved items for one plugin install, newest first, returned by GET /v1/plugin-installs/{id}/state-items. The saved values are never part of it. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "PreviewAvailability": {
+      "fields": [
+        "available"
+      ],
+      "fieldTypes": {
+        "available": "boolean"
+      },
+      "fieldDescriptions": {
+        "available": "True when the deployment configures a separate preview origin. When false every preview operation fails closed and clients show that previews are not set up."
+      },
+      "description": "Whether this deployment can serve running-app previews."
+    },
+    "MetricMissingReason": {
+      "fields": [
+        "reason",
+        "count"
+      ],
+      "fieldTypes": {
+        "reason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|still_open)",
+        "count": "integer"
+      },
+      "description": "One reason records were left out of a metric and how many.",
+      "fieldDescriptions": {
+        "reason": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet.",
+        "count": "How many records were left out for this reason."
+      }
+    },
+    "MetricRepositorySource": {
+      "fields": [
+        "repositoryId",
+        "state",
+        "since",
+        "lastSyncAt"
+      ],
+      "fieldTypes": {
+        "repositoryId": "uuid",
+        "state": "enum(connected|disconnected|stale)",
+        "since": "timestamp|null",
+        "lastSyncAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "since",
+        "lastSyncAt"
+      ],
+      "description": "The state of one repository's source of pull request facts.",
+      "fieldDescriptions": {
+        "repositoryId": "The repository.",
+        "state": "connected: its integration is enabled and read within the last day; stale: the integration is degraded or no pull request was read for a day; disconnected: no enabled integration.",
+        "since": "When the integration was disconnected; null unless state is disconnected and the time is known.",
+        "lastSyncAt": "Latest stored provider read of a pull request in this repository; null when none."
+      }
+    },
+    "MetricWaitShare": {
+      "fields": [
+        "category",
+        "hours",
+        "unknownReason"
+      ],
+      "fieldTypes": {
+        "category": "enum(agentWorking|queue|review|person|blocked|unaccounted)",
+        "hours": "number|null",
+        "unknownReason": "enum(not_recorded)|null"
+      },
+      "nullableFields": [
+        "hours",
+        "unknownReason"
+      ],
+      "description": "Hours of a task's (or a cohort's) lead time in one category. The categories never overlap; agentWorking, queue, review, person and unaccounted add up to the lead time exactly.",
+      "fieldDescriptions": {
+        "category": "agentWorking: an agent attempt ran; queue: a job was ready and not yet claimed; review: the independent review step ran; person: an approval, question or request waited for a person; blocked: blocked time, not recorded yet; unaccounted: lead time no recorded interval covers. Where intervals overlap, person wins, then review, agent and queue.",
+        "hours": "Hours in this category; null when unknown.",
+        "unknownReason": "not_recorded when Bakery keeps no history for this category (blocked); null otherwise."
+      }
+    },
+    "MetricDeliveryPointCount": {
+      "fields": [
+        "deliveryPoint",
+        "count"
+      ],
+      "fieldTypes": {
+        "deliveryPoint": "enum(merged_pull_request|completed_run)",
+        "count": "integer"
+      },
+      "description": "How many tasks in a cohort reached one delivery point.",
+      "fieldDescriptions": {
+        "deliveryPoint": "merged_pull_request: the task's first pull request merged; completed_run: the task has no merged pull request and its last run completed.",
+        "count": "Tasks that reached it."
+      }
+    },
+    "MetricTaskSummary": {
+      "fields": [
+        "median",
+        "p90",
+        "mean",
+        "breakdown",
+        "deliveryPoints"
+      ],
+      "fieldTypes": {
+        "median": "number|null",
+        "p90": "number|null",
+        "mean": "number|null",
+        "breakdown": "MetricWaitShare[]",
+        "deliveryPoints": "MetricDeliveryPointCount[]"
+      },
+      "nullableFields": [
+        "median",
+        "p90",
+        "mean"
+      ],
+      "description": "The lead-time summary of the tasks delivered in the window, computed on the server.",
+      "fieldDescriptions": {
+        "median": "Typical lead time in hours (nearest-rank median); null with no tasks.",
+        "p90": "Lead time 9 in 10 tasks finished within, in hours; null with no tasks.",
+        "mean": "Mean lead time in hours; null with no tasks.",
+        "breakdown": "Where the cohort's summed lead time went, by category; the known parts add up to the summed lead time.",
+        "deliveryPoints": "How many tasks reached each delivery point."
+      }
+    },
+    "MetricSource": {
+      "fields": [
+        "kind",
+        "id",
+        "repositoryId",
+        "taskId",
+        "providerNumber",
+        "url",
+        "status",
+        "openedAt",
+        "mergedAt",
+        "closedAt",
+        "countedAt",
+        "value",
+        "missingReason",
+        "title",
+        "requestedAt",
+        "deliveredAt",
+        "deliveryPoint",
+        "waits"
+      ],
+      "fieldTypes": {
+        "kind": "enum(pullRequest|task)",
+        "id": "uuid",
+        "repositoryId": "uuid|null",
+        "taskId": "uuid",
+        "providerNumber": "integer|null",
+        "url": "string|null",
+        "status": "enum(open|closed|merged|delivered)",
+        "openedAt": "timestamp|null",
+        "mergedAt": "timestamp|null",
+        "closedAt": "timestamp|null",
+        "countedAt": "timestamp|null",
+        "value": "number|null",
+        "missingReason": "enum(no_opened_time|no_merged_time|no_closed_time|no_diff_totals|still_open)|null",
+        "title": "string|null",
+        "requestedAt": "timestamp|null",
+        "deliveredAt": "timestamp|null",
+        "deliveryPoint": "enum(merged_pull_request|completed_run)|null",
+        "waits": "MetricWaitShare[]|null"
+      },
+      "nullableFields": [
+        "openedAt",
+        "mergedAt",
+        "closedAt",
+        "countedAt",
+        "value",
+        "missingReason",
+        "repositoryId",
+        "providerNumber",
+        "url",
+        "title",
+        "requestedAt",
+        "deliveredAt",
+        "deliveryPoint",
+        "waits"
+      ],
+      "description": "One record behind a metric: a pull request with its lifecycle times, or a delivered task with its lead time and where it went. Its value is its own contribution; a null value is unknown and was left out of the number.",
+      "fieldDescriptions": {
+        "kind": "pullRequest for pull request metrics, task for task metrics.",
+        "id": "Bakery id of the pull request or task, for linking to it.",
+        "repositoryId": "Repository of a pull request; null for a task.",
+        "taskId": "Task the pull request delivers.",
+        "providerNumber": "Pull request number on the provider; null for a task.",
+        "url": "Provider page of a pull request; null for a task.",
+        "status": "A pull request's state (open, closed, merged); delivered for a task.",
+        "openedAt": "Provider time it was opened; null when unread.",
+        "mergedAt": "Provider time it was merged; null unless merged.",
+        "closedAt": "Provider time it was last closed; null while open.",
+        "countedAt": "The provider time this metric places it at (opened, merged or closed time); null when unknown.",
+        "value": "Its own contribution in the series unit (1 for counts, hours, lines, or 1/0 merged for merge rate); null is unknown.",
+        "missingReason": "Why this record's value is unknown and it was left out of the number; null when it counted.",
+        "title": "The task's title; null for a pull request.",
+        "requestedAt": "When the task's first run was admitted; null for a pull request.",
+        "deliveredAt": "When the task reached its delivery point; null for a pull request.",
+        "deliveryPoint": "Which delivery point the task reached; null for a pull request.",
+        "waits": "Where the task's lead time went; null for a pull request."
+      }
+    },
+    "Page<MetricSource>": {
+      "pageOf": "MetricSource",
+      "description": "Cursor page of the pull requests behind one metric over its window. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, offsets or totals."
+    },
+    "EvaluationDataset": {
+      "fields": [
+        "id",
+        "name",
+        "cases",
+        "digest",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "name": "string",
+        "cases": "EvaluationCasePin[]",
+        "digest": "string",
+        "createdAt": "timestamp"
+      },
+      "description": "An immutable dataset revision: its ordered case revisions and digest.",
+      "fieldDescriptions": {
+        "id": "Dataset id.",
+        "name": "Display name.",
+        "cases": "The case revisions in measuring order.",
+        "digest": "SHA-256 over the ordered case revisions; two datasets compare only when it matches.",
+        "createdAt": "When it was created."
+      }
+    },
+    "EvaluationCasePin": {
+      "fields": [
+        "caseId",
+        "caseRevision"
+      ],
+      "fieldTypes": {
+        "caseId": "uuid",
+        "caseRevision": "integer"
+      },
+      "description": "One case revision pinned in a dataset.",
+      "fieldDescriptions": {
+        "caseId": "The case.",
+        "caseRevision": "Its revision at pinning."
+      }
+    },
+    "Page<EvaluationDataset>": {
+      "pageOf": "EvaluationDataset",
+      "description": "Cursor page of datasets, newest first. nextCursor=null marks the last page; no page numbers or offsets."
+    },
+    "EvaluationScorerPin": {
+      "fields": [
+        "scorerId",
+        "slug",
+        "scorerRevision",
+        "evaluatorType"
+      ],
+      "fieldTypes": {
+        "scorerId": "uuid",
+        "slug": "string",
+        "scorerRevision": "integer",
+        "evaluatorType": "enum(deterministic|model)"
+      },
+      "description": "One scorer revision a batch pinned.",
+      "fieldDescriptions": {
+        "scorerId": "The scorer definition, for linking to it.",
+        "slug": "Its name.",
+        "scorerRevision": "Its revision.",
+        "evaluatorType": "Deterministic check or model rubric."
+      }
+    },
+    "EvaluationStateCounts": {
+      "fields": [
+        "passed",
+        "failed",
+        "error",
+        "unscored",
+        "canceled",
+        "skipped",
+        "missing"
+      ],
+      "fieldTypes": {
+        "passed": "integer",
+        "failed": "integer",
+        "error": "integer",
+        "unscored": "integer",
+        "canceled": "integer",
+        "skipped": "integer",
+        "missing": "integer"
+      },
+      "description": "How many required candidate results are in each state.",
+      "fieldDescriptions": {
+        "passed": "Measured and passed.",
+        "failed": "Measured and failed.",
+        "error": "A stage failed; no measurement.",
+        "unscored": "The target ran but no scorer produced a valid score.",
+        "canceled": "Stopped before a measurement.",
+        "skipped": "Not run by policy.",
+        "missing": "Not run yet."
+      }
+    },
+    "EvaluationGate": {
+      "fields": [
+        "decision",
+        "rule",
+        "blockers"
+      ],
+      "fieldTypes": {
+        "decision": "enum(met|not_met|cannot_be_judged)",
+        "rule": "string",
+        "blockers": "EvaluationGateBlocker[]"
+      },
+      "description": "The release gate's answer over the candidate's required results.",
+      "fieldDescriptions": {
+        "decision": "met; not_met when a measured result breaks the rule; cannot_be_judged while any required result is unmeasured or the batch is empty, running or canceled.",
+        "rule": "The rule as a sentence.",
+        "blockers": "The cases and scorers that made it not met or not judgeable."
+      }
+    },
+    "EvaluationGateBlocker": {
+      "fields": [
+        "caseId",
+        "scorerId",
+        "state"
+      ],
+      "fieldTypes": {
+        "caseId": "uuid",
+        "scorerId": "uuid",
+        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing)"
+      },
+      "description": "A case and scorer holding the gate back.",
+      "fieldDescriptions": {
+        "caseId": "The case.",
+        "scorerId": "The scorer.",
+        "state": "Its result state."
+      }
+    },
+    "EvaluationBatch": {
+      "fields": [
+        "id",
+        "datasetId",
+        "datasetDigest",
+        "candidate",
+        "baseline",
+        "scorers",
+        "state",
+        "requiredCount",
+        "measuredCount",
+        "counts",
+        "gate",
+        "hiddenCount",
+        "canceledAt",
+        "completedAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "datasetId": "uuid",
+        "datasetDigest": "string",
+        "candidate": "json",
+        "baseline": "json|null",
+        "scorers": "EvaluationScorerPin[]",
+        "state": "enum(queued|running|completed|completed_with_errors|canceled|failed)",
+        "requiredCount": "integer",
+        "measuredCount": "integer",
+        "counts": "EvaluationStateCounts",
+        "gate": "EvaluationGate",
+        "hiddenCount": "integer",
+        "canceledAt": "timestamp|null",
+        "completedAt": "timestamp|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "baseline",
+        "canceledAt",
+        "completedAt"
+      ],
+      "description": "An evaluation batch with what it used, its state, counts and coverage of the candidate's required results, and the gate's answer.",
+      "fieldDescriptions": {
+        "id": "Batch id.",
+        "datasetId": "The dataset measured, for linking to it.",
+        "datasetDigest": "The dataset revision's digest.",
+        "candidate": "What is measured, as pinned at admission.",
+        "baseline": "What it is compared with, as pinned; null without a baseline.",
+        "scorers": "The scorer revisions pinned.",
+        "state": "queued, running, completed, completed_with_errors (some required results unmeasured), canceled or failed.",
+        "requiredCount": "Required candidate results.",
+        "measuredCount": "Of those, how many were measured (passed or failed).",
+        "counts": "Required candidate results per state.",
+        "gate": "The gate's answer.",
+        "hiddenCount": "Results the reader may not open; 0, since readers see the organization's evaluations.",
+        "canceledAt": "When it was canceled.",
+        "completedAt": "When it settled.",
+        "createdAt": "When it was admitted.",
+        "updatedAt": "Last change.",
+        "version": "Optimistic-concurrency version for If-Match."
+      }
+    },
+    "Page<EvaluationBatch>": {
+      "pageOf": "EvaluationBatch",
+      "description": "Cursor page of batches, newest first. nextCursor=null marks the last page; no page numbers or offsets."
+    },
+    "EvaluationBatchResult": {
+      "fields": [
+        "id",
+        "batchId",
+        "role",
+        "caseId",
+        "caseRevision",
+        "scorerId",
+        "scorerRevision",
+        "repetition",
+        "required",
+        "state",
+        "reason",
+        "score",
+        "outputArtifactVersionId",
+        "attemptCount",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "batchId": "uuid",
+        "role": "enum(candidate|baseline)",
+        "caseId": "uuid",
+        "caseRevision": "integer",
+        "scorerId": "uuid",
+        "scorerRevision": "integer",
+        "repetition": "integer",
+        "required": "boolean",
+        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing)",
+        "reason": "string|null",
+        "score": "number|null",
+        "outputArtifactVersionId": "uuid|null",
+        "attemptCount": "integer",
+        "updatedAt": "timestamp"
+      },
+      "nullableFields": [
+        "reason",
+        "score",
+        "outputArtifactVersionId"
+      ],
+      "description": "One case x scorer x side x repetition of a batch. Only passed and failed carry a score; every other state keeps its reason and has none.",
+      "fieldDescriptions": {
+        "id": "Result id.",
+        "batchId": "Its batch.",
+        "role": "candidate or baseline side.",
+        "caseId": "The case, for linking to it.",
+        "caseRevision": "The case revision measured.",
+        "scorerId": "The scorer, for linking to it.",
+        "scorerRevision": "The scorer revision used.",
+        "repetition": "Which repetition, from 1.",
+        "required": "Whether the gate needs it.",
+        "state": "passed, failed, error, unscored, canceled, skipped or missing.",
+        "reason": "A short sentence: which stage failed, the policy that skipped it, who stopped it; null when passed.",
+        "score": "The measurement, 0 to 1; null unless passed or failed.",
+        "outputArtifactVersionId": "The retained target output that was scored; null until the target ran.",
+        "attemptCount": "Attempts so far.",
+        "updatedAt": "Last change."
+      }
+    },
+    "Page<EvaluationBatchResult>": {
+      "pageOf": "EvaluationBatchResult",
+      "description": "Cursor page of a batch's results in case order. nextCursor=null marks the last page; no page numbers or offsets."
+    },
+    "EvaluationAttempt": {
+      "fields": [
+        "id",
+        "resultId",
+        "attemptNo",
+        "state",
+        "reason",
+        "score",
+        "startedAt",
+        "endedAt",
+        "traceRef",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "resultId": "uuid",
+        "attemptNo": "integer",
+        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing)",
+        "reason": "string|null",
+        "score": "number|null",
+        "startedAt": "timestamp|null",
+        "endedAt": "timestamp|null",
+        "traceRef": "string|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "reason",
+        "score",
+        "startedAt",
+        "endedAt",
+        "traceRef"
+      ],
+      "description": "One append-only attempt at a result.",
+      "fieldDescriptions": {
+        "id": "Attempt id.",
+        "resultId": "Its result.",
+        "attemptNo": "Order, from 1.",
+        "state": "The attempt's outcome state.",
+        "reason": "Why, as a sentence; null when passed.",
+        "score": "Its measurement; null unless passed or failed.",
+        "startedAt": "When it started.",
+        "endedAt": "When it ended.",
+        "traceRef": "Link to the trace; null when none.",
+        "createdAt": "When it was recorded."
+      }
+    },
+    "Page<EvaluationAttempt>": {
+      "pageOf": "EvaluationAttempt",
+      "description": "Cursor page of a result's attempts in order. nextCursor=null marks the last page; no page numbers or offsets."
+    },
+    "EvaluationMeasure": {
+      "fields": [
+        "scorerId",
+        "left",
+        "right",
+        "change"
+      ],
+      "fieldTypes": {
+        "scorerId": "uuid",
+        "left": "EvaluationMeasureSide",
+        "right": "EvaluationMeasureSide",
+        "change": "number|null"
+      },
+      "nullableFields": [
+        "change"
+      ],
+      "description": "One scorer's pass rate on both sides of a comparison.",
+      "fieldDescriptions": {
+        "scorerId": "The scorer.",
+        "left": "The path batch's side.",
+        "right": "The other batch's side.",
+        "change": "right minus left pass rate; null when either side measured nothing."
+      }
+    },
+    "EvaluationMeasureSide": {
+      "fields": [
+        "passRate",
+        "cases"
+      ],
+      "fieldTypes": {
+        "passRate": "number|null",
+        "cases": "integer"
+      },
+      "nullableFields": [
+        "passRate"
+      ],
+      "description": "Pass rate over a side's measured results and how many cases it rests on.",
+      "fieldDescriptions": {
+        "passRate": "Passed over measured, 0 to 1; null with nothing measured.",
+        "cases": "Measured results it is based on."
+      }
+    },
+    "EvaluationCaseSides": {
+      "fields": [
+        "caseId",
+        "scorerId",
+        "left",
+        "right"
+      ],
+      "fieldTypes": {
+        "caseId": "uuid",
+        "scorerId": "uuid",
+        "left": "enum(passed|failed|error|unscored|canceled|skipped|missing)",
+        "right": "enum(passed|failed|error|unscored|canceled|skipped|missing)"
+      },
+      "description": "A case and scorer's state on both sides.",
+      "fieldDescriptions": {
+        "caseId": "The case.",
+        "scorerId": "The scorer.",
+        "left": "State in the path batch.",
+        "right": "State in the other batch."
+      }
+    },
+    "EvaluationUnpaired": {
+      "fields": [
+        "caseId",
+        "scorerId"
+      ],
+      "fieldTypes": {
+        "caseId": "uuid",
+        "scorerId": "uuid"
+      },
+      "description": "A case and scorer only one side has.",
+      "fieldDescriptions": {
+        "caseId": "The case.",
+        "scorerId": "The scorer."
+      }
+    },
+    "EvaluationComparison": {
+      "fields": [
+        "compatible",
+        "reason",
+        "measures",
+        "cases",
+        "onlyLeft",
+        "onlyRight"
+      ],
+      "fieldTypes": {
+        "compatible": "boolean",
+        "reason": "enum(different_dataset|different_case_revision|different_scorer_version)|null",
+        "measures": "EvaluationMeasure[]",
+        "cases": "EvaluationCaseSides[]",
+        "onlyLeft": "EvaluationUnpaired[]",
+        "onlyRight": "EvaluationUnpaired[]"
+      },
+      "nullableFields": [
+        "reason"
+      ],
+      "description": "The comparison of two batches. An incompatible pair is refused with one reason and carries no measures; a compatible pair never returns a change where a side has no measurement.",
+      "fieldDescriptions": {
+        "compatible": "Whether the two batches can be compared.",
+        "reason": "Why not, when incompatible; null when compatible.",
+        "measures": "Per scorer, both sides and the change; empty when incompatible.",
+        "cases": "Per case and scorer, both states; empty when incompatible.",
+        "onlyLeft": "Cases only the path batch has.",
+        "onlyRight": "Cases only the other batch has."
+      }
+    },
+    "BackupMaintenance": {
+      "fields": [
+        "state",
+        "runId",
+        "leaseExpiresAt",
+        "liveAttempts",
+        "openTransactions",
+        "retryAfterSeconds"
+      ],
+      "fieldTypes": {
+        "state": "enum(off|draining|quiesced)",
+        "runId": "uuid",
+        "leaseExpiresAt": "timestamp",
+        "liveAttempts": "integer",
+        "openTransactions": "integer",
+        "retryAfterSeconds": "integer"
+      },
+      "description": "Where the installation stands for the backup run that holds it: draining while work already in flight finishes, quiesced once nothing is left and the snapshot may be taken. The counts are everything the check can see and nothing more.",
+      "fieldDescriptions": {
+        "state": "draining while the installation refuses new work and waits for work in flight; quiesced when nothing the check can see is left and the settle window has passed; off only if the hold has already ended.",
+        "runId": "The backup run that holds the installation.",
+        "leaseExpiresAt": "When the hold ends on its own unless the run reports again before then.",
+        "liveAttempts": "Worker job attempts that are leased, running or canceling with an unexpired lease.",
+        "openTransactions": "Other database transactions of the server role that began before the hold and are still open.",
+        "retryAfterSeconds": "Whole seconds to wait before asking again; 0 when quiesced."
+      }
+    },
+    "BackupCutoff": {
+      "fields": [
+        "runId",
+        "cutoffAt",
+        "effectsTotal",
+        "effectsPrepared",
+        "effectsSubmitted",
+        "effectsUncertain",
+        "effectsByOperation",
+        "effectsDigest"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "cutoffAt": "timestamp",
+        "effectsTotal": "integer",
+        "effectsPrepared": "integer",
+        "effectsSubmitted": "integer",
+        "effectsUncertain": "integer",
+        "effectsByOperation": "BackupCutoffOperation[]",
+        "effectsDigest": "string"
+      },
+      "description": "When the snapshot of a backup run began, taken from the database clock while the installation was quiet, and how many external effects could still reach a provider at that moment. Counts and a digest only: nothing about any effect's content.",
+      "fieldDescriptions": {
+        "runId": "The backup run this cutoff belongs to.",
+        "cutoffAt": "The database clock at the moment the installation was quiet and the snapshot began. Everything after it is not in the backup.",
+        "effectsTotal": "External effects still prepared, submitted or uncertain at the cutoff; effects already confirmed or failed are not counted.",
+        "effectsPrepared": "Effects committed locally that may or may not have been sent at the cutoff.",
+        "effectsSubmitted": "Effects sent to a provider whose answer was not yet known at the cutoff.",
+        "effectsUncertain": "Effects whose outcome was lost and awaited reconciliation at the cutoff.",
+        "effectsByOperation": "The same effects counted by operation name, sorted by name; a name outside the code-defined shape counts as other.",
+        "effectsDigest": "SHA-256 hex of the sorted ids of those effects, one per line, so a restored database can be checked against the cutoff without the ids leaving it."
+      }
+    },
+    "BackupCutoffOperation": {
+      "fields": [
+        "operation",
+        "count"
+      ],
+      "fieldTypes": {
+        "operation": "string",
+        "count": "integer"
+      },
+      "description": "How many unsettled external effects at a backup's cutoff carry one operation name.",
+      "fieldDescriptions": {
+        "operation": "The operation name the code defines for the effect, such as an integration action; other when the stored name is not of that shape.",
+        "count": "Effects with that operation name that were prepared, submitted or uncertain at the cutoff."
+      }
+    },
+    "AlertChannel": {
+      "fields": [
+        "id",
+        "kind",
+        "name",
+        "enabled",
+        "settings",
+        "signingSecretCreatedAt",
+        "state",
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "kind": "enum(webhook)",
+        "name": "string",
+        "enabled": "boolean",
+        "settings": "json",
+        "signingSecretCreatedAt": "timestamp",
+        "state": "enum(working|not_tested_yet|failing|off)",
+        "lastAnswerAt": "timestamp|null",
+        "lastAnswerOk": "boolean|null",
+        "lastAnswerReason": "string|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason"
+      ],
+      "description": "One alert channel as an installation administrator may see it, with how it is doing. The signing secret is reported only as when it was made; it is shown once, on creation and on replacement, and never read back.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the channel.",
+        "kind": "Which kind of channel this is: a signed webhook.",
+        "name": "Name shown in the list and beside each alert.",
+        "enabled": "Whether alerts are sent to it now.",
+        "settings": "The non-secret values saved for it, by field name: address for a webhook.",
+        "signingSecretCreatedAt": "When its current signing secret was made.",
+        "state": "working (the last send was accepted), not_tested_yet (nothing sent yet), failing (the last send was refused or timed out) or off.",
+        "lastAnswerAt": "When it last answered a send, accepted or not, or null.",
+        "lastAnswerOk": "Whether that last answer was an acceptance, or null before any.",
+        "lastAnswerReason": "A short plain reason when the last answer was a refusal, or null.",
+        "createdAt": "UTC time the channel was added.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Monotonic revision; submit it as If-Match when changing or removing the channel."
+      }
+    },
+    "AlertChannelList": {
+      "fields": [
+        "channels"
+      ],
+      "fieldTypes": {
+        "channels": "json[]"
+      },
+      "nullableFields": [],
+      "description": "The alert channels that exist (at most 20), oldest first, each with its state.",
+      "fieldDescriptions": {
+        "channels": "The channels, each shaped as an AlertChannel."
+      }
+    },
+    "AlertChannelCreate": {
+      "fields": [
+        "kind",
+        "name",
+        "enabled",
+        "values"
+      ],
+      "fieldTypes": {
+        "kind": "enum(webhook)",
+        "name": "string",
+        "enabled": "boolean?",
+        "values": "json"
+      },
+      "nullableFields": [],
+      "description": "Adds an alert channel. A webhook takes an https address; its signing secret is made by the server and returned once.",
+      "fieldDescriptions": {
+        "kind": "Which kind of channel to add.",
+        "name": "Name shown in the list, 1 to 100 characters, unique ignoring case.",
+        "enabled": "Whether alerts go to it now; defaults to true.",
+        "values": "The channel settings by field name: address for a webhook, an https address that is not private or local."
+      }
+    },
+    "AlertChannelUpdate": {
+      "fields": [
+        "name",
+        "enabled",
+        "values"
+      ],
+      "fieldTypes": {
+        "name": "string?",
+        "enabled": "boolean?",
+        "values": "json?"
+      },
+      "nullableFields": [],
+      "description": "Changes an alert channel. Send only what changed; the signing secret is replaced by its own action, never here.",
+      "fieldDescriptions": {
+        "name": "A new name, 1 to 100 characters.",
+        "enabled": "Turn alerts to this channel on or off.",
+        "values": "The settings to change by field name, such as a new address."
+      }
+    },
+    "AlertChannelSecretIssued": {
+      "fields": [
+        "channel",
+        "signingSecret"
+      ],
+      "fieldTypes": {
+        "channel": "json",
+        "signingSecret": "string"
+      },
+      "nullableFields": [],
+      "description": "An alert channel together with its signing secret, answered once: when the channel is created and when its secret is replaced. The secret is not stored in the clear and is never returned again.",
+      "fieldDescriptions": {
+        "channel": "The channel, shaped as an AlertChannel.",
+        "signingSecret": "The secret a receiver uses to verify the Bakery-Signature header. Copy it now; Bakery will not show it again. A replaced secret stops working at once."
+      }
+    },
+    "AlertChannelTestResult": {
+      "fields": [
+        "ok",
+        "status",
+        "reason",
+        "answer",
+        "tookMs"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "status": "integer|null",
+        "reason": "string|null",
+        "answer": "string|null",
+        "tookMs": "integer"
+      },
+      "nullableFields": [
+        "status",
+        "reason",
+        "answer"
+      ],
+      "description": "The receiver's real answer to one signed test message: whether it accepted it, its HTTP status, a short plain reason when it did not, a bounded piece of what it said and how long it took.",
+      "fieldDescriptions": {
+        "ok": "True only when the receiver accepted the test message.",
+        "status": "The receiver's HTTP status, or null when it never answered.",
+        "reason": "A short plain reason when it did not accept, or null.",
+        "answer": "At most 300 characters of what it answered, or null; never a credential.",
+        "tookMs": "Milliseconds the test took."
+      }
+    },
+    "AlertRule": {
+      "fields": [
+        "rule",
+        "label",
+        "help",
+        "unit",
+        "enabled",
+        "threshold",
+        "defaultThreshold",
+        "maxThreshold",
+        "firing",
+        "version",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "rule": "enum(service_down|worker_lost|queue_age|route_incident|export_loss)",
+        "label": "string",
+        "help": "string",
+        "unit": "enum(seconds|records)|null",
+        "enabled": "boolean",
+        "threshold": "integer|null",
+        "defaultThreshold": "integer|null",
+        "maxThreshold": "integer|null",
+        "firing": "integer",
+        "version": "integer",
+        "updatedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "unit",
+        "threshold",
+        "defaultThreshold",
+        "maxThreshold",
+        "updatedAt"
+      ],
+      "description": "One alert rule as an installation administrator sees it: what it watches in plain words, whether it is on, the limit it fires at and how many alerts it has open now.",
+      "fieldDescriptions": {
+        "rule": "Which of the five rules this is.",
+        "label": "Plain name shown in the list.",
+        "help": "One sentence saying what the rule watches and when it fires.",
+        "unit": "What the limit counts, seconds or records, or null for a rule with no limit.",
+        "enabled": "Whether the rule is checked at all.",
+        "threshold": "The limit in force: the saved one, or the default when none was saved; null for a rule with no limit.",
+        "defaultThreshold": "The limit used when none is saved, or null.",
+        "maxThreshold": "The highest limit a person may set, or null.",
+        "firing": "How many alerts from this rule are open now.",
+        "version": "Monotonic revision; submit it as If-Match when changing the rule.",
+        "updatedAt": "UTC time the rule was last changed, or null when it never was."
+      }
+    },
+    "AlertRuleList": {
+      "fields": [
+        "rules"
+      ],
+      "fieldTypes": {
+        "rules": "json[]"
+      },
+      "nullableFields": [],
+      "description": "The five alert rules in the order a person sees them, each with its state.",
+      "fieldDescriptions": {
+        "rules": "The rules, each shaped as an AlertRule."
+      }
+    },
+    "AlertList": {
+      "fields": [
+        "firing",
+        "events",
+        "nextCursor"
+      ],
+      "fieldTypes": {
+        "firing": "json[]",
+        "events": "json[]",
+        "nextCursor": "string|null"
+      },
+      "nullableFields": [
+        "nextCursor"
+      ],
+      "description": "What is wrong now and what happened lately: the alerts firing now (first page only) and a newest-first page of history.",
+      "fieldDescriptions": {
+        "firing": "Alerts firing now, each with rule, subject, text and firedAt; empty on later pages.",
+        "events": "History entries, each with id, kind (fired, resolved or test), rule, subject, text, occurredAt, channelsOk and channelsFailed.",
+        "nextCursor": "Opaque token for the next page, or null when there is none."
+      }
+    },
+    "AlertTestSendResult": {
+      "fields": [
+        "channels",
+        "sent",
+        "failed"
+      ],
+      "fieldTypes": {
+        "channels": "json[]",
+        "sent": "integer",
+        "failed": "integer"
+      },
+      "nullableFields": [],
+      "description": "What a test alert did: one answer per enabled channel and how many accepted it or did not.",
+      "fieldDescriptions": {
+        "channels": "One entry per enabled channel with channelId, name, ok, status and reason.",
+        "sent": "How many channels accepted the test message.",
+        "failed": "How many channels refused it or did not answer."
+      }
+    },
+    "RunStepWritesReverted": {
+      "fields": [
+        "runId",
+        "stepKey",
+        "reverted",
+        "entries"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "stepKey": "string",
+        "reverted": "nonnegativeInteger",
+        "entries": "nonnegativeInteger"
+      },
+      "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert.",
+      "fieldDescriptions": {
+        "runId": "Stable UUID of the run whose step was reverted.",
+        "stepKey": "Key of the run step whose writes were reverted.",
+        "reverted": "How many of the step's recorded writes this undo reverted; 0 when every write was already reverted or the step wrote nothing.",
+        "entries": "How many distinct files and folders those writes touched."
+      }
+    },
+    "ArtifactProbeAnswer": {
+      "description": "What a sandboxed probe learned about one stored file's bytes, or that nobody has asked yet. `status` says which: `described` means a probe read the bytes and every field below is what it found, `refused` means a probe read enough to say why it will not describe them, and no answer at all means the file has never been probed, which a client must show as unchecked rather than as unreadable. Every field that a given kind does not have is null rather than zero: a PNG has no duration, and calling that zero seconds would be a lie about the file.",
+      "fields": [
+        "status",
+        "kind",
+        "mediaType",
+        "byteLength",
+        "width",
+        "height",
+        "durationMs",
+        "lineCount",
+        "utf8",
+        "code",
+        "limit",
+        "probedAt"
+      ],
+      "fieldTypes": {
+        "status": "enum(described|refused)|null",
+        "kind": "string|null",
+        "mediaType": "string|null",
+        "byteLength": "integer|null",
+        "width": "integer|null",
+        "height": "integer|null",
+        "durationMs": "integer|null",
+        "lineCount": "integer|null",
+        "utf8": "boolean|null",
+        "code": "string|null",
+        "limit": "integer|null",
+        "probedAt": "string|null"
+      },
+      "fieldDescriptions": {
+        "status": "Whether a probe described these bytes, refused to, or nobody has asked. Null is the third case and is not a refusal: a client that reads null must say the file has not been checked and must not warn about it.",
+        "kind": "What the bytes are, judged from their signature rather than from the file's name or declared type: image, video, audio, pdf, text, archive, or unknown when nothing was recognised. Unknown is honest; it is not the same as a file that failed to parse.",
+        "mediaType": "The media type the bytes themselves support, which can differ from the type recorded at write time. When it does, this one is what the bytes are, and a client deciding how to render should use it.",
+        "byteLength": "The number of bytes the probe measured, which is what the content route checks stored bytes against before serving them. A disagreement is reported as a mismatch, never as a shorter or longer file.",
+        "width": "Image width in pixels, when the probe can read the format. Null for everything that is not an image.",
+        "height": "Image height in pixels, on the same terms as width. Together with width it lets a page reserve the right space before the image arrives, so nothing shifts when it does.",
+        "durationMs": "How long audio or video plays, in whole milliseconds, when the container states it. A browser reports zero until it has loaded the media, so this is the only honest length a player can show beforehand. Null means either not measured or not that kind of file, so do not present it as zero seconds.",
+        "lineCount": "Lines in a text file, counted from the bytes. A file with no line breaks counts as one line; null means the file is not text or the probe did not measure it.",
+        "utf8": "Whether a text file decodes as strict UTF-8. False means the bytes are text of some other encoding, which a reader must not render as an empty or ruined file.",
+        "code": "Why a probe refused to describe the bytes, in words a reader can act on: too large, timed out, ran out of memory, unreadable, malformed, or the sandbox was unavailable. The last two are limits of this probe rather than defects in the file. Null when a description exists.",
+        "limit": "The byte limit the probe hit, when the code names one, so a reader can say how far over the file is instead of merely that it is too large.",
+        "probedAt": "When the answer was recorded, so a reader can say how fresh it is. Null when nobody has probed the file."
       }
     }
   },
@@ -32952,6 +36485,15 @@ const transportSchemas = {
       "inngestTrigger": null,
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
+    "handoffContinuations.admitted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
     "agentPowerGrant.created": {
       "schemaVersion": 1,
       "payloadFields": {
@@ -33174,6 +36716,25 @@ const transportSchemas = {
         "session.tools"
       ],
       "description": "Built-in host control action invoking one operation the session was offered, through the lease-protected tool route. arguments is validated against the target operation's own input schema, so it is carried as JSON rather than restated here. outcome is keyed on the error class: a typed policy refusal is denied, any other failure is unknown. Not user-definable code and not an extra YAML workflow primitive."
+    },
+    "evaluation.check": {
+      "inputSchema": "EvaluationCheckInput",
+      "outputSchema": "EvaluationCheckOutput",
+      "schemaSource": "packages/contracts/src/contracts.ts",
+      "capabilities": [
+        "storage"
+      ],
+      "description": "Deterministic, model-free scorer: reads one pinned output artifact version through the attempt-context route and runs a code-owned json_schema, contains or equals check over its bytes. The server re-validates the report and records it as one evaluation attempt."
+    },
+    "evaluation.score": {
+      "inputSchema": "EvaluationScoreInput",
+      "outputSchema": "EvaluationScoreOutput",
+      "schemaSource": "packages/contracts/src/contracts.ts",
+      "capabilities": [
+        "model",
+        "storage"
+      ],
+      "description": "Model judge scorer: scores one pinned output artifact version against a rubric. The server validates the judge's structured answer against the input's output schema and records a mismatch as unscored. The worker makes one bounded judge call (rubric, output text and answer schema; no tools, no worktree) and reports its usage against the job's budget reservation; a worker with no judge provider, a timeout, or a schema-invalid answer reports unscored with the reason."
     }
   },
   "workerEvents": {
@@ -33321,6 +36882,7 @@ const transportSchemas = {
       "bakery_draftCheckpoints_get",
       "bakery_draftSlices_get",
       "bakery_drafts_edit",
+      "bakery_drafts_rollover",
       "bakery_draftPublications_create",
       "bakery_draftPublications_get",
       "bakery_draftSuggestions_create",

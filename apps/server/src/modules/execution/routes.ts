@@ -39,6 +39,8 @@ import {
   outputFinalizationRoute,
 } from "./output.ts";
 import { events } from "./events.ts";
+import { workerPreviewRoute } from "./previews.ts";
+import { workerHandoffManifestRoute } from "./handoff-manifests.ts";
 import { inputReadRoute } from "./input-read.ts";
 import { heartbeat } from "./heartbeat.ts";
 import { enrollWorker, registerWorker } from "./registration.ts";
@@ -361,6 +363,20 @@ export function createExecutionRoutes(
   app.post(
     "/v1/worker/attempts/:id/events",
     workerRouteHandler(options, (context) => events(context, options)),
+  );
+  app.post(
+    "/v1/worker/attempts/:id/previews",
+    workerRouteHandler(
+      options,
+      (context) => workerPreviewRoute(context, options),
+    ),
+  );
+  app.post(
+    "/v1/worker/attempts/:id/handoff-manifests",
+    workerRouteHandler(
+      options,
+      (context) => workerHandoffManifestRoute(context, options),
+    ),
   );
   app.post(
     "/v1/worker/attempts/:id/lease-renewals",

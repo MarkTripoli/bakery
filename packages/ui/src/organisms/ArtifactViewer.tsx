@@ -5,6 +5,14 @@ export type ArtifactViewerContent =
   | {
     readonly kind: "text" | "markdown" | "patch" | "log";
     readonly text: string;
+    /**
+     * Show the first lines under a fade, at the panel's cap (#437).
+     *
+     * A side panel is meant to tell a person what a file is, not to become the
+     * reader: a long file pushes Download and the tabs below the fold. The
+     * artifact page shows the whole file and never sets this.
+     */
+    readonly cut?: boolean;
   }
   | {
     readonly kind: "image";
@@ -12,11 +20,28 @@ export type ArtifactViewerContent =
     readonly alt: string;
     readonly unavailableLabel: string;
   }
+  | {
+    /**
+     * A player that loads only what it plays: `preload="none"`, never
+     * autoplayed, the browser's own controls. `src` is a path on this origin, an
+     * http(s) URL, or a `blob:` URL the page itself verified; anything else is
+     * refused rather than handed to the element.
+     */
+    readonly kind: "video" | "audio";
+    readonly src: string;
+    /** Names the player for assistive technology, such as the file name. */
+    readonly label: string;
+    readonly unavailableLabel: string;
+    /** Called when the browser cannot play the file, so the page can say so. */
+    readonly onError?: () => void;
+  }
   | { readonly kind: "unsupported"; readonly message: ReactNode };
 export type ArtifactViewerProps = {
   readonly label: ReactNode;
   readonly content: ArtifactViewerContent;
   readonly state?: "ready" | "loading" | "error";
+  /** `full` lets an image or player take the room it is given instead of a panel's. */
+  readonly size?: "panel" | "full";
   readonly footer?: ReactNode;
   readonly "data-testid"?: string;
 };
@@ -105,14 +130,24 @@ function preview(content: ArtifactViewerContent): ReactNode {
   switch (content.kind) {
     case "markdown":
       return (
-        <div className="ui-artifact-viewer__markdown">
+        <div
+          className="ui-artifact-viewer__markdown"
+          data-cut={content.cut === true ? "panel" : undefined}
+        >
           {markdown(content.text)}
         </div>
       );
     case "text":
     case "log":
     case "patch":
-      return <pre data-ui-overflow="wrap"><code>{content.text}</code></pre>;
+      return (
+        <pre
+          data-ui-overflow="wrap"
+          data-cut={content.cut === true ? "panel" : undefined}
+        >
+          <code>{content.text}</code>
+        </pre>
+      );
     case "image":
       return content.src.startsWith("blob:")
         ? (
@@ -121,6 +156,37 @@ function preview(content: ArtifactViewerContent): ReactNode {
           </div>
         )
         : <p role="alert">{content.unavailableLabel}</p>;
+    case "video":
+    case "audio": {
+      // A src the player must not be given: a script URL or any other scheme.
+      // `blob:` is allowed because a surface that fetched the bytes and checked
+      // their digest has them only as a blob, and handing them over is the point.
+      const allowed = /^(\/(?!\/)|https?:\/\/|blob:)/.test(content.src);
+      if (!allowed) return <p role="alert">{content.unavailableLabel}</p>;
+      return content.kind === "video"
+        ? (
+          <div className="ui-artifact-viewer__media">
+            <video
+              aria-label={content.label}
+              controls
+              onError={content.onError}
+              preload="none"
+              src={content.src}
+            />
+          </div>
+        )
+        : (
+          <div className="ui-artifact-viewer__media">
+            <audio
+              aria-label={content.label}
+              controls
+              onError={content.onError}
+              preload="none"
+              src={content.src}
+            />
+          </div>
+        );
+    }
     case "unsupported":
       return (
         <div className="ui-artifact-viewer__unavailable">{content.message}</div>
@@ -133,8 +199,14 @@ function preview(content: ArtifactViewerContent): ReactNode {
 }
 
 export function ArtifactViewer(
-  { label, content, footer, state = "ready", "data-testid": testId }:
-    ArtifactViewerProps,
+  {
+    label,
+    content,
+    footer,
+    size = "panel",
+    state = "ready",
+    "data-testid": testId,
+  }: ArtifactViewerProps,
 ) {
   const titleId = useId();
   return (
@@ -145,9 +217,14 @@ export function ArtifactViewer(
       data-testid={testId}
       data-ui-component="artifactViewer"
       data-variant={content.kind}
+      data-size={size}
       data-state={state}
     >
-      <h2 id={titleId}>{label}</h2>
+      {
+        /* Opened full size, the page names the file above the card: the heading
+          stays only to name the card for assistive technology, and is not shown. */
+      }
+      <h2 id={titleId} hidden={size === "full"}>{label}</h2>
       {state === "ready" ? preview(content) : null}
       {footer}
     </section>

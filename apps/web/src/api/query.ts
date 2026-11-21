@@ -33,6 +33,7 @@ import type {
   EnrollmentStatus,
   ExternalTicketListResponse,
   ExternalTicketResponse,
+  FileFactPage,
   FileSearchInput,
   FileSearchPage,
   InstallationCapabilities,
@@ -43,10 +44,16 @@ import type {
   IntegrationConnection,
   IntegrationResource,
   IntegrationSlackApp,
+  LibraryPage,
   MemoryEntryResponse,
   MemoryRevisionResponse,
   MergeAttemptListResponse,
+  MergeEntryListResponse,
   MessageListResponse,
+  MetricSeries,
+  MetricSourcePage,
+  MetricSourcesQuery,
+  MetricsQuery,
   NotificationCountResponse,
   NotificationCursorQuery,
   NotificationListResponse,
@@ -63,6 +70,7 @@ import type {
   PluginInstallListResponse,
   PluginPackageListResponse,
   PluginVersionListResponse,
+  PrincipalPage,
   PullRequestListResponse,
   QuestionListResponse,
   RepositoryEffectiveRulesResponse,
@@ -74,10 +82,12 @@ import type {
   ReviewCycleListResponse,
   ReviewFindingListResponse,
   RoleBindingListResponse,
+  RouteContinuationOffersResponse,
   RunControlCapabilities,
   RunListResponse,
   RunResponse,
   RunStepListResponse,
+  SavedDataPage,
   ScimConnection,
   SkillStorageSettings,
   StorageFileAtVersion,
@@ -85,18 +95,24 @@ import type {
   StorageFileVersionPage,
   StorageFolderItem,
   StorageFolderPage,
+  StorageSettings,
   SyncQuery,
   SyncResponse,
   TaskCursorQuery,
   TaskListResponse,
   TaskRepositoryListResponse,
   TaskResponse,
+  TelemetryDestinationDetail,
+  TelemetryDestinationList,
+  TelemetryDestinationListQuery,
   TicketRequestViewListResponse,
   TicketRoutingRuleSetResponse,
   TicketSourceLabelListResponse,
   TicketSourceListResponse,
   TicketSourceResponse,
   TicketTaskLinkListResponse,
+  UsageQuery,
+  UsageSummary,
   UserPreferences,
   UserProfile,
   WorkerComponentListResponse,
@@ -442,6 +458,35 @@ export function pluginInstallsQueryOptions(
     retry: retryNetworkOnce,
   });
 }
+
+/** What one plugin install has saved: the first page, newest first, without the values. */
+export function pluginSavedDataQueryOptions(
+  client: Pick<BakeryApiClient, "plugins">,
+  scope: ApiScope,
+  installId: string,
+) {
+  return queryOptions<SavedDataPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "pluginStateItems.list", { installId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.plugins.savedData({
+          organizationId: scope.organizationId,
+          installId,
+          limit: SAVED_DATA_PAGE,
+          signal,
+        }),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+  });
+}
+
+/** Saved items shown before "Show more". */
+export const SAVED_DATA_PAGE = 10;
 
 export function readinessQueryOptions(
   client: Pick<BakeryApiClient, "readiness">,
@@ -909,6 +954,46 @@ export function runQueryOptions(
       return run;
     },
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The choices a run is waiting on. Read only while a step waits on a model; the
+ * page asks again every thirty seconds so a card goes when the incident closes.
+ * A Viewer is not served the offers: the 403 reads as nothing to choose.
+ */
+export function routeContinuationsQueryOptions(
+  client: Pick<BakeryApiClient, "listRouteContinuations">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<RouteContinuationOffersResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "routeContinuations.list", { runId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const offers = unwrap(
+        await client.listRouteContinuations({
+          organizationId: scope.organizationId,
+          runId,
+          signal,
+        }),
+      );
+      if (signal.aborted || offers.runId !== runId) {
+        throw { kind: "invalid-response", status: 200 } satisfies ApiFailure;
+      }
+      return offers;
+    },
+    enabled: Boolean(scope.organizationId),
+    // A Viewer is refused every read: stop asking.
+    refetchInterval: (query) => {
+      const error = query.state.error;
+      return error?.kind === "problem" && error.problem.status === 403
+        ? false
+        : 30_000;
+    },
     retry: retryNetworkOnce,
   });
 }
@@ -1515,6 +1600,25 @@ export function userPreferencesQueryOptions(
   });
 }
 
+/** The organization's storage limits and how much of its quota is used. */
+export function storageSettingsQueryOptions(
+  client: Pick<BakeryApiClient, "storageSettings">,
+  scope: ApiScope,
+) {
+  return queryOptions<StorageSettings, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "storageSettings.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.storageSettings.get({
+          organizationId: requireOrganization(scope),
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 export function organizationQueryOptions(
   client: Pick<BakeryApiClient, "organizations">,
   scope: ApiScope,
@@ -1699,6 +1803,86 @@ export function scimConnectionQueryOptions(
       );
     },
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * One delivery metric over one window and repository.
+ *
+ * Window, repository and metric are all in the key: two windows are two
+ * answers, and a cache that served the old period's figure under the new
+ * period's heading would be a wrong number with a right label.
+ */
+export function metricSeriesQueryOptions(
+  client: Pick<BakeryApiClient, "metrics">,
+  scope: ApiScope,
+  query: MetricsQuery,
+) {
+  return queryOptions<MetricSeries, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "metrics.get", { ...query }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.metrics.get({
+          organizationId: requireOrganization(scope),
+          query,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The records behind one metric, newest placed first, a page at a time. */
+export function metricSourcesQueryOptions(
+  client: Pick<BakeryApiClient, "metrics">,
+  scope: ApiScope,
+  query: Omit<MetricSourcesQuery, "cursor">,
+) {
+  return infiniteQueryOptions<
+    MetricSourcePage,
+    ApiFailure,
+    { pages: MetricSourcePage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "metrics.sources", { ...query }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.metrics.sources({
+          organizationId: requireOrganization(scope),
+          query: {
+            ...query,
+            ...(pageParam === null ? {} : { cursor: pageParam }),
+          },
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The installation's usage summary for one window and provider filter.
+ *
+ * The window is in the key because two periods are two answers, and a cache
+ * that answered the new period with the old figures would show a wrong number
+ * under a right heading. `undefined` provider means "all", which is the
+ * server's own default for the field.
+ */
+export function usageSummaryQueryOptions(
+  client: Pick<BakeryApiClient, "usage">,
+  scope: ApiScope,
+  query: UsageQuery,
+) {
+  return queryOptions<UsageSummary, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "usage.list", { ...query }),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.usage.list({ query, signal })),
     retry: retryNetworkOnce,
   });
 }
@@ -2734,6 +2918,33 @@ export function mergeAttemptsQueryOptions(
 }
 
 /**
+ * One pull request's merge queue entries, newest first. Kept fresh so the page
+ * says what the queue is doing after a reload, and shows a stopped merge's
+ * reason rather than guessing one.
+ */
+export function mergeEntriesQueryOptions(
+  client: Pick<BakeryApiClient, "listMergeEntries">,
+  scope: ApiScope,
+  pullRequestId: string,
+) {
+  return queryOptions<MergeEntryListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "mergeEntries.list", {
+      pullRequestId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listMergeEntries({
+          organizationId: requireOrganization(scope),
+          pullRequestId,
+          limit: 10,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
  * The task's pull requests, oldest first. Read by task rather than by run: a
  * pull request registered without a run would never match a run filter, and
  * choosing this run's one is the view model's job.
@@ -3267,6 +3478,9 @@ export function fileSearchQueryOptions(
       path: input.path ?? null,
       kind: input.kind ?? null,
       mediaGroup: input.mediaGroup ?? null,
+      producerId: input.producerId ?? null,
+      factKey: input.factKey ?? null,
+      factValue: input.factValue ?? null,
     }),
     initialPageParam: null,
     getNextPageParam: (last) => last.nextCursor,
@@ -3279,6 +3493,146 @@ export function fileSearchQueryOptions(
         ),
       ),
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The facts the files of one kind record, for the Fact filter.
+ *
+ * The kind is in the key because a fact belongs to a kind: the list for one
+ * kind must never answer for another.
+ */
+export function fileFactsQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  kind: string,
+) {
+  return queryOptions<FileFactPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "files.facts", { kind }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.files.facts(requireOrganization(scope), kind, signal),
+      ),
+    enabled: Boolean(scope.organizationId) && kind !== "",
+    staleTime: 60_000,
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The most pages a filter list reads. Each page is 100, so this is 5,000 people
+ * or kinds: far past any real organization, and a bound so a server that never
+ * stops answering with a cursor cannot make the page read forever.
+ */
+const FILTER_LIST_MAX_PAGES = 50;
+
+/**
+ * Every page of a cursor-paged list, joined into one page. Bounded by
+ * FILTER_LIST_MAX_PAGES; when the bound is hit the page keeps its cursor, so
+ * the cut is visible rather than silent.
+ */
+export async function readAllPages<
+  Item,
+  Page extends {
+    readonly items: readonly Item[];
+    readonly nextCursor: string | null;
+  },
+>(
+  read: (cursor: string | undefined) => Promise<ApiResult<Page>>,
+): Promise<
+  Omit<Page, "items" | "nextCursor"> & {
+    items: Item[];
+    nextCursor: string | null;
+  }
+> {
+  let first: Page | null = null;
+  const items: Item[] = [];
+  let cursor: string | undefined;
+  let next: string | null = null;
+  for (let pages = 0; pages < FILTER_LIST_MAX_PAGES; pages++) {
+    const page: Page = unwrap(await read(cursor));
+    first ??= page;
+    items.push(...page.items);
+    next = page.nextCursor;
+    if (next === null) break;
+    cursor = next;
+  }
+  // null once the last page was read; the cursor still owed when the bound cut
+  // the read short.
+  return { ...first!, items, nextCursor: next };
+}
+
+/** The kinds of document the organization has, by name, for the Kind filter. */
+export function fileKindsQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+) {
+  return queryOptions<LibraryPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "files.library", {
+      path: "/library/kinds",
+    }),
+    // Every page of kinds, so the Kind filter can choose any of them.
+    queryFn: ({ signal }) => {
+      const organizationId = requireOrganization(scope);
+      return readAllPages((cursor) =>
+        client.files.library(organizationId, "/library/kinds", cursor, signal)
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    staleTime: 60_000,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One folder of the Library copy under Files, page by page. */
+export function fileLibraryEntriesQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  path: string,
+) {
+  return infiniteQueryOptions<
+    LibraryPage,
+    ApiFailure,
+    { pages: LibraryPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "files.library.folder", { path }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.files.library(
+          requireOrganization(scope),
+          path,
+          pageParam === null ? undefined : pageParam,
+          signal,
+        ),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * Who can have made a file: the organization's people, workers and service
+ * accounts, every page of them, so the Made by filter can choose anyone.
+ */
+export function filePeopleQueryOptions(
+  client: Pick<BakeryApiClient, "principals">,
+  scope: ApiScope,
+) {
+  return queryOptions<PrincipalPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "files.people", {}),
+    queryFn: ({ signal }) => {
+      const organizationId = requireOrganization(scope);
+      return readAllPages((cursor) =>
+        client.principals.list({ organizationId, cursor, signal })
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    staleTime: 60_000,
     retry: retryNetworkOnce,
   });
 }
@@ -3302,5 +3656,83 @@ export function storageFileAtVersionQueryOptions(
     enabled: Boolean(scope.organizationId),
     retry: false,
     staleTime: Infinity,
+  });
+}
+
+/**
+ * One page of the telemetry destinations that match the search and filters,
+ * with the kinds, the measurements and the providers. Further pages follow the
+ * cursor, so a long list is read a page at a time. No event is sent when a
+ * destination's state changes, so it reads again every 15 seconds while visible
+ * and when the tab regains focus.
+ */
+export function telemetryDestinationsQueryOptions(
+  client: Pick<BakeryApiClient, "telemetryDestinations">,
+  scope: ApiScope,
+  filters: Readonly<
+    {
+      search?: string;
+      state?: string;
+      kind?: string;
+      provider?: string;
+      limit?: number;
+    }
+  > = {},
+) {
+  const limit = filters.limit ?? 25;
+  return infiniteQueryOptions<
+    TelemetryDestinationList,
+    ApiFailure,
+    { pages: TelemetryDestinationList[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "telemetryDestinations.list", {
+      search: filters.search ?? null,
+      state: filters.state ?? null,
+      kind: filters.kind ?? null,
+      provider: filters.provider ?? null,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.telemetryDestinations.list({
+          ...(filters.search === undefined || filters.search === ""
+            ? {}
+            : { search: filters.search }),
+          ...(filters.state === undefined ? {} : { state: filters.state }),
+          ...(filters.kind === undefined ? {} : { kind: filters.kind }),
+          ...(filters.provider === undefined
+            ? {}
+            : { provider: filters.provider }),
+          limit,
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+        } as TelemetryDestinationListQuery, signal),
+      ),
+    enabled: Boolean(scope.organizationId),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One telemetry destination with its kind, its provider and the measurements. */
+export function telemetryDestinationQueryOptions(
+  client: Pick<BakeryApiClient, "telemetryDestinations">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<TelemetryDestinationDetail, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "telemetryDestinations.get", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.telemetryDestinations.get(id, signal)),
+    enabled: Boolean(scope.organizationId),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: retryNetworkOnce,
   });
 }

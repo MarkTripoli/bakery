@@ -58,6 +58,45 @@ export const Contract: StoryObj = {
           }}
         />
         <ArtifactViewer
+          label="Preview · Image, full size"
+          size="full"
+          content={{
+            kind: "image",
+            src,
+            alt: "Verified PNG fixture",
+            unavailableLabel: "Image unavailable",
+          }}
+        />
+        <ArtifactViewer
+          label="Preview · Video"
+          content={{
+            kind: "video",
+            src:
+              "/v1/storage/files/00000000-0000-4000-8000-000000000041/content",
+            label: "Video: demo.mp4",
+            unavailableLabel: "Video unavailable",
+          }}
+        />
+        <ArtifactViewer
+          label="Preview · Audio"
+          content={{
+            kind: "audio",
+            src:
+              "/v1/storage/files/00000000-0000-4000-8000-000000000042/content",
+            label: "Audio: standup.mp3",
+            unavailableLabel: "Audio unavailable",
+          }}
+        />
+        <ArtifactViewer
+          label="Preview · Player refused"
+          content={{
+            kind: "video",
+            src: "javascript:globalThis.artifactExecuted = true",
+            label: "Video: refused",
+            unavailableLabel: "Video unavailable",
+          }}
+        />
+        <ArtifactViewer
           label="Download only"
           content={{
             kind: "unsupported",

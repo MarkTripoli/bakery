@@ -2,10 +2,18 @@ import { assert, assertEquals, assertThrows } from "@std/assert";
 import { z } from "zod";
 import {
   dependencyHealthSchema,
+  HEALTH_API_COMPATIBILITY,
   healthResponseSchema,
   healthStateSchema,
 } from "../../packages/contracts/src/health.ts";
-import { readiness } from "../../packages/contracts/src/health-app.ts";
+import {
+  LOCAL_SERVER_ORIGIN,
+  LOCAL_SERVER_PORT,
+} from "../../packages/config/src/local-server.ts";
+import {
+  createHealthApp,
+  readiness,
+} from "../../packages/contracts/src/health-app.ts";
 import { boundedShutdown } from "../../packages/contracts/src/shutdown.ts";
 import {
   assertRuntimeConfig,
@@ -558,6 +566,12 @@ Deno.test("server auth config normalizes exact origins and paired GitHub credent
       "https://bakery.example.test",
       "https://admin.example.test",
     ],
+    // Unset: the three fixed desktop web view origins, which never carry a cookie session.
+    desktopOrigins: [
+      "tauri://localhost",
+      "http://tauri.localhost",
+      "https://tauri.localhost",
+    ],
     github: { clientId: "client-id", clientSecret: "client-secret" },
   });
 });
@@ -873,4 +887,41 @@ Deno.test("bounded shutdown invokes the timeout hook", async () => {
     () => timedOut = true,
   );
   assert(timedOut);
+});
+
+Deno.test("health answers without credentials and carries a comparable compatibility level", async () => {
+  const app = createHealthApp({
+    service: "bakery-server",
+    version: "0.0.0-dev",
+    config: { missingConfig: [] },
+    dependencies: [{ name: "database", check: () => true }],
+  });
+  for (const path of ["/health", "/health/live", "/health/ready"]) {
+    const response = await app.request(path);
+    assertEquals(response.status, 200, path);
+    const body = healthResponseSchema.parse(await response.json());
+    assertEquals(body.compatibility, HEALTH_API_COMPATIBILITY, path);
+  }
+  assert(Number.isInteger(HEALTH_API_COMPATIBILITY));
+  assert(HEALTH_API_COMPATIBILITY >= 1);
+});
+
+Deno.test("a health answer from a server that predates the level still parses", () => {
+  const body = healthResponseSchema.parse({
+    service: "bakery-server",
+    state: "ok",
+    version: "0.0.0-dev",
+    dependencies: [],
+  });
+  assertEquals(body.compatibility, undefined);
+});
+
+Deno.test("a local server with default settings listens at the fixed local address", () => {
+  const config = readRuntimeConfig({
+    BAKERY_APP_DATABASE_URL: "postgres://bakery@127.0.0.1:5432/bakery",
+    BETTER_AUTH_SECRET: "x".repeat(32),
+  });
+  assertEquals(config.host, "127.0.0.1");
+  assertEquals(config.port, LOCAL_SERVER_PORT);
+  assertEquals(LOCAL_SERVER_ORIGIN, `http://${config.host}:${config.port}`);
 });

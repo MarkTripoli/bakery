@@ -324,6 +324,11 @@ export function InstallationIntegrationsScreen(
           ? (
             <>
               <UI.Heading level="section">
+                <UI.ProviderMark
+                  name="GitHub"
+                  provider="github"
+                  size="header"
+                />
                 {translate("settings.integrations.github.heading")}
               </UI.Heading>
               <UI.EmptyState
@@ -348,6 +353,11 @@ export function InstallationIntegrationsScreen(
           ? (
             <>
               <UI.Heading level="section">
+                <UI.ProviderMark
+                  name="GitHub"
+                  provider="github"
+                  size="header"
+                />
                 {translate("settings.integrations.github.heading")}
               </UI.Heading>
               <UI.DescriptionList>

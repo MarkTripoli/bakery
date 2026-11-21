@@ -149,6 +149,7 @@ const tasks = [
   "reset",
   "storage-purges",
   "slack-receipt-purges",
+  "probe-runner",
 ];
 if (!task || !tasks.includes(task)) {
   console.error(`Expected ${tasks.join(", ")}`);
@@ -170,6 +171,18 @@ const authConfig =
   task === "createsuperuser" || task === "register-oauth-client"
     ? readAuthTaskConfig(databaseConfig)
     : undefined;
+
+if (task === "probe-runner") {
+  // Imported here, not at the top: the entry point is loaded for every task,
+  // and this one pulls the object store in with it. A top-level import made
+  // `createsuperuser` read an AWS SDK variable it never declared, which is the
+  // access this rail exists to prevent.
+  const { runProbeRunnerTask } = await import(
+    "./platform/probe-runner-task.ts"
+  );
+  console.log(JSON.stringify(await runProbeRunnerTask(databaseConfig.url)));
+  Deno.exit(0);
+}
 
 if (task === "storage-purges") {
   console.log(JSON.stringify(await runStoragePurgesTask(databaseConfig.url)));

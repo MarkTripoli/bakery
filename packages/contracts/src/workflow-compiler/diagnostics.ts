@@ -66,6 +66,10 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "action_limits_invalid",
     "action_skills_invalid",
     "action_role_invalid",
+    "action_files_invalid",
+    "action_files_write_needs_grant",
+    "action_sealed_invalid",
+    "action_sealed_conflicts_files",
     "action_slots_invalid",
     "action_duplicate_field",
     "action_effect_key_required",
@@ -180,6 +184,13 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
   action_skills_invalid:
     "The declared skill versions are invalid or not sorted and unique.",
   action_role_invalid: "The declared step role is invalid.",
+  action_files_invalid:
+    "The files section is not a read and write list of known areas without repeats.",
+  action_files_write_needs_grant:
+    "A files section can only narrow the default write areas; writing anywhere else needs a person's grant.",
+  action_sealed_invalid: "The sealed field is true or false.",
+  action_sealed_conflicts_files:
+    "A sealed step reads only inputs and writes only outputs; a files section naming anything else contradicts it, so remove one of them.",
   action_slots_invalid:
     "A named input or output slot is invalid, repeated, or badly bound.",
   action_duplicate_field: "A field is supplied in two locations.",

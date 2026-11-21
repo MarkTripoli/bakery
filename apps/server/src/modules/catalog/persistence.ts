@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireCommandMetadata, StandardError } from "@bakery/contracts/http";
 import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { assertNotQuiesced } from "../../platform/maintenance.ts";
 import {
   type CursorBinding,
   decodeCursor,
@@ -16,8 +17,20 @@ import {
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
-import { assertMayAuthorSkill } from "./skill-scope-guard.ts";
+import { assertMayAuthorSkill, SKILL_VISIBLE_TO } from "./skill-scope-guard.ts";
 import { insertLocalSkillIdentity } from "./skill-identity.ts";
+import {
+  checkSkillDraft,
+  deleteSkillDraftFile,
+  discardSkillDraft,
+  getSkillDraft,
+  getSkillDraftFile,
+  openSkillDraft,
+  saveSkillDraftFile,
+  updateSkillDraft,
+} from "./skill-drafts.ts";
+import type { SkillFileStoreOperations } from "./storage.ts";
+import { listSkillUsage } from "./skill-usage.ts";
 import { deleteSkillUseGrant, listSkillUseGrants } from "./skill-use-grants.ts";
 import {
   type RunRow,
@@ -38,13 +51,6 @@ export const SKILL_COLUMNS =
   `id, source_id, slug, name, active_version_id, enabled,
   scope, owner_principal_id, copied_from_skill_id, copied_from_version_id,
   created_at, updated_at, version`;
-/**
- * A person sees every shared skill and their own personal (Private) skills, and
- * nobody else's. The one place a personal skill reaches another person is a
- * workflow it is attached to; that path never goes through these reads.
- */
-export const SKILL_VISIBLE_TO = (principalParam: string) =>
-  `(scope <> 'personal' or owner_principal_id = ${principalParam}::uuid)`;
 const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
   run.workflow_version_id, run.skill_source_id, run.repository_profile_id,
   run.repository_profile_revision, run.repository_profile_digest,
@@ -56,6 +62,10 @@ const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
 type CursorInput = { cursor?: string; limit?: number };
 type SourceCreateInput = z.output<typeof contractSchemas.SkillSourceCreate>;
 type SourceUpdateInput = { name?: string; enabled?: boolean };
+type SkillDraftUpdateInput = z.output<typeof contractSchemas.SkillDraftUpdate>;
+type SkillDraftFileSaveInput = z.output<
+  typeof contractSchemas.SkillDraftFileSave
+>;
 type SkillCreateInput = {
   slug: string;
   name: string;
@@ -424,6 +434,8 @@ export function createCatalogHandlers(
   secret: string,
   options: Readonly<{
     normalizeSourceLocator?: typeof normalizeSkillSourceLocator;
+    /** Where a published version's files are read back from, to start a draft. */
+    skillFileStore?: SkillFileStoreOperations;
   }> = {},
 ) {
   const normalizeSourceLocator = options.normalizeSourceLocator ??
@@ -505,6 +517,8 @@ export function createCatalogHandlers(
     async importSkill(context: ActionContext, input: SkillImportInput) {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
+      // A backup holds the installation: no import starts until it lets go.
+      await assertNotQuiesced(transaction);
       requireCommandMetadata(context);
       const parsed = SkillImportAdmissionPersistenceSchema.safeParse(input);
       if (!parsed.success) invalidSourceInput(parsed.error);
@@ -796,6 +810,42 @@ export function createCatalogHandlers(
       return listSkillUseGrants(context, input, secret);
     },
 
+    openSkillDraft(context: ActionContext) {
+      return openSkillDraft(context, options.skillFileStore);
+    },
+
+    getSkillDraft(context: ActionContext) {
+      return getSkillDraft(context);
+    },
+
+    updateSkillDraft(context: ActionContext, input: SkillDraftUpdateInput) {
+      return updateSkillDraft(context, input);
+    },
+
+    discardSkillDraft(context: ActionContext) {
+      return discardSkillDraft(context);
+    },
+
+    checkSkillDraft(context: ActionContext) {
+      return checkSkillDraft(context);
+    },
+
+    saveSkillDraftFile(context: ActionContext, input: SkillDraftFileSaveInput) {
+      return saveSkillDraftFile(context, input);
+    },
+
+    getSkillDraftFile(context: ActionContext) {
+      return getSkillDraftFile(context);
+    },
+
+    deleteSkillDraftFile(context: ActionContext) {
+      return deleteSkillDraftFile(context);
+    },
+
+    listSkillUsage(context: ActionContext, input: CursorInput) {
+      return listSkillUsage(context, input, secret);
+    },
+
     deleteSkillUseGrant(context: ActionContext) {
       return deleteSkillUseGrant(context);
     },
@@ -803,6 +853,15 @@ export function createCatalogHandlers(
     copySkill(
       _context: ActionContext,
       _input: z.output<typeof contractSchemas.SkillCopy>,
+    ) {
+      return Promise.reject(
+        new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
+      );
+    },
+
+    publishSkillDraft(
+      _context: ActionContext,
+      _input: z.output<typeof contractSchemas.IdPath>,
     ) {
       return Promise.reject(
         new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),

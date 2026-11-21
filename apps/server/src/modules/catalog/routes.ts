@@ -20,6 +20,7 @@ import {
 import {
   createCatalogActionRegistry,
   createSkillCopyActionRegistry,
+  createSkillDraftPublishActionRegistry,
   createSkillVersionActionRegistry,
 } from "./actions.ts";
 import { createCatalogHandlers } from "./persistence.ts";
@@ -38,6 +39,11 @@ import {
   prepareSkillCopy,
   type SkillCopyPreparation,
 } from "./skill-copy.ts";
+import {
+  commitSkillDraftPublish,
+  prepareSkillDraftPublish,
+  type SkillDraftPublishPreparation,
+} from "./skill-drafts.ts";
 import { CatalogImplementedAction } from "@bakery/contracts/implemented-actions";
 
 const publicationExecutionStage = Symbol("publicationExecutionStage");
@@ -46,12 +52,41 @@ type PublicationExecutionStage = {
   preparation?: LocalSkillVersionPublicationPreparation;
   /** Set for a skill copy: the new skill whose version-1 `preparation` this is. */
   copy?: SkillCopyPreparation;
+  /** Set for a draft publish: the draft whose next-revision `preparation` this is. */
+  draft?: SkillDraftPublishPreparation;
   proof?: LocalSkillVersionPublicationProof;
 };
 
 type StagedActionContext = ActionContext & {
   [publicationExecutionStage]?: PublicationExecutionStage;
 };
+
+/**
+ * skillDrafts.publish: publishing a draft is publishing a version, so an agent
+ * needs the same grant (O52, #421) before anything is finalized. A person is
+ * never asked for one. Exported so a test can drive an agent's context: the
+ * routes mounted here take a session, not an access token.
+ */
+export async function publishSkillDraft(context: ActionContext) {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  await assertMayPublishDefinition(transaction, context, {
+    organizationId,
+    principalId,
+    kind: DefinitionKind.Skill,
+    definitionId: context.params.id ?? null,
+  });
+  const stage = (context as StagedActionContext)[publicationExecutionStage];
+  if (!stage?.draft || !stage.proof) {
+    throw new Error("SKILL_DRAFT_PUBLISH_PROOF_MISSING");
+  }
+  return await commitSkillDraftPublish({
+    context,
+    preparation: stage.draft,
+    proof: stage.proof,
+  });
+}
 
 class PublicationPreflightRollbackError extends Error {
   constructor() {
@@ -81,6 +116,7 @@ export function createCatalogRoutes(options: {
       : undefined);
   const handlers = createCatalogHandlers(options.cursorSecret, {
     normalizeSourceLocator: options.normalizeSourceLocator,
+    skillFileStore: store,
   });
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
   const postgresCommandRunner = createPostgresCommandRunner();
@@ -110,6 +146,18 @@ export function createCatalogRoutes(options: {
               store,
             });
             stage.preparation = stage.copy.publication;
+          } else if (
+            request.action.name === CatalogImplementedAction.SkillDraftsPublish
+          ) {
+            // The prepare phase runs before the handler, so the context does not
+            // carry the command metadata yet: hand it the one the runner has, so
+            // the draft's If-Match is read and checked before anything is stored.
+            stage.draft = await prepareSkillDraftPublish(
+              Object.assign({}, request.context, {
+                commandMetadata: request.metadata,
+              }),
+            );
+            stage.preparation = stage.draft.publication;
           } else {
             stage.preparation = await prepareLocalSkillVersionPublication({
               transaction,
@@ -236,6 +284,19 @@ export function createCatalogRoutes(options: {
             proof: stage.proof,
           });
         },
+      }, {
+        authorityRunner: publicationAuthority,
+        commandRunner: publicationCommandRunner,
+      }),
+      publicBaseUrl: options.publicBaseUrl,
+      createContext: createActionContext,
+    }),
+  );
+  app.route(
+    "/",
+    createApiRouter({
+      registry: createSkillDraftPublishActionRegistry({
+        publishSkillDraft,
       }, {
         authorityRunner: publicationAuthority,
         commandRunner: publicationCommandRunner,

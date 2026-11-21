@@ -15,6 +15,7 @@ const nonPrincipalAccess = new Set<ActionAccessValue>([
   ActionAccess.Public,
   ActionAccess.EnrollmentToken,
   ActionAccess.Worker,
+  ActionAccess.BackupRunner,
   ActionAccess.WorkerAndLease,
   ActionAccess.WorkerAndLeaseAndGrant,
   ActionAccess

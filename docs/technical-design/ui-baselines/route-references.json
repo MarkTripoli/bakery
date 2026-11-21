@@ -418,38 +418,6 @@
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
-          "frameId": "KY8-0",
-          "device": "desktop",
-          "theme": "light",
-          "state": "throttled"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "V-0",
-          "frameId": "KZS-0",
-          "device": "phone",
-          "theme": "light",
-          "state": "throttled"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "V-0",
-          "frameId": "XD9-0",
-          "device": "desktop",
-          "theme": "dark",
-          "state": "throttled"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "V-0",
-          "frameId": "XEL-0",
-          "device": "phone",
-          "theme": "dark",
-          "state": "throttled"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "V-0",
           "frameId": "KU3-0",
           "device": "desktop",
           "theme": "light",
@@ -501,10 +469,6 @@
         "expired.default.light.phone",
         "expired.default.dark.desktop",
         "expired.default.dark.phone",
-        "login.throttled.light.desktop",
-        "login.throttled.light.phone",
-        "login.throttled.dark.desktop",
-        "login.throttled.dark.phone",
         "login.loading.light.desktop",
         "login.loading.light.phone",
         "login.loading.dark.desktop",
@@ -1584,6 +1548,34 @@
       "path": "/organization/settings",
       "status": "no-mock",
       "rationale": "Organization administration page (default language with a compare-and-swap save, read-only feature availability). Searched the paper-manifest.json files of auth-mocks, settings-mocks, enterprise-mocks and worker-readiness (2026-10-09) for organization settings, default language, default locale and feature availability: none has an organization-settings artboard. settings-mocks/SETTINGS.md assigns organization administration to a separate Organization page and defines no frame for it. Built only from catalog components in the settings composition and covered by the web-shell, axe and Storybook lanes.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-monitoring",
+      "path": "/installation/monitoring",
+      "status": "no-mock",
+      "rationale": "Monitoring page (where Bakery sends its measurements). The design is the UX design comments on issue 739 (revision 2 and the first design, mock at design-739); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition and covered by the installation-monitoring spec.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-monitoring-new",
+      "path": "/installation/monitoring/new",
+      "status": "no-mock",
+      "rationale": "One Monitoring destination on its own page (/installation/monitoring/new). The design is the UX design comments on issue 739 (revision 2 and the first design, mock at design-739); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition and covered by the installation-monitoring spec.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-monitoring-destination",
+      "path": "/installation/monitoring/$destinationId",
+      "status": "no-mock",
+      "rationale": "One Monitoring destination on its own page (/installation/monitoring/$destinationId). The design is the UX design comments on issue 739 (revision 2 and the first design, mock at design-739); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition and covered by the installation-monitoring spec.",
+      "frames": []
+    },
+    {
+      "routeId": "organization-storage",
+      "path": "/organization/storage",
+      "status": "no-mock",
+      "rationale": "Storage settings page (how full storage is, the limits and retention, saved with a compare-and-swap version). The design is the UX design comment on issue 447 (settings mock at design-447/storage-settings); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition plus UsageMeter, and covered by the organization-storage spec.",
       "frames": []
     },
     {
@@ -5227,6 +5219,20 @@
       "path": "/notifications",
       "status": "no-mock",
       "rationale": "Notification inbox page (NotificationsPage). No Paper artboard depicts a notifications list: the shipped design is design-ux's UX design comment on issue #455 (comment 6961347054), which specifies the bell, the popover and this page, and supersedes Paper as the source of truth for this surface.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-usage",
+      "path": "/installation/usage",
+      "status": "no-mock",
+      "rationale": "The installation usage page (#75) is designed by design-ux on #75 (revision 2, mock at pr-evidence design-75/v2/usage.png); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "delivery",
+      "path": "/delivery",
+      "status": "no-mock",
+      "rationale": "The Delivery page (#75) is designed by design-ux on #75 (revision 3 and its two later changes, mocks at pr-evidence design-75/v3/); Paper has no frame for it.",
       "frames": []
     }
   ]

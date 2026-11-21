@@ -68,6 +68,8 @@ importers:
         specifier: 4.5.4
         version: 4.5.4
 
+  apps/desktop: {}
+
   apps/server:
     dependencies:
       '@aws-sdk/client-s3':
@@ -207,6 +209,8 @@ importers:
       '@sentry/deno':
         specifier: 11.6.0
         version: 11.6.0
+
+  packages/cli: {}
 
   packages/config:
     dependencies:

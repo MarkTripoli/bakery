@@ -214,16 +214,19 @@ export function InstallDialog(
  * checked first, and a failed one leaves the old one running).
  */
 export function VersionChangeDialog(
-  { kind, name, from, to, pending, failure, onCancel, onConfirm }: {
-    readonly kind: "update" | "goBack";
-    readonly name: string;
-    readonly from: PluginVersion | undefined;
-    readonly to: PluginVersion;
-    readonly pending: boolean;
-    readonly failure: ChangeFailure | null;
-    readonly onCancel: () => void;
-    readonly onConfirm: () => void;
-  },
+  { kind, name, from, to, pending, failure, onCancel, onConfirm, onShowOrigin }:
+    {
+      readonly kind: "update" | "goBack";
+      readonly name: string;
+      readonly from: PluginVersion | undefined;
+      readonly to: PluginVersion;
+      readonly pending: boolean;
+      readonly failure: ChangeFailure | null;
+      readonly onCancel: () => void;
+      readonly onConfirm: () => void;
+      /** Opens "Where {version} came from" for the version being moved to. */
+      readonly onShowOrigin?: () => void;
+    },
 ) {
   const { locale, timeZone, translate } = useI18n();
   const words = useCapabilityWords();
@@ -268,6 +271,15 @@ export function VersionChangeDialog(
           <UI.Text variant="caption">
             {translate("settings.plugins.update.published", { when })}
           </UI.Text>
+        )}
+        {onShowOrigin === undefined ? null : (
+          <UI.Inline gap="compact">
+            <UI.Button variant="outline" onClick={onShowOrigin}>
+              {translate("settings.plugins.update.origin", {
+                version: to.versionName,
+              })}
+            </UI.Button>
+          </UI.Inline>
         )}
         {changes
           ? (

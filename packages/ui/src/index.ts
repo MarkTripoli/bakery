@@ -63,6 +63,8 @@ export { Inline, type InlineProps } from "./atoms/Inline.tsx";
 export { Label, type LabelProps } from "./atoms/Label.tsx";
 export * from "./atoms/Link.tsx";
 export { LogoMark, type LogoMarkProps } from "./atoms/LogoMark.tsx";
+export { ProviderMark, type ProviderMarkProps } from "./atoms/ProviderMark.tsx";
+export { providerHasMark } from "./atoms/provider-marks.ts";
 export { type BrandColorName, brandPalette } from "./brand/tokens.ts";
 export {
   logo,
@@ -171,6 +173,9 @@ export * from "./molecules/RecoveryCodes.tsx";
 export * from "./molecules/ResourcePicker.tsx";
 export * from "./molecules/SearchField.tsx";
 export * from "./molecules/SegmentedControl.tsx";
+export * from "./molecules/UsageMeter.tsx";
+export * from "./molecules/SegmentedBar.tsx";
+export * from "./molecules/StatTile.tsx";
 export * from "./molecules/StatusStrip.tsx";
 export * from "./molecules/SetupKey.tsx";
 export * from "./molecules/SettingsIndexRow.tsx";

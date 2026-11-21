@@ -64,6 +64,10 @@ export const FAULTS = {
   STORAGE_QUOTA_EXCEEDED: [409, false, "storage-quota-exceeded"],
   // The file is larger than the organization's maximum file size (#447).
   STORAGE_FILE_TOO_LARGE: [422, false, "storage-file-too-large"],
+  // An agent step wrote as much as its step write limits allow (O49, #448):
+  // `reason` is files or bytes and `limit` the value of the limit it hit. A
+  // person's own writes are never limited this way.
+  STEP_WRITE_LIMIT_EXCEEDED: [409, false, "step-write-limit-exceeded"],
   VERSION_CONFLICT: [409, false, "version-conflict"],
   EXPECTED_SEQUENCE: [409, true, "expected-sequence"],
   LEASE_EXPIRED: [409, true, "lease-expired"],
@@ -80,6 +84,10 @@ export const FAULTS = {
   DEPENDENCY_TIMEOUT: [504, true, "dependency-timeout"],
   REVIEWER_UNAVAILABLE: [503, true, "reviewer-unavailable"],
   WORKER_UNAVAILABLE: [503, true, "worker-unavailable"],
+  // The installation is held for a backup snapshot (#64): no new work is
+  // admitted until the lease on the maintenance switch ends. Retry-After says
+  // when to ask again.
+  INSTALLATION_QUIESCED: [503, true, "installation-quiesced"],
   SNAPSHOT_SCOPE_TOO_LARGE: [413, false, "snapshot-scope-too-large"],
   AUTH_INVALID: [401, false, "auth-invalid"],
   AUTH_EXPIRED: [401, false, "auth-expired"],
@@ -155,6 +163,8 @@ export type Problem = {
   reason?: string;
   /** Minimal access-token scope bundles that would allow the refused action. */
   requiredScopes?: readonly string[];
+  /** Whole seconds to wait before asking again, for the codes that say so. */
+  retryAfterSeconds?: number;
 };
 
 export class StandardError extends BakeryException {
@@ -339,6 +349,8 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
     AUTH_FORBIDDEN: new Set([
       "agent_edit_requires_suggestion",
       "suggestion_decision_requires_person",
+      // Closing a draft epoch decides what becomes of unsaved edits (#38).
+      "rollover_requires_person",
       // Coordinator proposals and save as workflow are a person's acts (#420).
       "definition_proposal_decision_requires_person",
       "workflow_listing_requires_person",
@@ -353,6 +365,10 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "steer_requires_grant",
       "steer_own_run",
       "steer_reviewer_unavailable",
+      // A skill that comes with Bakery is read-only; its draft is a person's
+      // act (#74).
+      "global_skill_is_read_only",
+      "skill_draft_requires_person",
       // An agent's file write refused by its grant, the area, or the person it
       // acts for; and a file grant only a person may make (#448).
       "agent_file_grant_missing",
@@ -367,6 +383,8 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "agent_file_principal_cannot_read",
       "agent_file_principal_cannot_write",
       "agent_file_grant_requires_person",
+      "agent_file_area_not_declared",
+      "agent_file_connection_not_bound",
     ]),
   } as const,
 );
@@ -430,6 +448,51 @@ function resolveProblemMessage(
   } catch {
     return catalogs[locale][key] ?? englishCatalog[key] ?? fallback;
   }
+}
+/**
+ * A step write limit refusal names the limit it hit (#448): the bytes in the
+ * Files size format ("2 GB", 1,024 to the step) or the file count grouped
+ * ("2,000"). Undefined for any other fault, or when the reason or limit is
+ * missing, so the generic description is used.
+ */
+export function stepWriteLimitDetail(
+  locale: SupportedLocale,
+  translate: Translator,
+  code: string,
+  reason: string | undefined,
+  limit: number | undefined,
+): string | undefined {
+  if (code !== "STEP_WRITE_LIMIT_EXCEEDED" || limit === undefined) {
+    return undefined;
+  }
+  const number = (value: number, digits: number) =>
+    new Intl.NumberFormat(locale, { maximumFractionDigits: digits })
+      .format(value);
+  try {
+    if (reason === "files") {
+      return translate("problems.STEP_WRITE_LIMIT_EXCEEDED.files", {
+        count: number(limit, 0),
+      });
+    }
+    if (reason === "bytes") {
+      const [value, unit] = limit < 1024
+        ? [limit, "bytes"]
+        : limit < 1024 ** 2
+        ? [limit / 1024, "kilobytes"]
+        : limit < 1024 ** 3
+        ? [limit / 1024 ** 2, "megabytes"]
+        : [limit / 1024 ** 3, "gigabytes"];
+      const size = translate(`files.size.${unit}` as MessageKey, {
+        value: number(value, unit === "bytes" ? 0 : 1),
+      });
+      return translate("problems.STEP_WRITE_LIMIT_EXCEEDED.bytes", {
+        limit: size,
+      });
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 let problemErrorReporter: ((error: unknown) => void) | undefined;
 
@@ -497,7 +560,9 @@ export function toProblem(
       ? (params as Record<string, unknown>).issues
       : undefined,
   );
-  const limit = standard?.code === "BODY_TOO_LARGE" && rawParams &&
+  const limit = (standard?.code === "BODY_TOO_LARGE" ||
+      standard?.code === "STEP_WRITE_LIMIT_EXCEEDED") &&
+      rawParams &&
       typeof rawParams === "object" && typeof rawParams.limit === "number" &&
       Number.isSafeInteger(rawParams.limit) && rawParams.limit >= 0
     ? rawParams.limit
@@ -511,7 +576,8 @@ export function toProblem(
     : undefined;
   const reason = standard?.code === "STATE_CONFLICT" ||
       standard?.code === "STORAGE_AREA_REFUSED" ||
-      standard?.code === "STORAGE_QUOTA_EXCEEDED"
+      standard?.code === "STORAGE_QUOTA_EXCEEDED" ||
+      standard?.code === "STEP_WRITE_LIMIT_EXCEEDED"
     ? safeConflictReason(rawParams?.reason)
     : standard?.code === "DEPENDENCY_UNAVAILABLE"
     ? safeUnavailableReason(rawParams?.reason)
@@ -549,12 +615,13 @@ export function toProblem(
       slug,
     ),
     status: safeStatus,
-    detail: resolveProblemMessage(
-      locale,
-      translate,
-      problemKey(code, "description"),
-      slug,
-    ),
+    detail: stepWriteLimitDetail(locale, translate, code, reason, limit) ??
+      resolveProblemMessage(
+        locale,
+        translate,
+        problemKey(code, "description"),
+        slug,
+      ),
     instance: `urn:bakery:request:${options.requestId}`,
     code,
     requestId: options.requestId,
@@ -568,6 +635,7 @@ export function toProblem(
     ...(existingResourceId === undefined ? {} : { existingResourceId }),
     ...(requiredScopes === undefined ? {} : { requiredScopes }),
     ...((code === "DEPENDENCY_UNAVAILABLE" ||
+        code === "INSTALLATION_QUIESCED" ||
         code === "PROVIDER_QUOTA_EXCEEDED" || code === "RATE_LIMITED") &&
         typeof rawParams?.retryAfterSeconds === "number" &&
         Number.isInteger(rawParams.retryAfterSeconds) &&
@@ -607,6 +675,12 @@ export function problemResponse(
     Vary: "Accept-Language",
   });
   if (options.allow) headers.set("Allow", options.allow);
+  // The wait the problem body already carries is also the header every client
+  // and proxy understands for a 503 (INSTALLATION_QUIESCED, #64).
+  if (
+    problem.code === "INSTALLATION_QUIESCED" &&
+    typeof problem.retryAfterSeconds === "number"
+  ) headers.set("Retry-After", String(problem.retryAfterSeconds));
   if (problem.code === "INSUFFICIENT_SCOPE") {
     headers.set(
       "WWW-Authenticate",
@@ -795,6 +869,8 @@ export function createNormalizedCommandMetadata(
   // parsed when sent and the handler decides whether it was required.
   const conditionalPutActions: ReadonlySet<ActionDefinition["name"]> = new Set(
     [
+      "backupOffsite.put",
+      "backupSchedule.put",
       "emailSettings.put",
       "integrationAppRegistrations.put",
       "integrationClientCredentials.put",

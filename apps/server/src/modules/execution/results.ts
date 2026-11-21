@@ -6,6 +6,10 @@ import {
 import { RepositoryInspectionReportSchema } from "@bakery/contracts/repository-inspection";
 import { finalizeOrDenyQualityCheck } from "../delivery/finalize-quality-check.ts";
 import {
+  finalizeEvaluationAttempt,
+  isEvaluationAction,
+} from "../evaluations/finalize-attempt.ts";
+import {
   finalizeOrDenyReview,
   recordReviewJobFailure,
 } from "../delivery/finalize-review.ts";
@@ -41,9 +45,10 @@ import {
 } from "./shared.ts";
 import { settleWorkflowAction } from "../work/budget.ts";
 import {
-  emitExecutionEvent,
+  emitAttemptEvent,
   EXECUTION_TELEMETRY_EVENTS,
   type JobOutcome,
+  usageAttributes,
 } from "./telemetry.ts";
 import { reconcileCoordinationForTerminalTask } from "../work/coordination-projection.ts";
 
@@ -59,6 +64,7 @@ import {
   withPgTransaction,
 } from "@bakery/persistence";
 import { finalizeOutputTranscript } from "./output-transcript.ts";
+import { recordAttemptRouteEvidence } from "./attempt-route-evidence.ts";
 
 export async function renewLease(
   context: Context,
@@ -76,10 +82,12 @@ export async function renewLease(
     leaseSeconds: input.leaseSeconds,
     leaseTokenHash,
   }));
+  let renewalOrganizationId = "";
   const result = await workerTransaction(
     options.database,
     context.req.raw.headers,
     async (transaction, identity) => {
+      renewalOrganizationId = identity.host.organization_id;
       assertWorkerMutationSessionShape(
         identity.host,
         input.workerSessionId,
@@ -174,12 +182,13 @@ export async function renewLease(
   );
   // The renewal has committed. A replay renewed nothing, so it says nothing.
   if (!result.replayed) {
-    emitExecutionEvent(
+    await emitAttemptEvent(
+      options.database,
       options.telemetry,
+      renewalOrganizationId,
+      attemptId,
       EXECUTION_TELEMETRY_EVENTS.leaseRenewed,
-      {
-        "bakery.attempt.id": attemptId,
-      },
+      { "bakery.attempt.id": attemptId },
     );
   }
   return jsonResponse(result.response, 200, result.replayed);
@@ -437,7 +446,18 @@ export async function resultRoute(
             );
           } else {
             const outputSchema = workerActionOutputSchema(jobRow.action);
-            if (!outputSchema.safeParse(resultPayload).success) {
+            // An evaluation report that does not match its contract is still
+            // recorded, as unscored with the reason, so a bad scorer shows up
+            // in the batch instead of retrying until the attempt is lost.
+            if (isEvaluationAction(jobRow.action)) {
+              await finalizeEvaluationAttempt(transaction, {
+                organizationId: attempt.organization_id,
+                attemptId: attempt.id,
+                jobId: attempt.job_id,
+                action: jobRow.action,
+                resultPayload,
+              });
+            } else if (!outputSchema.safeParse(resultPayload).success) {
               throw new StandardError({ code: "VALIDATION_FAILED" });
             }
             // A check report is a claim until the server has recomputed every
@@ -588,6 +608,18 @@ export async function resultRoute(
             resultInput.fence,
           );
         }
+        // What the attempt proves about its provider route: exhausted quota or
+        // an invalid credential, or (completed) that inference really ran.
+        // Through the one incident writer, deduped on the attempt id, in this
+        // transaction so a rolled-back result leaves no route evidence.
+        await recordAttemptRouteEvidence(transaction, {
+          organizationId: attempt.organization_id,
+          jobId: attempt.job_id,
+          attemptId: attempt.id,
+          status: resultInput.status,
+          fault: faultPayload,
+          observedAt: new Date(),
+        });
         // A retryable fault without usage requeues the job while attempts
         // remain. A failure with usage stays terminal: settleWorkflowAction
         // settled the budget intent, so a re-claim could not be funded.
@@ -726,8 +758,11 @@ export async function resultRoute(
   // outcome silently; this assignment turns that into a compile error.
   const outcome: JobOutcome = resultInput.status;
   if (!result.replayed) {
-    emitExecutionEvent(
+    await emitAttemptEvent(
+      options.database,
       options.telemetry,
+      resultOrganizationId,
+      attemptId,
       EXECUTION_TELEMETRY_EVENTS.jobCompleted,
       {
         "bakery.attempt.id": attemptId,
@@ -735,11 +770,17 @@ export async function resultRoute(
       },
     );
     if (usageSettled) {
-      emitExecutionEvent(
+      await emitAttemptEvent(
+        options.database,
         options.telemetry,
+        resultOrganizationId,
+        attemptId,
         EXECUTION_TELEMETRY_EVENTS.usageSettled,
         {
           "bakery.attempt.id": attemptId,
+          ...(resultInput.usage === undefined
+            ? {}
+            : usageAttributes(resultInput.usage)),
         },
       );
     }

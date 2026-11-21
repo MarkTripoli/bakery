@@ -11,6 +11,7 @@
  * is for organization Admins only.
  */
 
+import { Buffer } from "node:buffer";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "@bakery/persistence";
@@ -23,6 +24,7 @@ import {
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { storedMediaSafety } from "./media.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
+import { type ProbeSubject, readBlobProbe } from "./blob-probes.ts";
 import {
   ifNoneMatchMatches,
   ifRangeMatches,
@@ -32,9 +34,22 @@ import {
   resolveRange,
 } from "./reads.ts";
 import { isVisibleTo } from "./storage-areas.ts";
+import {
+  agentDeclaredReadAreas,
+  agentFileReadFor,
+} from "./agent-file-guard.ts";
+import { agentRootKeys } from "./agent-file-scope.ts";
 import { type StoragePolicy, storageQueryOf } from "./storage-tree.ts";
 import { ensureOrganizationTree } from "./storage-tree.ts";
 import { ensurePersonalFolder } from "./storage-working-areas.ts";
+import {
+  chooseRead,
+  inputPinFor,
+  listingDigest,
+  recordStepRead,
+  stepReaderOf,
+  stepReadSetRow,
+} from "./step-read-set.ts";
 
 const MAX_PAGE_SIZE = 100;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -143,7 +158,8 @@ const UP_FROM = "with recursive up as (" +
  * record-area file an Admin purged stays readable as a tombstone: its versions
  * say their contents were removed.
  */
-async function readableEntry(
+export async function readableEntry(
+  context: Pick<ActionContext, "agentSession" | "sessionScopes">,
   tx: PgTransactionClient,
   organizationId: string,
   principalId: string,
@@ -172,6 +188,18 @@ async function readableEntry(
     [organizationId, row.id],
   );
   if (above.rows[0].in_system && !reader.isAdmin) notFound();
+  // An agent's read is judged again against its step's files section and the
+  // workflow's grants (section 17.6, O44); a person's passes untouched.
+  await agentFileReadFor(tx, context, {
+    organizationId,
+    principalId,
+    target: {
+      id: row.id,
+      policy: row.policy,
+      owner_id: row.owner_id,
+      system_key: row.system_key,
+    },
+  });
   return { ...row, path: above.rows[0].path };
 }
 
@@ -181,6 +209,7 @@ type ListedRow = EntryRow & {
   size_bytes: string | null;
   media_type: string | null;
   content_removed: boolean;
+  pinned: boolean;
 };
 
 /**
@@ -192,7 +221,8 @@ const LISTED_SELECT = "select " + ENTRY_COLUMNS + "," +
   " task.title as display_name, a.artifact_type as kind_name," +
   " coalesce(wv.size_bytes, av.size_bytes)::text as size_bytes," +
   " coalesce(wv.media_type, av.media_type) as media_type," +
-  " (e.purged_at is not null or av.purged_at is not null) as content_removed" +
+  " (e.purged_at is not null or av.purged_at is not null) as content_removed," +
+  " (a.pinned_at is not null) as pinned" +
   " from bakery.storage_entries e" +
   " left join bakery.storage_file_versions wv" +
   " on wv.organization_id = e.organization_id and wv.id = e.current_version_id" +
@@ -219,6 +249,7 @@ function listed(row: ListedRow, path: string) {
       ? null
       : Number(row.size_bytes),
     artifactId: row.artifact_id,
+    pinned: row.kind === "file" && row.pinned,
     contentRemoved: row.kind === "file" && row.content_removed,
     updatedAt: iso(row.updated_at),
   };
@@ -262,6 +293,7 @@ export async function readStorageFileByVersion(
   const hit = found.rows[0];
   if (!hit) notFound();
   const file = await readableEntry(
+    context,
     tx,
     organizationId,
     principalId,
@@ -299,11 +331,15 @@ export async function listStorageRoots(
       " and child.purged_at is null) as present",
     [organizationId],
   );
-  const keys = visibleRootKeys({
+  const everyKey = visibleRootKeys({
     principalId,
     isAdmin: reader.isAdmin,
     hasConnections: connections.rows[0].present,
   });
+  // An agent sees only the top-level areas its step's files section reaches,
+  // never its principal's personal folder, /trash or /system.
+  const declared = agentDeclaredReadAreas(context);
+  const keys = declared === null ? everyKey : agentRootKeys(everyKey, declared);
   const found = await tx.query<ListedRow>(
     LISTED_SELECT +
       " where e.organization_id = $1 and e.system_key = any($2::text[])",
@@ -333,6 +369,7 @@ export function createFolderLister(secret: string) {
       requireWorkTransaction(context);
     const limit = pageSize(input.limit);
     const folder = await readableEntry(
+      context,
       tx,
       organizationId,
       principalId,
@@ -390,6 +427,21 @@ export function createFolderLister(secret: string) {
       ],
     );
     const rows = found.rows.slice(0, limit);
+    // An agent's listing joins its step's read set (O46). A listing shows the
+    // folder as it is now, so it is never pinned.
+    const stepReader = await stepReaderOf(tx, context, organizationId);
+    const readRow = stepReadSetRow(stepReader, {
+      organizationId,
+      entryId: folder.id,
+      served: { kind: "listing" },
+      sha256: await listingDigest(rows.map((row) => ({
+        id: row.id,
+        kind: row.kind,
+        versionId: row.current_version_id,
+      }))),
+      pinned: false,
+    });
+    if (readRow !== null) await recordStepRead(tx, readRow);
     const prefix = folder.path === "/" ? "" : folder.path;
     const last = rows.at(-1);
     return {
@@ -422,12 +474,18 @@ type VersionRow = {
   task_id: string | null;
   task_title: string | null;
   session_id: string | null;
+  /** True when an agent's session call wrote the version (a put or copy). */
+  agent_write: boolean;
+  agent_session_id: string | null;
+  agent_name: string | null;
 };
 
 /**
  * Who made a version. A version a run step published names the step, its run,
- * its work item and the step's latest agent session; any other version names
- * the person (or service) that wrote it.
+ * its work item and the step's latest agent session. A version an agent wrote
+ * from its session with a person's access names the agent, its session and
+ * that person: it never reads as the person's own. Any other version names the
+ * person (or service) that wrote it.
  */
 export function versionMaker(row: VersionRow) {
   if (row.run_step_id !== null) {
@@ -441,6 +499,21 @@ export function versionMaker(row: VersionRow) {
       workItemId: row.task_id,
       workItemTitle: row.task_title,
       sessionId: row.session_id,
+      agentName: null,
+    };
+  }
+  if (row.agent_write) {
+    return {
+      makerKind: "agent" as const,
+      makerPrincipalId: row.author_id,
+      makerName: row.author_name,
+      stepId: null,
+      stepName: null,
+      runId: null,
+      workItemId: null,
+      workItemTitle: null,
+      sessionId: row.agent_session_id,
+      agentName: row.agent_name,
     };
   }
   return {
@@ -453,6 +526,7 @@ export function versionMaker(row: VersionRow) {
     workItemId: null,
     workItemTitle: null,
     sessionId: null,
+    agentName: null,
   };
 }
 
@@ -467,6 +541,7 @@ export function createFileVersionLister(secret: string) {
       requireWorkTransaction(context);
     const limit = pageSize(input.limit);
     const file = await readableEntry(
+      context,
       tx,
       organizationId,
       principalId,
@@ -502,7 +577,9 @@ export function createFileVersionLister(secret: string) {
           " (select s.id from bakery.agent_sessions s" +
           " where s.organization_id = v.organization_id" +
           " and s.run_step_id = v.run_step_id" +
-          " order by s.created_at desc, s.id desc limit 1) as session_id" +
+          " order by s.created_at desc, s.id desc limit 1) as session_id," +
+          " false as agent_write, null::uuid as agent_session_id," +
+          " null::text as agent_name" +
           " from bakery.artifact_versions v" +
           " left join bakery.principals who on who.id = v.author_id" +
           " left join bakery.run_steps rs" +
@@ -524,9 +601,27 @@ export function createFileVersionLister(secret: string) {
           " who.display_name as author_name, null::uuid as run_step_id," +
           " null::text as step_key, null::uuid as run_id," +
           " null::uuid as task_id, null::text as task_title," +
-          " null::uuid as session_id" +
+          " null::uuid as session_id," +
+          " (agent.id is not null) as agent_write," +
+          " agent.agent_session_id, agent.agent_name" +
           " from bakery.storage_file_versions v" +
           " left join bakery.principals who on who.id = v.author_id" +
+          // The agent write that made this version, if one did: its session
+          // and the agent the session ran.
+          " left join lateral (select w.id, w.agent_session_id," +
+          " def.name as agent_name from bakery.step_write_set w" +
+          " left join bakery.agent_sessions s" +
+          " on s.organization_id = w.organization_id" +
+          " and s.id = w.agent_session_id" +
+          " left join bakery.agent_versions av" +
+          " on av.organization_id = s.organization_id" +
+          " and av.id = s.agent_version_id" +
+          " left join bakery.agent_definitions def" +
+          " on def.organization_id = av.organization_id" +
+          " and def.id = av.agent_id" +
+          " where w.organization_id = v.organization_id" +
+          " and w.new_version_id = v.id and w.op in ('put', 'copy')" +
+          " order by w.created_at, w.id limit 1) agent on true" +
           " where v.organization_id = $1 and v.entry_id = $2" +
           " and ($3::int is null or v.revision < $3)" +
           " order by v.revision desc limit $4",
@@ -580,6 +675,7 @@ export function createFileUseLister(secret: string) {
       requireWorkTransaction(context);
     const limit = pageSize(input.limit);
     const file = await readableEntry(
+      context,
       tx,
       organizationId,
       principalId,
@@ -659,6 +755,7 @@ export function createFileUseLister(secret: string) {
 }
 
 type BytesRow = {
+  id: string;
   revision: number;
   blob_id: string | null;
   content: Uint8Array | null;
@@ -687,6 +784,132 @@ export function parseRevision(value: string | undefined): number | null {
 }
 
 /**
+ * What the probe measured about a storage file's version (the current one unless
+ * a revision is named).
+ *
+ * The same read the artifact-version probe makes, reached the way the content
+ * read reaches these bytes: through `readableEntry`, so a file in another
+ * organization and a file in somebody else's personal folder are both simply not
+ * found, exactly as they are for the bytes themselves. The answer is keyed on the
+ * blob, so every version sharing those bytes shares the answer, and a file whose
+ * content is stored inline (no blob) has never been probed.
+ */
+export function createFileProbeReader() {
+  return async (
+    context: ActionContext,
+    reader: StorageReader,
+    input: Readonly<{ revision: number | null }>,
+  ): Promise<StorageFileProbeAnswer> => {
+    const { transaction: tx, organizationId, principalId } =
+      requireWorkTransaction(context);
+    // `readableEntry` takes the context for the agent guard main added (#770): a
+    // person's read is unaffected, an agent's is judged by its step's files
+    // section. This reader was written before that parameter existed and the
+    // merge left it out, so every probe answered "not found".
+    const file = await readableEntry(
+      context,
+      tx,
+      organizationId,
+      principalId,
+      reader,
+      context.params.id,
+    );
+    if (file.kind !== "file") notFound();
+    if (file.purged_at !== null) notFound();
+    // The subject is whichever of the three the version resolves to: a blob when
+    // the bytes live in one, an artifact version, or an inline entry and revision.
+    // Reading only the blob left every inline file and every store-less artifact
+    // version with no answer at all, however the runner had recorded it.
+    const found = file.artifact_id !== null
+      ? await tx.query<{
+        id: string;
+        blob_id: string | null;
+        entry_id: null;
+        revision: null;
+      }>(
+        "select v.id, v.blob_id, null::text as entry_id," +
+          " null::int as revision from bakery.artifact_versions v" +
+          " join bakery.artifacts a" +
+          " on a.organization_id = v.organization_id and a.id = v.artifact_id" +
+          " where v.organization_id = $1 and v.artifact_id = $2" +
+          " and (($3::int is null and v.id = a.current_version_id)" +
+          " or v.revision = $3)",
+        [organizationId, file.artifact_id, input.revision],
+      )
+      : await tx.query<{
+        id: string;
+        blob_id: string | null;
+        entry_id: string;
+        revision: number;
+      }>(
+        "select id, blob_id, entry_id, revision from bakery.storage_file_versions" +
+          " where organization_id = $1 and entry_id = $2" +
+          " and (($3::int is null and id = $4) or revision = $3)",
+        [organizationId, file.id, input.revision, file.current_version_id],
+      );
+    const row = found.rows[0];
+    if (!row) notFound();
+    const subject: ProbeSubject = row.blob_id !== null
+      ? { blobId: row.blob_id }
+      : row.entry_id === null
+      ? { artifactVersionId: row.id }
+      : { entryId: row.entry_id, revision: Number(row.revision) };
+    const stored = await readBlobProbe(tx, { organizationId, ...subject });
+    if (stored === null) return neverProbed();
+    const { result, probedAt } = stored;
+    const described = result.status === "described" ? result : null;
+    const refused = result.status === "refused" ? result : null;
+    return {
+      status: result.status,
+      kind: described?.kind ?? null,
+      mediaType: described?.mediaType ?? null,
+      byteLength: described?.byteLength ?? null,
+      width: described?.width ?? null,
+      height: described?.height ?? null,
+      durationMs: described?.durationMs ?? null,
+      lineCount: described?.lineCount ?? null,
+      utf8: described?.utf8 ?? null,
+      code: refused?.code ?? null,
+      limit: refused?.limit ?? null,
+      probedAt: probedAt.toISOString(),
+    };
+  };
+}
+
+/** The flat answer the transport can express: one field per fact, null if unmeasured. */
+export type StorageFileProbeAnswer = Readonly<{
+  status: "described" | "refused" | null;
+  kind: string | null;
+  mediaType: string | null;
+  byteLength: number | null;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  lineCount: number | null;
+  utf8: boolean | null;
+  code: string | null;
+  limit: number | null;
+  probedAt: string | null;
+}>;
+
+function neverProbed(): StorageFileProbeAnswer {
+  return {
+    status: null,
+    kind: null,
+    mediaType: null,
+    byteLength: null,
+    width: null,
+    height: null,
+    durationMs: null,
+    lineCount: null,
+    utf8: null,
+    code: null,
+    limit: null,
+    probedAt: null,
+  };
+}
+
+/**
  * The bytes of a file's version (the current one unless a revision is named):
  * whole, or one byte range for a media player, always as a download that names
  * the file. Removed contents are 410 ARTIFACT_CONTENT_EXPIRED.
@@ -700,6 +923,7 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
     const { transaction: tx, organizationId, principalId } =
       requireWorkTransaction(context);
     const file = await readableEntry(
+      context,
       tx,
       organizationId,
       principalId,
@@ -710,20 +934,37 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
     if (file.purged_at !== null) {
       throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
     }
+    // O46: an agent's read of a declared input serves the version the run
+    // pinned at admission; a named revision is the latest on request.
+    const stepReader = await stepReaderOf(tx, context, organizationId);
+    const choice = chooseRead({
+      reader: stepReader,
+      pin: stepReader !== null && file.artifact_id !== null
+        ? await inputPinFor(
+          tx,
+          organizationId,
+          stepReader.runId,
+          file.artifact_id,
+        )
+        : null,
+      revision: input.revision,
+    });
+    const pinnedId = choice.kind === "pinned" ? choice.artifactVersionId : null;
     const found = file.artifact_id !== null
       ? await tx.query<BytesRow>(
-        "select v.revision, v.blob_id, v.content, v.sha256," +
+        "select v.id, v.revision, v.blob_id, v.content, v.sha256," +
           " v.size_bytes::text, v.media_type, (v.purged_at is not null) as removed" +
           " from bakery.artifact_versions v" +
           " join bakery.artifacts a" +
           " on a.organization_id = v.organization_id and a.id = v.artifact_id" +
           " where v.organization_id = $1 and v.artifact_id = $2" +
-          " and (($3::int is null and v.id = a.current_version_id)" +
-          " or v.revision = $3)",
-        [organizationId, file.artifact_id, input.revision],
+          " and (case when $4::uuid is not null then v.id = $4::uuid" +
+          " when $3::int is null then v.id = a.current_version_id" +
+          " else v.revision = $3 end)",
+        [organizationId, file.artifact_id, input.revision, pinnedId],
       )
       : await tx.query<BytesRow>(
-        "select revision, blob_id, content, sha256, size_bytes::text," +
+        "select id, revision, blob_id, content, sha256, size_bytes::text," +
           " media_type, false as removed from bakery.storage_file_versions" +
           " where organization_id = $1 and entry_id = $2" +
           " and (($3::int is null and id = $4) or revision = $3)",
@@ -734,6 +975,18 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
     if (row.removed || (row.blob_id === null && row.content === null)) {
       throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
     }
+    // The read joins the step's read set in this transaction, before any
+    // answer (a 304 or a range is still a read of this version).
+    const readRow = stepReadSetRow(stepReader, {
+      organizationId,
+      entryId: file.id,
+      served: file.artifact_id !== null
+        ? { kind: "artifact", versionId: row.id }
+        : { kind: "storage", versionId: row.id },
+      sha256: row.sha256,
+      pinned: choice.kind === "pinned",
+    });
+    if (readRow !== null) await recordStepRead(tx, readRow);
     const size = Number(row.size_bytes);
     const safety = storedMediaSafety(row.media_type);
     const headers = new Headers({
@@ -804,5 +1057,60 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
       bytes = await readBlobBytes(blobStore, organizationId, stored);
     }
     return new Response(bytes as unknown as BodyInit, { status: 200, headers });
+  };
+}
+
+/**
+ * The most bytes one session read returns. An agent's call answers JSON, so
+ * the bytes travel as base64; a larger file is read in ranges, and asking for
+ * all of it is refused by name rather than cut short.
+ */
+export const SESSION_CONTENT_MAX_BYTES = 8 * 1024 * 1024;
+
+function contentBase64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("base64");
+}
+
+/**
+ * A file's bytes for an agent's session call (storageFiles.content offered
+ * under files.read): the same reader, guard and range rules a person's
+ * download uses, answered as base64. The range comes from the call's own
+ * arguments, never from whatever headers the worker's request carried.
+ */
+export function createSessionFileContentReader(
+  blobStore?: OrganizationBlobStore,
+) {
+  const read = createFileContentReader(blobStore);
+  return async (
+    context: ActionContext,
+    reader: StorageReader,
+    input: Readonly<{ range?: string; revision?: number }>,
+  ): Promise<string> => {
+    const headers = new Headers();
+    if (input.range !== undefined) headers.set("range", input.range);
+    const response = await read(
+      { ...context, request: new Request(context.request.url, { headers }) },
+      reader,
+      { revision: input.revision ?? null },
+    );
+    const tooLarge = () =>
+      new StandardError({
+        code: "UNPROCESSABLE",
+        params: {
+          issues: [{
+            path: ["range"],
+            code: "session_content_too_large",
+            message: "session_content_too_large",
+          }],
+        },
+      });
+    const length = Number(response.headers.get("content-length") ?? "0");
+    if (length > SESSION_CONTENT_MAX_BYTES) {
+      await response.body?.cancel();
+      throw tooLarge();
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length > SESSION_CONTENT_MAX_BYTES) throw tooLarge();
+    return contentBase64(bytes);
   };
 }
