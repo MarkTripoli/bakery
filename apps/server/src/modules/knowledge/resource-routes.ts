@@ -53,6 +53,7 @@ import {
 } from "./storage-working-areas.ts";
 import {
   createFileContentReader,
+  createFileProbeReader,
   createFileUseLister,
   createFileVersionLister,
   createFolderLister,
@@ -720,6 +721,21 @@ export function createArtifactActions(
         ),
     })
     .register(artifactContentActionDefinition)
+    .register({
+      // A separate read from the content: the probe answer is about the blob's
+      // bytes, so it belongs to every version that shares them, and a client
+      // wants it before deciding whether to fetch anything at all.
+      name: "artifactVersions.probe",
+      method: HttpMethod.Get,
+      path: "/v1/artifact-versions/:id/probe",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.ArtifactProbeAnswer,
+      policy: readPolicy,
+      handler: async (context) =>
+        contractSchemas.ArtifactProbeAnswer.parse(
+          await handlers.readArtifactProbe(context),
+        ),
+    })
     // Blob uploads: the session names what it promises, parts are keyed by
     // ordinal, and completion verifies before recording. The client supplies
     // bytes and the digest it claims for them; the server checks the claim.
@@ -781,6 +797,7 @@ function registerStorageActions(
   const listFolder = createFolderLister(secret);
   const listVersions = createFileVersionLister(secret);
   const listUses = createFileUseLister(secret);
+  const readProbe = createFileProbeReader();
   const A = StorageImplementedAction;
   registry
     .register({
@@ -883,6 +900,26 @@ function registerStorageActions(
           input as { range?: string; revision?: number },
         );
       },
+    })
+    .register({
+      // The probe answer is about the blob's bytes, so it belongs to every
+      // version that shares them, and a client wants it before deciding whether
+      // to fetch anything at all. The route below serves it, under this action's
+      // authority, the same way the content read is served.
+      name: A.StorageFilesProbe,
+      method: HttpMethod.Get,
+      path: "/v1/storage/files/:id/probe",
+      input: contractSchemas.StorageFileProbeQuery,
+      output: contractSchemas.ArtifactProbeAnswer,
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas.ArtifactProbeAnswer.parse(
+          await readProbe(
+            context,
+            storageReader(context, A.StorageFilesProbe),
+            { revision: (input as { revision?: number }).revision ?? null },
+          ),
+        ),
     })
     .register({
       name: A.StorageFilesPut,

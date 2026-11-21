@@ -1404,6 +1404,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.providerMark.contract.desktop-light-fine",
+      "catalogId": "ui.providerMark",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-providermark--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.menu.contract.desktop-light-fine",
       "catalogId": "ui.menu",
       "requiredCaseId": "contract",

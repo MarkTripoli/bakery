@@ -1,3 +1,5 @@
+import type { Cutoff } from "../../../apps/server/src/modules/backups/cutoff-rules.ts";
+import { cutoffFromView } from "./cutoff.ts";
 import {
   ApiFatal,
   ApiUnavailable,
@@ -43,7 +45,7 @@ export type RunnerDeps = {
   readonly api: RunnerApi;
   readonly secrets: Secrets;
   /** Takes the backup on this host; throws StepError. */
-  readonly backup: (signal: AbortSignal) => Promise<Artifact>;
+  readonly backup: (signal: AbortSignal, cutoff: Cutoff) => Promise<Artifact>;
   /** Reads what to upload to from the settings; null when there is no off-site copy. Throws OffsiteError. */
   readonly offsite: (settings: RunnerSettings) => Offsite | null;
   /** Uploads and verifies the set; throws OffsiteError. */
@@ -301,9 +303,29 @@ export async function runOnce(deps: RunnerDeps): Promise<RunOutcome> {
     }
     await reporter.running(PROGRESS.settings);
 
+    // The cutoff comes AFTER the installation is quiet and BEFORE the dumps
+    // start, from the database clock: it is the moment everything in the set was
+    // read at or after, and the census of effects still unsettled then.
+    let cutoff: Cutoff;
+    try {
+      cutoff = cutoffFromView(
+        await deps.api.cutoff(runId, leaseToken, work.signal),
+      );
+    } catch (error) {
+      if (error instanceof ApiFatal || error instanceof ApiUnavailable) {
+        return await fail(
+          "runner_error",
+          `The runner could not record the cutoff. No backup was taken. ${
+            describe(error, deps.secrets)
+          }`,
+        );
+      }
+      throw error;
+    }
+
     let artifact: Artifact;
     try {
-      artifact = await deps.backup(work.signal);
+      artifact = await deps.backup(work.signal, cutoff);
     } catch (error) {
       if (fatal !== null) return await finish();
       if (error instanceof StepError) {

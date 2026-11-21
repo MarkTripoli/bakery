@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import { type ComponentProps, createElement } from "react";
 import type * as UI from "@bakery/ui";
 
 export const runOutputFixtureStates = [
@@ -208,7 +208,7 @@ export function runOutputFixtureData(state: string): RunOutputFixtureData {
       labels: {
         paneTitle: "Artifact",
         versionSelect: "Artifact version",
-        preview: "Artifact text preview",
+        preview: "Preview",
         truncated: "Preview truncated",
         unavailable: "Preview unavailable",
         loading: "Loading artifact",
@@ -237,8 +237,11 @@ export function runOutputFixtureData(state: string): RunOutputFixtureData {
           link: "Open",
         },
       },
-      previewText:
+      preview: createElement(
+        "pre",
+        { dir: "ltr" },
         "# Delivery notes\n\nArtifact retention and immutable revisions verified.\n18 tests passed, 0 failed.",
+      ),
       openHref:
         "/tasks/00000000-0000-4000-8000-000000000101/artifacts/00000000-0000-4000-8000-000000000102",
     },

@@ -14,7 +14,9 @@ import {
   STORES,
   verifyBackupDirectory,
   writeBackupManifest,
+  writeChecksums,
 } from "../../scripts/deploy/backup-runner/manifest.ts";
+import type { Cutoff } from "../../apps/server/src/modules/backups/cutoff-rules.ts";
 
 /**
  * #64 slice A: the completeness manifest. A backup set is complete only when
@@ -91,7 +93,12 @@ Deno.test("a complete set gets a manifest and checksums, and verifies", async ()
     const manifest = await writeBackupManifest(baseInput(directory));
     assertEquals(manifest.stores.length, STORES.length);
     assertEquals(manifest.release.sha, SHA);
-    assertEquals(manifest.cutoffAt, started.toISOString());
+    // No runner took this backup: the cutoff is the host clock, marked weaker.
+    assertEquals(manifest.cutoff, {
+      at: started.toISOString(),
+      source: "host-clock",
+      effects: null,
+    });
     assertEquals(manifest.references, { skillFiles: 12, blobs: 3 });
     const bakery = manifest.stores.find((s) => s.id === "postgres-bakery")!;
     assertEquals(bakery.status, "captured");
@@ -110,7 +117,12 @@ Deno.test("a complete set gets a manifest and checksums, and verifies", async ()
     assert(sums.includes("./release.json"));
     assert(!sums.includes("SHA256SUMS"));
     const result = await verifyBackupDirectory(directory);
-    assertEquals(result, { complete: true, legacy: false, problems: [] });
+    assertEquals(result, {
+      complete: true,
+      legacy: false,
+      cutoff: manifest.cutoff,
+      problems: [],
+    });
   } finally {
     await Deno.remove(directory, { recursive: true });
   }
@@ -292,7 +304,7 @@ Deno.test("a tampered manifest, a bad format and missing checksums are incomplet
     );
     await Deno.writeTextFile(
       join(directory, MANIFEST_FILE),
-      JSON.stringify({ ...manifest, format: 2 }),
+      JSON.stringify({ ...manifest, format: 99 }),
     );
     assertEquals(
       (await verifyBackupDirectory(directory)).problems[0].kind,
@@ -474,6 +486,156 @@ Deno.test("a set that declares itself incomplete is refused first, and no flag e
       await isDeclaredIncomplete(await Deno.makeTempDir()),
       false,
     );
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+// ---- #64 slice C: the cutoff the manifest records -------------------------
+
+const databaseCutoff: Cutoff = {
+  at: "2026-11-20T02:59:58.125Z",
+  source: "database",
+  effects: {
+    total: 2,
+    prepared: 1,
+    submitted: 0,
+    uncertain: 1,
+    byOperation: [{ operation: "github.merge", count: 2 }],
+    digest: "b".repeat(64),
+  },
+};
+
+/** Rewrites manifest.json and its checksums, as a hand edit would not. */
+async function rewriteManifest(
+  directory: string,
+  change: (manifest: Record<string, unknown>) => Record<string, unknown>,
+) {
+  const path = join(directory, MANIFEST_FILE);
+  const manifest = JSON.parse(await Deno.readTextFile(path));
+  await Deno.writeTextFile(path, JSON.stringify(change(manifest)));
+  await writeChecksums(directory);
+}
+
+Deno.test("a database cutoff is recorded with its census, verified, and reported back", async () => {
+  const directory = await makeSet();
+  try {
+    const manifest = await writeBackupManifest({
+      ...baseInput(directory),
+      cutoff: databaseCutoff,
+    });
+    assertEquals(manifest.format, 2);
+    assertEquals(manifest.cutoff, databaseCutoff);
+    // The old host-clock field is gone from a format 2 manifest.
+    assertEquals("cutoffAt" in manifest, false);
+    const onDisk = JSON.parse(
+      await Deno.readTextFile(join(directory, MANIFEST_FILE)),
+    );
+    assertEquals(onDisk.cutoff, databaseCutoff);
+    const result = await verifyBackupDirectory(directory, {
+      requireDatabaseCutoff: true,
+    });
+    assertEquals(result.complete, true);
+    assertEquals(result.cutoff, databaseCutoff);
+    // Counts, names and a digest only: no id, target or argument is in it.
+    const text = await Deno.readTextFile(join(directory, MANIFEST_FILE));
+    assert(
+      !/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-/.test(text),
+      "a uuid leaked",
+    );
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("a host-clock cutoff is weaker: complete as a set, refused when a database cutoff is required", async () => {
+  const directory = await makeSet();
+  try {
+    await writeBackupManifest(baseInput(directory));
+    const plain = await verifyBackupDirectory(directory);
+    assertEquals(plain.complete, true);
+    assertEquals(plain.cutoff?.source, "host-clock");
+    assertEquals(plain.cutoff?.effects, null);
+    const strict = await verifyBackupDirectory(directory, {
+      requireDatabaseCutoff: true,
+    });
+    assertEquals(strict.complete, false);
+    assertEquals(strict.problems.map((p) => p.kind), ["cutoff_not_database"]);
+    assert(strict.problems[0].detail.includes("host clock"));
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("a format 2 manifest without a valid cutoff is invalid", async () => {
+  const directory = await makeSet();
+  try {
+    await writeBackupManifest({
+      ...baseInput(directory),
+      cutoff: databaseCutoff,
+    });
+    const bad: [
+      string,
+      (m: Record<string, unknown>) => Record<string, unknown>,
+    ][] = [
+      ["missing", ({ cutoff: _gone, ...rest }) => rest],
+      ["null", (m) => ({ ...m, cutoff: null })],
+      ["no source", (m) => ({ ...m, cutoff: { at: databaseCutoff.at } })],
+      [
+        "database without a census",
+        (m) => ({
+          ...m,
+          cutoff: { at: databaseCutoff.at, source: "database" },
+        }),
+      ],
+      [
+        "census that does not add up",
+        (m) => ({
+          ...m,
+          cutoff: {
+            ...databaseCutoff,
+            effects: { ...databaseCutoff.effects, total: 9 },
+          },
+        }),
+      ],
+      [
+        "malformed time",
+        (m) => ({ ...m, cutoff: { ...databaseCutoff, at: "soon" } }),
+      ],
+    ];
+    for (const [name, change] of bad) {
+      await rewriteManifest(directory, (manifest) => {
+        // Start each case from the good manifest.
+        return change({ ...manifest, cutoff: databaseCutoff });
+      });
+      const result = await verifyBackupDirectory(directory);
+      assertEquals(result.complete, false, name);
+      assertEquals(result.problems[0].kind, "manifest_invalid", name);
+      assert(result.problems[0].detail.includes("cutoff"), name);
+    }
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("a format 1 manifest is still readable, reported without a cutoff, and refused when one is required", async () => {
+  const directory = await makeSet();
+  try {
+    await writeBackupManifest(baseInput(directory));
+    await rewriteManifest(directory, ({ cutoff: _c, ...rest }) => ({
+      ...rest,
+      format: 1,
+      cutoffAt: started.toISOString(),
+    }));
+    const plain = await verifyBackupDirectory(directory);
+    assertEquals(plain.complete, true);
+    assertEquals(plain.cutoff, null);
+    const strict = await verifyBackupDirectory(directory, {
+      requireDatabaseCutoff: true,
+    });
+    assertEquals(strict.complete, false);
+    assertEquals(strict.problems.map((p) => p.kind), ["cutoff_not_database"]);
+    assert(strict.problems[0].detail.includes("predates cutoff records"));
   } finally {
     await Deno.remove(directory, { recursive: true });
   }

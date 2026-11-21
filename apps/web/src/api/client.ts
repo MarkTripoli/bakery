@@ -41,6 +41,8 @@ export type SafeProblem = Readonly<{
   reason?: string;
   /** Stable issue codes of a 422, such as a storage probe outcome. */
   issueCodes?: readonly string[];
+  /** A 422's field paths (JSON Pointers) and plain messages. */
+  issues?: readonly { readonly path: string; readonly message: string }[];
 }>;
 
 export type ApiFailure =
@@ -138,6 +140,21 @@ export type IntegrationClientCredentials =
   ClientOutputMap["IntegrationClientCredentials"];
 export type IntegrationClientCredentialsPut =
   ClientInputMap["IntegrationClientCredentialsPut"];
+export type TelemetryDestinationList =
+  ClientOutputMap["TelemetryDestinationList"];
+export type TelemetryDestination = ClientOutputMap["TelemetryDestination"];
+export type TelemetryDestinationListQuery =
+  ClientInputMap["TelemetryDestinationListQuery"];
+export type TelemetryDestinationDetail =
+  ClientOutputMap["TelemetryDestinationDetail"];
+export type TelemetryDestinationCreate =
+  ClientInputMap["TelemetryDestinationCreate"];
+export type TelemetryDestinationUpdate =
+  ClientInputMap["TelemetryDestinationUpdate"];
+export type TelemetryDestinationTest =
+  ClientInputMap["TelemetryDestinationTest"];
+export type TelemetryDestinationTestResult =
+  ClientOutputMap["TelemetryDestinationTestResult"];
 export type StorageSettings = ClientOutputMap["StorageSettings"];
 export type StorageSettingsPut = ClientInputMap["StorageSettingsPut"];
 export type SkillStorageSettings = ClientOutputMap["SkillStorageSettings"];
@@ -494,6 +511,14 @@ export type ExtractArtifactVersionOptions = Readonly<
   }
 >;
 
+export type ArtifactProbeResponse = ClientOutputMap["ArtifactProbeAnswer"];
+
+export type ReadArtifactProbeOptions = Readonly<{
+  organizationId: string;
+  versionId: string;
+  signal?: AbortSignal;
+}>;
+
 export type ListArtifactCommentsOptions = Readonly<
   ArtifactCommentQuery & {
     organizationId: string;
@@ -673,13 +698,28 @@ export type BakeryApiClient = {
       cursor?: string,
       signal?: AbortSignal,
     ) => Promise<ApiResult<LibraryPage>>;
-    /** A file's bytes: its current version, or the one at `revision`. */
+    /**
+     * A file's bytes: its current version, or the one at `revision`. A `range`
+     * asks for part of them, as `bytes=0-0` does to check a digest without
+     * reading a whole video into the page.
+     */
     readonly content: (
       organizationId: string,
       fileId: string,
       revision: number | undefined,
       signal?: AbortSignal,
+      range?: string,
     ) => Promise<ApiResult<ClientOutputMap["BinaryArtifact"]>>;
+    /**
+     * What the probe measured about this version's bytes, or nulls. A file
+     * stored inline has no blob and so no answer yet, which is not a refusal.
+     */
+    readonly probe: (
+      organizationId: string,
+      fileId: string,
+      revision: number | undefined,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<ClientOutputMap["ArtifactProbeAnswer"]>>;
   };
   readonly output: {
     readonly attempts: (
@@ -1271,6 +1311,49 @@ export type BakeryApiClient = {
     readonly get: (
       signal?: AbortSignal,
     ) => Promise<ApiResult<InstallationCapabilities>>;
+  };
+  /**
+   * Where Bakery sends its measurements (#739); installation administrators
+   * with a browser session only. A result never carries a secret.
+   */
+  readonly telemetryDestinations: {
+    /** `GET /v1/installation/telemetry-destinations`: the kinds, the measurements, the providers and one page of the destinations that match the search and filters. */
+    readonly list: (
+      query?: TelemetryDestinationListQuery,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<TelemetryDestinationList>>;
+    /** `GET /v1/installation/telemetry-destinations/{id}`: one destination with its kind, provider and the measurements. */
+    readonly get: (
+      id: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<TelemetryDestinationDetail>>;
+    /** `POST /v1/installation/telemetry-destinations`: adds one. */
+    readonly create: (options: {
+      readonly input: TelemetryDestinationCreate;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TelemetryDestination>>;
+    /** `PATCH /v1/installation/telemetry-destinations/{id}`: changes one, with its version as If-Match. */
+    readonly update: (options: {
+      readonly id: string;
+      readonly input: Omit<TelemetryDestinationUpdate, "id">;
+      readonly version: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TelemetryDestination>>;
+    /** `DELETE /v1/installation/telemetry-destinations/{id}`: removes one, with its version as If-Match. */
+    readonly remove: (options: {
+      readonly id: string;
+      readonly version: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<undefined>>;
+    /** `POST /v1/installation/telemetry-destination-tests`: sends one harmless message and reports the answer. */
+    readonly test: (options: {
+      readonly input: TelemetryDestinationTest;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TelemetryDestinationTestResult>>;
   };
   readonly storageSettings: {
     /** `GET /v1/storage/settings`: the organization's storage limits and how much of the quota is used. */
@@ -2021,6 +2104,9 @@ export type BakeryApiClient = {
   readonly extractArtifactVersion: (
     options: ExtractArtifactVersionOptions,
   ) => Promise<ApiResult<ArtifactExtractionResponse>>;
+  readonly readArtifactProbe: (
+    options: ReadArtifactProbeOptions,
+  ) => Promise<ApiResult<ArtifactProbeResponse>>;
   readonly listArtifactComments: (
     options: ListArtifactCommentsOptions,
   ) => Promise<ApiResult<ArtifactCommentListResponse>>;
@@ -2225,6 +2311,7 @@ function safeProblem(problem: ApiProblem): SafeProblem | null {
       ? { reason: problem.reason }
       : {}),
     ...(problem.issueCodes ? { issueCodes: problem.issueCodes } : {}),
+    ...(problem.issues ? { issues: problem.issues } : {}),
   };
 }
 
@@ -2544,7 +2631,9 @@ async function getArtifactContentResponse(
     throw new ApiTransportError("protocol", status);
   }
   if (status === 200 && await sha256Hex(content) !== contentDigest) {
-    throw new ApiTransportError("protocol", status);
+    // Named, not generic: the file is not the file the record describes, and the
+    // screen has a state for exactly that (#437).
+    throw new ApiTransportError("digest-mismatch", status);
   }
 
   if (status === 206) {
@@ -3374,7 +3463,7 @@ export function createBakeryApiClient({
           return failed(error);
         }
       },
-      async content(org, fileId, revision, signal) {
+      async content(org, fileId, revision, signal, range) {
         const scoped = createBakeryClient({
           baseUrl,
           fetch: fetchImpl,
@@ -3386,6 +3475,26 @@ export function createBakeryApiClient({
             data: await scoped.actions["storageFiles.content"]({
               id: fileId,
               revision,
+              ...(range === undefined ? {} : { range }),
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async probe(org, fileId, revision, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFiles.probe"]({
+              id: fileId,
+              organizationId: org,
+              ...(revision === undefined ? {} : { revision }),
             }, { signal }),
           };
         } catch (error) {
@@ -3983,6 +4092,99 @@ export function createBakeryApiClient({
             data: await client.actions["installation.capabilities"]({}, {
               signal,
             }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    telemetryDestinations: {
+      async list(query, signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.list"](
+              query ?? {},
+              { signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async get(id, signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.get"](
+              { id },
+              { signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async create(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.create"](
+              options.input,
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async update(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.update"](
+              { id: options.id, ...options.input },
+              {
+                ifMatch: versionEtag(options.version),
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async remove(options) {
+        try {
+          await client.actions["telemetryDestinations.delete"](
+            { id: options.id },
+            {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            },
+          );
+          return { ok: true, data: undefined };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async test(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.test"](
+              options.input,
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
           };
         } catch (error) {
           return failed(error);
@@ -4601,6 +4803,27 @@ export function createBakeryApiClient({
               ? {}
               : { maxBytes: options.maxBytes }),
           },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    /**
+     * What the probe learned about this version's bytes, or nulls.
+     *
+     * Separate from the content read on purpose: the answer is small, it needs
+     * no bytes, and a caller wants it before deciding whether to fetch any.
+     */
+    async readArtifactProbe(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactVersions.probe"](
+          { id: options.versionId },
           { signal: options.signal },
         );
         return { ok: true, data };
