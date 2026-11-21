@@ -7,6 +7,7 @@ import {
   progressReason,
   questionRow,
   startedBy,
+  waitsOnAnswer,
 } from "../../apps/web/src/pages/issues/work-model.ts";
 
 /**
@@ -257,5 +258,31 @@ Deno.test("an expired question shows only while it is the newest", () => {
       asked("open", "2026-01-01T11:00:00.000Z", "Again?"),
     ])?.kind,
     "open",
+  );
+});
+
+Deno.test("the badge says Needs an answer only while work is under way and a question is open", () => {
+  const open = questionRow([asked("open", "2026-01-01T10:00:00.000Z")]);
+  assertEquals(waitsOnAnswer("active", open), true);
+  assertEquals(waitsOnAnswer("admitted", open), true);
+  // A paused, finished or stopped request keeps its own word.
+  for (
+    const progress of [
+      "pending",
+      "waiting",
+      "suspended",
+      "completed",
+      "failed",
+      "canceled",
+      "rejected",
+    ] as const
+  ) assertEquals(waitsOnAnswer(progress, open), false);
+  assertEquals(waitsOnAnswer("active", null), false);
+  assertEquals(
+    waitsOnAnswer(
+      "active",
+      questionRow([asked("expired", "2026-01-01T10:00:00.000Z")]),
+    ),
+    false,
   );
 });

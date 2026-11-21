@@ -3873,6 +3873,7 @@
   "issues.work.pull.open": "Open",
   "issues.work.pull.merged": "Merged",
   "issues.work.pull.closed": "Closed",
+  "issues.work.progress.needsAnswer": "Needs an answer",
   "issues.work.progress.pending": "Checking the issue…",
   "issues.work.progress.waiting": "Waiting",
   "issues.work.progress.admitted": "Starting…",

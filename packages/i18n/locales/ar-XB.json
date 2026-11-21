@@ -5342,5 +5342,6 @@
   "issues.work.question.answer": "⟪Answer⟫",
   "issues.work.question.cannot": "⟪Someone who can work on this task needs to answer.⟫",
   "issues.work.question.expired": "⟪A question went unanswered and expired.⟫",
-  "issues.work.question.loadFailed": "⟪Bakery's questions could not be loaded.⟫"
+  "issues.work.question.loadFailed": "⟪Bakery's questions could not be loaded.⟫",
+  "issues.work.progress.needsAnswer": "⟪Needs an answer⟫"
 }

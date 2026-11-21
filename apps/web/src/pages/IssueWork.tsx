@@ -17,6 +17,7 @@ import {
 } from "../api/query.ts";
 import { failureStatus } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useShellViewport } from "../app/responsive.ts";
 import { useSession } from "../app/session-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ageOf } from "./issue-state.ts";
@@ -27,7 +28,9 @@ import {
   progressNext,
   progressReason,
   questionRow,
+  type QuestionRowView,
   startedBy,
+  waitsOnAnswer,
   type WorkStartedBy,
 } from "./issues/work-model.ts";
 
@@ -102,66 +105,41 @@ function PullRequests({ taskId }: { readonly taskId: string }) {
  * there is one place to answer; this row only points at it.
  */
 function QuestionRow(
-  { taskId, canWrite }: {
+  { row, taskId, canWrite, phone }: {
+    readonly row: QuestionRowView;
     readonly taskId: string;
     /** Developers and administrators may answer; others see who can. */
     readonly canWrite: boolean;
+    /** On a phone the button goes under the text, the width of the row. */
+    readonly phone: boolean;
   },
 ) {
-  const api = useBakeryApi();
-  const scope = useProtectedScope();
   const navigate = useNavigate();
   const { translate } = useI18n();
-  const questions = useQuery({
-    ...questionsQueryOptions(api, scope, taskId),
-    enabled: scope.organizationId !== null,
-  });
-  if (questions.isError) {
-    return (
-      <UI.InlineNotice
-        tone="error"
-        action={
-          <UI.Button
-            variant="secondary"
-            onClick={() => void questions.refetch()}
-          >
-            {translate("issues.retry" as never)}
-          </UI.Button>
-        }
-      >
-        {translate("issues.work.question.loadFailed" as never)}
-      </UI.InlineNotice>
-    );
-  }
-  const row = questionRow(questions.data?.items ?? []);
-  if (row === null) return null;
-  const openTask = () =>
-    void navigate({ to: "/tasks/$taskId", params: { taskId } });
   if (row.kind === "expired") {
+    // The way to the task is the "Open task" button of the line below.
     return (
-      <UI.InlineNotice
-        tone="neutral"
-        action={
-          <UI.Button variant="secondary" onClick={openTask}>
-            {translate("issues.work.openTask" as never)}
-          </UI.Button>
-        }
-      >
+      <UI.InlineNotice tone="neutral">
         {translate("issues.work.question.expired" as never)}
       </UI.InlineNotice>
     );
   }
+  const answer = canWrite
+    ? (
+      <UI.Button
+        variant="primary"
+        onClick={() =>
+          void navigate({ to: "/tasks/$taskId", params: { taskId } })}
+      >
+        {translate("issues.work.question.answer" as never)}
+      </UI.Button>
+    )
+    : undefined;
   return (
     <UI.InlineNotice
       tone="warning"
       data-testid="issue-question"
-      action={canWrite
-        ? (
-          <UI.Button variant="secondary" onClick={openTask}>
-            {translate("issues.work.question.answer" as never)}
-          </UI.Button>
-        )
-        : undefined}
+      action={phone ? undefined : answer}
     >
       <UI.Stack gap="compact">
         <UI.Text variant="strong">
@@ -185,6 +163,7 @@ function QuestionRow(
             {translate("issues.work.question.cannot" as never)}
           </UI.Text>
         )}
+        {phone ? answer : null}
       </UI.Stack>
     </UI.InlineNotice>
   );
@@ -395,6 +374,13 @@ export function IssueWork(
     ...taskQueryOptions(api, scope, own?.taskId ?? ""),
     enabled: scope.organizationId !== null && own !== undefined,
   });
+  // Read once: the row and the progress badge both speak from it.
+  const phone = useShellViewport() === "phone";
+  const questions = useQuery({
+    ...questionsQueryOptions(api, scope, own?.taskId ?? ""),
+    enabled: scope.organizationId !== null && own !== undefined,
+  });
+  const asking = questionRow(questions.data?.items ?? []);
 
   if (requests.isPending || links.isPending) {
     return <UI.Skeleton shape="row" />;
@@ -435,15 +421,47 @@ export function IssueWork(
       <UI.Heading level="section">
         {translate("issues.work.title" as never)}
       </UI.Heading>
-      {own !== undefined
-        ? <QuestionRow taskId={own.taskId} canWrite={canWrite} />
+      {own !== undefined && questions.isError
+        ? (
+          <UI.InlineNotice
+            tone="error"
+            action={
+              <UI.Button
+                variant="secondary"
+                onClick={() => void questions.refetch()}
+              >
+                {translate("issues.retry" as never)}
+              </UI.Button>
+            }
+          >
+            {translate("issues.work.question.loadFailed" as never)}
+          </UI.InlineNotice>
+        )
+        : null}
+      {own !== undefined && asking !== null
+        ? (
+          <QuestionRow
+            row={asking}
+            taskId={own.taskId}
+            canWrite={canWrite}
+            phone={phone}
+          />
+        )
         : null}
       {request !== null && by !== null
         ? (
           <UI.Stack gap="compact" aria-live="polite">
             <UI.Inline gap="compact">
-              <UI.Badge tone={PROGRESS_TONE[request.progress]}>
-                {translate(`issues.work.progress.${request.progress}` as never)}
+              <UI.Badge
+                tone={waitsOnAnswer(request.progress, asking)
+                  ? "warning"
+                  : PROGRESS_TONE[request.progress]}
+              >
+                {translate(
+                  (waitsOnAnswer(request.progress, asking)
+                    ? "issues.work.progress.needsAnswer"
+                    : `issues.work.progress.${request.progress}`) as never,
+                )}
               </UI.Badge>
               {reason !== null
                 ? <UI.Text>{reasonSentence(reason)}</UI.Text>

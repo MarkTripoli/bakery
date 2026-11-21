@@ -162,6 +162,21 @@ export function pausedBanner(
   }
 }
 
+/** The progress values a task can be in while it waits on a person's answer. */
+const ANSWERABLE: ReadonlySet<WorkProgress> = new Set(["admitted", "active"]);
+
+/**
+ * Whether the progress badge should read "Needs an answer": the work is under
+ * way and its task has an open question, so "Working" would contradict the row
+ * above it. A paused, finished or stopped request keeps its own word.
+ */
+export function waitsOnAnswer(
+  progress: WorkProgress,
+  row: QuestionRowView | null,
+): boolean {
+  return row?.kind === "open" && ANSWERABLE.has(progress);
+}
+
 /** What the issue page says about its task's questions (design section D). */
 export type QuestionRowView =
   | {

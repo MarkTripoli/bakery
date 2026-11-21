@@ -298,6 +298,28 @@ for (
         ),
       )
         .toBeVisible();
+      // The badge agrees with the row: the work waits on an answer.
+      await expect(section(page).getByText("Needs an answer", { exact: true }))
+        .toBeVisible();
+      await expect(section(page).getByText("Working", { exact: true }))
+        .toHaveCount(0);
+      // Answer is the one next step: primary, beside the text on a desktop and
+      // under it, the row's width and at least 44 high, on a phone.
+      const answer = row.getByRole("button", { name: "Answer" });
+      await expect(answer).toHaveClass(/ui-button--primary/);
+      const box = (await answer.boundingBox())!;
+      const rowBox = (await row.boundingBox())!;
+      const asked = (await row.getByText(/^Asked /).boundingBox())!;
+      if (viewport.width < 744) {
+        expect(box.y).toBeGreaterThanOrEqual(asked.y + asked.height - 1);
+        // The 44 high touch size comes with a touch device, the mobile project.
+        if (test.info().project.name === "mobile") {
+          expect(box.height).toBeGreaterThanOrEqual(44);
+        }
+        expect(box.width).toBeGreaterThan(rowBox.width * 0.6);
+      } else {
+        expect(box.x).toBeGreaterThan(rowBox.x + rowBox.width * 0.7);
+      }
       // The first thing in the section, above how the work is going.
       await expect(section(page).locator("> *").nth(1)).toHaveAttribute(
         "data-testid",
@@ -349,6 +371,9 @@ for (
       )
         .toBeVisible();
       await expect(page.getByTestId("issue-question")).toHaveCount(0);
+      // One way to the task, not two: the line below carries it.
+      await expect(section(page).getByRole("button", { name: "Open task" }))
+        .toHaveCount(1);
       await page.mouse.move(700, 700);
       await still(page, "issue-work-question-expired");
     });

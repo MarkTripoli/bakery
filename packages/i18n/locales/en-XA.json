@@ -5342,5 +5342,6 @@
   "issues.work.question.answer": "⟦Àñšŵëŕ…⟧",
   "issues.work.question.cannot": "⟦Šôɱëôñë ŵĥô çàñ ŵôŕķ ôñ ŧĥïš ŧàšķ ñëëðš ŧô àñšŵëŕ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "issues.work.question.expired": "⟦À ǫûëšŧïôñ ŵëñŧ ûñàñšŵëŕëð àñð ëẋþïŕëð. ŧëšŧ çôþÿ ŧ⟧",
-  "issues.work.question.loadFailed": "⟦Ɓàķëŕÿ'š ǫûëšŧïôñš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧ⟧"
+  "issues.work.question.loadFailed": "⟦Ɓàķëŕÿ'š ǫûëšŧïôñš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧ⟧",
+  "issues.work.progress.needsAnswer": "⟦Ñëëðš àñ àñšŵëŕ ŧëš⟧"
 }
