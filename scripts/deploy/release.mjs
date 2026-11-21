@@ -17,6 +17,14 @@ import {
 import { isIP } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  completionLines,
+  failedStepLine,
+  failureLines,
+  statusLines,
+  STEP_LABELS,
+  stepLine,
+} from "./release-messages.mjs";
 
 const execute = promisify(execFile);
 const SHA = /^[a-f0-9]{40}$/;
@@ -429,6 +437,15 @@ export async function smoke(origin, sha, fetcher = fetch) {
   if (identity.status !== 401) throw new Error("SMOKE_AUTH_BOUNDARY_FAILED");
 }
 
+function emit(progress, step, result = "ok") {
+  progress({
+    step,
+    total: STEP_LABELS.length,
+    label: STEP_LABELS[step - 1],
+    result,
+  });
+}
+
 export async function transition(
   store,
   operations,
@@ -436,6 +453,7 @@ export async function transition(
   digest,
   rollback = false,
   bootstrap = false,
+  progress = () => {},
 ) {
   commit(sha);
   const old = await store.read();
@@ -443,7 +461,7 @@ export async function transition(
     old.phase === "enrollment" && !rollback && !bootstrap &&
     old.desired.sha === sha
   ) {
-    return await finish(store, operations, old);
+    return await finish(store, operations, old, progress);
   }
   if (old.phase !== "committed") throw new Error("RECOVERY_REQUIRED");
   if (bootstrap && old.active) {
@@ -455,7 +473,9 @@ export async function transition(
   }
   await operations.prepare(sha, digest);
   const target = manifest(await operations.manifest(sha), sha);
+  emit(progress, 1);
   const additions = pendingMigrations(old.migrations, target, rollback);
+  emit(progress, 2, additions.length ? `${additions.length} to apply` : "none");
   const desired = { sha, slot: old.active?.slot === "blue" ? "green" : "blue" };
   let state = {
     ...old,
@@ -466,6 +486,7 @@ export async function transition(
   await store.write(state);
   try {
     await operations.backup();
+    emit(progress, 3);
     if (additions.length) {
       state = {
         ...state,
@@ -485,19 +506,20 @@ export async function transition(
     await store.write(state);
     await operations.switchProxy(desired);
     await operations.publicSmoke(desired);
+    emit(progress, 4);
     if (bootstrap) {
       state = { ...state, phase: "enrollment" };
       await store.write(state);
       return state;
     }
-    return await finish(store, operations, state);
+    return await finish(store, operations, state, progress);
   } catch (error) {
     await recover(store, operations);
     throw error;
   }
 }
 
-async function finish(store, operations, state) {
+async function finish(store, operations, state, progress = () => {}) {
   try {
     await operations.publicSmoke(state.desired);
     state = { ...state, phase: "background" };
@@ -514,6 +536,7 @@ async function finish(store, operations, state) {
       transaction: state.transaction,
     };
     await store.write(committed);
+    emit(progress, 5);
     return committed;
   } catch (error) {
     await recover(store, operations);
@@ -646,25 +669,80 @@ export function digest(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+const store = {
+  read: async () => JSON.parse(await readFile(STATE, "utf8")),
+  write: (value) => writeAtomic(STATE, `${JSON.stringify(value, null, 2)}\n`),
+};
+
+// The journal as it is now, or null when it cannot be read (first install).
+async function readState() {
+  try {
+    return await store.read();
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
-  if (process.getuid() !== 0) throw new Error("ROOT_REQUIRED");
   const [command, sha, checksum] = process.argv.slice(2);
+  let lastStep = 0;
+  const progress = (step) => {
+    lastStep = step.step;
+    console.log(stepLine(step));
+  };
+  try {
+    await run(command, sha, checksum, progress);
+  } catch (error) {
+    const state = await readState();
+    const code = error instanceof Error ? error.message.split(":")[0] : "";
+    const failed = ["deploy", "bootstrap", "rollback"].includes(command)
+      ? failedStepLine(lastStep + 1, STEP_LABELS.length, code)
+      : null;
+    if (failed) console.error(failed);
+    for (
+      const line of failureLines(error, {
+        command,
+        requested: sha,
+        active: state?.active?.sha ?? null,
+        previous: state?.previous?.sha ?? null,
+        phase: state?.phase ?? null,
+      })
+    ) console.error(line);
+    process.exitCode = 1;
+  }
+}
+
+async function run(command, sha, checksum, progress) {
+  if (process.getuid() !== 0) throw new Error("ROOT_REQUIRED");
+  if (command === "status") {
+    for (const line of statusLines(await readState())) console.log(line);
+    return;
+  }
   const config = JSON.parse(
     await readFile("/etc/bakery/deployment.json", "utf8"),
   );
-  const store = {
-    read: async () => JSON.parse(await readFile(STATE, "utf8")),
-    write: (value) => writeAtomic(STATE, `${JSON.stringify(value, null, 2)}\n`),
-  };
   const operations = await hostOperations(config);
   switch (command) {
-    case "deploy":
+    case "deploy": {
       if (!DIGEST.test(checksum)) throw new Error("ARCHIVE_DIGEST_INVALID");
-      await transition(store, operations, sha, checksum);
+      const before = await readState();
+      const state = await transition(
+        store,
+        operations,
+        sha,
+        checksum,
+        false,
+        false,
+        progress,
+      );
+      for (const line of completionLines("deploy", state, before)) {
+        console.log(line);
+      }
       break;
+    }
     case "bootstrap":
       if (!DIGEST.test(checksum)) throw new Error("ARCHIVE_DIGEST_INVALID");
-      await transition(store, operations, sha, checksum, false, true);
+      await transition(store, operations, sha, checksum, false, true, progress);
       console.log("API_READY_WORKER_ENROLLMENT_REQUIRED");
       break;
     case "rollback": {
@@ -673,7 +751,18 @@ async function main() {
         throw new Error("ROLLBACK_HEAD_CHANGED");
       }
       if (!state.previous) throw new Error("NO_ROLLBACK_BASELINE");
-      await transition(store, operations, state.previous.sha, undefined, true);
+      const done = await transition(
+        store,
+        operations,
+        state.previous.sha,
+        undefined,
+        true,
+        false,
+        progress,
+      );
+      for (const line of completionLines("rollback", done, state)) {
+        console.log(line);
+      }
       break;
     }
     case "recover":
@@ -697,8 +786,5 @@ async function main() {
 if (
   process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
-  main().catch((error) => {
-    console.error(error.message);
-    process.exitCode = 1;
-  });
+  await main();
 }
