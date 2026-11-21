@@ -8,6 +8,7 @@ import "./navigation.css";
 
 export * from "./organisms/AccessOffer.tsx";
 export * from "./organisms/MentionPicker.tsx";
+export * from "./organisms/SealedFrame.tsx";
 export * from "./organisms/MessageComposer.tsx";
 export * from "./organisms/RunIdentity.tsx";
 export * from "./organisms/WorkflowStageStrip.tsx";
