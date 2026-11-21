@@ -34,7 +34,10 @@ def margins(path):
             if row[x * 3:x * 3 + 3] != canvas:
                 left = min(left, x)
                 right = max(right, x)
-    return left, width - 1 - right
+    # A panel taller than the window must start at the top and scroll: the top row is still canvas,
+    # because the panel starts below the margin. A panel centred past the top edge has no canvas row.
+    top_is_canvas = rows[0] == canvas * width
+    return left, width - 1 - right, top_is_canvas
 
 
 out = sys.argv[1]
@@ -48,7 +51,9 @@ for state, size, theme, result in rows:
     wh, _, brightness = result.partition(" brightness=")
     if wh != size:
         failures.append(f"{name}: the capture is {wh}, not {size}")
-    left, right = margins(os.path.join(out, name + ".png"))
+    left, right, top_is_canvas = margins(os.path.join(out, name + ".png"))
+    if not top_is_canvas:
+        failures.append(f"{name}: the top of the panel is cut off, it should start at the top and scroll")
     if abs(left - right) > 2:
         failures.append(f"{name}: the panel is not centred (left {left}, right {right})")
     # Under 480 wide the panel fills the window less 16 on each side; at the default size it is 420 wide.
