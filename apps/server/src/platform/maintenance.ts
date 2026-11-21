@@ -118,35 +118,45 @@ export function drainDecision(input: {
 
 type SwitchRow = { state: string; leaseExpiresAt: Date; now: Date };
 
-/** The switch row while it holds the installation, read with the database clock; otherwise null. */
-async function activeSwitch(
-  transaction: Pick<PgTransactionClient, "query">,
-): Promise<SwitchRow | null> {
-  const result = await transaction.query<SwitchRow>(
-    `select state, lease_expires_at as "leaseExpiresAt",
-            clock_timestamp() as "now"
-       from bakery.installation_maintenance where id = true`,
-  );
-  const row = result.rows[0];
-  return row && maintenanceIsActive(row, row.now) ? row : null;
-}
+type HoldRow = {
+  state: string | null;
+  leaseExpiresAt: Date | null;
+  now: Date;
+  restoreHeld?: boolean;
+};
 
 /**
- * Whether a restore holds the installation (#64 slice E): a restore record that
- * has not been released. Unlike the backup switch it has no lease, because
- * nothing renews it and nothing may let it lapse: it ends only when an
- * administrator completes the ordered re-enable steps and the record is
- * released.
+ * What holds the installation right now, in one read on the database clock: a
+ * restore (#64 slice E), whose record has no lease because nothing renews it
+ * and nothing may let it lapse (it ends only when an administrator completes
+ * the ordered re-enable steps and the record is released), and the backup
+ * switch, which is active only while its state is not `off` and its lease is
+ * in the future. One query, because this runs in front of every run creation
+ * and worker claim.
  */
-async function restoreHeld(
+async function readHold(
   transaction: Pick<PgTransactionClient, "query">,
-): Promise<boolean> {
-  const result = await transaction.query<{ held: boolean }>(
-    `select exists (
-       select 1 from bakery.installation_restores where released_at is null
-     ) as held`,
+): Promise<{ restoring: boolean; backup: SwitchRow | null }> {
+  const result = await transaction.query<HoldRow>(
+    `select switch.state, switch.lease_expires_at as "leaseExpiresAt",
+            clock_timestamp() as "now",
+            exists (
+              select 1 from bakery.installation_restores
+               where released_at is null
+            ) as "restoreHeld"
+       from (select 1) as one
+       left join bakery.installation_maintenance as switch on switch.id = true`,
   );
-  return result.rows[0]?.held === true;
+  const row = result.rows[0];
+  if (row === undefined) return { restoring: false, backup: null };
+  const backup = row.state !== null && row.leaseExpiresAt !== null &&
+      maintenanceIsActive(
+        { state: row.state, leaseExpiresAt: row.leaseExpiresAt },
+        row.now,
+      )
+    ? { state: row.state, leaseExpiresAt: row.leaseExpiresAt, now: row.now }
+    : null;
+  return { restoring: row.restoreHeld === true, backup };
 }
 
 /**
@@ -155,20 +165,22 @@ async function restoreHeld(
  * INSTALLATION_RESTORING that is not retryable (asking again does not help). A
  * backup hold refuses with a retryable 503 INSTALLATION_QUIESCED and a
  * Retry-After hint. Either way it happens before anything is written; the guard
- * reads the switch with the database clock and writes nothing, so a refused
- * call commits nothing.
+ * reads with the database clock and writes nothing, so a refused call commits
+ * nothing.
  */
 export async function assertNotQuiesced(
   transaction: Pick<PgTransactionClient, "query">,
 ): Promise<void> {
-  if (await restoreHeld(transaction)) {
+  const hold = await readHold(transaction);
+  if (hold.restoring) {
     throw new StandardError({ code: "INSTALLATION_RESTORING" });
   }
-  const row = await activeSwitch(transaction);
-  if (row === null) return;
+  if (hold.backup === null) return;
   throw new StandardError({
     code: "INSTALLATION_QUIESCED",
-    params: { retryAfterSeconds: maintenanceRetryAfter(row, row.now) },
+    params: {
+      retryAfterSeconds: maintenanceRetryAfter(hold.backup, hold.backup.now),
+    },
   });
 }
 
@@ -181,6 +193,6 @@ export async function assertNotQuiesced(
 export async function isQuiesced(
   transaction: Pick<PgTransactionClient, "query">,
 ): Promise<boolean> {
-  return (await restoreHeld(transaction)) ||
-    (await activeSwitch(transaction)) !== null;
+  const hold = await readHold(transaction);
+  return hold.restoring || hold.backup !== null;
 }

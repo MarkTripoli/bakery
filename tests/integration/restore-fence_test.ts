@@ -17,10 +17,9 @@ import {
   workerFixtureCapabilities,
   workerRequest,
 } from "../helpers/worker-execution.ts";
+import { seedLegacyLeasedModelAttempt } from "../helpers/worker-execution/legacy-attempt.ts";
 import {
-  claimAssignment,
   eventBody,
-  postWorkerEvent,
   withWorkerFixture,
 } from "../helpers/worker-execution/scenarios.ts";
 
@@ -58,6 +57,23 @@ async function withFixture<T>(work: (fixture: WorkerFixture) => Promise<T>) {
   });
 }
 
+/** A worker reports an event on its attempt, as the worker protocol does. */
+const postEvent = (
+  fixture: WorkerFixture,
+  worker: Awaited<ReturnType<typeof registeredWorker>>,
+  assignment: { attemptId: string; leaseToken: string; fence: string },
+  localSeq = "1",
+) => {
+  const eventId = crypto.randomUUID();
+  return workerRequest(
+    fixture,
+    worker.credential,
+    `/v1/worker/attempts/${assignment.attemptId}/events`,
+    eventBody(assignment, eventId, localSeq),
+    { idempotencyKey: eventId },
+  );
+};
+
 const claimBody = (workerHostId: string) => {
   const claimKey = crypto.randomUUID();
   return {
@@ -75,21 +91,19 @@ Deno.test("the fence quarantines a real claimed attempt, moves the job's fence a
     const worker = await registeredWorker(fixture, {
       name: "restore-fence-holder",
     });
-    await seedEligibleJob(
+    const job = await seedEligibleJob(
       fixture.pgDatabase,
       fixture.organizationId,
       fixture.principalId,
-      { priority: 100 },
     );
-    const assignment = await claimAssignment(fixture, worker);
-    // Before the restore the holder reports normally.
-    const before = await postWorkerEvent(
+    // A genuinely leased attempt: the same rows a claim leaves behind.
+    const assignment = await seedLegacyLeasedModelAttempt(
       fixture,
       worker,
-      assignment,
-      eventBody(assignment, crypto.randomUUID()),
-      crypto.randomUUID(),
+      job.jobId,
     );
+    // Before the restore the holder reports normally.
+    const before = await postEvent(fixture, worker, assignment);
     assert(
       before.ok,
       `the holder reported before the restore: ${before.status}`,
@@ -132,13 +146,7 @@ Deno.test("the fence quarantines a real claimed attempt, moves the job's fence a
     ]);
 
     // The old holder is refused: its host is revoked, so it must enrol again.
-    const after = await postWorkerEvent(
-      fixture,
-      worker,
-      assignment,
-      eventBody(assignment, crypto.randomUUID(), "2"),
-      crypto.randomUUID(),
-    );
+    const after = await postEvent(fixture, worker, assignment, "2");
     assert([401, 403, 409].includes(after.status), `${after.status}`);
     await after.body?.cancel();
 
@@ -296,7 +304,9 @@ Deno.test("while the restore is held every guarded door refuses with a non-retry
       open.body,
       { idempotencyKey: open.claimKey },
     );
-    assertEquals(claimed.status, 200, await claimed.clone().text());
+    // The door is open: the claim is processed, and no work is claimable for
+    // this worker, so it answers "nothing to do" and not the restore refusal.
+    assertEquals(claimed.status, 204, await claimed.clone().text());
     await claimed.body?.cancel();
   }));
 
@@ -309,13 +319,16 @@ Deno.test("the fence is one transaction: if anything fails after it ran, nothing
       "op.atomic",
     );
     const worker = await registeredWorker(fixture, { name: "restore-atomic" });
-    await seedEligibleJob(
+    const job = await seedEligibleJob(
       fixture.pgDatabase,
       fixture.organizationId,
       fixture.principalId,
-      { priority: 100 },
     );
-    const assignment = await claimAssignment(fixture, worker);
+    const assignment = await seedLegacyLeasedModelAttempt(
+      fixture,
+      worker,
+      job.jobId,
+    );
 
     await assertRejects(
       () =>
