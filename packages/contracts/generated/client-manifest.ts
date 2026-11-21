@@ -21717,9 +21717,10 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. WorkerEnrollmentCreate.name must contain at most 200 characters.",
+          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control characters are refused. WorkerEnrollmentCreate.name must contain at most 200 characters. WorkerEnrollmentCreate.name must match the pattern ^[^\\u0000-\\u001F\\u007F]*$.",
           "type": "string",
-          "maxLength": 200
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
         },
         "os": {
           "description": "Intended operating system of the machine being enrolled; omitted means the machine reports its own system when it links, and Bakery checks it against the supported systems.",
@@ -33137,8 +33138,11 @@ export const clientManifest = {
       "properties": {
         "os": {
           "type": "string",
-          "maxLength": 50,
-          "description": "Operating system the machine reports, such as linux or macos. WorkerLinkRequestCreate.os must contain at most 50 characters."
+          "enum": [
+            "linux",
+            "macos"
+          ],
+          "description": "Operating system the machine reports: linux or macos. Anything else is refused, so an unauthenticated machine cannot put its own words on an Admin's screen."
         },
         "architecture": {
           "type": "string",
@@ -33197,9 +33201,10 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. WorkerLinkRequestApprove.name must contain at most 200 characters.",
+          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control characters are refused. WorkerLinkRequestApprove.name must contain at most 200 characters. WorkerLinkRequestApprove.name must match the pattern ^[^\\u0000-\\u001F\\u007F]*$.",
           "type": "string",
-          "maxLength": 200
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
         },
         "slots": {
           "type": "integer",

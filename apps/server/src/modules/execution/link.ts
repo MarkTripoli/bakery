@@ -52,6 +52,8 @@ const POLL_PER_SOURCE = { max: 240, windowMs: TEN_MINUTES_MS };
 const LOOKUP_PER_PRINCIPAL = { max: 30, windowMs: TEN_MINUTES_MS };
 const LOOKUP_PER_CODE = { max: 10, windowMs: TEN_MINUTES_MS };
 export const REGISTER_LINK_PER_SOURCE = { max: 20, windowMs: TEN_MINUTES_MS };
+/** Failed or not, ten registrations at one code lock that code for the window. */
+export const REGISTER_LINK_PER_CODE = { max: 10, windowMs: TEN_MINUTES_MS };
 
 const RATE_LIMIT_PREFIX = "bakery:worker-link";
 

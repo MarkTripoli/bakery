@@ -3,7 +3,7 @@
 // capability escalation at registration, brute force against the rate
 // limits, a wrong device secret, and an unsupported system that must not use
 // the code up.
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { authTestOrigin } from "../helpers/auth.ts";
 import type { DesktopFixture } from "../helpers/desktop-sign-in.ts";
 import {
@@ -398,4 +398,166 @@ Deno.test("an unsupported system does not use the code up", () =>
     );
     assertEquals(supported.status, 200, await supported.clone().text());
     fixture.workerHostIds.push((await supported.json()).workerHostId);
+  }));
+
+const enrollmentCount = async (fixture: Fixture) =>
+  (await fixture.pgDatabase.query<{ n: number }>(
+    "select count(*)::int as n from bakery.worker_enrollments where organization_id = $1",
+    [fixture.organizationId],
+  )).rows[0]!.n;
+
+function approve(fixture: Fixture, requestId: string, body: unknown) {
+  return adminRequest(
+    fixture,
+    `/v1/worker-link-requests/${requestId}/approvals`,
+    body,
+    { idempotencyKey: crypto.randomUUID() },
+  );
+}
+
+function decline(fixture: Fixture, requestId: string) {
+  return adminRequest(
+    fixture,
+    `/v1/worker-link-requests/${requestId}/declines`,
+    {},
+    { idempotencyKey: crypto.randomUUID() },
+  );
+}
+
+Deno.test("Admins deciding one request at once make exactly one decision", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const request = await createRequest(fixture);
+    const before = await enrollmentCount(fixture);
+    const results = await Promise.all([
+      ...Array.from(
+        { length: 5 },
+        () =>
+          approve(fixture, request.requestId, {
+            slots: 1,
+            capabilities: ["git"],
+          }),
+      ),
+      decline(fixture, request.requestId),
+    ]);
+    const statuses = results.map((response) => response.status);
+    assertEquals(
+      statuses.filter((status) => status === 200).length,
+      1,
+      `exactly one decision wins: ${statuses.join(",")}`,
+    );
+    assert(statuses.every((status) => status === 200 || status === 409));
+    const decided = await fixture.pgDatabase.query<{ decision: string }>(
+      "select decision from bakery.worker_link_requests where id = $1",
+      [request.requestId],
+    );
+    assertEquals(
+      (await enrollmentCount(fixture)) - before,
+      decided.rows[0]!.decision === "approved" ? 1 : 0,
+    );
+  }));
+
+Deno.test("an expired request cannot be approved, declined or polled for a code", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const request = await createRequest(fixture);
+    await fixture.pgDatabase.query(
+      "update bakery.worker_link_requests set expires_at = now() - interval '1 second' where id = $1",
+      [request.requestId],
+    );
+    const before = await enrollmentCount(fixture);
+    const approved = await approve(fixture, request.requestId, {
+      slots: 1,
+      capabilities: ["git"],
+    });
+    assertEquals(approved.status, 409);
+    assertEquals((await problem(approved)).reason, "expired");
+    assertEquals((await decline(fixture, request.requestId)).status, 409);
+    const polled = await (await poll(
+      fixture,
+      request.requestId,
+      request.deviceSecret,
+    )).json();
+    assertEquals(polled.state, "expired");
+    assertEquals("linkCode" in polled, false);
+    assertEquals(await enrollmentCount(fixture), before);
+  }));
+
+Deno.test("registration guesses at one code are limited per code", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      statuses.push(
+        (await registerWithLinkCode(fixture, "ZZZZ-ZZZZ", workerCredential()))
+          .status,
+      );
+    }
+    // Ten guesses fail as not found; the eleventh at the same code is limited
+    // well before the per-source limit of twenty.
+    assertEquals(statuses.slice(0, 10).every((status) => status === 404), true);
+    assertEquals(statuses[10], 429);
+    // Another code from the same source is still answered.
+    const other = await registerWithLinkCode(
+      fixture,
+      "YYYY-YYYY",
+      workerCredential(),
+    );
+    assertEquals(other.status, 404);
+  }));
+
+Deno.test("a link request names only a system Bakery knows", () =>
+  withWorkerFixture(async (fixture) => {
+    for (
+      const os of [
+        "linux\u001b[2Jhello",
+        "<img src=x onerror=alert(1)>",
+        "Ubuntu 24.04 - approve me fast, IT asked",
+        "windows",
+      ]
+    ) {
+      await clearLinkRateLimits(fixture);
+      const created = await publicPost(fixture, "/v1/worker/link-requests", {
+        ...MACHINE,
+        os,
+      });
+      assertEquals(created.status, 422, os);
+    }
+    await clearLinkRateLimits(fixture);
+    const mac = await publicPost(fixture, "/v1/worker/link-requests", {
+      ...MACHINE,
+      os: "macos",
+    });
+    assertEquals(mac.status, 201);
+  }));
+
+Deno.test("a machine name with control characters is refused at approve and enroll", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const request = await createRequest(fixture);
+    const before = await enrollmentCount(fixture);
+    for (
+      const name of ["a\u001b[2Jb", "line\nbreak", "bell\u0007", "del\u007f"]
+    ) {
+      const approved = await approve(fixture, request.requestId, {
+        slots: 1,
+        capabilities: ["git"],
+        name,
+      });
+      assertEquals(approved.status, 422, JSON.stringify(name));
+      const enrolled = await adminRequest(
+        fixture,
+        "/v1/worker-enrollments",
+        { capabilities: ["git"], slots: 1, name },
+        { idempotencyKey: crypto.randomUUID() },
+      );
+      assertEquals(enrolled.status, 422, JSON.stringify(name));
+    }
+    assertEquals(await enrollmentCount(fixture), before);
+    const fine = await approve(fixture, request.requestId, {
+      slots: 1,
+      capabilities: ["git"],
+      name: "Build box é 01",
+    });
+    assertEquals(fine.status, 200, await fine.clone().text());
   }));

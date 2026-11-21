@@ -4865,9 +4865,10 @@ const transportSchemas = {
           "type": "string",
           "required": false,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
           },
-          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers."
+          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control characters are refused."
         },
         {
           "name": "os",
@@ -14524,12 +14525,13 @@ const transportSchemas = {
       "fields": [
         {
           "name": "os",
-          "type": "string",
+          "type": "enum",
           "required": true,
-          "bounds": {
-            "maxLength": 50
-          },
-          "description": "Operating system the machine reports, such as linux or macos."
+          "enum": [
+            "linux",
+            "macos"
+          ],
+          "description": "Operating system the machine reports: linux or macos. Anything else is refused, so an unauthenticated machine cannot put its own words on an Admin's screen."
         },
         {
           "name": "architecture",
@@ -14552,6 +14554,7 @@ const transportSchemas = {
       ],
       "rules": [
         "Unauthenticated and rate-limited per source.",
+        "Only linux or macos is accepted as the system; any other text is refused before anything is stored.",
         "Creates a request that grants nothing until an Admin approves its user code."
       ],
       "description": "A machine with no link code asks to be linked: Bakery returns a short user code to show an Admin and a device secret only this terminal keeps."
@@ -14599,9 +14602,10 @@ const transportSchemas = {
           "type": "string",
           "required": false,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
           },
-          "description": "Name for the machine; omitted or empty keeps the host name the machine reported."
+          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control characters are refused."
         },
         {
           "name": "slots",

@@ -6,6 +6,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  BOOTSTRAP_ERRORS,
   type LinkIo,
   LinkStepFailed,
   parseLinkCommand,
@@ -422,8 +423,13 @@ Deno.test("link takes no token flag or token environment", () => {
     } catch (error) {
       refused = (error as { code?: string }).code ?? "";
     }
-    assertEquals(refused, "COMMAND_TOKEN_SHORTCUT");
+    assertEquals(refused, "COMMAND_LINK_TOKEN_SHORTCUT");
   }
+  // The refusal names only what link accepts.
+  const message = BOOTSTRAP_ERRORS.COMMAND_LINK_TOKEN_SHORTCUT;
+  assertEquals(message.includes("--token-file"), false);
+  assertEquals(message.includes("--token-fd"), false);
+  assertEquals(message.includes("--code"), true);
   let environment = "";
   try {
     parseLinkCommand(["link", "--server", SERVER], {
@@ -432,7 +438,7 @@ Deno.test("link takes no token flag or token environment", () => {
   } catch (error) {
     environment = (error as { code?: string }).code ?? "";
   }
-  assertEquals(environment, "COMMAND_TOKEN_SHORTCUT");
+  assertEquals(environment, "COMMAND_LINK_TOKEN_SHORTCUT");
   assertEquals(
     parseLinkCommand(["link", "--server", SERVER, "--code", CODE], {}, {
       root: "/r",

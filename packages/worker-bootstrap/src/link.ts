@@ -45,7 +45,7 @@ export function parseLinkCommand(
   for (let at = 0; at < rest.length; at += 1) {
     const word = rest[at]!;
     if (word === "--token" || word.startsWith("--token")) {
-      throw new BootstrapError("COMMAND_TOKEN_SHORTCUT");
+      throw new BootstrapError("COMMAND_LINK_TOKEN_SHORTCUT");
     }
     if (!["--server", "--code", "--root"].includes(word) || values.has(word)) {
       throw new BootstrapError("COMMAND_UNKNOWN");
@@ -59,7 +59,7 @@ export function parseLinkCommand(
   }
   for (const key of TOKEN_ENVIRONMENT) {
     if ((environment[key] ?? "") !== "") {
-      throw new BootstrapError("COMMAND_TOKEN_SHORTCUT");
+      throw new BootstrapError("COMMAND_LINK_TOKEN_SHORTCUT");
     }
   }
   const server = values.get("--server");

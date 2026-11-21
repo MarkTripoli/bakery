@@ -35,6 +35,7 @@ import {
 } from "./link-codes.ts";
 import {
   linkRefusal,
+  REGISTER_LINK_PER_CODE,
   REGISTER_LINK_PER_SOURCE,
   requestSource,
   spendLinkAttempt,
@@ -148,7 +149,13 @@ export async function registerWorker(
     );
     const code = normalizeShortCode(input.linkCode);
     if (code === null) throw linkRefusal("not_found");
-    enrollment = { by: "linkCode", hash: await linkCodeHash(code) };
+    const hash = await linkCodeHash(code);
+    await spendLinkAttempt(
+      options,
+      `register:code:${hash}`,
+      REGISTER_LINK_PER_CODE,
+    );
+    enrollment = { by: "linkCode", hash };
   } else {
     enrollment = {
       by: "token",
