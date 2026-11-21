@@ -564,20 +564,41 @@ async function finish(store, operations, state, progress = () => {}) {
       previous: state.active,
       migrations: state.migrations,
       transaction: state.transaction,
+      // Kept until work has really resumed, so `recover` can retry a resume
+      // that failed here or that the launcher never got to run.
+      ...(state.paused ? { paused: state.paused } : {}),
     };
     await store.write(committed);
     emit(progress, 6);
     // After the commit, and never fatal: the update is done. If work cannot be
-    // resumed now, the pause's lease lapses on its own and `recover` resumes it.
-    if (state.paused) {
-      const resumed = await resumeWork(operations, state.paused);
-      if (resumed !== undefined) progress({ resumed });
-    }
-    return committed;
+    // resumed now, the record stays, `recover` retries it, and the pause's
+    // lease lapses on its own in the meantime.
+    const after = await resumeAndClear(store, operations, committed);
+    if (after.resumed !== undefined) progress({ resumed: after.resumed });
+    return after.state;
   } catch (error) {
     await recover(store, operations);
     throw error;
   }
+}
+
+/**
+ * Resumes a pause the launcher took and drops its record once work really
+ * resumed. A resume that could not be done leaves the record, so a later
+ * `recover` tries again; a record that cannot be rewritten is left too, which
+ * only means the next `recover` resumes again, and resuming is safe to repeat.
+ */
+async function resumeAndClear(store, operations, state) {
+  if (!state.paused) return { state, resumed: undefined };
+  const resumed = await resumeWork(operations, state.paused);
+  if (resumed === null) return { state, resumed };
+  const { paused: _, ...rest } = state;
+  try {
+    await store.write(rest);
+  } catch {
+    return { state, resumed };
+  }
+  return { state: rest, resumed };
 }
 
 /**
@@ -600,11 +621,7 @@ export async function recover(store, operations) {
     // Also the way out when the launcher died after pausing and before it
     // resumed: the record is cleared only once work really resumed.
     if (state.paused && state.phase === "committed") {
-      if (await resumeWork(operations, state.paused) !== null) {
-        const { paused: _, ...rest } = state;
-        await store.write(rest);
-        return rest;
-      }
+      return (await resumeAndClear(store, operations, state)).state;
     }
     return state;
   }
@@ -626,12 +643,12 @@ export async function recover(store, operations) {
     previous: state.previous,
     migrations: state.migrations,
     transaction: state.transaction,
+    ...(state.paused ? { paused: state.paused } : {}),
   };
   await store.write(restored);
   // Only after the old version is serving again, so work never starts against
-  // a version that is not answering.
-  if (state.paused) await resumeWork(operations, state.paused);
-  return restored;
+  // a version that is not answering. The record stays until it really resumed.
+  return (await resumeAndClear(store, operations, restored)).state;
 }
 
 export async function restoreAfterBoot(store, operations) {

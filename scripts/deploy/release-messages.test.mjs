@@ -208,6 +208,8 @@ test("completion lines name what was carried over, the kept version and the exac
 
 function harness(initial, { fail, pause, resumeFails } = {}) {
   let state = structuredClone(initial);
+  // `true` fails every resume; a number fails that many resumes, then works.
+  let resumesToFail = resumeFails === true ? Infinity : resumeFails ?? 0;
   const calls = [];
   const store = {
     read: () => Promise.resolve(structuredClone(state)),
@@ -262,7 +264,7 @@ function harness(initial, { fail, pause, resumeFails } = {}) {
       },
       resume: (sha) => {
         calls.push(`resume ${sha === green ? "green" : "other"}`);
-        if (resumeFails) return Promise.reject(new Error("DB_DOWN"));
+        if (resumesToFail-- > 0) return Promise.reject(new Error("DB_DOWN"));
         return Promise.resolve({
           released: true,
           carriedOver: {
@@ -380,6 +382,52 @@ test("recover resumes a pause a dead launcher left behind, and keeps the record 
   const after = await recover(h.store, h.operations);
   assert.deepEqual(h.calls, ["resume green"]);
   assert.equal("paused" in after, false);
+  assert.equal("paused" in h.state(), false);
+});
+
+test("a resume that fails right after the commit keeps the record, and recover resumes it", async () => {
+  const h = harness(committed, { pause: null, resumeFails: 1 });
+  const events = [];
+  const result = await run(h, (event) => events.push(event));
+  assert.equal(result.phase, "committed");
+  assert.equal(
+    h.state().paused,
+    green,
+    "the commit keeps the marker, or recover has nothing to act on",
+  );
+  assert.deepEqual(events.filter((event) => "resumed" in event), [{
+    resumed: null,
+  }]);
+
+  const after = await recover(h.store, h.operations);
+  assert.deepEqual(h.calls, [
+    "pause green",
+    "backup",
+    "resume green",
+    "resume green",
+  ]);
+  assert.equal("paused" in after, false);
+  assert.equal(
+    "paused" in h.state(),
+    false,
+    "cleared once work really resumed",
+  );
+});
+
+test("a rollback whose resume fails keeps the record, and recover resumes it", async () => {
+  const h = harness(committed, { fail: true, pause: null, resumeFails: 1 });
+  await assert.rejects(run(h, () => {}), /SMOKE_RELEASE_NOT_READY/);
+  assert.equal(h.state().phase, "committed");
+  assert.equal(h.state().active.sha, blue);
+  assert.equal(h.state().paused, green);
+
+  await recover(h.store, h.operations);
+  assert.deepEqual(h.calls, [
+    "pause green",
+    "backup",
+    "resume green",
+    "resume green",
+  ]);
   assert.equal("paused" in h.state(), false);
 });
 
