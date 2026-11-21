@@ -746,7 +746,8 @@ export async function runAuditMatrix(
           },
         );
         assert(saved.ok, `slack app save ${saved.status}`);
-        const app = await saved.json() as { version: number };
+        const body = await saved.clone().text();
+        const app = JSON.parse(body) as { version: number };
         state.slackAppVersion = String(app.version);
         return { response: saved, organizationId: null };
       },
@@ -759,6 +760,7 @@ export async function runAuditMatrix(
             "Idempotency-Key": key(),
             "If-Match": `"v${state.slackAppVersion}"`,
           },
+          body: {},
         }),
       success: async () => ({
         response: await call(
@@ -771,6 +773,7 @@ export async function runAuditMatrix(
               "Idempotency-Key": key(),
               "If-Match": `"v${state.slackAppVersion}"`,
             },
+            body: {},
           },
         ),
         organizationId: null,
@@ -796,6 +799,7 @@ export async function runAuditMatrix(
               "Idempotency-Key": key(),
               "If-Match": `"v${state.slackAppVersion}"`,
             },
+            body: {},
           },
         ),
         organizationId: null,

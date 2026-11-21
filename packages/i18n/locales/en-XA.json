@@ -5810,7 +5810,6 @@
   "integrations.slack.credentials.address.events.copy": "⟦Çôþÿ ëṽëñŧš ŕëǫûëšŧ ÛŔĻ ŧëšŧ ç⟧",
   "integrations.slack.credentials.address.interactivity.label": "⟦Ïñŧëŕàçŧïṽïŧÿ ŕëǫûëšŧ ÛŔĻ ŧëšŧ ç⟧",
   "integrations.slack.credentials.address.interactivity.copy": "⟦Çôþÿ ïñŧëŕàçŧïṽïŧÿ ŕëǫûëšŧ ÛŔĻ ŧëšŧ çôþ⟧",
-  "integrations.slack.credentials.addresses.hint": "⟦ÔÀûŧĥ & Þëŕɱïššïôñš › Ŕëðïŕëçŧ ÛŔĻš, Ëṽëñŧ Šûƀšçŕïþŧïôñš › Ŕëǫûëšŧ ÛŔĻ, àñð Ïñŧëŕàçŧïṽïŧÿ & Šĥôŕŧçûŧš › Ŕëǫûëšŧ ÛŔĻ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "integrations.slack.credentials.signInRow": "⟦Šïĝñ-ïñ ðëŧàïļš ŧëš⟧",
   "integrations.slack.credentials.requestsRow": "⟦Ŕëǫûëšŧš ƒŕôɱ Šļàçķ ŧëšŧ⟧",
   "integrations.slack.credentials.status.neverChecked": "⟦Ñôŧ çĥëçķëð ÿëŧ. ŧëš⟧",
@@ -5838,5 +5837,8 @@
   "integrations.slack.credentials.clientIdRequired": "⟦Ëñŧëŕ ŧĥë çļïëñŧ ÏÐ. ŧëšŧ⟧",
   "integrations.slack.credentials.clientSecretRequired": "⟦Ëñŧëŕ ŧĥë çļïëñŧ šëçŕëŧ. ŧëšŧ ç⟧",
   "integrations.slack.credentials.signingSecretRequired": "⟦Ëñŧëŕ ŧĥë šïĝñïñĝ šëçŕëŧ. ŧëšŧ ç⟧",
-  "settings.integrations.description": "⟦Çôññëçŧ ŧĥïš ïñšŧàļļàŧïôñ ŧô ŧĥë šëŕṽïçëš Ɓàķëŕÿ ŵôŕķš ŵïŧĥ. Ëàçĥ ïš šëŧ ûþ ôñçë àñð šëŕṽëš ëṽëŕÿ ôŕĝàñïžàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧"
+  "settings.integrations.description": "⟦Çôññëçŧ ŧĥïš ïñšŧàļļàŧïôñ ŧô ŧĥë šëŕṽïçëš Ɓàķëŕÿ ŵôŕķš ŵïŧĥ. Ëàçĥ ïš šëŧ ûþ ôñçë àñð šëŕṽëš ëṽëŕÿ ôŕĝàñïžàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "integrations.slack.credentials.address.redirect.hint": "⟦ÔÀûŧĥ & Þëŕɱïššïôñš › Ŕëðïŕëçŧ ÛŔĻš. ŧëšŧ çôþÿŧ⟧",
+  "integrations.slack.credentials.address.events.hint": "⟦Ëṽëñŧ Šûƀšçŕïþŧïôñš › Ŕëǫûëšŧ ÛŔĻ. ŧëšŧ çôþÿ⟧",
+  "integrations.slack.credentials.address.interactivity.hint": "⟦Ïñŧëŕàçŧïṽïŧÿ & Šĥôŕŧçûŧš › Ŕëǫûëšŧ ÛŔĻ. ŧëšŧ çôþÿ ŧ⟧"
 }

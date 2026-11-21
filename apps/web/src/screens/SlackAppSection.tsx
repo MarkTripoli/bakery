@@ -190,7 +190,9 @@ export function SlackAppSection(
       });
   })();
   const signInFaulted = saved?.detailsCheckResult === "client_id_refused" ||
-    saved?.detailsCheckResult === "client_secret_refused";
+    saved?.detailsCheckResult === "client_secret_refused" ||
+    saved?.detailsCheckResult === "unreachable";
+  const requestFaulted = saved !== null && saved.lastRequestFailedAt !== null;
   return (
     <section aria-labelledby={`${ids.appId}-heading`} data-testid="slack-app">
       <UI.Stack gap="standard">
@@ -279,6 +281,9 @@ export function SlackAppSection(
                             {translate(key("checkNow"))}
                           </UI.Button>
                         }
+                        icon={signInFaulted
+                          ? <UI.IconGlyph name="alert" size="large" />
+                          : undefined}
                         description={
                           <span data-testid="slack-signin-state">
                             {signInFaulted
@@ -293,6 +298,9 @@ export function SlackAppSection(
                         title={translate(key("signInRow"))}
                       />
                       <UI.DescriptionItem
+                        icon={requestFaulted
+                          ? <UI.IconGlyph name="alert" size="large" />
+                          : undefined}
                         description={
                           <span data-testid="slack-requests-state">
                             {requestState}
@@ -370,22 +378,24 @@ export function SlackAppSection(
                                 />
                               }
                               description={
-                                <UI.DataText
-                                  data-testid={`slack-${name}-url`}
-                                  state="wrapped"
-                                  variant="code"
-                                >
-                                  {saved[field]}
-                                </UI.DataText>
+                                <UI.Stack gap="compact">
+                                  <UI.DataText
+                                    data-testid={`slack-${name}-url`}
+                                    state="wrapped"
+                                    variant="code"
+                                  >
+                                    {saved[field]}
+                                  </UI.DataText>
+                                  <UI.Text variant="muted">
+                                    {translate(key(`address.${name}.hint`))}
+                                  </UI.Text>
+                                </UI.Stack>
                               }
                               key={field}
                               title={translate(key(`address.${name}.label`))}
                             />
                           ))}
                         </UI.DescriptionList>
-                        <UI.Text variant="muted">
-                          {translate(key("addresses.hint"))}
-                        </UI.Text>
                       </UI.Stack>
                       <UI.Field
                         error={appIdMissing

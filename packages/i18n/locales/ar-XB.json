@@ -5810,7 +5810,6 @@
   "integrations.slack.credentials.address.events.copy": "⟪Copy events request URL⟫",
   "integrations.slack.credentials.address.interactivity.label": "⟪Interactivity request URL⟫",
   "integrations.slack.credentials.address.interactivity.copy": "⟪Copy interactivity request URL⟫",
-  "integrations.slack.credentials.addresses.hint": "⟪OAuth & Permissions › Redirect URLs, Event Subscriptions › Request URL, and Interactivity & Shortcuts › Request URL.⟫",
   "integrations.slack.credentials.signInRow": "⟪Sign-in details⟫",
   "integrations.slack.credentials.requestsRow": "⟪Requests from Slack⟫",
   "integrations.slack.credentials.status.neverChecked": "⟪Not checked yet.⟫",
@@ -5838,5 +5837,8 @@
   "integrations.slack.credentials.clientIdRequired": "⟪Enter the client ID.⟫",
   "integrations.slack.credentials.clientSecretRequired": "⟪Enter the client secret.⟫",
   "integrations.slack.credentials.signingSecretRequired": "⟪Enter the signing secret.⟫",
-  "settings.integrations.description": "⟪Connect this installation to the services Bakery works with. Each is set up once and serves every organization.⟫"
+  "settings.integrations.description": "⟪Connect this installation to the services Bakery works with. Each is set up once and serves every organization.⟫",
+  "integrations.slack.credentials.address.redirect.hint": "⟪OAuth & Permissions › Redirect URLs.⟫",
+  "integrations.slack.credentials.address.events.hint": "⟪Event Subscriptions › Request URL.⟫",
+  "integrations.slack.credentials.address.interactivity.hint": "⟪Interactivity & Shortcuts › Request URL.⟫"
 }

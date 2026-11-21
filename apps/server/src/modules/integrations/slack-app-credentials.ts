@@ -435,17 +435,17 @@ export async function removeSlackAppSettings(
   const row = removed.rows[0];
   if (row === undefined) return;
   for (const secretId of [row.signingSecretId, row.clientSecretId]) {
+    // The application role may take a secret out of use but not delete one, so
+    // removal revokes: the ciphertext stays as sealed history, nothing decrypts
+    // it again, and the key that sealed it is no longer reachable from any row.
     await transaction.query(
-      "update bakery.secrets set active_version_id = null where id = $1",
+      `update bakery.secrets
+          set active_version_id = null, revoked_at = now(),
+              invalidation_generation = invalidation_generation + 1,
+              version = version + 1, updated_at = now()
+        where id = $1`,
       [secretId],
     );
-    await transaction.query(
-      "delete from bakery.secret_versions where secret_id = $1",
-      [secretId],
-    );
-    await transaction.query("delete from bakery.secrets where id = $1", [
-      secretId,
-    ]);
   }
   await appendAudit(transaction, {
     organizationId: null,
@@ -463,6 +463,12 @@ export async function removeSlackAppSettings(
 export async function recordSlackCheck(
   transaction: Pick<PgTransactionClient, "query">,
   result: SlackCheckResult,
+  audit: {
+    readonly principalId: string;
+    readonly operation: string;
+    readonly requestId: string;
+    readonly traceId: string;
+  },
 ): Promise<void> {
   await transaction.query(
     `update bakery.slack_app_settings
@@ -470,6 +476,18 @@ export async function recordSlackCheck(
       where id = true`,
     [result],
   );
+  // A check is a command, like a save: it spends a request and changes what the
+  // screen reports, so the ledger names who asked and what Slack said.
+  await appendAudit(transaction, {
+    organizationId: null,
+    principalId: audit.principalId,
+    operation: audit.operation,
+    resourceType: "slack_app_settings",
+    resourceId: "slack-app",
+    details: { result },
+    requestId: audit.requestId,
+    traceId: audit.traceId,
+  });
 }
 
 /**

@@ -45,8 +45,10 @@ async function freshKey(): Promise<KeyConfig> {
 
 function endpoint(fixture: Fixture, secretsKey: KeyConfig) {
   const app = new Hono();
+  // The application role, not the admin pool: the runtime is what serves the
+  // route in production, so a missing grant has to fail here.
   mountSlackEventsRoute(app as never, {
-    database: fixture.pgDatabase,
+    database: fixture.runtimePgDatabase,
     secretsKey,
     publicBaseUrl: "http://localhost",
     log: () => {},

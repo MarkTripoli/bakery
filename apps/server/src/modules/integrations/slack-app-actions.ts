@@ -255,11 +255,20 @@ export async function checkSlackApp(
   _input: unknown,
   dependencies: Dependencies,
 ): Promise<SlackAppCheck> {
-  const { context: value } = installationActor(context);
+  const { context: value, actor } = installationActor(context);
   const transaction = value.transaction;
+  // A check writes the row it read, so it names the version it is checking:
+  // without one there is nothing to compare a second editor's answer against.
+  const expectedVersion = requireCommandMetadata(context).expectedVersion;
+  if (expectedVersion === undefined) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
   const settings = await readSlackAppSettings(transaction);
   if (settings === null) {
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  if (settings.version !== expectedVersion) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
   const stored = await readSlackAppCredentials(transaction);
   if (stored === null) {
@@ -279,6 +288,12 @@ export async function checkSlackApp(
   await recordSlackCheck(
     transaction,
     outcome.result satisfies SlackCheckResult,
+    {
+      principalId: actor.subject.principalId,
+      operation: Action.IntegrationSlackAppCheck,
+      requestId: context.requestId,
+      traceId: context.traceId,
+    },
   );
   const after = await readSlackAppSettings(transaction);
   return {
