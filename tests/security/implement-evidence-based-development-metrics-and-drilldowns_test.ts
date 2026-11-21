@@ -131,6 +131,8 @@ async function ok(response: Response): Promise<Json> {
 
 const june = "from=2026-06-01T00:00:00Z&to=2026-07-01T00:00:00Z&resolution=day";
 const KEYS = Object.values(MetricKey);
+/** metrics.sources takes the window without a resolution. */
+const juneWindow = "from=2026-06-01T00:00:00Z&to=2026-07-01T00:00:00Z";
 
 async function otherOrganization(f: GitHubAppFixture): Promise<string> {
   const created = await call(f, "POST", "/v1/organizations", f.adminCookie, {
@@ -154,7 +156,13 @@ Deno.test("a guest is refused every metric and every drilldown before anything i
     );
     for (const metric of KEYS) {
       for (const path of ["/v1/metrics", "/v1/metrics/sources"]) {
-        const refused = await get(f, `${path}?metric=${metric}&${june}`, other);
+        const refused = await get(
+          f,
+          `${path}?metric=${metric}&${
+            path.endsWith("sources") ? juneWindow : june
+          }`,
+          other,
+        );
         assert(
           refused.status === 403 || refused.status === 404,
           `${path} ${metric}: ${refused.status}`,
@@ -233,7 +241,7 @@ Deno.test("naming another organization's repository adds nothing to any metric o
       const sources = await ok(
         await get(
           f,
-          `/v1/metrics/sources?metric=${metric}&repositoryId=${foreign.repositoryId}&${june}`,
+          `/v1/metrics/sources?metric=${metric}&repositoryId=${foreign.repositoryId}&${juneWindow}`,
         ),
       );
       assertEquals((sources.items as Json[]).length, 0, metric);
@@ -289,7 +297,7 @@ Deno.test("production delivery metrics answer unknown with no deploy evidence, e
       assertEquals(series.completeness, "unknown", metric);
       assertEquals(series.sampleCount, 0, metric);
       const sources = await ok(
-        await get(f, `/v1/metrics/sources?metric=${metric}&${june}`),
+        await get(f, `/v1/metrics/sources?metric=${metric}&${juneWindow}`),
       );
       assertEquals((sources.items as Json[]).length, 0, metric);
     }
