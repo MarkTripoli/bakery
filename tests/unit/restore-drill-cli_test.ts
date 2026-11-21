@@ -3,8 +3,8 @@ import {
   ApiFatal,
   ApiUnavailable,
   type DrillReport,
+  type DrillReporter,
   type DrillView,
-  type RunnerApi,
 } from "../../scripts/deploy/backup-runner/api.ts";
 import type {
   DrillOptions,
@@ -72,7 +72,7 @@ type Harness = {
 
 function harness(
   outcome: DrillOutcome,
-  api: (sent: DrillReport[]) => RunnerApi["drill"],
+  api: (sent: DrillReport[]) => DrillReporter["drill"],
 ): [Harness, Parameters<typeof main>[1]] {
   const h: Harness = { out: [], log: [], sent: [], drilled: [], waits: [] };
   return [h, {
@@ -83,7 +83,7 @@ function harness(
       h.drilled.push(options);
       return Promise.resolve(outcome);
     },
-    api: { drill: api(h.sent) } as RunnerApi,
+    api: { drill: api(h.sent) } as DrillReporter,
     sleep: (ms) => {
       h.waits.push(ms);
       return Promise.resolve();
@@ -91,7 +91,7 @@ function harness(
   }];
 }
 
-const keep = (sent: DrillReport[]): RunnerApi["drill"] => (report) => {
+const keep = (sent: DrillReport[]): DrillReporter["drill"] => (report) => {
   sent.push(report);
   const { drillId, ...rest } = report;
   return Promise.resolve(

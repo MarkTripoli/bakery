@@ -4,8 +4,8 @@ import {
   ApiUnavailable,
   createRunnerApi,
   type DrillReport,
+  type DrillReporter,
   type DrillView,
-  type RunnerApi,
 } from "./backup-runner/api.ts";
 import { readRunnerConfig } from "./backup-runner/config.ts";
 import {
@@ -47,7 +47,7 @@ export type CliOptions = {
   readonly out?: (line: string) => void;
   /** Test seams. */
   readonly drill?: (options: DrillOptions) => Promise<DrillOutcome>;
-  readonly api?: RunnerApi;
+  readonly api?: DrillReporter;
   readonly sleep?: (milliseconds: number) => Promise<void>;
   readonly fetch?: typeof fetch;
 };
@@ -127,7 +127,7 @@ export async function main(
   }
   // The credential is checked before the drill starts, so a drill is not run
   // for nothing when its result could not be sent.
-  let api = options.api;
+  let api: DrillReporter | undefined = options.api;
   if (parsed.report && api === undefined) {
     const config = readRunnerConfig(options.env);
     if (typeof config === "string") {

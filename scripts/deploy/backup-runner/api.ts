@@ -108,12 +108,6 @@ export type RunnerApi = {
     leaseToken: string,
     signal?: AbortSignal,
   ): Promise<CutoffView>;
-  /**
-   * Reports one restore drill (backupRunner.drill). The drill id is chosen by
-   * the caller, so reporting the same drill again returns the stored record and
-   * a retry after a network error or 5xx is safe.
-   */
-  drill(report: DrillReport, signal?: AbortSignal): Promise<DrillView>;
   /** Sends one report; retries the SAME sequence and body on a network error or 5xx. */
   report(
     runId: string,
@@ -162,7 +156,9 @@ async function problemOf(response: Response): Promise<Problem> {
   }
 }
 
-export function createRunnerApi(options: ApiOptions): RunnerApi {
+export function createRunnerApi(
+  options: ApiOptions,
+): RunnerApi & DrillReporter {
   const doFetch = options.fetch ?? fetch;
   const sleep = options.sleep ?? defaultSleep;
   const timeout = options.requestTimeoutMs ?? 30_000;
@@ -377,3 +373,17 @@ export type DrillView = Omit<DrillReport, "drillId"> & {
   readonly id: string;
   readonly recordedAt: string;
 };
+
+/**
+ * What the restore drill needs from the server: one call. It is its own
+ * interface, not part of RunnerApi, because the backup loop never reports a
+ * drill and a fake of the loop's client should not have to.
+ */
+export interface DrillReporter {
+  /**
+   * Reports one restore drill (backupRunner.drill). The drill id is chosen by
+   * the caller, so reporting the same drill again returns the stored record and
+   * a retry after a network error or 5xx is safe.
+   */
+  drill(report: DrillReport, signal?: AbortSignal): Promise<DrillView>;
+}
