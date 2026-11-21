@@ -948,7 +948,12 @@ const resultOut = (row: ListedResultRow) => ({
 export function createResultLister(secret: string) {
   return async (
     context: ActionContext,
-    input: { state?: ResultState; cursor?: string; limit?: number },
+    input: {
+      state?: ResultState;
+      required?: boolean;
+      cursor?: string;
+      limit?: number;
+    },
   ) => {
     const { transaction: tx, organizationId, principalId } =
       requireWorkTransaction(context);
@@ -964,7 +969,11 @@ export function createResultLister(secret: string) {
       principalId,
       organizationId,
       ordering: "position:asc,iteration:asc,id:asc",
-      filters: JSON.stringify({ batchId, state: input.state ?? null }),
+      filters: JSON.stringify({
+        batchId,
+        state: input.state ?? null,
+        required: input.required ?? null,
+      }),
       schemaVersion: 1,
     };
     const position = await decodeCursor(secret, input.cursor, binding);
@@ -975,6 +984,7 @@ export function createResultLister(secret: string) {
         where r.organization_id = $1 and r.batch_id = $2
           and ($3::text is null or r.state = $3)
           and ($4::integer is null or (r.ordinal, r.id) > ($4, $5::uuid))
+          and ($7::boolean is null or r.required = $7)
         order by r.ordinal, r.id limit $6`,
       [
         organizationId,
@@ -983,6 +993,7 @@ export function createResultLister(secret: string) {
         position?.position ?? null,
         position?.id ?? null,
         limit + 1,
+        input.required ?? null,
       ],
     );
     const visible = found.rows.slice(0, limit);

@@ -247,3 +247,21 @@ Deno.test("runs can be listed by the digest of what they measured, and a result 
     false,
   );
 });
+
+Deno.test("a batch's results can be asked for only the required or only the sampled ones", () => {
+  for (const required of [true, false]) {
+    assertEquals(
+      contractSchemas.EvaluationResultQuery.safeParse({ required }).success,
+      true,
+      String(required),
+    );
+  }
+  assertEquals(
+    contractSchemas.EvaluationResultQuery.safeParse({}).success,
+    true,
+  );
+  assertFalse(
+    contractSchemas.EvaluationResultQuery.safeParse({ required: "sometimes" })
+      .success,
+  );
+});

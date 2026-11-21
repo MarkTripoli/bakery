@@ -32158,6 +32158,10 @@ export const clientManifest = {
             "missing"
           ]
         },
+        "required": {
+          "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both.",
+          "type": "boolean"
+        },
         "cursor": {
           "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationResultQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
@@ -32172,7 +32176,7 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Cursor page of a batch's results in case order, optionally one state."
+      "description": "Cursor page of a batch's results in case order, optionally one state and optionally only the required or only the sampled ones."
     },
     "BackupRunMaintenance": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

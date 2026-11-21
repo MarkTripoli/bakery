@@ -253,6 +253,26 @@ Deno.test("AC2: an optional model scorer that never ran neither blocks the gate 
       rows.map((r) => [r.scorerId === w.rubric.id, r.required]).sort(),
       [[false, true], [false, true], [true, false], [true, false]],
     );
+    // The list can be asked for only the required or only the sampled results.
+    const only = async (required: boolean) =>
+      ((await ok(
+        await call(
+          fixture,
+          "GET",
+          "/v1/evaluation-batches/" + batch.id + "/results?required=" +
+            required,
+        ),
+      )).items as Json[]).map((r) => r.scorerId === w.rubric.id);
+    assertEquals(
+      await only(true),
+      [false, false],
+      "only the deterministic check",
+    );
+    assertEquals(
+      await only(false),
+      [true, true],
+      "only the sampled model scorer",
+    );
     // The model scorer is unavailable: its results stay unscored with a reason.
     for (const row of rows) {
       if (row.scorerId === w.rubric.id) {

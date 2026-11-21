@@ -14094,6 +14094,12 @@ const transportSchemas = {
           ]
         },
         {
+          "name": "required",
+          "type": "boolean",
+          "required": false,
+          "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
@@ -14118,7 +14124,7 @@ const transportSchemas = {
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Cursor page of a batch's results in case order, optionally one state."
+      "description": "Cursor page of a batch's results in case order, optionally one state and optionally only the required or only the sampled ones."
     },
     "BackupRunMaintenance": {
       "fields": [

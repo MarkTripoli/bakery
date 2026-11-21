@@ -35536,6 +35536,15 @@
               }
             },
             {
+              "name": "required",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both.",
+                "type": "boolean"
+              }
+            },
+            {
               "name": "cursor",
               "in": "query",
               "required": false,
@@ -80972,6 +80981,10 @@
                 "missing"
               ]
             },
+            "required": {
+              "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both.",
+              "type": "boolean"
+            },
             "cursor": {
               "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationResultQuery.cursor must contain at most 512 UTF-8 bytes.",
               "type": "string",
@@ -80986,7 +80999,7 @@
             }
           },
           "additionalProperties": false,
-          "description": "Cursor page of a batch's results in case order, optionally one state."
+          "description": "Cursor page of a batch's results in case order, optionally one state and optionally only the required or only the sampled ones."
         },
         "BackupRunMaintenance": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -272099,7 +272112,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:6fa6766c7e6f6159fa40520a9b6182ea7b5c5d100e8a57d36499f2cb54d56580",
+  "compatibilityDigest": "sha256:56e794f74ca36feb0bc5795f14dd9e5ced3496d3fdf20bff8cdb3c4f3dd12f8a",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -303551,6 +303564,10 @@
             "missing"
           ]
         },
+        "required": {
+          "description": "true for only the results the gate needs, false for only the optional (sampled) model scorers' results; omit for both.",
+          "type": "boolean"
+        },
         "cursor": {
           "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationResultQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
@@ -303565,7 +303582,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Cursor page of a batch's results in case order, optionally one state."
+      "description": "Cursor page of a batch's results in case order, optionally one state and optionally only the required or only the sampled ones."
     },
     "BackupRunMaintenance": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
