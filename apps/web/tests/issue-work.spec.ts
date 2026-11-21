@@ -345,6 +345,29 @@ for (
       await expect(row.getByText("Newest question")).toHaveCount(0);
     });
 
+    test("more than a page of open questions are all counted and the oldest is shown", async ({ page }) => {
+      // 130 open ones: a read of the newest page (25, or even 100) would miss
+      // the oldest and count too few. The expired one is older still.
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [
+          ...Array.from({ length: 130 }, (_, index) => ({
+            status: "open" as const,
+            prompt: `Question number ${index}`,
+            minutesAgo: 10 + index,
+          })),
+          { status: "expired", prompt: "An old one", minutesAgo: 5000 },
+        ],
+      });
+      const row = page.getByTestId("issue-question");
+      await expect(row.getByText("Bakery needs 130 answers")).toBeVisible();
+      // The oldest open one is number 129, asked 139 minutes ago.
+      await expect(row.getByText("Question number 129")).toBeVisible();
+      await expect(row.getByText("Question number 0", { exact: true }))
+        .toHaveCount(0);
+      await expect(row.getByText(/^Asked 2 hours ago/)).toBeVisible();
+    });
+
     test("someone who may not answer sees the question without the button", async ({ page }) => {
       await open(page, {
         ...ONE_REPOSITORY,

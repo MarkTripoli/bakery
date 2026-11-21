@@ -2982,6 +2982,56 @@ export function questionsQueryOptions(
   });
 }
 
+/** The most pages of open questions one read follows; each holds up to 100. */
+const OPEN_QUESTION_PAGES = 10;
+
+/**
+ * Every open question of a task, not just the newest page: the list is newest
+ * first and a page holds at most 100, so a count or an oldest read from one
+ * page would miss older open ones. Follows the cursor to the end or to the cap,
+ * and says when the cap cut it short.
+ */
+export function openQuestionsQueryOptions(
+  client: Pick<BakeryApiClient, "listQuestions">,
+  scope: ApiScope,
+  taskId: string,
+) {
+  return queryOptions<
+    {
+      readonly items: QuestionListResponse["items"];
+      readonly truncated: boolean;
+    },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "questions.list", {
+      taskId,
+      status: "open",
+      allPages: true,
+    }),
+    queryFn: async ({ signal }) => {
+      const items: QuestionListResponse["items"] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < OPEN_QUESTION_PAGES; page++) {
+        const result = unwrap(
+          await client.listQuestions({
+            organizationId: requireOrganization(scope),
+            taskId,
+            status: "open",
+            limit: 100,
+            ...(cursor === undefined ? {} : { cursor }),
+            signal,
+          }),
+        );
+        items.push(...result.items);
+        if (!result.nextCursor) return { items, truncated: false };
+        cursor = result.nextCursor;
+      }
+      return { items, truncated: true };
+    },
+    retry: retryNetworkOnce,
+  });
+}
+
 export function conversationParticipantsQueryOptions(
   client: Pick<BakeryApiClient, "listConversationParticipants">,
   scope: ApiScope,

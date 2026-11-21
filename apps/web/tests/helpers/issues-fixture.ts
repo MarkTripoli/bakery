@@ -705,8 +705,9 @@ export async function issuesFixture(page: Page, options: Options = {}) {
       if (work?.questionsFail) {
         return route.fulfill(problem(503, "DEPENDENCY_UNAVAILABLE"));
       }
-      const asked = new URL(route.request().url()).searchParams.get("taskId");
-      const items = asked === taskId
+      const params = new URL(route.request().url()).searchParams;
+      const asked = params.get("taskId");
+      const all = asked === taskId
         ? (work?.questions ?? []).map((question, index) => ({
           id: uuid(8950 + index),
           kind: question.kind ?? "question",
@@ -732,10 +733,23 @@ export async function issuesFixture(page: Page, options: Options = {}) {
           responseSchema: null,
         }))
         : [];
+      // As the server answers: newest first, filtered by status, one page at a
+      // time (25 unless asked, at most 100), with a cursor to the next page.
+      const status = params.get("status");
+      const matching = all
+        .filter((question) => status === null || question.status === status)
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      const limit = Math.min(Number(params.get("limit") ?? 25), 100);
+      const start = Number(params.get("cursor") ?? 0);
+      const items = matching.slice(start, start + limit);
+      const end = start + items.length;
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: page_(items),
+        body: JSON.stringify({
+          items,
+          nextCursor: end < matching.length ? String(end) : null,
+        }),
       });
     },
   );

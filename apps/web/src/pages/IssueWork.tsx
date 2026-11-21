@@ -7,6 +7,7 @@ import type {
   TicketTaskLinkResponse,
 } from "../api/client.ts";
 import {
+  openQuestionsQueryOptions,
   organizationMembersQueryOptions,
   pullRequestsQueryOptions,
   questionsQueryOptions,
@@ -376,11 +377,20 @@ export function IssueWork(
   });
   // Read once: the row and the progress badge both speak from it.
   const phone = useShellViewport() === "phone";
-  const questions = useQuery({
-    ...questionsQueryOptions(api, scope, own?.taskId ?? ""),
+  // Every open question, paged; the newest page of all questions is read only
+  // when none is open, to tell whether the newest one expired.
+  const openQuestions = useQuery({
+    ...openQuestionsQueryOptions(api, scope, own?.taskId ?? ""),
     enabled: scope.organizationId !== null && own !== undefined,
   });
-  const asking = questionRow(questions.data?.items ?? []);
+  const noneOpen = openQuestions.data?.items.length === 0;
+  const newestQuestions = useQuery({
+    ...questionsQueryOptions(api, scope, own?.taskId ?? ""),
+    enabled: scope.organizationId !== null && own !== undefined && noneOpen,
+  });
+  const questions = openQuestions.isError ? openQuestions : newestQuestions;
+  const asking = questionRow(openQuestions.data?.items ?? []) ??
+    (noneOpen ? questionRow(newestQuestions.data?.items ?? []) : null);
 
   if (requests.isPending || links.isPending) {
     return <UI.Skeleton shape="row" />;
