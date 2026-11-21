@@ -336,3 +336,201 @@ export function batchStateOf(
     ? BatchState.Completed
     : BatchState.CompletedWithErrors;
 }
+
+// ------------------------------------------------- versioned pins (issue #41)
+
+/** What a batch may measure: an exact version of one of these. */
+export const PIN_KINDS = Object.freeze(
+  [
+    "agentVersion",
+    "workflowVersion",
+    "skillVersion",
+    "profileVersion",
+    "artifactVersion",
+  ] as const,
+);
+export type PinKind = typeof PIN_KINDS[number];
+export type Pin = Readonly<{ kind: PinKind; id: string; version: number }>;
+
+const PIN_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * A pin names one exact version, so a repeated run measures the same thing:
+ * its kind, the id and the version number, and nothing else. A pin without a
+ * version, with an unknown kind or with extra keys is refused rather than
+ * measured as something near it.
+ */
+export function validatePin(
+  pin: unknown,
+): { ok: true; pin: Pin } | { ok: false; reason: string } {
+  if (typeof pin !== "object" || pin === null || Array.isArray(pin)) {
+    return { ok: false, reason: "pin_not_an_object" };
+  }
+  const record = pin as Record<string, unknown>;
+  if (Object.keys(record).some((k) => !["kind", "id", "version"].includes(k))) {
+    return { ok: false, reason: "pin_unknown_field" };
+  }
+  if (
+    typeof record.kind !== "string" ||
+    !(PIN_KINDS as readonly string[]).includes(record.kind)
+  ) return { ok: false, reason: "pin_kind_unknown" };
+  if (typeof record.id !== "string" || !PIN_UUID.test(record.id)) {
+    return { ok: false, reason: "pin_id_invalid" };
+  }
+  if (
+    typeof record.version !== "number" ||
+    !Number.isSafeInteger(record.version) ||
+    record.version < 1
+  ) return { ok: false, reason: "pin_version_required" };
+  return {
+    ok: true,
+    pin: {
+      kind: record.kind as PinKind,
+      id: record.id,
+      version: record.version,
+    },
+  };
+}
+
+export type ScorerKind = "deterministic" | "model";
+
+/**
+ * Which pinned scorers are optional. A deterministic check is never optional
+ * and a required check is never sampled away; only a model scorer can be
+ * marked optional, and only if it is one of the batch's scorers.
+ */
+export function optionalScorerProblem(
+  scorers: readonly { scorerId: string; evaluatorType: string }[],
+  optionalIds: readonly string[],
+): { field: string; reason: string } | null {
+  const byId = new Map(scorers.map((s) => [s.scorerId, s]));
+  for (const id of optionalIds) {
+    const scorer = byId.get(id);
+    if (scorer === undefined) {
+      return {
+        field: "optionalScorerIds",
+        reason: "optional_scorer_not_pinned",
+      };
+    }
+    if (scorer.evaluatorType === "deterministic") {
+      return {
+        field: "optionalScorerIds",
+        reason: "deterministic_scorer_required",
+      };
+    }
+  }
+  if (new Set(optionalIds).size !== optionalIds.length) {
+    return { field: "optionalScorerIds", reason: "duplicate_scorer" };
+  }
+  return null;
+}
+
+/**
+ * Everything that makes two batches measure the same thing, in a shape whose
+ * canonical JSON is hashed: the dataset revision, both pins, the scorer
+ * revisions with whether each is required, and the repetitions. The budget is
+ * left out: a limit does not change what is measured.
+ */
+export function pinSpec(
+  input: Readonly<{
+    datasetDigest: string;
+    candidate: unknown;
+    baseline: unknown | null;
+    scorers: readonly {
+      scorerId: string;
+      scorerRevision: number;
+      required: boolean;
+    }[];
+    repetitions: number;
+  }>,
+) {
+  return {
+    datasetDigest: input.datasetDigest,
+    candidate: input.candidate,
+    baseline: input.baseline,
+    scorers: [...input.scorers]
+      .map((s) => ({
+        scorerId: s.scorerId,
+        scorerRevision: s.scorerRevision,
+        required: s.required,
+      }))
+      .sort((a, b) => a.scorerId.localeCompare(b.scorerId)),
+    repetitions: input.repetitions,
+  };
+}
+
+// ------------------------------------------------------- the corpus report
+
+/** What a result's history says, for the report; one per candidate result. */
+export type ReportFact = Readonly<{
+  state: ResultState;
+  attempts: number;
+  /** At least one attempt at it was interrupted before it measured anything. */
+  interrupted: boolean;
+}>;
+
+export type CorpusReport = Readonly<{
+  total: number;
+  attempted: number;
+  passed: number;
+  failed: number;
+  /** Attempted, but the latest attempt measured nothing: the outcome is not known. */
+  unknown: number;
+  /** Never attempted. Not a failure and not a pass. */
+  unrun: number;
+  interrupted: number;
+  recovered: number;
+  passedOfAttempted: number | null;
+  failedOfAttempted: number | null;
+  recoveredOfInterrupted: number | null;
+}>;
+
+/**
+ * The offline corpus report over candidate results: attempted, passed,
+ * failed, unknown and unrun, and of those attempted the passed and failed
+ * shares; of those interrupted the share that recovered to a measurement. A
+ * share with nothing to divide is null, never zero: no result is not a zero
+ * rate, and an unknown or unrun result is counted on its own, not as a failure.
+ */
+export function corpusReport(facts: readonly ReportFact[]): CorpusReport {
+  let attempted = 0, passed = 0, failed = 0, unknown = 0;
+  let interrupted = 0, recovered = 0;
+  for (const f of facts) {
+    if (f.attempts > 0) {
+      attempted += 1;
+      if (f.state === ResultState.Passed) passed += 1;
+      else if (f.state === ResultState.Failed) failed += 1;
+      else unknown += 1;
+    }
+    if (f.interrupted) {
+      interrupted += 1;
+      if (isMeasured(f.state)) recovered += 1;
+    }
+  }
+  const share = (n: number, of: number) => of === 0 ? null : n / of;
+  return {
+    total: facts.length,
+    attempted,
+    passed,
+    failed,
+    unknown,
+    unrun: facts.length - attempted,
+    interrupted,
+    recovered,
+    passedOfAttempted: share(passed, attempted),
+    failedOfAttempted: share(failed, attempted),
+    recoveredOfInterrupted: share(recovered, interrupted),
+  };
+}
+
+/**
+ * The state an attempt leaves on its result. An interrupted attempt measured
+ * nothing, so its result is an error with the reason; every other state is
+ * its own.
+ */
+export function resultStateOfAttempt(
+  state: ResultState | "interrupted",
+): ResultState {
+  return state === "interrupted" ? ResultState.Error : state;
+}
