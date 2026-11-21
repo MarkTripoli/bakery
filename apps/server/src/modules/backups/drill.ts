@@ -151,7 +151,7 @@ export async function listBackupDrills(
   const binding: CursorBinding = {
     action: BackupImplementedAction.BackupsDrillsList,
     principalId,
-    ordering: "recordedAt:desc,id:desc",
+    ordering: "createdAt:desc,id:desc",
     filters: "all",
     schemaVersion: 1,
   };
