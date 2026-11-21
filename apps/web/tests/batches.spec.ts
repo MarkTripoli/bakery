@@ -221,27 +221,29 @@ for (
       );
     });
 
-    test("a repository that stopped taking issues, or is gone, is named under the Repository field", async ({ page }) => {
-      for (
-        const [create, text] of [
-          [
-            "notTaking",
-            "acme/web is not taking issues. Turn that on in Issue settings.",
-          ],
-          [
-            "notFound",
-            "That repository is no longer available. Choose another.",
-          ],
-        ] as const
-      ) {
+    for (
+      const [create, name, text] of [
+        [
+          "notTaking",
+          "stopped taking issues",
+          "acme/web is not taking issues. Turn that on in Issue settings.",
+        ],
+        [
+          "notFound",
+          "is gone",
+          "That repository is no longer available. Choose another.",
+        ],
+      ] as const
+    ) {
+      test(`a repository that ${name} is named under the Repository field`, async ({ page }) => {
         await batchesFixture(page, { create });
         await page.goto(`/issues/batches/new?repository=${WEB.id}`);
         await page.getByLabel("Spend").fill("40");
         await page.getByRole("radio", { name: "Carry on by itself" }).check();
         await page.getByRole("button", { name: "Start batch" }).click();
         await expect(page.getByText(text)).toBeVisible();
-      }
-    });
+      });
+    }
 
     test("leaving the start page with changes asks first, and Keep editing stays", async ({ page }) => {
       await batchesFixture(page);
