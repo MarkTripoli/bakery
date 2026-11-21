@@ -17,6 +17,8 @@ import type { PgDatabase } from "../../platform/database.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createIntegrationsActionRegistry } from "./actions.ts";
 import { mountIntakeRoute } from "./intake-routes.ts";
+import { mountSlackEventsRoute } from "./slack-events-route.ts";
+import { mountSlackInteractionsRoute } from "./slack-interactions-route.ts";
 import type { InstallationTokenBroker } from "./token-broker.ts";
 import type {
   ActiveIntegrationRegistry,
@@ -209,6 +211,25 @@ export function createIntegrationsRoutes(options: {
     secretsKey: options.secretsKey,
     publicBaseUrl: options.publicBaseUrl,
     ingress: options.ingress,
+  });
+  // Slack's signed presses are raw form bytes with no session, and the form is only
+  // decoded once the signature verifies, so this is mounted before the JSON router
+  // owns the path -- exactly like the GitHub intake.
+  mountSlackInteractionsRoute(app, {
+    database: options.database,
+    publicBaseUrl: options.publicBaseUrl,
+    ...(options.secretsKey === undefined
+      ? {}
+      : { secretsKey: options.secretsKey }),
+  });
+  // The Events URL the settings screen shows a person: Slack's signature is the
+  // only credential here too, so it is mounted beside the interactions endpoint.
+  mountSlackEventsRoute(app, {
+    database: options.database,
+    publicBaseUrl: options.publicBaseUrl,
+    ...(options.secretsKey === undefined
+      ? {}
+      : { secretsKey: options.secretsKey }),
   });
   app.route(
     "/",

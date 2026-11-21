@@ -1,203 +1,17 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, type Route, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { mockUserPreferences } from "./helpers/mock-session.ts";
 import {
-  MOCK_PRINCIPAL_ID,
-  mockAuthenticatedSession,
-  mockUserPreferences,
-} from "./helpers/mock-session.ts";
-
-const PAGE_PATH = "/settings/installation/integrations";
-const GITHUB_REGISTRATION_URL =
-  "https://github.com/settings/apps/new?state=state-from-bakery";
-const MANIFEST = JSON.stringify({ name: "Bakery", url: "https://bakery.test" });
-
-const unregistered = {
-  provider: "github",
-  status: "unregistered",
-  appId: null,
-  slug: null,
-  name: null,
-  clientId: null,
-  ownerLogin: null,
-  ownerId: null,
-  ownerType: null,
-  htmlUrl: null,
-  permissions: null,
-  events: null,
-  clientSecretConfigured: false,
-  privateKeyConfigured: false,
-  webhookSecretConfigured: false,
-  clientSecretRevision: null,
-  privateKeyRevision: null,
-  webhookSecretRevision: null,
-  registeredByPrincipalId: null,
-  registeredAt: null,
-  version: 0,
-};
-
-const registered = {
-  ...unregistered,
-  status: "registered",
-  appId: 912345,
-  slug: "bakery-test-912345",
-  name: "Bakery Test 912345",
-  clientId: "Iv23liPublicClientId",
-  ownerLogin: "bakery-owner",
-  ownerId: 4242,
-  ownerType: "Organization",
-  htmlUrl: "https://github.com/apps/bakery-test-912345",
-  permissions: { metadata: "read", contents: "write", issues: "write" },
-  events: ["pull_request"],
-  clientSecretConfigured: true,
-  privateKeyConfigured: true,
-  webhookSecretConfigured: true,
-  clientSecretRevision: 2,
-  privateKeyRevision: 1,
-  webhookSecretRevision: 1,
-  registeredByPrincipalId: MOCK_PRINCIPAL_ID,
-  registeredAt: "2026-10-26T18:00:00.000Z",
-  version: 1,
-};
-
-/** One issue as the server serializes it: `path` is an array of segments. */
-type ServerIssue = { path: readonly string[]; code: string; message: string };
-
-function problem(
-  status: number,
-  code: string,
-  reason?: string,
-  issues?: readonly ServerIssue[],
-) {
-  return {
-    status,
-    contentType: "application/problem+json",
-    body: JSON.stringify({
-      type: "https://bakery.example/problems/test",
-      title: "Request refused",
-      detail: "Request refused.",
-      status,
-      code,
-      retryable: false,
-      requestId: crypto.randomUUID(),
-      traceId: crypto.randomUUID(),
-      ...(reason === undefined ? {} : { reason }),
-      ...(issues === undefined ? {} : { issues }),
-    }),
-  };
-}
-
-/** A refused put: status, problem code, optional conflict reason and issues. */
-type PutRefusal = {
-  status: number;
-  code: string;
-  reason?: string;
-  issues?: readonly ServerIssue[];
-};
-
-type Fixture = Awaited<ReturnType<typeof integrationsFixture>>;
-
-/**
- * Mocks the registration read, the begin action and GitHub's registration
- * page. `current` is what the next read answers; `beginAnswer` is what the
- * next begin answers.
- */
-async function integrationsFixture(
-  page: Page,
-  initial: Record<string, unknown> | "forbidden" | "error" = unregistered,
-) {
-  await mockAuthenticatedSession(page);
-  const state = {
-    current: initial,
-    beginAnswer: "ok" as "ok" | "conflict" | "forbidden" | "error",
-    putAnswer: "ok" as "ok" | PutRefusal,
-    reads: 0,
-    begins: [] as unknown[],
-    puts: [] as {
-      body: Record<string, unknown>;
-      headers: Record<string, string>;
-    }[],
-    githubPosts: [] as { url: string; method: string; body: URLSearchParams }[],
-  };
-  await page.route("**/v1/integration-app-registrations/github", (route) => {
-    const request = route.request();
-    if (request.method() === "PUT") {
-      state.puts.push({
-        body: request.postDataJSON(),
-        headers: request.headers(),
-      });
-      const answer = state.putAnswer;
-      if (answer !== "ok") {
-        return route.fulfill(
-          problem(answer.status, answer.code, answer.reason, answer.issues),
-        );
-      }
-      state.current = {
-        ...registered,
-        version: typeof state.current === "object" &&
-            state.current.status === "registered"
-          ? Number(state.current.version) + 1
-          : 1,
-      };
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(state.current),
-      });
-    }
-    state.reads++;
-    if (state.current === "forbidden") {
-      return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
-    }
-    if (state.current === "error") {
-      return route.fulfill(problem(503, "DEPENDENCY_UNAVAILABLE"));
-    }
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(state.current),
-    });
-  });
-  await page.route(
-    "**/v1/integration-app-registrations/github/manifest",
-    (route: Route) => {
-      state.begins.push(route.request().postDataJSON());
-      if (state.beginAnswer === "conflict") {
-        return route.fulfill(problem(409, "STATE_CONFLICT"));
-      }
-      if (state.beginAnswer === "forbidden") {
-        return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
-      }
-      if (state.beginAnswer === "error") {
-        return route.fulfill(problem(503, "DEPENDENCY_UNAVAILABLE"));
-      }
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          provider: "github",
-          registrationUrl: GITHUB_REGISTRATION_URL,
-          manifest: MANIFEST,
-          state: "state-from-bakery",
-          expiresAt: "2026-10-26T19:00:00.000Z",
-        }),
-      });
-    },
-  );
-  await page.route("https://github.com/**", (route) => {
-    const request = route.request();
-    state.githubPosts.push({
-      url: request.url(),
-      method: request.method(),
-      body: new URLSearchParams(request.postData() ?? ""),
-    });
-    return route.fulfill({
-      status: 200,
-      contentType: "text/html",
-      body: "<!doctype html><title>GitHub</title><p>Create GitHub App</p>",
-    });
-  });
-  return state;
-}
+  GITHUB_MANIFEST as MANIFEST,
+  GITHUB_REGISTRATION_URL,
+  INTEGRATIONS_PAGE_PATH as PAGE_PATH,
+  integrationsFixture,
+  problem,
+  registered,
+  slackSet,
+  slackUnset,
+  unregistered,
+} from "./helpers/installation-integrations-fixtures.ts";
 
 const createButton = (page: Page) =>
   page.getByRole("button", { name: "Create GitHub App" });
@@ -964,4 +778,138 @@ test("Verify and save is single-flight", async ({ page }) => {
   });
   await expect(page.getByText("Bakery Test 912345")).toBeVisible();
   expect(f.puts).toHaveLength(1);
+});
+
+const slackSection = (page: Page) => page.getByTestId("slack-app");
+
+test("a Slack app that is not set up asks for its details and shows the addresses to paste", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await expect(slack.getByText(/Slack is not set up yet/)).toBeVisible();
+  // The addresses Slack needs are shown before anything is stored: they belong
+  // to this installation, not to the app details that are still missing.
+  await expect(slack.getByTestId("slack-redirect-url"))
+    .toHaveText(slackUnset.redirectUrl);
+  await expect(slack.getByTestId("slack-events-url"))
+    .toHaveText(slackUnset.eventsUrl);
+  await expect(slack.getByTestId("slack-interactivity-url"))
+    .toHaveText(slackUnset.interactivityUrl);
+  await expect(slack.getByRole("button", { name: "Copy redirect URL" }))
+    .toBeVisible();
+  // The read happens at least once; a strict-mode double render may ask again.
+  expect(f.slack.reads).toBeGreaterThanOrEqual(1);
+});
+
+test("saving Slack details sends all four fields and the version it read", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByLabel("App ID").fill("A0123ABCD");
+  await slack.getByLabel("Client ID").fill("1234567890.1234567890");
+  await slack.getByLabel("Client secret").fill("client-secret-value");
+  await slack.getByLabel("Signing secret").fill("signing-secret-value");
+  await slack.getByRole("button", { name: "Save" }).click();
+  await expect(slack.getByText("Slack is set up.")).toBeVisible();
+  expect(f.slack.puts).toHaveLength(1);
+  expect(f.slack.puts[0]!.body).toEqual({
+    appId: "A0123ABCD",
+    clientId: "1234567890.1234567890",
+    clientSecret: "client-secret-value",
+    signingSecret: "signing-secret-value",
+  });
+  // A new app has no version yet, so the write is not conditional.
+  expect(f.slack.puts[0]!.headers["if-match"]).toBeUndefined();
+});
+
+test("an app id that is not one is refused before anything is sent", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByLabel("App ID").fill("1234567890.1234567890");
+  await slack.getByLabel("Client ID").fill("1234567890.1234567890");
+  await slack.getByLabel("Client secret").fill("client-secret-value");
+  await slack.getByLabel("Signing secret").fill("signing-secret-value");
+  await slack.getByRole("button", { name: "Save" }).click();
+  await expect(slack.getByText(/A Slack app ID starts with A/)).toBeVisible();
+  expect(f.slack.puts).toHaveLength(0);
+});
+
+test("replacing the details never refills a secret and keeps one left empty", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  f.slack.current = { ...slackSet };
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByRole("button", { name: "Replace" }).click();
+  // The ids come back; the secrets cannot, because the server never returns them.
+  await expect(slack.getByLabel("App ID")).toHaveValue("A0123ABCD");
+  await expect(slack.getByLabel("Client secret")).toHaveValue("");
+  await expect(slack.getByLabel("Signing secret")).toHaveValue("");
+  await expect(slack.getByText(/Leave empty to keep it/).first())
+    .toBeVisible();
+  await slack.getByLabel("Client secret").fill("a-new-client-secret");
+  await slack.getByRole("button", { name: "Save" }).click();
+  await expect(slack.getByText("Slack is set up.")).toBeVisible();
+  const body = f.slack.puts[0]!.body;
+  expect(body.clientSecret).toBe("a-new-client-secret");
+  // An empty signing secret is not sent at all: the stored one is kept.
+  expect(body.signingSecret).toBeUndefined();
+  // An existing app is written against the version that was read, as the
+  // quoted entity tag the client sends for every conditional write.
+  expect(f.slack.puts[0]!.headers["if-match"]).toBe('"v1"');
+});
+
+test("check now asks Slack and shows what it answered", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  f.slack.current = { ...slackSet };
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await expect(slack.getByTestId("slack-signin-state"))
+    .toHaveText("Not checked yet.");
+  await slack.getByRole("button", { name: "Check now" }).click();
+  await expect(slack.getByTestId("slack-signin-state"))
+    .toHaveText(/Accepted by Slack on/);
+  expect(f.slack.checks).toHaveLength(1);
+  expect(f.slack.checks[0]!["if-match"]).toBe('"v1"');
+});
+
+test("a check Slack refused names the secret to replace", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  f.slack.current = { ...slackSet };
+  f.slack.checkAnswer = "client_id_refused";
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByRole("button", { name: "Check now" }).click();
+  await expect(slack.getByText(/does not recognise this client ID/))
+    .toBeVisible();
+});
+
+test("removing the Slack app asks first and then says it was removed", async ({ page }) => {
+  const f = await integrationsFixture(page);
+  f.slack.current = { ...slackSet };
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await slack.getByRole("button", { name: "Remove" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  // Nothing is deleted until the dialog is confirmed.
+  expect(f.slack.deletes).toHaveLength(0);
+  await dialog.getByRole("button", { name: "Remove" }).click();
+  await expect(slack.getByText("The Slack app details were removed."))
+    .toBeVisible();
+  expect(f.slack.deletes).toHaveLength(1);
+  expect(f.slack.deletes[0]!["if-match"]).toBe('"v1"');
+});
+
+test("a Slack read that is forbidden shows the same message as the rest of the page", async ({ page }) => {
+  await integrationsFixture(page);
+  // Both reads refuse, so the page has one answer for the whole screen.
+  await page.route(
+    "**/v1/integrations/slack/app",
+    (route) => route.fulfill(problem(403, "AUTH_FORBIDDEN")),
+  );
+  await page.goto(PAGE_PATH);
+  const slack = slackSection(page);
+  await expect(slack.getByText(/administrator/i).first()).toBeVisible();
+  await expect(slack.getByRole("button", { name: "Save" })).toHaveCount(0);
 });

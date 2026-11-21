@@ -107,6 +107,14 @@ export async function matrixSecretsKey() {
     githubAppClient: matrixGitHub.client,
     /** No audit case reaches a storage provider: the probe answers verified. */
     skillStorageProbe: () => Promise.resolve("verified" as const),
+    /** Nor does one reach Slack: the check is answered as accepted. */
+    slackAppFetch: (() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )) as typeof fetch,
     /** Nor does one reach a backup bucket: the destination test answers verified. */
     backupDestinationProbe: () =>
       Promise.resolve({ outcome: "verified" as const, detail: null }),
@@ -744,6 +752,97 @@ export async function runAuditMatrix(
               clientSecret: "audit-matrix-client-secret",
             },
             headers: { "Idempotency-Key": key() },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      // The Slack app's details are write-only secrets, so the audit row records
+      // the operation and the principal, never a value. The check is a command
+      // because it spends a request and records Slack's answer.
+      operation: "integrationSlackApp.put",
+      failure: () =>
+        call(f, "PUT", "/v1/integrations/slack/app", developer, {
+          body: {
+            appId: "A0123ABCD",
+            clientId: "1234567890.1234567890",
+            clientSecret: "audit-matrix-slack-client",
+            signingSecret: "audit-matrix-slack-signing",
+          },
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => {
+        const saved = await call(
+          f,
+          "PUT",
+          "/v1/integrations/slack/app",
+          f.adminCookie,
+          {
+            body: {
+              appId: "A0123ABCD",
+              clientId: "1234567890.1234567890",
+              clientSecret: "audit-matrix-slack-client",
+              signingSecret: "audit-matrix-slack-signing",
+            },
+            headers: { "Idempotency-Key": key() },
+          },
+        );
+        assert(saved.ok, `slack app save ${saved.status}`);
+        const body = await saved.clone().text();
+        const app = JSON.parse(body) as { version: number };
+        state.slackAppVersion = String(app.version);
+        return { response: saved, organizationId: null };
+      },
+    },
+    {
+      operation: "integrationSlackApp.check",
+      failure: () =>
+        call(f, "POST", "/v1/integrations/slack/app/check", developer, {
+          headers: {
+            "Idempotency-Key": key(),
+            "If-Match": `"v${state.slackAppVersion}"`,
+          },
+          body: {},
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "POST",
+          "/v1/integrations/slack/app/check",
+          f.adminCookie,
+          {
+            headers: {
+              "Idempotency-Key": key(),
+              "If-Match": `"v${state.slackAppVersion}"`,
+            },
+            body: {},
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "integrationSlackApp.delete",
+      failure: () =>
+        call(f, "DELETE", "/v1/integrations/slack/app", developer, {
+          headers: {
+            "Idempotency-Key": key(),
+            "If-Match": `"v${state.slackAppVersion}"`,
+          },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "DELETE",
+          "/v1/integrations/slack/app",
+          f.adminCookie,
+          {
+            headers: {
+              "Idempotency-Key": key(),
+              "If-Match": `"v${state.slackAppVersion}"`,
+            },
+            body: {},
           },
         ),
         organizationId: null,

@@ -17,6 +17,7 @@ import {
   EVENT_CLOCK_SCHEMA_BOUNDARY,
 } from "./modules/work/migrations.ts";
 import { BAKERY_MIGRATION_SOURCES } from "./migration-sources.ts";
+import { runSlackReceiptPurgesTask } from "./platform/slack-receipt-purges-task.ts";
 import { runStoragePurgesTask } from "./platform/storage-purges-task.ts";
 import { runRestoreFenceTask } from "./platform/restore-fence-task.ts";
 import { AuthErrorCode } from "./modules/auth/domain/errors.ts";
@@ -148,6 +149,7 @@ const tasks = [
   "settings",
   "reset",
   "storage-purges",
+  "slack-receipt-purges",
   "restore-fence",
   "probe-runner",
 ];
@@ -186,6 +188,13 @@ if (task === "probe-runner") {
 
 if (task === "storage-purges") {
   console.log(JSON.stringify(await runStoragePurgesTask(databaseConfig.url)));
+  Deno.exit(0);
+}
+
+if (task === "slack-receipt-purges") {
+  console.log(
+    JSON.stringify(await runSlackReceiptPurgesTask(databaseConfig.url)),
+  );
   Deno.exit(0);
 }
 

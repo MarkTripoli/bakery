@@ -701,6 +701,24 @@ export const integrationClientCredentialsImplementedActions = Object.freeze(
   Object.values(IntegrationClientCredentialsImplementedAction),
 );
 
+/**
+ * The installation's own Slack app (#415): what it is, the two secrets it needs,
+ * and the one question Slack can answer about them. Read and replace are the
+ * screen's job; check is a command because it spends a request and records an
+ * answer, and delete removes the app without touching the people linked to it.
+ */
+export const IntegrationSlackAppImplementedAction = Object.freeze(
+  {
+    IntegrationSlackAppGet: "integrationSlackApp.get",
+    IntegrationSlackAppPut: "integrationSlackApp.put",
+    IntegrationSlackAppDelete: "integrationSlackApp.delete",
+    IntegrationSlackAppCheck: "integrationSlackApp.check",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const integrationSlackAppImplementedActions = Object.freeze(
+  Object.values(IntegrationSlackAppImplementedAction),
+);
+
 export const SkillStorageImplementedAction = Object.freeze(
   {
     SkillStorageSettingsGet: "skillStorageSettings.get",
@@ -976,6 +994,7 @@ export const implementedActions = Object.freeze(
     ...alertChannelImplementedActions,
     ...alertRuleImplementedActions,
     ...integrationClientCredentialsImplementedActions,
+    ...integrationSlackAppImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
     ...batchImplementedActions,

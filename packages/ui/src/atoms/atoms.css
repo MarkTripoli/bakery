@@ -341,7 +341,10 @@
    reads at the normal size. The slot keeps its size; the overflow is
    transparent clear space and takes no pointer events. */
 .ui-provider-mark[data-clear-space="true"] {
-  overflow: visible;
+  /* The doubled file's extra size is the vendor's transparent clear space; the
+     slot clips it, so the glyph reads at the normal size and nothing shows
+     outside the slot. */
+  overflow: clip;
   pointer-events: none;
 }
 .ui-provider-mark[data-clear-space="true"] .ui-provider-mark__art {

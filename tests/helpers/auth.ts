@@ -128,6 +128,8 @@ export async function openAuthFixture(options: {
   secretsFetch?: typeof fetch;
   /** GitHub App API port; tests pass the fake from fake-github-app.ts. */
   githubAppClient?: Parameters<typeof createApp>[0]["githubAppClient"];
+  /** Slack's answer to a credential check; tests pass one so none reaches Slack. */
+  slackAppFetch?: Parameters<typeof createApp>[0]["slackAppFetch"];
   /** Telemetry the execution routes tell about renewals, completions and settlements. */
   telemetry?: Parameters<typeof createApp>[0]["telemetry"];
   /** Token broker the app's API and a test's reconcile share. */
@@ -270,6 +272,7 @@ export async function openAuthFixture(options: {
       collaborationSocket: options.collaborationSocket,
       secretsFetch: options.secretsFetch,
       githubAppClient: options.githubAppClient,
+      slackAppFetch: options.slackAppFetch,
       telemetry: options.telemetry,
       installationTokenBroker: options.installationTokenBroker,
       ticketReader: options.ticketReader,
@@ -523,6 +526,11 @@ export async function cleanupAuthFixture(
     `select id from bakery.principals where provider_user_id = any($1::uuid[])`,
     [userIds],
   );
+  await deleteSlackAppRows(
+    pgDatabase,
+    `select id from bakery.principals where provider_user_id = any($1::uuid[])`,
+    [userIds],
+  );
   await pgDatabase.query(
     `delete from bakery.principals
      where provider_user_id = any($1::uuid[])`,
@@ -635,6 +643,56 @@ export async function deleteGitHubAppRegistrationRows(
     values,
   );
   const secretIds = deleted.rows.flatMap((row) => row.ids);
+  if (secretIds.length === 0) return;
+  await pgDatabase.query(
+    "update bakery.secrets set active_version_id = null where id = any($1::uuid[])",
+    [secretIds],
+  );
+  await pgDatabase.query(
+    "delete from bakery.secret_versions where secret_id = any($1::uuid[])",
+    [secretIds],
+  );
+  await pgDatabase.query(
+    "delete from bakery.secrets where id = any($1::uuid[])",
+    [secretIds],
+  );
+}
+
+/**
+ * Removes the installation Slack app settings row and the secrets the app's
+ * saves sealed, so a principal that created them can be deleted: a removal
+ * revokes a secret instead of deleting it, and `secret_versions.created_by`
+ * still names the person. Pass `select id from bakery.principals` to clear the
+ * row unconditionally.
+ */
+export async function deleteSlackAppRows(
+  pgDatabase: Awaited<ReturnType<typeof openAuthFixture>>["pgDatabase"],
+  principals: string,
+  values: unknown[],
+): Promise<void> {
+  const removed = await pgDatabase.query<{ secretIds: string[] }>(
+    `delete from bakery.slack_app_settings
+      where signing_secret_id in (
+           select secret_id from bakery.secret_versions
+            where created_by in (${principals}))
+         or client_secret_id in (
+           select secret_id from bakery.secret_versions
+            where created_by in (${principals}))
+      returning array[signing_secret_id, client_secret_id]::text[] as "secretIds"`,
+    values,
+  );
+  const stray = await pgDatabase.query<{ id: string }>(
+    `select distinct secret_id as id from bakery.secret_versions
+      where created_by in (${principals})
+        and secret_id in (select id from bakery.secrets
+          where organization_id is null and application_id is null
+            and provider = 'slack')`,
+    values,
+  );
+  const secretIds = [
+    ...removed.rows.flatMap((row) => row.secretIds ?? []),
+    ...stray.rows.map((row) => row.id),
+  ];
   if (secretIds.length === 0) return;
   await pgDatabase.query(
     "update bakery.secrets set active_version_id = null where id = any($1::uuid[])",

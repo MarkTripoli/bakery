@@ -140,6 +140,10 @@ export type IntegrationClientCredentials =
   ClientOutputMap["IntegrationClientCredentials"];
 export type IntegrationClientCredentialsPut =
   ClientInputMap["IntegrationClientCredentialsPut"];
+export type IntegrationSlackApp = ClientOutputMap["IntegrationSlackApp"];
+export type IntegrationSlackAppPut = ClientInputMap["IntegrationSlackAppPut"];
+export type IntegrationSlackAppCheck =
+  ClientOutputMap["IntegrationSlackAppCheck"];
 export type TelemetryDestinationList =
   ClientOutputMap["TelemetryDestinationList"];
 export type TelemetryDestination = ClientOutputMap["TelemetryDestination"];
@@ -1460,6 +1464,42 @@ export type BakeryApiClient = {
       readonly idempotencyKey: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<IntegrationAppRegistration>>;
+  };
+  /**
+   * This installation's Slack app (#415): read, save, check and remove. An
+   * administrator's own action; a result never carries a secret.
+   */
+  readonly integrationSlackApp: {
+    /** `GET /v1/integrations/slack/app`: what is saved, never a secret. */
+    readonly get: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<IntegrationSlackApp>>;
+    /**
+     * `PUT /v1/integrations/slack/app`: app id, client id, and whichever
+     * secrets changed. An omitted secret keeps the saved one.
+     */
+    readonly put: (options: {
+      readonly input: IntegrationSlackAppPut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<IntegrationSlackApp>>;
+    /**
+     * `POST /v1/integrations/slack/app/check`: ask Slack whether it recognises
+     * the saved client pair. The server answers only about the version the
+     * caller has seen, so `version` is the value the page loaded.
+     */
+    readonly check: (options: {
+      readonly version: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<IntegrationSlackAppCheck>>;
+    /** `DELETE /v1/integrations/slack/app`: forget the details, keep the links. */
+    readonly remove: (options: {
+      readonly version: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<IntegrationSlackApp>>;
   };
   /**
    * Provider OAuth client credentials, per provider (#410); installation
@@ -4465,6 +4505,68 @@ export function createBakeryApiClient({
                 signal: options.signal,
               },
             ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    integrationSlackApp: {
+      async get(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["integrationSlackApp.get"]({}, {
+              signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async put(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["integrationSlackApp.put"](
+              options.input,
+              {
+                ...(options.version === undefined
+                  ? {}
+                  : { ifMatch: versionEtag(options.version) }),
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async check(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["integrationSlackApp.check"]({}, {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async remove(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["integrationSlackApp.delete"]({}, {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
           };
         } catch (error) {
           return failed(error);

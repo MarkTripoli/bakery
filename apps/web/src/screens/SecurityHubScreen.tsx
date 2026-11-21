@@ -8,6 +8,7 @@ import {
   TWO_FACTOR_SETTINGS_PATH,
 } from "../app/auth-paths.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { LinkedSlackRow, type LinkedSlackState } from "./linked-slack-row.tsx";
 import {
   SecurityAsyncBoundary,
   type SecurityAsyncKind,
@@ -27,6 +28,23 @@ export type SecurityHubScreenProps = {
   readonly onRetry: () => void;
   readonly onReload: () => void;
   readonly onRefresh: () => void;
+  /**
+   * The Slack row's state. Absent when the page has not asked, in which case the
+   * section is not shown at all - a row that cannot answer is worse than no row.
+   */
+  readonly slackLink?: SlackLinkSection;
+  readonly onLinkSlack?: () => void;
+};
+
+/** What the Linked accounts section needs from the page that owns the query. */
+export type SlackLinkSection = {
+  readonly organizationName: string;
+  readonly state: LinkedSlackState;
+  readonly workspace?: string;
+  readonly banner?: Parameters<typeof LinkedSlackRow>[0]["banner"];
+  readonly linking?: boolean;
+  readonly onTryAgain: () => void;
+  readonly onUnlink: () => void;
 };
 
 /**
@@ -47,6 +65,8 @@ export function SecurityHubScreen(
     onReload,
     onRetry,
     passkeyCount,
+    slackLink,
+    onLinkSlack,
     twoFactorEnabled,
   }: SecurityHubScreenProps,
 ) {
@@ -172,6 +192,18 @@ export function SecurityHubScreen(
             to={CONNECTED_CLIENTS_PATH}
           />
         </div>
+        {slackLink === undefined ? null : (
+          <LinkedSlackRow
+            banner={slackLink.banner}
+            linking={slackLink.linking}
+            onLink={onLinkSlack ?? (() => {})}
+            onTryAgain={slackLink.onTryAgain}
+            onUnlink={slackLink.onUnlink}
+            organizationName={slackLink.organizationName}
+            state={slackLink.state}
+            workspace={slackLink.workspace}
+          />
+        )}
       </SecurityAsyncBoundary>
     </UI.SettingsContent>
   );

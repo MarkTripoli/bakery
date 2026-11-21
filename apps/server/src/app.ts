@@ -33,6 +33,7 @@ import {
   type EmailSettingsDependencies,
 } from "./modules/work/email-actions.ts";
 import { createClientCredentialsRoutes } from "./modules/integrations/client-credentials.ts";
+import { createSlackAppRoutes } from "./modules/integrations/slack-app-actions.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createProviderReadRoutes } from "./modules/execution/provider-read-routes.ts";
 import { createRouteContinuationRoutes } from "./modules/execution/route-continuations.ts";
@@ -240,6 +241,8 @@ export function createApp(options: {
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
   skillStorageProbe?: typeof probeSkillStorage;
+  /** Slack's answer to a credential check; tests inject one so none reaches Slack. */
+  slackAppFetch?: typeof fetch;
   /** Destination test runner; tests inject one so no suite reaches a real bucket. */
   backupDestinationProbe?: typeof probeBackupDestination;
   /** Destination host resolver; tests inject one so no suite touches real DNS. */
@@ -1130,6 +1133,18 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       dependencies: { ...skillStorage, probe: options.skillStorageProbe },
+    }),
+  );
+  app.route(
+    "/",
+    createSlackAppRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      secretsKey: options.config.secretsKey,
+      ...(options.slackAppFetch === undefined
+        ? {}
+        : { fetch: options.slackAppFetch }),
     }),
   );
   app.route(

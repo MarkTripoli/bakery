@@ -877,8 +877,16 @@ export function createNormalizedCommandMetadata(
     : parseIdempotencyKey(suppliedKey);
   const method = action.method.toUpperCase();
   const conditionalPostActions: ReadonlySet<ActionDefinition["name"]> = new Set(
-    ["artifactVersions.import", "repositoryProfiles.create"],
+    [
+      "artifactVersions.import",
+      "integrationSlackApp.check",
+      "repositoryProfiles.create",
+    ],
   );
+  // DELETE whose row carries a version the caller must have seen: If-Match is
+  // required, so a stale Remove is refused instead of deleting blind.
+  const conditionalDeleteActions: ReadonlySet<ActionDefinition["name"]> =
+    new Set(["integrationSlackApp.delete"]);
   // PUT that creates when absent and replaces when present: If-Match is
   // parsed when sent and the handler decides whether it was required.
   const conditionalPutActions: ReadonlySet<ActionDefinition["name"]> = new Set(
@@ -888,6 +896,7 @@ export function createNormalizedCommandMetadata(
       "emailSettings.put",
       "integrationAppRegistrations.put",
       "integrationClientCredentials.put",
+      "integrationSlackApp.put",
       "mcpToolClassifications.put",
       "scopeProfiles.put",
       "skillStorageSettings.put",
@@ -895,10 +904,14 @@ export function createNormalizedCommandMetadata(
       "storageSettings.put",
     ],
   );
+  // A delete that must quote the version it removes: the Slack app's removal is
+  // one, so a second editor's Remove cannot delete a row they never saw.
+  const deleteNeedsIfMatch = method === "DELETE" &&
+    conditionalDeleteActions.has(action.name);
   const patchNeedsIfMatch = (method === "PATCH" &&
     action.explicitIdempotency !== "key") ||
     action.explicitIdempotency === "key-and-if-match";
-  const expectedVersion = patchNeedsIfMatch ||
+  const expectedVersion = patchNeedsIfMatch || deleteNeedsIfMatch ||
       (method === "DELETE" && action.naturalIdempotency) ||
       (method === "POST" && conditionalPostActions.has(action.name) &&
         request.headers.has("if-match")) ||

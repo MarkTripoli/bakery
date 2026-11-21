@@ -233,7 +233,7 @@ export async function recordSetupHint(
 }
 
 /** Registered App identity and its encrypted credentials, as stored. */
-type StoredSecret = {
+export type StoredSecret = {
   secretId: string;
   revision: number;
   keyId: string;

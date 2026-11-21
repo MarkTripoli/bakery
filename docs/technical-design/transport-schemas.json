@@ -14307,6 +14307,46 @@
         "rpoSeconds is present exactly when cutoffAt is."
       ],
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
+    },
+    "IntegrationSlackAppPut": {
+      "fields": [
+        {
+          "name": "appId",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The Slack app's ID, as Slack shows it under Basic Information: the A followed by letters and digits that names this app in every Slack API call and in the event URLs Bakery shows back. Not a secret."
+        },
+        {
+          "name": "clientId",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "The Slack app's client ID, as Slack shows it under Basic Information. Not a secret; it is shown back to installation administrators."
+        },
+        {
+          "name": "clientSecret",
+          "type": "secretString",
+          "required": false,
+          "description": "The Slack app's client secret. Write-only. Omitted means keep the stored one, which is how a person changes only the signing secret without re-pasting both."
+        },
+        {
+          "name": "signingSecret",
+          "type": "secretString",
+          "required": false,
+          "description": "The Slack app's signing secret, which verifies that an inbound request came from Slack. Write-only. Omitted means keep the stored one."
+        }
+      ],
+      "rules": [
+        "clientSecret and signingSecret are write-only and are never returned by any operation, audit row or log.",
+        "A secret that is omitted is kept, not cleared: the status date for that secret does not move.",
+        "Replacing a secret clears the last sign-in check, because a check of a secret that is gone says nothing about its replacement."
+      ],
+      "description": "Saves the details of this installation's Slack app: which app it is, and the two secrets Bakery needs to speak as it and to trust its requests. A replacement sends only what changed."
     }
   },
   "projections": {
@@ -36079,6 +36119,80 @@
     "Page<BackupDrill>": {
       "pageOf": "BackupDrill",
       "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "IntegrationSlackApp": {
+      "fields": [
+        "appId",
+        "clientId",
+        "configured",
+        "signingSecretSavedAt",
+        "clientSecretSavedAt",
+        "detailsCheckedAt",
+        "detailsCheckResult",
+        "lastRequestAt",
+        "lastRequestFailedAt",
+        "redirectUrl",
+        "eventsUrl",
+        "interactivityUrl",
+        "version"
+      ],
+      "nullableFields": [
+        "appId",
+        "clientId",
+        "signingSecretSavedAt",
+        "clientSecretSavedAt",
+        "detailsCheckedAt",
+        "detailsCheckResult",
+        "lastRequestAt",
+        "lastRequestFailedAt"
+      ],
+      "fieldTypes": {
+        "appId": "string",
+        "clientId": "string",
+        "configured": "boolean",
+        "signingSecretSavedAt": "timestamp",
+        "clientSecretSavedAt": "timestamp",
+        "detailsCheckedAt": "timestamp",
+        "detailsCheckResult": "string",
+        "lastRequestAt": "timestamp",
+        "lastRequestFailedAt": "timestamp",
+        "redirectUrl": "uri",
+        "eventsUrl": "uri",
+        "interactivityUrl": "uri",
+        "version": "integer"
+      },
+      "description": "Whether this installation has a Slack app saved, what Slack says when asked about the client ID and secret, and what the signing secret's last real request proved. No secret, and no ciphertext, is part of it.",
+      "fieldDescriptions": {
+        "appId": "The Slack app's own ID, when Slack has told us and a check confirmed it; null until then.",
+        "clientId": "The saved client ID, or null while nothing is saved.",
+        "configured": "True once a client ID and both secrets have been saved.",
+        "signingSecretSavedAt": "When the current signing secret was saved. A replaced secret moves this; an omitted one does not.",
+        "clientSecretSavedAt": "When the current client secret was saved.",
+        "detailsCheckedAt": "When Slack was last asked whether it recognises the client ID and secret, or null if nobody has asked.",
+        "detailsCheckResult": "What Slack answered: accepted, client_id_refused, client_secret_refused or unreachable. Null when nobody has asked.",
+        "lastRequestAt": "When a request last passed the signature check. The signing secret has no other test.",
+        "lastRequestFailedAt": "When a request last failed it, so the screen can say so without blaming the secret.",
+        "redirectUrl": "The URL to enter in the Slack app as its OAuth redirect URL, derived from this installation's public address.",
+        "eventsUrl": "The URL to enter as the Events API request URL.",
+        "interactivityUrl": "The URL to enter as the Interactivity request URL.",
+        "version": "Saving version: 0 while nothing is saved, then the If-Match value for the next save."
+      }
+    },
+    "IntegrationSlackAppCheck": {
+      "fields": [
+        "result",
+        "checkedAt"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "result": "string",
+        "checkedAt": "timestamp"
+      },
+      "description": "What Slack answered when asked whether it recognises the saved client ID and secret, and when. Recorded on the app so the screen can show it after a reload.",
+      "fieldDescriptions": {
+        "result": "accepted, client_id_refused, client_secret_refused or unreachable.",
+        "checkedAt": "When the check ran."
+      }
     }
   },
   "pageEnvelope": {

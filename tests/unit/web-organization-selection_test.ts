@@ -169,6 +169,12 @@ function fakeApi(
     usage: { list: rejecting },
     metrics: { get: rejecting, sources: rejecting },
     integrationClientCredentials: { get: rejecting, put: rejecting },
+    integrationSlackApp: {
+      get: rejecting,
+      put: rejecting,
+      check: rejecting,
+      remove: rejecting,
+    },
     integrationAppRegistrations: {
       get: rejecting,
       begin: rejecting,

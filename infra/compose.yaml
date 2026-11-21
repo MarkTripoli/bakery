@@ -232,6 +232,27 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # Slack retries a webhook and people press Approve twice, so Bakery keeps a
+  # receipt per signed request to recognise the copy. A receipt older than the
+  # freshness window protects nothing, so it is swept every 600 seconds (#415).
+  slack-receipt-purges:
+    image: denoland/deno:2.9.1@sha256:c40ad61ed0b40cca8fda05a2bbf44f8e02485bebec8ee4820bdb4b6fff42599d
+    working_dir: /workspace
+    command:
+      - sh
+      - -c
+      - while true; do deno run --allow-env --allow-net apps/server/src/tasks.ts slack-receipt-purges; sleep 600; done
+    environment:
+      DATABASE_URL: postgres://bakery:${BAKERY_LOCAL_BAKERY_PASSWORD:-bakery-local-bakery}@postgres:5432/bakery
+    volumes:
+      - ..:/workspace:ro
+    networks:
+      - infra
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   server:
     image: denoland/deno:2.9.1@sha256:c40ad61ed0b40cca8fda05a2bbf44f8e02485bebec8ee4820bdb4b6fff42599d
     working_dir: /workspace

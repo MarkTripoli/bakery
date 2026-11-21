@@ -82,6 +82,8 @@ export type InstallationIntegrationsScreenProps = {
   readonly existingApp: ExistingAppForm;
   /** Provider OAuth client credential sections, rendered below the GitHub App area. */
   readonly providerCredentials?: ReactNode;
+  /** The Slack app section, rendered after the provider credentials. */
+  readonly slack?: ReactNode;
   /** The object storage section, rendered below the GitHub App area. */
   readonly storage?: ReactNode;
 };
@@ -134,6 +136,7 @@ export function InstallationIntegrationsScreen(
     onDismissOutcome,
     existingApp,
     providerCredentials,
+    slack,
     storage,
   }: InstallationIntegrationsScreenProps,
 ) {
@@ -442,6 +445,7 @@ export function InstallationIntegrationsScreen(
           : null}
       </UI.IntegrationAppRegistration>
       {providerCredentials}
+      {slack}
       {storage}
     </UI.SettingsContent>
   );

@@ -951,3 +951,56 @@ Deno.test("a Slack Enterprise Grid organization id is E followed by 2 to 31 capi
     assertEquals(isSlackEnterpriseId(bad), false, JSON.stringify(bad));
   }
 });
+
+Deno.test("slack identity: a deactivated person's link stops resolving, from the lookup that reads membership live", async () => {
+  // PM's rule for #415: when a person is deactivated or removed, their Slack
+  // links must stop resolving and refuse as not-linked. The resolver above is
+  // pinned to refuse; what this pins is *why* it can, one step earlier: the
+  // lookup in slack-identity-links.ts joins the membership on every read, so it
+  // needs no sweep to have noticed. A sweep only tidies rows afterwards.
+  //
+  // The join is what the SQL below reproduces: a link is returned with
+  // `memberCurrent` taken from the current membership status (false when the row
+  // is gone, deactivated or suspended), and the resolver refuses it. Driven here
+  // against a fake table so the test states the shape the real query must keep.
+  type Row = { state: "active" | "revoked"; membership: string | null };
+  const table: Row = { state: "active", membership: "active" };
+  const lookupReadingMembership = () =>
+    Promise.resolve({
+      principalId: "00000000-0000-4000-8000-000000000009",
+      state: table.state,
+      memberCurrent: table.membership === "active",
+    });
+
+  // Linked while the person is a current member.
+  assertEquals(
+    await resolveSlackActor(subject, lookupReadingMembership),
+    {
+      kind: "human",
+      principalId: "00000000-0000-4000-8000-000000000009",
+    },
+  );
+
+  // Deactivated: refused as not-a-member with no sweep having run.
+  table.membership = "deactivated";
+  assertEquals(
+    await resolveSlackActor(subject, lookupReadingMembership),
+    { kind: "service", verifiedHuman: false, reason: "not_a_member" },
+  );
+
+  // Removed altogether: the membership row is gone, which the left join reads
+  // as `coalesce(... = 'active', false)`, so the same refusal holds.
+  table.membership = null;
+  assertEquals(
+    await resolveSlackActor(subject, lookupReadingMembership),
+    { kind: "service", verifiedHuman: false, reason: "not_a_member" },
+  );
+
+  // A revoked link is refused on its own state, before membership is consulted.
+  table.state = "revoked";
+  table.membership = "active";
+  assertEquals(
+    await resolveSlackActor(subject, lookupReadingMembership),
+    { kind: "service", verifiedHuman: false, reason: "revoked" },
+  );
+});

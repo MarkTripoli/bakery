@@ -10189,6 +10189,125 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/integrations/slack/app/check",
+      "action": "integrationSlackApp.check",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "Empty",
+      "output": "IntegrationSlackAppCheck",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "DELETE",
+      "path": "/v1/integrations/slack/app",
+      "action": "integrationSlackApp.delete",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "Empty",
+      "output": "IntegrationSlackApp",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/integrations/slack/app",
+      "action": "integrationSlackApp.get",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "Empty",
+      "output": "IntegrationSlackApp",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/integrations/slack/app",
+      "action": "integrationSlackApp.put",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "IntegrationSlackAppPut",
+      "output": "IntegrationSlackApp",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
       "group": "Tickets",
       "method": "GET",
       "path": "/v1/ticket-sources",
@@ -18892,6 +19011,10 @@ export const clientManifest = {
             "integrationDestinations.create",
             "integrationDestinations.update",
             "integrationSubscriptions.list",
+            "integrationSlackApp.check",
+            "integrationSlackApp.delete",
+            "integrationSlackApp.get",
+            "integrationSlackApp.put",
             "integrationSubscriptions.create",
             "integrationSubscriptions.get",
             "integrationSubscriptions.update",
@@ -32436,6 +32559,40 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
+    },
+    "IntegrationSlackAppPut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "appId": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The Slack app's ID, as Slack shows it under Basic Information: the A followed by letters and digits that names this app in every Slack API call and in the event URLs Bakery shows back. Not a secret. IntegrationSlackAppPut.appId must contain at most 200 characters."
+        },
+        "clientId": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The Slack app's client ID, as Slack shows it under Basic Information. Not a secret; it is shown back to installation administrators. IntegrationSlackAppPut.clientId must contain at most 200 characters."
+        },
+        "clientSecret": {
+          "description": "The Slack app's client secret. Write-only. Omitted means keep the stored one, which is how a person changes only the signing secret without re-pasting both.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "signingSecret": {
+          "description": "The Slack app's signing secret, which verifies that an inbound request came from Slack. Write-only. Omitted means keep the stored one.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        }
+      },
+      "required": [
+        "appId",
+        "clientId"
+      ],
+      "additionalProperties": false,
+      "description": "Saves the details of this installation's Slack app: which app it is, and the two secrets Bakery needs to speak as it and to trust its requests. A replacement sends only what changed."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46307,6 +46464,10 @@ export const clientManifest = {
                   "integrationDestinations.create",
                   "integrationDestinations.update",
                   "integrationSubscriptions.list",
+                  "integrationSlackApp.check",
+                  "integrationSlackApp.delete",
+                  "integrationSlackApp.get",
+                  "integrationSlackApp.put",
                   "integrationSubscriptions.create",
                   "integrationSubscriptions.get",
                   "integrationSubscriptions.update",
@@ -66788,6 +66949,10 @@ export const clientManifest = {
             "integrationDestinations.create",
             "integrationDestinations.update",
             "integrationSubscriptions.list",
+            "integrationSlackApp.check",
+            "integrationSlackApp.delete",
+            "integrationSlackApp.get",
+            "integrationSlackApp.put",
             "integrationSubscriptions.create",
             "integrationSubscriptions.get",
             "integrationSubscriptions.update",
@@ -112737,6 +112902,194 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of BackupDrill."
+    },
+    "IntegrationSlackApp": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "appId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The Slack app's own ID, when Slack has told us and a check confirmed it; null until then."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationSlackApp.appId may be null in the safe projection."
+        },
+        "clientId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The saved client ID, or null while nothing is saved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationSlackApp.clientId may be null in the safe projection."
+        },
+        "configured": {
+          "type": "boolean",
+          "description": "True once a client ID and both secrets have been saved."
+        },
+        "signingSecretSavedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the current signing secret was saved. A replaced secret moves this; an omitted one does not."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationSlackApp.signingSecretSavedAt may be null in the safe projection."
+        },
+        "clientSecretSavedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the current client secret was saved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationSlackApp.clientSecretSavedAt may be null in the safe projection."
+        },
+        "detailsCheckedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When Slack was last asked whether it recognises the client ID and secret, or null if nobody has asked."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationSlackApp.detailsCheckedAt may be null in the safe projection."
+        },
+        "detailsCheckResult": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "What Slack answered: accepted, client_id_refused, client_secret_refused or unreachable. Null when nobody has asked."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationSlackApp.detailsCheckResult may be null in the safe projection."
+        },
+        "lastRequestAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When a request last passed the signature check. The signing secret has no other test."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationSlackApp.lastRequestAt may be null in the safe projection."
+        },
+        "lastRequestFailedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When a request last failed it, so the screen can say so without blaming the secret."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationSlackApp.lastRequestFailedAt may be null in the safe projection."
+        },
+        "redirectUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL to enter in the Slack app as its OAuth redirect URL, derived from this installation's public address."
+        },
+        "eventsUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL to enter as the Events API request URL."
+        },
+        "interactivityUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL to enter as the Interactivity request URL."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Saving version: 0 while nothing is saved, then the If-Match value for the next save."
+        }
+      },
+      "required": [
+        "appId",
+        "clientId",
+        "configured",
+        "signingSecretSavedAt",
+        "clientSecretSavedAt",
+        "detailsCheckedAt",
+        "detailsCheckResult",
+        "lastRequestAt",
+        "lastRequestFailedAt",
+        "redirectUrl",
+        "eventsUrl",
+        "interactivityUrl",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Whether this installation has a Slack app saved, what Slack says when asked about the client ID and secret, and what the signing secret's last real request proved. No secret, and no ciphertext, is part of it."
+    },
+    "IntegrationSlackAppCheck": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "accepted, client_id_refused, client_secret_refused or unreachable."
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the check ran."
+        }
+      },
+      "required": [
+        "result",
+        "checkedAt"
+      ],
+      "additionalProperties": false,
+      "description": "What Slack answered when asked whether it recognises the saved client ID and secret, and when. Recorded on the app so the screen can show it after a reload."
     }
   }
 } as const;
