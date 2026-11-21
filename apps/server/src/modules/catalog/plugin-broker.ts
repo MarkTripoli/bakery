@@ -237,6 +237,15 @@ type TokenState = {
 };
 
 export type PluginBroker = {
+  /**
+   * The same checks for claims the server itself established, such as a job
+   * attempt it has just authenticated by lease and fence. The caller supplies
+   * no token, and `tokenId` should be stable for the attempt so sequence, rate
+   * and replay state carry across its calls.
+   */
+  callAs(
+    input: { claims: Omit<BrokerClaims, "epoch">; body: string },
+  ): Promise<BrokerOutcome>;
   call(
     input: {
       token: string;
@@ -259,117 +268,132 @@ export function createPluginBroker(options: BrokerOptions): PluginBroker {
 
   const deny = (denial: BrokerDenial): BrokerOutcome => ({ ok: false, denial });
 
+  async function handle(
+    claims: BrokerClaims,
+    installId: string,
+    body: string,
+  ): Promise<BrokerOutcome> {
+    const at = now();
+    // Bookkeeping for lapsed tokens goes with them, so a long-running server
+    // does not keep one entry per job it has ever served.
+    for (const [id, held] of states) {
+      if (at >= held.expiresAt) states.delete(id);
+    }
+    if (at >= claims.expiresAt || at < claims.issuedAt) {
+      states.delete(claims.tokenId);
+      return deny("token_expired");
+    }
+    if (claims.installId !== installId) return deny("install_mismatch");
+
+    if (
+      new TextEncoder().encode(body).byteLength > BROKER_MAX_REQUEST_BYTES
+    ) {
+      return deny("request_too_large");
+    }
+    let request: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(body);
+      if (
+        typeof parsed !== "object" || parsed === null ||
+        Array.isArray(parsed)
+      ) return deny("request_malformed");
+      request = parsed;
+    } catch {
+      return deny("request_malformed");
+    }
+    const { requestId, sequence, operation, args } = request;
+    if (
+      typeof requestId !== "string" || !ID.test(requestId) ||
+      typeof sequence !== "number" || !Number.isSafeInteger(sequence) ||
+      sequence < 1 || typeof operation !== "string" ||
+      !OPERATION.test(operation) ||
+      typeof args !== "object" || args === null || Array.isArray(args)
+    ) return deny("request_malformed");
+
+    let state = states.get(claims.tokenId);
+    if (state === undefined) {
+      state = {
+        expiresAt: claims.expiresAt,
+        lastSequence: 0,
+        calls: [],
+        outcomes: new Map(),
+      };
+      states.set(claims.tokenId, state);
+    }
+    state.calls = state.calls.filter((t) => at - t < BROKER_RATE_WINDOW_MS);
+    if (state.calls.length >= BROKER_RATE_LIMIT) return deny("rate_limited");
+    state.calls.push(at);
+
+    // Authority is read fresh, before the sequence moves, so a refused call
+    // costs the job nothing it could replay and a revoked install stops now.
+    const authority = await options.authority.load(
+      claims.organizationId,
+      claims.installId,
+    );
+    if (authority === null || authority.status === "uninstalled") {
+      return deny("install_gone");
+    }
+    if (authority.status !== "enabled") return deny("install_off");
+    if (!authority.grants.includes(operation)) {
+      return deny("not_granted");
+    }
+    const typed = operations.get(operation);
+    if (typed === undefined) return deny("unknown_operation");
+
+    const remembered = state.outcomes.get(requestId);
+    if (remembered !== undefined) {
+      if (remembered.operation !== operation) {
+        return deny("request_malformed");
+      }
+      const earlier = await remembered.settled;
+      return earlier.ok
+        ? { ok: true, result: earlier.result, replayed: true }
+        : deny("operation_failed");
+    }
+    if (sequence <= state.lastSequence) return deny("sequence_replayed");
+    state.lastSequence = sequence;
+
+    // Recorded before the effect starts, with no await in between. A failure
+    // is recorded too: an effect that half ran must not run again under the
+    // same id, and the caller never sees the raw error, which may name
+    // internals or secrets.
+    const settled = (async () => {
+      try {
+        return {
+          ok: true,
+          result: await typed.run(
+            claims,
+            args as Readonly<Record<string, unknown>>,
+          ),
+        };
+      } catch {
+        return { ok: false };
+      }
+    })();
+    if (state.outcomes.size >= BROKER_MAX_REMEMBERED_REQUESTS) {
+      const oldest = state.outcomes.keys().next().value;
+      if (oldest !== undefined) state.outcomes.delete(oldest);
+    }
+    state.outcomes.set(requestId, { operation, settled });
+    const done = await settled;
+    return done.ok
+      ? { ok: true, result: done.result, replayed: false }
+      : deny("operation_failed");
+  }
+
   return {
     async call({ token, installId, body }) {
       const claims = await readClaims(options.key, token);
       if (claims === null) return deny("token_invalid");
       if (claims.epoch !== options.epoch) return deny("token_stale");
-      const at = now();
-      // Bookkeeping for lapsed tokens goes with them, so a long-running server
-      // does not keep one entry per job it has ever served.
-      for (const [id, held] of states) {
-        if (at >= held.expiresAt) states.delete(id);
-      }
-      if (at >= claims.expiresAt || at < claims.issuedAt) {
-        states.delete(claims.tokenId);
-        return deny("token_expired");
-      }
-      if (claims.installId !== installId) return deny("install_mismatch");
-
-      if (
-        new TextEncoder().encode(body).byteLength > BROKER_MAX_REQUEST_BYTES
-      ) {
-        return deny("request_too_large");
-      }
-      let request: Record<string, unknown>;
-      try {
-        const parsed = JSON.parse(body);
-        if (
-          typeof parsed !== "object" || parsed === null ||
-          Array.isArray(parsed)
-        ) return deny("request_malformed");
-        request = parsed;
-      } catch {
-        return deny("request_malformed");
-      }
-      const { requestId, sequence, operation, args } = request;
-      if (
-        typeof requestId !== "string" || !ID.test(requestId) ||
-        typeof sequence !== "number" || !Number.isSafeInteger(sequence) ||
-        sequence < 1 || typeof operation !== "string" ||
-        !OPERATION.test(operation) ||
-        typeof args !== "object" || args === null || Array.isArray(args)
-      ) return deny("request_malformed");
-
-      let state = states.get(claims.tokenId);
-      if (state === undefined) {
-        state = {
-          expiresAt: claims.expiresAt,
-          lastSequence: 0,
-          calls: [],
-          outcomes: new Map(),
-        };
-        states.set(claims.tokenId, state);
-      }
-      state.calls = state.calls.filter((t) => at - t < BROKER_RATE_WINDOW_MS);
-      if (state.calls.length >= BROKER_RATE_LIMIT) return deny("rate_limited");
-      state.calls.push(at);
-
-      // Authority is read fresh, before the sequence moves, so a refused call
-      // costs the job nothing it could replay and a revoked install stops now.
-      const authority = await options.authority.load(
-        claims.organizationId,
+      return await handle(claims, installId, body);
+    },
+    callAs({ claims, body }) {
+      return handle(
+        { ...claims, epoch: options.epoch },
         claims.installId,
+        body,
       );
-      if (authority === null || authority.status === "uninstalled") {
-        return deny("install_gone");
-      }
-      if (authority.status !== "enabled") return deny("install_off");
-      if (!authority.grants.includes(operation)) {
-        return deny("not_granted");
-      }
-      const typed = operations.get(operation);
-      if (typed === undefined) return deny("unknown_operation");
-
-      const remembered = state.outcomes.get(requestId);
-      if (remembered !== undefined) {
-        if (remembered.operation !== operation) {
-          return deny("request_malformed");
-        }
-        const earlier = await remembered.settled;
-        return earlier.ok
-          ? { ok: true, result: earlier.result, replayed: true }
-          : deny("operation_failed");
-      }
-      if (sequence <= state.lastSequence) return deny("sequence_replayed");
-      state.lastSequence = sequence;
-
-      // Recorded before the effect starts, with no await in between. A failure
-      // is recorded too: an effect that half ran must not run again under the
-      // same id, and the caller never sees the raw error, which may name
-      // internals or secrets.
-      const settled = (async () => {
-        try {
-          return {
-            ok: true,
-            result: await typed.run(
-              claims,
-              args as Readonly<Record<string, unknown>>,
-            ),
-          };
-        } catch {
-          return { ok: false };
-        }
-      })();
-      if (state.outcomes.size >= BROKER_MAX_REMEMBERED_REQUESTS) {
-        const oldest = state.outcomes.keys().next().value;
-        if (oldest !== undefined) state.outcomes.delete(oldest);
-      }
-      state.outcomes.set(requestId, { operation, settled });
-      const done = await settled;
-      return done.ok
-        ? { ok: true, result: done.result, replayed: false }
-        : deny("operation_failed");
     },
   };
 }

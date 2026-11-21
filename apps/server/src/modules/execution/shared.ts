@@ -1,4 +1,5 @@
 import type { ExecutionTelemetry } from "./telemetry.ts";
+import type { PluginBroker } from "../catalog/plugin-broker.ts";
 import { type Context, type MiddlewareHandler } from "hono";
 import type {
   AgentSpawnConfig,
@@ -145,6 +146,11 @@ type ExecutionRouteOptions = {
    * refuse every call.
    */
   sessionTools?: SessionToolRegistry;
+  /**
+   * The install-scoped broker plugin jobs reach through their worker (#29).
+   * Absent leaves the relay route answering "not found".
+   */
+  pluginBroker?: PluginBroker;
 };
 
 type HostRow = {

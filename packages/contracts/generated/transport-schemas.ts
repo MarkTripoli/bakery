@@ -37871,6 +37871,19 @@ const transportSchemas = {
       ],
       "description": "Built-in host control action for connection discovery. Not user-definable code and not an extra YAML workflow primitive."
     },
+    "plugin.job": {
+      "inputFields": {
+        "installId": "uuid",
+        "entry": "string<=256bytes"
+      },
+      "outputFields": {
+        "resultJson": "string<=65536"
+      },
+      "capabilities": [
+        "plugin.job.contained"
+      ],
+      "description": "Runs one plugin job's code inside a contained runtime with no network. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
+    },
     "secret.identity.read": {
       "inputSchema": "SecretIdentityReadInput",
       "outputSchema": "SecretIdentityOutput",

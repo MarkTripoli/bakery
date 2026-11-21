@@ -1,3 +1,4 @@
+import { pluginBrokerRelayRoute } from "./plugin-broker-relay.ts";
 import { type Context, Hono } from "hono";
 import type { ArtifactActions } from "../knowledge/resource-routes.ts";
 import type { InngestRuntimeConfig } from "@bakery/config";
@@ -408,6 +409,13 @@ export function createExecutionRoutes(
     workerRouteHandler(
       options,
       (context) => secretIdentityToolRoute(context, options),
+    ),
+  );
+  app.post(
+    "/v1/worker/attempts/:id/plugin-broker",
+    workerRouteHandler(
+      options,
+      (context) => pluginBrokerRelayRoute(context, options),
     ),
   );
   app.post(
