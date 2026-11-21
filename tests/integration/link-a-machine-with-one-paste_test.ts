@@ -4,6 +4,7 @@
 // (create, look up, approve or decline, poll, register).
 import { assert, assertEquals, assertMatch } from "@std/assert";
 import { authTestOrigin } from "../helpers/auth.ts";
+import type { DesktopFixture } from "../helpers/desktop-sign-in.ts";
 import {
   adminRequest,
   workerCredential,
@@ -11,6 +12,11 @@ import {
 } from "../helpers/worker-execution.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { sha256Hex } from "../../apps/server/src/platform/canonical-json.ts";
+
+/** One terminal: every public call comes from the same peer address. */
+const ONE_MACHINE = {
+  remoteAddr: { transport: "tcp" as const, hostname: "203.0.113.70", port: 1 },
+};
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 
@@ -20,12 +26,15 @@ async function publicPost(
   body: unknown,
   headers: Record<string, string> = {},
 ): Promise<Response> {
-  return await fixture.app.fetch(
+  // The fixture app takes the peer address as its env, as a real server does.
+  const app = fixture.app as unknown as DesktopFixture["app"];
+  return await app.fetch(
     new Request(`${authTestOrigin}${path}`, {
       method: "POST",
       headers: { "content-type": "application/json", ...headers },
       body: JSON.stringify(body),
     }),
+    ONE_MACHINE,
   );
 }
 
