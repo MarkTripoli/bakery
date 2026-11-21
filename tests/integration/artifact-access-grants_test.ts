@@ -277,11 +277,37 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
         assertDenied(await status(await as(ana, `/v1/tasks/${f.taskId}`)));
         assertDenied(
           await status(
-            await as(ana, `/v1/artifacts/${artifact}/versions`, {
+            await as(ana, `/v1/artifacts/${artifact}/versions/import`, {
               method: "POST",
               body: {},
             }),
           ),
+        );
+        // At level edit the same call gets past authority (the empty body is then
+        // refused as malformed), and back at read_comment it is denied again.
+        await json<Grant>(
+          await as(writer, `/v1/artifacts/${artifact}/access`, {
+            method: "POST",
+            body: { principalId: ana.principalId, level: "edit" },
+          }),
+          200,
+        );
+        const editing = await status(
+          await as(ana, `/v1/artifacts/${artifact}/versions/import`, {
+            method: "POST",
+            body: {},
+          }),
+        );
+        assert(
+          editing !== 403 && editing !== 404 && editing !== 405,
+          `edit level reaches the handler, got ${editing}`,
+        );
+        await json<Grant>(
+          await as(writer, `/v1/artifacts/${artifact}/access`, {
+            method: "POST",
+            body: { principalId: ana.principalId, level: "read_comment" },
+          }),
+          200,
         );
         assertDenied(
           await status(
