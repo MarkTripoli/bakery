@@ -265,15 +265,28 @@ const updateComment = defineAction({
 });
 
 const labelName = z.string().min(1).max(50).refine(
+  // Well-formed text only: an unpaired surrogate cannot be sent to GitHub and
+  // would fail late with an unclassified error instead of a refusal here.
   (name) =>
+    name.isWellFormed() &&
     [...name].every((char) => {
       const code = char.codePointAt(0)!;
       return code >= 0x20 && code !== 0x7f;
     }),
-  "A label name holds no control characters",
+  "A label name is well-formed text with no control characters",
 ).describe(
-  "GitHub label name, 1 to 50 characters with no control characters; matched exactly and case-sensitively.",
+  "GitHub label name, 1 to 50 characters of well-formed text with no control characters; matched exactly and case-sensitively.",
 );
+
+/**
+ * An optional list of at most 20 labels. The text is stated once and set on
+ * both schema nodes: the activation audit requires a description on the array
+ * and on its optional wrapper.
+ */
+const optionalLabels = (description: string) =>
+  z.array(labelName).max(20).describe(description).optional().describe(
+    description,
+  );
 
 const createIssueInput = z.strictObject({
   title: z.string().min(1).max(256).describe(
@@ -285,9 +298,7 @@ const createIssueInput = z.strictObject({
   ).describe(
     "Issue Markdown, 1 to 16000 characters; Bakery effect markers are reserved for the executor.",
   ),
-  labels: z.array(labelName).max(20).describe(
-    "Labels to put on the new issue, at most 20; labels the repository does not have are created by GitHub.",
-  ).optional().describe(
+  labels: optionalLabels(
     "Labels to put on the new issue, at most 20; labels the repository does not have are created by GitHub.",
   ),
 }).describe(
@@ -571,9 +582,7 @@ const createIssueRequestInput = z.strictObject({
   body: z.string().min(1).max(16_100).describe(
     "Issue Markdown including the Bakery effect marker appended by the action.",
   ),
-  labels: z.array(labelName).max(20).describe(
-    "Labels sent in the JSON body, at most 20.",
-  ).optional().describe("Labels sent in the JSON body, at most 20."),
+  labels: optionalLabels("Labels sent in the JSON body, at most 20."),
 }).describe("Issue creation request input: title, text and optional labels.");
 
 const issuesListRequestInput = z.strictObject({

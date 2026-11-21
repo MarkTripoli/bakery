@@ -162,7 +162,8 @@ Deno.test("a label with a colon, a space or a slash is removed as one encoded pa
 
 Deno.test("a label name that cannot be one honest segment never reaches GitHub", () =>
   withWorkerFixture(async (fixture) => {
-    for (const label of [".", ".."]) {
+    // "..." is a legal label name, so only the broker's dot-only check stops it.
+    for (const label of [".", "..", "..."]) {
       const { github, result } = await removeLabelSend(fixture, label);
       assert(result.route === "ledger");
       assertEquals(

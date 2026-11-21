@@ -305,3 +305,28 @@ Deno.test("a lost label removal is confirmed only when the label is gone from th
     status: "uncertain",
   });
 });
+
+Deno.test("a label name with an unpaired surrogate is refused by every action input, a well-formed astral character is not", () => {
+  for (const bad of ["\ud800", "a\udc00b", "x\ud83d"]) {
+    const shown = JSON.stringify(bad);
+    assertEquals(
+      add.input.safeParse({ issueNumber: 5, labels: [bad] }).success,
+      false,
+      `add ${shown}`,
+    );
+    assertEquals(
+      remove.input.safeParse({ issueNumber: 5, label: bad }).success,
+      false,
+      `remove ${shown}`,
+    );
+    assertEquals(
+      create.input.safeParse({ title: "T", body: "B", labels: [bad] }).success,
+      false,
+      `create ${shown}`,
+    );
+  }
+  assert(
+    add.input.safeParse({ issueNumber: 5, labels: ["\u{1F680} launch"] })
+      .success,
+  );
+});
