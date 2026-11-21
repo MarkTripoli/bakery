@@ -53,6 +53,15 @@ export type OrganizationActor = {
    * read and reply there and nothing more: no agent requests, no resharing.
    */
   conversationGrant?: Readonly<{ conversationId: string }>;
+  /**
+   * Set only when the organization role refused a document action and a live
+   * direct grant on that one document allowed it. Such an actor may read the
+   * document and comment on it (and publish versions at level `edit`) and
+   * nothing more: no task access, no agent requests, no resharing.
+   */
+  artifactGrant?: Readonly<
+    { artifactId: string; level: "read_comment" | "edit" }
+  >;
 };
 
 export type InstallationActor = {

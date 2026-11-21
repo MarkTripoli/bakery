@@ -24,6 +24,7 @@ import {
   decideRecheck,
   type RecheckCurrent,
   type RecheckDecision,
+  requestWorkFinished,
   suspensionReason,
   type TicketResumeTarget,
 } from "../../../apps/server/src/modules/work/ticket-request-state.ts";
@@ -48,6 +49,9 @@ function current(overrides: Partial<RecheckCurrent> = {}): RecheckCurrent {
     approvalAvailable: false,
     pinnedRequirementsDigest: PIN,
     pauseRequestedAt: null,
+    // These cases are about the disposition machine, so delivery is met unless
+    // a case says otherwise (see the delivery cases below).
+    delivery: { delivered: true },
     ...overrides,
   };
 }
@@ -776,5 +780,103 @@ Deno.test("issue 82 unit state: property run over random check vectors (seed 82)
     [...decisions].sort(),
     ["advance", "none", "pause", "resume", "suspend", "terminal"],
     "the seed exercises every decision",
+  );
+});
+
+Deno.test("issue 32: finished work ends the request as completed only when its completion policy is met", () => {
+  const waitingForMerge = {
+    delivered: false,
+    waitingFor: "merge",
+    closedUnmerged: false,
+  } as const;
+  const run = { disposition: "active" as const, hasRun: true };
+  const finishedRun = current({ ...run, runStatus: "completed" });
+  assertEquals(
+    decideRecheck({ ...finishedRun, delivery: waitingForMerge }, READY),
+    { action: "none" },
+    "a completed run with nothing merged leaves the request open",
+  );
+  assertEquals(decideRecheck(finishedRun, READY), {
+    action: "terminal",
+    disposition: "completed",
+    reason: "run_completed",
+  });
+  // A task without a run, and a routed plan, follow the same rule.
+  assertEquals(
+    decideRecheck(
+      current({
+        disposition: "active",
+        taskStatus: "completed",
+        delivery: waitingForMerge,
+      }),
+      READY,
+    ),
+    { action: "none" },
+  );
+  assertEquals(
+    decideRecheck(
+      current({
+        ...run,
+        runStatus: "running",
+        planStatus: "completed",
+        delivery: waitingForMerge,
+      }),
+      READY,
+    ),
+    { action: "none" },
+  );
+});
+
+Deno.test("issue 32: a failed or canceled end never waits for delivery", () => {
+  const waiting = {
+    delivered: false,
+    waitingFor: "work",
+    closedUnmerged: false,
+  } as const;
+  for (const status of ["failed", "canceled"] as const) {
+    assertEquals(
+      decideRecheck(
+        current({
+          disposition: "active",
+          hasRun: true,
+          runStatus: status,
+          delivery: waiting,
+        }),
+        READY,
+      ),
+      { action: "terminal", disposition: status, reason: `run_${status}` },
+    );
+  }
+});
+
+Deno.test("issue 32: whether work finished is read from the plan, then the run, then the task", () => {
+  const base = { hasRun: false, runStatus: null, taskStatus: "draft" } as const;
+  assertEquals(requestWorkFinished({ ...base, taskStatus: "completed" }), true);
+  assertEquals(requestWorkFinished({ ...base, taskStatus: "failed" }), false);
+  assertEquals(
+    requestWorkFinished({ ...base, hasRun: true, runStatus: "completed" }),
+    true,
+  );
+  // A failed run is not finished successfully even when the task says so.
+  assertEquals(
+    requestWorkFinished({
+      hasRun: true,
+      runStatus: "failed",
+      taskStatus: "completed",
+    }),
+    false,
+  );
+  assertEquals(
+    requestWorkFinished({ ...base, hasRun: true, runStatus: "running" }),
+    false,
+  );
+  assertEquals(
+    requestWorkFinished({
+      ...base,
+      hasRun: true,
+      runStatus: "completed",
+      planStatus: "partially_delivered",
+    }),
+    false,
   );
 });
