@@ -21,6 +21,44 @@ test.describe("Storybook containment rails", () => {
     );
   });
 
+  test("measures what a clipping ancestor shows, not the box behind it", async ({ page }) => {
+    await openByTitle(page, "Bakery/Atoms/Text");
+    const setStory = (html: string) =>
+      page.locator(".storybook-story").evaluate((story, markup) => {
+        story.innerHTML = markup;
+      }, html);
+    const clipping = (overflow: string, extra = "") =>
+      `<div style="inline-size: 96px; block-size: 24px; overflow: ${overflow}; ${extra}">
+        <div style="inline-size: 200px; block-size: 24px"></div>
+      </div>`;
+    // Clipped: the overhang is inside the clipper, so nothing shows past it.
+    await setStory(clipping("clip"));
+    expect(await page.evaluate(renderedContainmentIssues)).toEqual([]);
+    // `hidden` is not a declared clip: content a reader cannot reach still
+    // counts as an escape, as the clamp rail above says.
+    await setStory(clipping("hidden"));
+    const hidden = await page.evaluate(renderedContainmentIssues);
+    expect(hidden.some((issue) => issue.includes("escapes"))).toBe(true);
+    // Unclipped, the same overhang still escapes.
+    await setStory(clipping("visible"));
+    expect(
+      (await page.evaluate(renderedContainmentIssues)).some((issue) =>
+        issue.includes("escapes horizontally")
+      ),
+    ).toBe(true);
+    // A clipper that itself sits outside its parent is still an escape.
+    await setStory(
+      `<div style="inline-size: 96px">${
+        clipping("clip", "margin-inline-start: 120px")
+      }</div>`,
+    );
+    expect(
+      (await page.evaluate(renderedContainmentIssues)).some((issue) =>
+        issue.includes("escapes horizontally")
+      ),
+    ).toBe(true);
+  });
+
   test("allows a marked line clamp and still flags an unmarked clipped one", async ({ page }) => {
     await openByTitle(page, "Bakery/Atoms/Text");
     const clamp = (marked: boolean) =>

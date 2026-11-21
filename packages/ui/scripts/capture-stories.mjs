@@ -326,6 +326,51 @@ export function renderedContainmentIssues() {
     }
     return { element: root, nativeScroll: false };
   };
+  // What a reader can see of a box: the box intersected with every ancestor
+  // that clips it. A slot that shows a larger transparent file, or an <image>
+  // inside an <svg> viewport, is contained by definition: nothing of it shows
+  // past its clipper. Clipping alone does not excuse an escape, because the
+  // clipped box is still measured against the box outside it.
+  const clipAxis = (element, axis) => {
+    const style = getComputedStyle(element);
+    const overflow = axis === "x" ? style.overflowX : style.overflowY;
+    // `clip` is a declared clip: what shows is what the box shows. `hidden`
+    // and `auto` are judged as before, because content a reader cannot reach
+    // is still a defect.
+    if (overflow === "clip") return true;
+    if (style.clipPath !== "none") return true;
+    return element.tagName.toLowerCase() === "svg";
+  };
+  const visibleRectangle = (element) => {
+    const box = element.getBoundingClientRect();
+    const visible = {
+      left: box.left,
+      right: box.right,
+      top: box.top,
+      bottom: box.bottom,
+      width: box.width,
+      height: box.height,
+    };
+    for (
+      let ancestor = element.parentElement;
+      ancestor;
+      ancestor = ancestor.parentElement
+    ) {
+      const clip = ancestor.getBoundingClientRect();
+      if (clipAxis(ancestor, "x")) {
+        visible.left = Math.max(visible.left, clip.left);
+        visible.right = Math.min(visible.right, clip.right);
+      }
+      if (clipAxis(ancestor, "y")) {
+        visible.top = Math.max(visible.top, clip.top);
+        visible.bottom = Math.min(visible.bottom, clip.bottom);
+      }
+      if (ancestor === root) break;
+    }
+    visible.width = Math.max(0, visible.right - visible.left);
+    visible.height = Math.max(0, visible.bottom - visible.top);
+    return visible;
+  };
   const issues = [];
   if (
     document.documentElement.scrollWidth > document.documentElement.clientWidth
@@ -405,7 +450,7 @@ export function renderedContainmentIssues() {
     if (
       !browserScrollsValue &&
       element.scrollWidth > element.clientWidth + tolerance &&
-      !["auto", "scroll"].includes(style.overflowX) &&
+      !["auto", "scroll", "clip"].includes(style.overflowX) &&
       !allowsTruncation &&
       hasInFlowOverflow("x") &&
       !hasHorizontalNativeScrollOwner
@@ -419,7 +464,7 @@ export function renderedContainmentIssues() {
     if (
       !browserScrollsValue &&
       element.scrollHeight > element.clientHeight + tolerance &&
-      !["auto", "scroll"].includes(style.overflowY) &&
+      !["auto", "scroll", "clip"].includes(style.overflowY) &&
       !allowsTruncation &&
       hasInFlowOverflow("y") &&
       !hasVerticalNativeScrollOwner
@@ -432,7 +477,7 @@ export function renderedContainmentIssues() {
     }
   }
   for (const element of root.querySelectorAll("*")) {
-    const rectangle = element.getBoundingClientRect();
+    const rectangle = visibleRectangle(element);
     if (rectangle.width <= tolerance || rectangle.height <= tolerance) continue;
     const horizontalBoundary = clippingBoundary(element, "x");
     const verticalBoundary = clippingBoundary(element, "y");
