@@ -14008,6 +14008,10 @@
       ],
       "description": "Admits an evaluation batch. Every required case x scorer x side x repetition becomes a result in state missing at once, so a case that never runs is listed, not absent."
     },
+    "EvaluationBatchRun": {
+      "fields": [],
+      "description": "Runs a fixed local corpus: scores each missing candidate result's recorded output (the artifact version its case names) with the scorer's deterministic check, in this process, and keeps that artifact version as the result's input evidence. Model scorers and the baseline side are skipped with a reason and stay not attempted. Settles at most 2000 results per call; call again while the batch still has missing results. A result that is no longer missing is left alone, so a repeat or a concurrent call settles each once. A canceled batch is refused."
+    },
     "EvaluationBatchCancel": {
       "fields": [],
       "description": "Cancels a batch: no new attempts start, completed results are kept and still-missing results become canceled. Requires If-Match with the batch version."

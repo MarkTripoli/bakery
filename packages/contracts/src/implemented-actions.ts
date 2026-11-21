@@ -408,6 +408,7 @@ export const EvaluationImplementedAction = Object.freeze(
     EvaluationBatchesList: "evaluationBatches.list",
     EvaluationBatchesGet: "evaluationBatches.get",
     EvaluationBatchesCancel: "evaluationBatches.cancel",
+    EvaluationBatchesRun: "evaluationBatches.run",
     EvaluationBatchesCompare: "evaluationBatches.compare",
     EvaluationBatchResultsList: "evaluationBatchResults.list",
     EvaluationAttemptsList: "evaluationAttempts.list",

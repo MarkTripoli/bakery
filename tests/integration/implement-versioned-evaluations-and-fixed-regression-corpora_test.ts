@@ -430,3 +430,262 @@ Deno.test("AC3: a model attempt that ends with no ledger receipt is an unknown c
     );
     assertEquals((checkAttempts.items as Json[]).map((a) => a.usage), [null]);
   }));
+
+/** A scorer revision with its own config (a deterministic check is {kind, config}). */
+async function definition(
+  fixture: Fixture,
+  slug: string,
+  evaluatorType: string,
+  config: unknown,
+) {
+  return await ok(
+    await call(fixture, "POST", "/v1/evaluation-definitions", {
+      body: { slug, revision: 1, evaluatorType, config },
+    }),
+    201,
+  );
+}
+
+const runBatch = async (fixture: Fixture, batchId: unknown, status = 200) =>
+  await ok(
+    await call(fixture, "POST", "/v1/evaluation-batches/" + batchId + "/run", {
+      body: {},
+    }),
+    status,
+  );
+
+const outcome = (rows: Json[]) =>
+  rows.map((r) => [r.caseName, r.scorerId, r.state, r.reason, r.score]);
+
+Deno.test("AC1: a fixed corpus on the same pins gives the same outcomes and keeps the recorded output as its evidence", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const pass = await definition(fixture, "has-hi", "deterministic", {
+      kind: "contains",
+      config: { substring: "hi" },
+    });
+    const fail = await definition(fixture, "has-zz", "deterministic", {
+      kind: "contains",
+      config: { substring: "zz" },
+    });
+    const notACheck = await definition(
+      fixture,
+      "not-a-check",
+      "deterministic",
+      {
+        check: "x",
+      },
+    );
+    const scorerIds = [pass.id, fail.id, notACheck.id];
+    const first = await ok(await admitWith(fixture, w, { scorerIds }), 201);
+    const second = await ok(await admitWith(fixture, w, { scorerIds }), 201);
+    assertEquals(first.pinDigest, second.pinDigest);
+
+    const ran = await runBatch(fixture, first.id);
+    // 2 cases x 3 scorers, each settled: pass, fail, and a config that is no check.
+    const rows = await results(fixture, first.id);
+    assertEquals(rows.length, 6);
+    const by = (id: unknown) => rows.filter((r) => r.scorerId === id);
+    assertEquals(by(pass.id).map((r) => [r.state, r.score]), [["passed", 1], [
+      "passed",
+      1,
+    ]]);
+    assertEquals(by(fail.id).map((r) => [r.state, r.score]), [["failed", 0], [
+      "failed",
+      0,
+    ]]);
+    assertEquals(by(notACheck.id).map((r) => [r.state, r.score]), [[
+      "error",
+      null,
+    ], ["error", null]]);
+    assertEquals(
+      String(by(notACheck.id)[0].reason).startsWith(
+        "The scorer config is not a check",
+      ),
+      true,
+    );
+    // The recorded output is the evidence of every result and every result has one attempt.
+    assertEquals(
+      rows.map((r) => r.outputArtifactVersionId),
+      rows.map(() => w.versionId),
+    );
+    assertEquals(rows.map((r) => r.attemptCount), rows.map(() => 1));
+    const report = ran.report as Json;
+    assertEquals(
+      [
+        report.total,
+        report.attempted,
+        report.passed,
+        report.failed,
+        report.unknown,
+        report.unrun,
+      ],
+      [6, 6, 2, 2, 2, 0],
+    );
+    assertEquals(ran.state, "completed_with_errors");
+    assertEquals(
+      (ran.gate as Json).decision,
+      "cannot_be_judged",
+      "an error is not a pass",
+    );
+
+    // The same corpus again, on another batch with the same pins: the same outcomes.
+    await runBatch(fixture, second.id);
+    assertEquals(outcome(await results(fixture, second.id)), outcome(rows));
+
+    // A repeat settles nothing again: still one attempt each.
+    await runBatch(fixture, first.id);
+    assertEquals(
+      (await results(fixture, first.id)).map((r) => r.attemptCount),
+      rows.map(() => 1),
+    );
+  }));
+
+Deno.test("AC2: a local run never replaces a check with an opinion: model and baseline results are skipped with a reason and stay unrun", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const check = await definition(fixture, "has-hi-2", "deterministic", {
+      kind: "contains",
+      config: { substring: "hi" },
+    });
+    // A required model scorer that cannot run keeps the gate from judging.
+    const strict = await ok(
+      await admitWith(fixture, w, { scorerIds: [check.id, w.rubric.id] }),
+      201,
+    );
+    let ran = await runBatch(fixture, strict.id);
+    const rows = await results(fixture, strict.id);
+    const model = rows.filter((r) => r.scorerId === w.rubric.id);
+    assertEquals(model.map((r) => [r.state, r.attemptCount]), [["skipped", 0], [
+      "skipped",
+      0,
+    ]]);
+    assertEquals(
+      String(model[0].reason).startsWith(
+        "A local corpus run scores recorded outputs",
+      ),
+      true,
+    );
+    assertEquals(
+      rows.filter((r) => r.scorerId === check.id).map((r) => r.state),
+      ["passed", "passed"],
+    );
+    assertEquals((ran.gate as Json).decision, "cannot_be_judged");
+    assertEquals(
+      (ran.report as Json).unrun,
+      2,
+      "skipped is unrun, not unknown",
+    );
+    assertEquals((ran.report as Json).unknown, 0);
+
+    // The same model scorer, optional: the required check decides, the opinion is reported apart.
+    const loose = await ok(
+      await admitWith(fixture, w, {
+        scorerIds: [check.id, w.rubric.id],
+        optionalScorerIds: [w.rubric.id],
+      }),
+      201,
+    );
+    ran = await runBatch(fixture, loose.id);
+    assertEquals([ran.state, (ran.gate as Json).decision], [
+      "completed",
+      "met",
+    ]);
+    const optional = ran.optionalReport as Json;
+    assertEquals([optional.total, optional.attempted, optional.unrun], [
+      2,
+      0,
+      2,
+    ]);
+
+    // A baseline has no recorded output to score: skipped, and the candidate is still judged.
+    const compared = await ok(
+      await admitWith(fixture, w, {
+        scorerIds: [check.id],
+        baseline: { ...PIN, version: 1 },
+      }),
+      201,
+    );
+    ran = await runBatch(fixture, compared.id);
+    const baseline = (await results(fixture, compared.id)).filter((r) =>
+      r.role === "baseline"
+    );
+    assertEquals(baseline.map((r) => [r.state, r.attemptCount]), [[
+      "skipped",
+      0,
+    ], ["skipped", 0]]);
+    assertEquals([ran.state, (ran.gate as Json).decision], [
+      "completed",
+      "met",
+    ]);
+  }));
+
+Deno.test("AC3: a canceled batch is not run, and two runs at once settle each result once", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const check = await definition(fixture, "has-hi-3", "deterministic", {
+      kind: "contains",
+      config: { substring: "hi" },
+    });
+    const batch = await ok(
+      await admitWith(fixture, w, { scorerIds: [check.id] }),
+      201,
+    );
+    const both = await Promise.all([
+      call(fixture, "POST", "/v1/evaluation-batches/" + batch.id + "/run", {
+        body: {},
+      }),
+      call(fixture, "POST", "/v1/evaluation-batches/" + batch.id + "/run", {
+        body: {},
+      }),
+    ]);
+    for (const response of both) await ok(response, 200);
+    const rows = await results(fixture, batch.id);
+    assertEquals(rows.map((r) => [r.state, r.attemptCount]), [["passed", 1], [
+      "passed",
+      1,
+    ]]);
+    const attempts = await ok(
+      await call(
+        fixture,
+        "GET",
+        "/v1/evaluation-results/" + rows[0].id + "/attempts",
+      ),
+    );
+    assertEquals(
+      (attempts.items as Json[]).length,
+      1,
+      "one attempt record, not two",
+    );
+
+    const stopped = await ok(
+      await admitWith(fixture, w, { scorerIds: [check.id] }),
+      201,
+    );
+    await ok(
+      await call(
+        fixture,
+        "POST",
+        "/v1/evaluation-batches/" + stopped.id + "/cancel",
+        {
+          body: {},
+          ifMatch: Number(stopped.version),
+        },
+      ),
+      200,
+    );
+    const refused = await call(
+      fixture,
+      "POST",
+      "/v1/evaluation-batches/" + stopped.id + "/run",
+      { body: {} },
+    );
+    assertEquals(refused.status, 409, await refused.text());
+    const unknown = await call(
+      fixture,
+      "POST",
+      "/v1/evaluation-batches/" + crypto.randomUUID() + "/run",
+      { body: {} },
+    );
+    assertEquals(unknown.status, 404, await unknown.text());
+  }));

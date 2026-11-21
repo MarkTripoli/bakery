@@ -39,6 +39,7 @@ import {
   createDefinitionLister,
   createResultLister,
   getBatch,
+  runLocalCorpus,
 } from "./store.ts";
 
 /** The evaluation registry (#44): every action runs through the authority runner. */
@@ -178,6 +179,17 @@ export function createEvaluationActionRegistry(
         }
         return S.EvaluationBatch.parse(await cancelBatch(c, expectedVersion));
       },
+    })
+    .register({
+      name: A.EvaluationBatchesRun,
+      method: HttpMethod.Post,
+      path: "/v1/evaluation-batches/:id/run",
+      input: S.EvaluationBatchRun,
+      output: S.EvaluationBatch,
+      explicitIdempotency: "key",
+      successStatus: 200,
+      policy: command,
+      handler: async (c) => S.EvaluationBatch.parse(await runLocalCorpus(c)),
     })
     .register({
       name: A.EvaluationBatchesCompare,

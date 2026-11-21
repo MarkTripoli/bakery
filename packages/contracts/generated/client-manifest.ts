@@ -7359,6 +7359,30 @@ export const clientManifest = {
     },
     {
       "group": "Observation",
+      "method": "POST",
+      "path": "/v1/evaluation-batches/{id}/run",
+      "action": "evaluationBatches.run",
+      "access": "Developer",
+      "permission": "evaluationRun:write",
+      "input": "EvaluationBatchRun",
+      "output": "EvaluationBatch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Observation",
       "method": "GET",
       "path": "/v1/evaluation-batches/{id}/compare",
       "action": "evaluationBatches.compare",
@@ -18977,6 +19001,7 @@ export const clientManifest = {
             "evaluationBatches.list",
             "evaluationBatches.get",
             "evaluationBatches.cancel",
+            "evaluationBatches.run",
             "evaluationBatches.compare",
             "evaluationBatchResults.list",
             "evaluationAttempts.list",
@@ -32058,6 +32083,13 @@ export const clientManifest = {
           ]
         }
       }
+    },
+    "EvaluationBatchRun": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Runs a fixed local corpus: scores each missing candidate result's recorded output (the artifact version its case names) with the scorer's deterministic check, in this process, and keeps that artifact version as the result's input evidence. Model scorers and the baseline side are skipped with a reason and stay not attempted. Settles at most 2000 results per call; call again while the batch still has missing results. A result that is no longer missing is left alone, so a repeat or a concurrent call settles each once. A canceled batch is refused."
     },
     "EvaluationBatchCancel": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46693,6 +46725,7 @@ export const clientManifest = {
                   "evaluationBatches.list",
                   "evaluationBatches.get",
                   "evaluationBatches.cancel",
+                  "evaluationBatches.run",
                   "evaluationBatches.compare",
                   "evaluationBatchResults.list",
                   "evaluationAttempts.list",
@@ -67187,6 +67220,7 @@ export const clientManifest = {
             "evaluationBatches.list",
             "evaluationBatches.get",
             "evaluationBatches.cancel",
+            "evaluationBatches.run",
             "evaluationBatches.compare",
             "evaluationBatchResults.list",
             "evaluationAttempts.list",

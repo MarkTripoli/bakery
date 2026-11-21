@@ -9,8 +9,12 @@
 import { assertEquals } from "@std/assert";
 import {
   budgetReport,
+  checkSpecOf,
   corpusReport,
   formatMicroUsd,
+  LOCAL_RUN_SKIP_BASELINE,
+  LOCAL_RUN_SKIP_MODEL,
+  localRunStep,
   modelAttemptAllowed,
   optionalScorerProblem,
   pinSpec,
@@ -322,5 +326,47 @@ Deno.test("AC3: a deterministic check has no usage; a model attempt with no ledg
       measurement: "reported",
       costUsd: "0.01",
     },
+  );
+});
+
+Deno.test("AC1: a scorer config is a check with a known kind, or a reason it is not", () => {
+  assertEquals(
+    checkSpecOf({ kind: "contains", config: { substring: "ok" } }),
+    { ok: true, spec: { kind: "contains", config: { substring: "ok" } } },
+  );
+  for (const kind of ["json_schema", "equals"]) {
+    assertEquals(checkSpecOf({ kind, config: {} }).ok, true, kind);
+  }
+  for (
+    const bad of [null, "x", [], { check: "schema" }, {
+      kind: "regex",
+      config: {},
+    }]
+  ) {
+    assertEquals(checkSpecOf(bad).ok, false, JSON.stringify(bad));
+  }
+});
+
+Deno.test("AC2: a local run checks the candidate's deterministic results and skips the rest, never replacing a check with an opinion", () => {
+  assertEquals(
+    localRunStep({ role: "candidate", evaluatorType: "deterministic" }),
+    {
+      action: "check",
+    },
+  );
+  assertEquals(localRunStep({ role: "candidate", evaluatorType: "model" }), {
+    action: "skip",
+    reason: LOCAL_RUN_SKIP_MODEL,
+  });
+  assertEquals(
+    localRunStep({ role: "baseline", evaluatorType: "deterministic" }),
+    {
+      action: "skip",
+      reason: LOCAL_RUN_SKIP_BASELINE,
+    },
+  );
+  assertEquals(
+    localRunStep({ role: "baseline", evaluatorType: "model" }).action,
+    "skip",
   );
 });

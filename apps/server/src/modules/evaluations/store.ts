@@ -7,6 +7,10 @@
  */
 
 import type { ActionContext } from "@bakery/contracts/action-registry";
+import {
+  evaluateCheck,
+  type EvaluationCheckSpec,
+} from "@bakery/contracts/evaluation-scoring";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
@@ -18,6 +22,7 @@ import {
 import {
   batchStateOf,
   budgetReport,
+  checkSpecOf,
   compareBatches,
   compatibility,
   corpusReport,
@@ -26,6 +31,9 @@ import {
   type GateRule,
   isMeasured,
   judgeGateCounts,
+  LOCAL_RUN_MAX_INPUT_BYTES,
+  LOCAL_RUN_MAX_RESULTS,
+  localRunStep,
   optionalScorerProblem,
   pinSpec,
   type ReportFact,
@@ -1091,6 +1099,8 @@ export async function recordAttempt(
   organizationId: string,
   resultId: string,
   attempt: AttemptRecord,
+  /** A caller that records many attempts settles the batch's state itself, once. */
+  options: { settleBatch?: boolean } = {},
 ): Promise<"recorded" | "duplicate" | "canceled"> {
   const measured = attempt.state !== "interrupted" && isMeasured(attempt.state);
   if (measured !== (attempt.score !== null)) {
@@ -1163,24 +1173,177 @@ export async function recordAttempt(
       attempt.outputArtifactVersionId ?? null,
     ],
   );
-  const view = await batchView(tx, organizationId, row.batch_id);
+  if (options.settleBatch !== false) {
+    await settleBatchState(tx, organizationId, row.batch_id);
+  }
+  return "recorded";
+}
+
+/**
+ * Moves a batch's stored state to what its results say: completed or
+ * completed_with_errors once nothing is still to run, running once something
+ * has been attempted. The one place that decides it, for an attempt and for a
+ * skip alike.
+ */
+async function settleBatchState(
+  tx: PgTransactionClient,
+  organizationId: string,
+  batchId: string,
+) {
+  const view = await batchView(tx, organizationId, batchId);
   if (view.state === "completed" || view.state === "completed_with_errors") {
     await tx.query(
       `update bakery.evaluation_batches
           set state = $3, completed_at = coalesce(completed_at, now()),
               updated_at = now(), version = version + 1
         where organization_id = $1 and id = $2 and state <> $3`,
-      [organizationId, row.batch_id, view.state],
+      [organizationId, batchId, view.state],
     );
   } else if (view.state === "running") {
     await tx.query(
       `update bakery.evaluation_batches set state = 'running', updated_at = now(),
               version = version + 1
         where organization_id = $1 and id = $2 and state = 'queued'`,
-      [organizationId, row.batch_id],
+      [organizationId, batchId],
     );
   }
-  return "recorded";
+}
+
+// ------------------------------------------------------- the local corpus run
+
+type RunRow = {
+  id: string;
+  role: Role;
+  case_id: string;
+  input_artifact_version_id: string | null;
+  evaluator_type: string;
+  config: unknown;
+};
+
+/**
+ * Settles the missing results of a batch that a local run can settle (issue
+ * #41). It scores each case's recorded output, the artifact version the case
+ * names, with the scorer's deterministic check, in this process: the same
+ * pins and the same bytes give the same verdict. The artifact version is kept
+ * on the result as the input evidence. A model scorer and the baseline side
+ * are skipped with a reason and stay not attempted. At most
+ * LOCAL_RUN_MAX_RESULTS results are settled per call; call again to continue.
+ * A result that is no longer missing is left alone, so a repeat or a
+ * concurrent call settles each result once.
+ */
+export async function runLocalCorpus(context: ActionContext) {
+  const { transaction: tx, organizationId } = requireWorkTransaction(context);
+  const batchId = context.params.id;
+  if (!batchId) notFound();
+  const batch = await tx.query<{ canceled_at: Date | null }>(
+    `select canceled_at from bakery.evaluation_batches
+      where organization_id = $1 and id = $2 for update`,
+    [organizationId, batchId],
+  );
+  if (!batch.rows[0]) notFound();
+  if (batch.rows[0].canceled_at !== null) conflict("batch_canceled");
+  const pending = await tx.query<RunRow>(
+    `select r.id, r.role, r.case_id, c.input_artifact_version_id,
+            d.evaluator_type, d.config
+       from bakery.evaluation_results r
+       join bakery.evaluation_cases c
+         on c.organization_id = r.organization_id and c.id = r.case_id
+       join bakery.evaluation_definitions d
+         on d.organization_id = r.organization_id and d.id = r.scorer_id
+      where r.organization_id = $1 and r.batch_id = $2 and r.state = 'missing'
+      order by r.ordinal, r.id limit $3`,
+    [organizationId, batchId, LOCAL_RUN_MAX_RESULTS],
+  );
+  // The recorded outputs, read once each and only up to the size a check reads.
+  const wanted = [
+    ...new Set(
+      pending.rows
+        .filter((r) =>
+          localRunStep({ role: r.role, evaluatorType: r.evaluator_type })
+              .action === "check" && r.input_artifact_version_id !== null
+        )
+        .map((r) => r.input_artifact_version_id as string),
+    ),
+  ];
+  const outputs = new Map<string, { bytes: Uint8Array | null; size: number }>();
+  if (wanted.length > 0) {
+    const found = await tx.query<
+      { id: string; size_bytes: string; content: Uint8Array | null }
+    >(
+      `select id, size_bytes::text, case when size_bytes <= $3 then content end as content
+         from bakery.artifact_versions
+        where organization_id = $1 and id = any($2::uuid[])`,
+      [organizationId, wanted, LOCAL_RUN_MAX_INPUT_BYTES],
+    );
+    for (const v of found.rows) {
+      outputs.set(v.id, {
+        bytes: v.content === null ? null : new Uint8Array(v.content),
+        size: Number(v.size_bytes),
+      });
+    }
+  }
+  const now = () => new Date();
+  for (const result of pending.rows) {
+    const step = localRunStep({
+      role: result.role,
+      evaluatorType: result.evaluator_type,
+    });
+    if (step.action === "skip") {
+      await tx.query(
+        `update bakery.evaluation_results
+            set state = 'skipped', reason = $3, updated_at = now(),
+                version = version + 1
+          where organization_id = $1 and id = $2 and state = 'missing'`,
+        [organizationId, result.id, step.reason],
+      );
+      continue;
+    }
+    const attempt = (
+      verdict: {
+        state: "passed" | "failed" | "error";
+        score: number | null;
+        reason: string | null;
+      },
+    ) =>
+      recordAttempt(tx, organizationId, result.id, {
+        ...verdict,
+        deliveryKey: "local-corpus:" + result.id,
+        startedAt: now(),
+        endedAt: now(),
+        outputArtifactVersionId: result.input_artifact_version_id,
+      }, { settleBatch: false });
+    const spec = checkSpecOf(result.config);
+    if (!spec.ok) {
+      await attempt({ state: "error", score: null, reason: spec.reason });
+      continue;
+    }
+    const output = result.input_artifact_version_id === null
+      ? undefined
+      : outputs.get(result.input_artifact_version_id);
+    if (output === undefined) {
+      await attempt({
+        state: "error",
+        score: null,
+        reason: "The case has no recorded output to check.",
+      });
+      continue;
+    }
+    if (output.bytes === null) {
+      await attempt({
+        state: "error",
+        score: null,
+        reason: "The recorded output is " + output.size +
+          " bytes, over the " + LOCAL_RUN_MAX_INPUT_BYTES +
+          " a local check reads.",
+      });
+      continue;
+    }
+    await attempt(
+      evaluateCheck(spec.spec as EvaluationCheckSpec, output.bytes),
+    );
+  }
+  await settleBatchState(tx, organizationId, batchId);
+  return await batchView(tx, organizationId, batchId);
 }
 
 // -------------------------------------------------------------- comparison

@@ -645,3 +645,77 @@ export function usageGroupOf(
   if (evaluatorType === "deterministic") return null;
   return row ?? { measurement: "unknown", costUsd: null };
 }
+
+// ------------------------------------------ the local corpus runner (#41)
+
+/** Most results one local run call settles; call again to continue. */
+export const LOCAL_RUN_MAX_RESULTS = 2000;
+/** Largest recorded output a local check reads; a larger one is an error, not a pass. */
+export const LOCAL_RUN_MAX_INPUT_BYTES = 1_048_576;
+
+export const LOCAL_RUN_SKIP_MODEL =
+  "A local corpus run scores recorded outputs with deterministic checks only; this model scorer was not run.";
+export const LOCAL_RUN_SKIP_BASELINE =
+  "A local corpus run scores one recorded output per case, for the candidate; there is no recorded baseline output to score.";
+
+const CHECK_KINDS = ["json_schema", "contains", "equals"] as const;
+
+/**
+ * A deterministic scorer's config as a check: {kind, config} with a kind the
+ * runner knows. Anything else is a reason, recorded as an error on the result
+ * rather than guessed at: no output could have passed a check that is not one.
+ */
+export function checkSpecOf(
+  config: unknown,
+):
+  | { ok: true; spec: { kind: typeof CHECK_KINDS[number]; config: unknown } }
+  | { ok: false; reason: string } {
+  if (typeof config !== "object" || config === null || Array.isArray(config)) {
+    return {
+      ok: false,
+      reason:
+        "The scorer config is not a check: it must be an object with a kind and a config.",
+    };
+  }
+  const record = config as Record<string, unknown>;
+  if (
+    typeof record.kind !== "string" ||
+    !(CHECK_KINDS as readonly string[]).includes(record.kind)
+  ) {
+    return {
+      ok: false,
+      reason:
+        "The scorer config is not a check: kind must be json_schema, contains or equals.",
+    };
+  }
+  return {
+    ok: true,
+    spec: {
+      kind: record.kind as typeof CHECK_KINDS[number],
+      config: record.config,
+    },
+  };
+}
+
+/** What a local run does with one missing result. */
+export type LocalRunStep =
+  | { action: "skip"; reason: string }
+  | { action: "check" };
+
+/**
+ * A candidate result of a deterministic scorer is checked; everything else is
+ * skipped with a reason and stays not attempted: a model scorer needs a
+ * provider and the baseline needs an executed output. Required or optional, a
+ * check is never replaced by an opinion and a skipped result is never a pass.
+ */
+export function localRunStep(
+  result: Readonly<{ role: Role; evaluatorType: string }>,
+): LocalRunStep {
+  if (result.role !== "candidate") {
+    return { action: "skip", reason: LOCAL_RUN_SKIP_BASELINE };
+  }
+  if (result.evaluatorType !== "deterministic") {
+    return { action: "skip", reason: LOCAL_RUN_SKIP_MODEL };
+  }
+  return { action: "check" };
+}
