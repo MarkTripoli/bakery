@@ -5,7 +5,10 @@ import {
   type PgDatabase,
   withPgTransaction,
 } from "../../apps/server/src/platform/database.ts";
-import { assertNotQuiesced } from "../../apps/server/src/platform/maintenance.ts";
+import {
+  assertNotQuiesced,
+  updatePaused,
+} from "../../apps/server/src/platform/maintenance.ts";
 import {
   pauseForUpdate,
   readUnsureActions,
@@ -92,9 +95,11 @@ Deno.test("a pause closes the guarded doors until it is resumed, and says what w
     );
     assert(effect.length > 0);
     assertEquals(await guard(fixture), "open");
+    assertEquals(await updatePaused(fixture.pgDatabase), false);
 
     const paused = await pauseForUpdate(transact(fixture.pgDatabase));
     assertEquals(paused.state, "quiesced");
+    assertEquals(await updatePaused(fixture.pgDatabase), true);
     assert(paused.carriedOver.outsideActionsUnsure >= 1);
     for (
       const count of [
@@ -112,6 +117,7 @@ Deno.test("a pause closes the guarded doors until it is resumed, and says what w
 
     const resumed = await resumeAfterUpdate(transact(fixture.pgDatabase));
     assertEquals(resumed.released, true);
+    assertEquals(await updatePaused(fixture.pgDatabase), false);
     assertEquals(await guard(fixture), "open");
     assertEquals((await switchRow(fixture)).state, "off");
 

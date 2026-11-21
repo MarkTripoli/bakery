@@ -74282,14 +74282,19 @@ export const clientManifest = {
         "restoreHeld": {
           "type": "boolean",
           "description": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+        },
+        "updatePaused": {
+          "type": "boolean",
+          "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
         }
       },
       "required": [
         "bootstrapped",
-        "restoreHeld"
+        "restoreHeld",
+        "updatePaused"
       ],
       "additionalProperties": false,
-      "description": "Whether a first installation administrator already exists, and whether a restore holds the installation; carries no identity."
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
     },
     "BrowserSessionList": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

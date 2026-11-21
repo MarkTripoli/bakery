@@ -25955,16 +25955,19 @@ const transportSchemas = {
     "InstallationStatus": {
       "fields": [
         "bootstrapped",
-        "restoreHeld"
+        "restoreHeld",
+        "updatePaused"
       ],
       "fieldTypes": {
         "bootstrapped": "boolean",
-        "restoreHeld": "boolean"
+        "restoreHeld": "boolean",
+        "updatePaused": "boolean"
       },
-      "description": "Whether a first installation administrator already exists, and whether a restore holds the installation; carries no identity.",
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity.",
       "fieldDescriptions": {
         "bootstrapped": "Whether a first installation administrator already exists; carries no identity.",
-        "restoreHeld": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+        "restoreHeld": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action.",
+        "updatePaused": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
       }
     },
     "BrowserSession": {

@@ -213667,14 +213667,19 @@
             "restoreHeld": {
               "type": "boolean",
               "description": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+            },
+            "updatePaused": {
+              "type": "boolean",
+              "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
             }
           },
           "required": [
             "bootstrapped",
-            "restoreHeld"
+            "restoreHeld",
+            "updatePaused"
           ],
           "additionalProperties": false,
-          "description": "Whether a first installation administrator already exists, and whether a restore holds the installation; carries no identity."
+          "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
         },
         "BrowserSession": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -271182,7 +271187,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:9cb95b4c95641fa0986e428dc9b1da66d2fcaf249fe4eff6449f7fa884b7bc51",
+  "compatibilityDigest": "sha256:e1fdc43b8423fdb006122ba5d7e90f28064957ddd86f4f51de12220924bd9ade",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -435683,14 +435688,19 @@
         "restoreHeld": {
           "type": "boolean",
           "description": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+        },
+        "updatePaused": {
+          "type": "boolean",
+          "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
         }
       },
       "required": [
         "bootstrapped",
-        "restoreHeld"
+        "restoreHeld",
+        "updatePaused"
       ],
       "additionalProperties": false,
-      "description": "Whether a first installation administrator already exists, and whether a restore holds the installation; carries no identity."
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
     },
     "BrowserSession": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
