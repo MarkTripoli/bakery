@@ -6,6 +6,7 @@ mod store;
 
 use bakery_desktop_core::copy::{press, ButtonId, Press};
 use bakery_desktop_core::csp;
+use bakery_desktop_core::links::{navigation, open_target, Navigation};
 use bakery_desktop_core::platform::accept_callback;
 use bakery_desktop_core::session::{Event, ServerChoice};
 use bakery_desktop_core::settings::{resolve_server, Handoff, Settings};
@@ -127,7 +128,7 @@ fn test_hooks(app: &tauri::App, shell: &Arc<Shell>, server: &str) {
     }
 }
 
-/// A `bakery://` address the operating system handed over. Only a sign-in answer is acted on.
+/// A `bakery://` address the operating system handed over: a sign-in answer, or a page to open.
 fn handle_link(shell: &Arc<Shell>, raw: &str) {
     shell.report("link", json!({ "received": true }));
     if let Ok(code) = accept_callback(raw) {
@@ -135,7 +136,42 @@ fn handle_link(shell: &Arc<Shell>, raw: &str) {
         tauri::async_runtime::spawn(async move {
             shell.dispatch(Event::CallbackReceived { code }).await;
         });
+        return;
     }
+    match open_target(raw) {
+        Ok(path) => shell.request_open(path),
+        Err(reason) => shell.report("link_refused", json!({ "reason": reason })),
+    }
+}
+
+/// Every link the window is about to follow: the connected server's pages and the app's own stay,
+/// another web address goes to the system browser, and nothing else is followed.
+fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    tauri::plugin::Builder::<tauri::Wry>::new("links")
+        .on_navigation(move |webview, url| {
+            let shell = webview.try_state::<Arc<Shell>>();
+            match navigation(&server, url.as_str()) {
+                Navigation::Stay => true,
+                Navigation::Browser => {
+                    let opened = webview
+                        .app_handle()
+                        .opener()
+                        .open_url(url.as_str(), None::<&str>)
+                        .is_ok();
+                    if let Some(shell) = shell {
+                        shell.report("link_to_browser", json!({ "opened": opened }));
+                    }
+                    false
+                }
+                Navigation::Refuse(reason) => {
+                    if let Some(shell) = shell {
+                        shell.report("link_refused", json!({ "reason": reason }));
+                    }
+                    false
+                }
+            }
+        })
+        .build()
 }
 
 fn main() {
@@ -174,6 +210,7 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(links_plugin(server.clone()))
         .invoke_handler(tauri::generate_handler![
             get_view,
             press_button,

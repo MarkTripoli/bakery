@@ -601,11 +601,45 @@ def phase_silent_server_then_back():
     stop_app()
 
 
+def wait_report(path, event, count, timeout=20):
+    """True once the app has reported the event at least `count` times."""
+    end = time.time() + timeout
+    while time.time() < end:
+        if sum(1 for e in reports(path) if e["event"] == event) >= count:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def phase_open_links():
+    p = os.path.join(OUT, "k-links")
+    clear_store()
+    start_app(p)
+    deliver("bakery://open?path=%2Ftasks%2F7%3Ftab%3Dfiles")
+    check("[links] an open link naming a page of the server is accepted with that path",
+          wait_report(p, "link_open_requested", 1)
+          and [e["data"]["path"] for e in reports(p) if e["event"] == "link_open_requested"] == ["/tasks/7?tab=files"])
+    bad = ["bakery://open?path=%2F%2Fevil.test", "bakery://open?path=https%3A%2F%2Fevil.test",
+           "bakery://open?path=%2Fa%2F..%2Fb", "bakery://open?path=%2Fa&path=%2Fb", "bakery://open",
+           "bakery://open/extra?path=%2Fa"]
+    for link in bad:
+        deliver(link)
+    check("[links] every address that is not a plain page of the server is refused",
+          wait_report(p, "link_refused", len(bad)))
+    check("[links] a refused address asks for no page and shows nothing",
+          sum(1 for e in reports(p) if e["event"] == "link_open_requested") == 1
+          and all(not v[0].startswith("refusal") for v in views(p)), str(views(p)))
+    check("[links] a link that is not a sign-in answer leaves the window as it was",
+          stored() == "" and views(p)[-1][0] == "sign_in", str(views(p)))
+    stop_app()
+
+
 def main():
     print(f"server {SERVER}", flush=True)
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
                   phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling,
-                  phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back):
+                  phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back,
+                  phase_open_links):
         try:
             phase()
         except Exception as e:  # a phase that breaks is a failed check, not a silent skip

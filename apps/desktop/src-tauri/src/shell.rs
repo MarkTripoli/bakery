@@ -72,6 +72,9 @@ pub struct Shell {
     handoff: Option<Handoff>,
     /// How long a silent server is left before it is asked again.
     retry_after: Duration,
+    /// A page of the server a `bakery://open` link asked for, kept until the window can show the
+    /// server's pages (the desktop session handoff, #77 slice 5).
+    pending_open: Mutex<Option<String>>,
 }
 
 const SETTINGS_FILE: &str = "settings.json";
@@ -162,7 +165,15 @@ impl Shell {
             settings: startup.settings,
             handoff: startup.handoff,
             retry_after,
+            pending_open: Mutex::new(None),
         })
+    }
+
+    /// A page of the server a `bakery://open` link named, already checked. It is kept, and the last
+    /// one wins, until the window can show the server's pages.
+    pub fn request_open(&self, path: String) {
+        self.report("link_open_requested", json!({ "path": path }));
+        *self.pending_open.lock().unwrap() = Some(path);
     }
 
     /// A line in the report file, if one is set. Names and states only: never a secret.
