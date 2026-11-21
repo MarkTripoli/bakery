@@ -45,6 +45,9 @@ systemctl start "user@$api_uid.service"
 install -d -m 0755 /opt/bakery/{deploy,releases,slots,static,production} /etc/bakery /var/lib/bakery
 install -d -o root -g root -m 0700 /opt/bakery/quarantine
 install -d -m 0700 /var/lib/bakery/{deploy,backups,postgres,redis}
+# The WAL spool Postgres archives into: owned by the postgres image user (uid
+# 70 in the alpine image) so its archive_command can write there.
+install -d -o 70 -g 70 -m 0700 /var/lib/bakery/wal-spool
 install -d -o bakery-api -g bakery-api -m 0700 /var/lib/bakery/skills /home/bakery-api/.cache/deno
 install -d -o bakery-worker -g bakery-worker -m 0700 /var/lib/bakery/worker /home/bakery-worker/.cache/deno
 install -d -o bakery-migrate -g bakery-migrate -m 0700 /home/bakery-migrate/.cache/deno

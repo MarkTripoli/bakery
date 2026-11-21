@@ -15252,7 +15252,7 @@ export const clientManifest = {
           }
         },
         "accessLevel": {
-          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
           "type": "string",
           "enum": [
             "read_comment",
@@ -30298,7 +30298,7 @@ export const clientManifest = {
           "description": "The person to give access to: an active human member of this organization."
         },
         "level": {
-          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do.",
+          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it).",
           "type": "string",
           "enum": [
             "read_comment",
@@ -74278,13 +74278,18 @@ export const clientManifest = {
         "bootstrapped": {
           "type": "boolean",
           "description": "Whether a first installation administrator already exists; carries no identity."
+        },
+        "restoreHeld": {
+          "type": "boolean",
+          "description": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
         }
       },
       "required": [
-        "bootstrapped"
+        "bootstrapped",
+        "restoreHeld"
       ],
       "additionalProperties": false,
-      "description": "Whether a first installation administrator already exists; carries no identity."
+      "description": "Whether a first installation administrator already exists, and whether a restore holds the installation; carries no identity."
     },
     "BrowserSessionList": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -101396,7 +101401,7 @@ export const clientManifest = {
             "read_comment",
             "edit"
           ],
-          "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+          "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
         },
         "grantedById": {
           "type": "string",
@@ -101507,7 +101512,7 @@ export const clientManifest = {
                   "read_comment",
                   "edit"
                 ],
-                "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+                "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
               },
               "grantedById": {
                 "type": "string",
@@ -113225,6 +113230,37 @@ export const clientManifest = {
           ],
           "description": "InstallationRestore.intakeEnabledAt may be null in this transport value."
         },
+        "intakeEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned on new work; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.intakeEnabledBy may be null in this transport value."
+        },
         "dispatchEnabledAt": {
           "anyOf": [
             {
@@ -113240,6 +113276,37 @@ export const clientManifest = {
           ],
           "description": "InstallationRestore.dispatchEnabledAt may be null in this transport value."
         },
+        "dispatchEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned on the background consumers; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.dispatchEnabledBy may be null in this transport value."
+        },
         "workersEnabledAt": {
           "anyOf": [
             {
@@ -113254,6 +113321,37 @@ export const clientManifest = {
             }
           ],
           "description": "InstallationRestore.workersEnabledAt may be null in this transport value."
+        },
+        "workersEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned workers on and released the restore; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.workersEnabledBy may be null in this transport value."
         },
         "releasedAt": {
           "anyOf": [
@@ -113299,13 +113397,16 @@ export const clientManifest = {
         "jobsAwaitingReconciliation",
         "workersRevoked",
         "intakeEnabledAt",
+        "intakeEnabledBy",
         "dispatchEnabledAt",
+        "dispatchEnabledBy",
         "workersEnabledAt",
+        "workersEnabledBy",
         "releasedAt",
         "nextStep"
       ],
       "additionalProperties": false,
-      "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown."
+      "description": "The most recent restore of this installation, held or released, and how far its ordered re-enable got, with who took each step. Names, counts and times only: nothing the restore touched is shown."
     },
     "InstallationUncertainActions": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
