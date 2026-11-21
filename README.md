@@ -141,3 +141,7 @@ identity-linking slice.
 ### removed, dark, phone-390x844
 
 ![removed dark phone-390x844](stills/415-slack/removed--dark--phone-390x844.png)
+
+## Provider mark at 200% zoom (`stills/provider-mark-zoom200`)
+
+`before--light.png` is `Bakery/Atoms/ProviderMark` at `f6c3700cf`, where the containment rail measured the unclipped box and the story failed. `after--light.png` and `after--dark.png` are the same story at `a163b2302`, after the rail measures what a clipping ancestor shows and the clear-space slot clips. The glyph size is unchanged; only the escaped clear space is gone.
