@@ -37874,7 +37874,7 @@ const transportSchemas = {
     "plugin.job": {
       "inputFields": {
         "installId": "uuid",
-        "entry": "string<=256bytes"
+        "entry": "string"
       },
       "outputFields": {
         "resultJson": "string<=65536"

@@ -198862,8 +198862,7 @@
                     "entry": {
                       "type": "string",
                       "maxLength": 65536,
-                      "description": "Registered action input entry. JobAssignment.input.entry must contain at most 256 UTF-8 bytes.",
-                      "x-utf8-max-bytes": 256
+                      "description": "Registered action input entry."
                     },
                     "repositoryProfile": {
                       "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",
@@ -272612,7 +272611,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:9070fb66e1091837ec23d6142b15e4f38f5c5841031af488cb4720d0f5adb57d",
+  "compatibilityDigest": "sha256:67d280d7ac054a8a397bb34a822a8bf5a9028be7e518352dea4c525e5f64c8d4",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -422486,8 +422485,7 @@
                 "entry": {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "Registered action input entry. JobAssignment.input.entry must contain at most 256 UTF-8 bytes.",
-                  "x-utf8-max-bytes": 256
+                  "description": "Registered action input entry."
                 },
                 "repositoryProfile": {
                   "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",

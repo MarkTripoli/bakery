@@ -186,7 +186,7 @@ export async function assertVersionPagesInBundle(
 }
 
 /** Every file in a bundle archive by its normalized path. */
-async function bundleFiles(bundle: Uint8Array) {
+export async function bundleFiles(bundle: Uint8Array) {
   const inventory = await parseGzipUstarArchive(bundle, undefined, {
     manifestRequired: false,
   });

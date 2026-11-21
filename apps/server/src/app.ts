@@ -737,6 +737,9 @@ export function createApp(options: {
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,
       pluginBroker,
+      ...(skillFileStore
+        ? { pluginBundles: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
       artifactPreviewOrigin: previewOrigin,
       artifactActions,
       integrations,
