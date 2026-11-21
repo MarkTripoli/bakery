@@ -80,6 +80,7 @@ import { OrganizationRepositoryRulesPage } from "./pages/OrganizationRepositoryR
 import { RepositoryPage } from "./pages/RepositoryPage.tsx";
 import { RepositoryRulesPage } from "./pages/RepositoryRulesPage.tsx";
 import { OrganizationRolesPage } from "./pages/OrganizationRolesPage.tsx";
+import { PluginFramePage } from "./pages/PluginFramePage.tsx";
 import { PluginPage } from "./pages/PluginPage.tsx";
 import { PluginsPage } from "./pages/PluginsPage.tsx";
 import {
@@ -772,6 +773,12 @@ export const routeCoverage = [
     path: "/settings/organization/plugins/$installId",
     classification: "production",
     states: ["loading", "default", "error"],
+  },
+  {
+    id: "plugin-page",
+    path: "/plugins/$installId/$pageId",
+    classification: "production",
+    states: ["loading", "default", "error", "denied", "stale"],
   },
   {
     id: "settings-organization-repository-rules",
@@ -1971,6 +1978,18 @@ const organizationPluginRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const pluginFrameRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/plugins/$installId/$pageId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const { installId, pageId } = pluginFrameRoute.useParams();
+    return <PluginFramePage installId={installId} pageId={pageId} />;
+  },
+  errorComponent: ProtectedRouteError,
+});
+
 const organizationIntegrationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/organization/integrations",
@@ -2704,6 +2723,7 @@ const routeTree = rootRoute.addChildren([
   organizationRolesRoute,
   organizationPluginsRoute,
   organizationPluginRoute,
+  pluginFrameRoute,
   organizationRepositoryRulesRoute,
   repositoryRoute,
   repositoryRulesRoute,

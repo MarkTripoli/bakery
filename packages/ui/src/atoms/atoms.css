@@ -376,3 +376,14 @@
   margin-inline-end: var(--space-3);
   vertical-align: middle;
 }
+
+/* A plugin's own page: a frame that fills its parent and scrolls inside. The
+   frame has no border of its own; Bakery's strip above it draws the edge. */
+.ui-sealed-frame {
+  background: var(--color-canvas);
+  block-size: 100%;
+  border: var(--border-none);
+  display: block;
+  inline-size: 100%;
+  min-block-size: 0;
+}
