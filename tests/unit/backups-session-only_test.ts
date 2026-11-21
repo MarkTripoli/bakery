@@ -35,6 +35,7 @@ const READ_ACTIONS = [
   BackupImplementedAction.BackupScheduleGet,
   BackupImplementedAction.BackupOffsiteGet,
   BackupImplementedAction.InstallationRestoreGet,
+  BackupImplementedAction.InstallationUncertainActionsGet,
 ] as const;
 
 function registry() {

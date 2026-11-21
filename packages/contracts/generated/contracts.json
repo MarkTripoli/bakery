@@ -9617,6 +9617,30 @@
     },
     {
       "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/uncertain-actions",
+      "action": "installationUncertainActions.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "InstallationUncertainActions",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
       "method": "POST",
       "path": "/v1/installation/restore/steps",
       "action": "installationRestore.step",
@@ -14613,6 +14637,7 @@
     "backups.drills.list",
     "installationRestore.get",
     "installationRestore.step",
+    "installationUncertainActions.get",
     "backupRunnerCredential.issue",
     "backupSchedule.get",
     "backupSchedule.put",
@@ -38958,6 +38983,36 @@
                 "application/json": {
                   "schema": {
                     "$ref": "#/components/schemas/InstallationRestore"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/installation/uncertain-actions": {
+        "get": {
+          "operationId": "installationUncertainActions.get",
+          "parameters": [],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InstallationUncertainActions"
                   }
                 }
               }
@@ -63760,6 +63815,7 @@
                 "backups.list",
                 "backups.drills.list",
                 "installationRestore.get",
+                "installationUncertainActions.get",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -108047,6 +108103,7 @@
                 "backups.list",
                 "backups.drills.list",
                 "installationRestore.get",
+                "installationUncertainActions.get",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -108719,6 +108776,7 @@
                 "backups.list",
                 "backups.drills.list",
                 "installationRestore.get",
+                "installationUncertainActions.get",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -109391,6 +109449,7 @@
                 "backups.list",
                 "backups.drills.list",
                 "installationRestore.get",
+                "installationUncertainActions.get",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -160803,14 +160862,70 @@
             "restoreHeld": {
               "type": "boolean",
               "description": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+            },
+            "updatePaused": {
+              "type": "boolean",
+              "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
             }
           },
           "required": [
             "bootstrapped",
-            "restoreHeld"
+            "restoreHeld",
+            "updatePaused"
           ],
           "additionalProperties": false,
-          "description": "Whether a first installation administrator already exists, and whether a restore holds the installation; carries no identity."
+          "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
+        },
+        "InstallationUncertainActions": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "kinds": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind."
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first."
+                  },
+                  "since": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+                  }
+                },
+                "required": [
+                  "operation",
+                  "count",
+                  "since"
+                ],
+                "additionalProperties": false,
+                "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain. Each array item follows this format."
+              },
+              "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain."
+            },
+            "total": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How many actions are uncertain in all, counting kinds beyond the ones listed."
+            }
+          },
+          "required": [
+            "kinds",
+            "total"
+          ],
+          "additionalProperties": false,
+          "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only."
         },
         "IntegrationActionReceipt": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -227588,6 +227703,7 @@
                       "backups.list",
                       "backups.drills.list",
                       "installationRestore.get",
+                      "installationUncertainActions.get",
                       "installationRestore.step",
                       "backups.status",
                       "backups.start",
@@ -261895,6 +262011,36 @@
           "additionalProperties": false,
           "description": "Authorized transcript status projection with bounded coverage, expiry, and immutable artifact references; it never returns output bytes."
         },
+        "UncertainActionKind": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind."
+            },
+            "count": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first."
+            },
+            "since": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+            }
+          },
+          "required": [
+            "operation",
+            "count",
+            "since"
+          ],
+          "additionalProperties": false,
+          "description": "One kind of outside action whose outcome Bakery cannot tell, with how many there are and since when. Words, counts and a time only: never where the action pointed or what it carried."
+        },
         "UsageSummary": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -271561,7 +271707,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:a6f3e6428398c696eefd377f6d3b6507190b28b04cc936b28d554f26e9ec9899",
+  "compatibilityDigest": "sha256:95ff074bb01a95c325c54dad900967ccdac11fae4a32c99239e5d102ac73675c",
   "schemas": {
     "AccessBindingCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -285588,6 +285734,7 @@
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -330027,6 +330174,7 @@
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -330699,6 +330847,7 @@
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -331371,6 +331520,7 @@
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -382941,14 +383091,70 @@
         "restoreHeld": {
           "type": "boolean",
           "description": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+        },
+        "updatePaused": {
+          "type": "boolean",
+          "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
         }
       },
       "required": [
         "bootstrapped",
-        "restoreHeld"
+        "restoreHeld",
+        "updatePaused"
       ],
       "additionalProperties": false,
-      "description": "Whether a first installation administrator already exists, and whether a restore holds the installation; carries no identity."
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
+    },
+    "InstallationUncertainActions": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind."
+              },
+              "count": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first."
+              },
+              "since": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+              }
+            },
+            "required": [
+              "operation",
+              "count",
+              "since"
+            ],
+            "additionalProperties": false,
+            "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain. Each array item follows this format."
+          },
+          "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain."
+        },
+        "total": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many actions are uncertain in all, counting kinds beyond the ones listed."
+        }
+      },
+      "required": [
+        "kinds",
+        "total"
+      ],
+      "additionalProperties": false,
+      "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only."
     },
     "IntegrationActionReceipt": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -449794,6 +450000,7 @@
                   "backups.list",
                   "backups.drills.list",
                   "installationRestore.get",
+                  "installationUncertainActions.get",
                   "installationRestore.step",
                   "backups.status",
                   "backups.start",
@@ -484158,6 +484365,36 @@
       ],
       "additionalProperties": false,
       "description": "Authorized transcript status projection with bounded coverage, expiry, and immutable artifact references; it never returns output bytes."
+    },
+    "UncertainActionKind": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first."
+        },
+        "since": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+        }
+      },
+      "required": [
+        "operation",
+        "count",
+        "since"
+      ],
+      "additionalProperties": false,
+      "description": "One kind of outside action whose outcome Bakery cannot tell, with how many there are and since when. Words, counts and a time only: never where the action pointed or what it carried."
     },
     "UsageSummary": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
