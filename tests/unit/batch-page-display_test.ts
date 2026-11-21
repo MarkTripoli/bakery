@@ -797,3 +797,54 @@ Deno.test("the list says which issue a waiting batch is on, and keeps the muted 
     "batches.why.stillGoing",
   );
 });
+
+Deno.test("with four people asked and the reader first, the names are the reader and two others", () => {
+  const view = waitingView(
+    waitingBatch("approval", [ana, ben, cho, dee]),
+    "u-ana",
+  )!;
+  assertEquals([view.forYou, view.others], [true, ["Ben Okafor", "Chidi Eze"]]);
+  assertEquals(
+    waitingNames(view, "you", "en"),
+    "you, Ben Okafor, and Chidi Eze",
+  );
+  // A reader who was not asked sees three of the four.
+  const other = waitingView(
+    waitingBatch("approval", [ben, cho, dee, ana]),
+    "u-zed",
+  )!;
+  assertEquals(
+    other.others,
+    ["Ben Okafor", "Chidi Eze", "Dee Park", "Ana Ruiz"].slice(0, 3),
+  );
+});
+
+Deno.test("the list says Waiting on #n only while the batch is working; a paused, finishing or stopping one keeps its muted line", () => {
+  for (const state of ["paused", "finishing", "stopping"] as const) {
+    assertEquals(
+      whyItEnded(waitingBatch("approval", [ana], state), "421")?.key,
+      "batches.why.stillGoing",
+      state,
+    );
+  }
+});
+
+Deno.test("the current row reads Waiting in every state that waits for a person, and Working once nothing does", () => {
+  for (const state of ["running", "paused", "finishing", "stopping"] as const) {
+    const b = waitingBatch("approval", [ana], state);
+    assertEquals(
+      issueBadgeFor("started", waitingView(b, "u-ana") !== null).key,
+      "batches.issueState.waiting",
+      state,
+    );
+  }
+  // The other states have no issue being worked on, so no waiting is read.
+  for (const state of ["waiting", "finished", "stopped"] as const) {
+    const b = waitingBatch("approval", [ana], state);
+    assertEquals(
+      issueBadgeFor("started", waitingView(b, "u-ana") !== null).key,
+      "batches.issueState.working",
+      state,
+    );
+  }
+});
