@@ -106,6 +106,26 @@ Deno.test("a gate that cannot be judged is grey and says it is not a pass, and o
     rule: "at least 80% pass",
   });
   assertEquals(card.show, { count: 3, state: "missing" });
+  assertEquals(card.spread, null);
+});
+
+Deno.test("unmeasured results in several states get no button, and the card lists them", () => {
+  const card = gateCard(batch("completed_with_errors", "cannot_be_judged", {
+    passed: 7,
+    missing: 2,
+    canceled: 1,
+  }, 7));
+  assertEquals(card.show, null);
+  assertEquals(card.body.key, "library.evaluations.gate.cannot.bodyMany");
+  assertEquals(card.body.values, {
+    count: 3,
+    required: 10,
+    rule: "at least 80% pass",
+  });
+  assertEquals(card.spread, [
+    { state: "missing", count: 2 },
+    { state: "canceled", count: 1 },
+  ]);
 });
 
 Deno.test("a gate that is not met is a warning that shows the failed results", () => {

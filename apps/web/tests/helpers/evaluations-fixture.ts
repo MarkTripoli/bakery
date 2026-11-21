@@ -30,6 +30,12 @@ export const IDS = {
   canceled: uuid(106),
   /** Did not finish. */
   failed: uuid(107),
+  /** Measured something no list names: the title falls back to the kind and the version. */
+  noName: uuid(108),
+  /** Results in every one of the seven states. */
+  everyState: uuid(109),
+  /** Unmeasured results in two states: Not run and Stopped. */
+  twoStates: uuid(110),
 } as const;
 
 const CASES = [
@@ -256,9 +262,41 @@ export async function evaluationsFixture(
         blockers: [],
       },
     }),
+    run(IDS.noName, 7, {
+      candidate: { kind: "agentVersion", id: uuid(998), version: 4 },
+    }),
+    run(IDS.everyState, 8, {
+      state: "completed_with_errors",
+      measuredCount: 5,
+      counts: {
+        ...ZERO,
+        passed: 3,
+        failed: 2,
+        error: 1,
+        unscored: 1,
+        canceled: 1,
+        skipped: 1,
+        missing: 1,
+      },
+      gate: {
+        decision: "cannot_be_judged",
+        rule: "at least 80% of required results pass",
+        blockers: [],
+      },
+    }),
+    run(IDS.twoStates, 9, {
+      state: "completed_with_errors",
+      measuredCount: 7,
+      counts: { ...ZERO, passed: 7, missing: 2, canceled: 1 },
+      gate: {
+        decision: "cannot_be_judged",
+        rule: "at least 80% of required results pass",
+        blockers: [],
+      },
+    }),
     ...Array.from(
       { length: options.extra ?? 0 },
-      (_, index) => run(uuid(1000 + index), 7 + index, {}),
+      (_, index) => run(uuid(1000 + index), 10 + index, {}),
     ),
   ];
   const seen: Seen[] = [];

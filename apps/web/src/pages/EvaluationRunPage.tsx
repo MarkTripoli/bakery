@@ -92,13 +92,6 @@ function Attempts(
                 time: time(attempt.startedAt ?? attempt.createdAt),
                 state: translate(words.key, words.values),
               })}
-              {attempt.traceRef === null
-                ? ""
-                : ` · ${
-                  translate("library.evaluation.attempts.trace", {
-                    ref: attempt.traceRef,
-                  })
-                }`}
             </UI.Text>
           </div>
         );
@@ -306,6 +299,26 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
       });
   };
 
+  // Unmeasured results in several states: one sentence says where they are.
+  const gateBody = translate(gate.body.key, {
+    ...gate.body.values,
+    ...(gate.spread === null ? {} : {
+      states: new Intl.ListFormat(locale, {
+        style: "long",
+        type: "conjunction",
+      })
+        .format(
+          gate.spread.map((entry) =>
+            translate("library.evaluation.gate.spreadItem", {
+              state: translate(
+                `library.evaluation.state.${entry.state}` as const,
+              ),
+              count: entry.count,
+            })
+          ),
+        ),
+    }),
+  });
   const showButton = gate.show === null ? null : (
     <UI.Button
       variant="secondary"
@@ -421,7 +434,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
             <UI.Stack gap="compact">
               <UI.Stack gap="none">
                 <UI.Text>{words(gate.title)}</UI.Text>
-                <UI.Text variant="caption">{words(gate.body)}</UI.Text>
+                <UI.Text variant="caption">{gateBody}</UI.Text>
               </UI.Stack>
               {phone && gate.show !== null ? showButton : null}
             </UI.Stack>

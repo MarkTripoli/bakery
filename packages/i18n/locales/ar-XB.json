@@ -5548,5 +5548,4 @@
   "library.evaluation.attempts.loading": "⟪Loading the attempts⟫",
   "library.evaluation.attempts.error": "⟪The attempts could not be loaded.⟫",
   "library.evaluation.attempts.line": "⟪Attempt {number} · {time} · {state}⟫",
-  "library.evaluation.attempts.trace": "⟪Trace reference {ref}⟫"
 }

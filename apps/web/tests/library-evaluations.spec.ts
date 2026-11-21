@@ -79,7 +79,7 @@ for (
       await page.goto(LIST);
       await expect(page.locator("[data-run]")).toHaveCount(25);
       await page.getByRole("button", { name: "Show more" }).click();
-      await expect(page.locator("[data-run]")).toHaveCount(27);
+      await expect(page.locator("[data-run]")).toHaveCount(30);
       await expect(page.getByRole("button", { name: "Show more" })).toHaveCount(
         0,
       );
@@ -188,11 +188,71 @@ for (
       await expect(list.getByRole("listitem").nth(1)).toContainText(
         "Could not be scored: The model did not answer in time. This is not a score of zero.",
       );
-      await expect(list.getByRole("listitem").first()).toContainText(
-        "Trace reference",
-      );
+      await expect(list.getByText("Trace reference")).toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "evaluation-run-attempts");
+    });
+
+    test("a gate whose unmeasured results sit in two states has no button and says where they are", async ({ page }) => {
+      await evaluationsFixture(page);
+      await page.goto(run(IDS.twoStates));
+      const gate = page.getByTestId("evaluation-gate");
+      await expect(gate.getByText("The quality gate cannot be judged"))
+        .toBeVisible();
+      await expect(
+        gate.getByText(
+          "3 of 10 required results were not measured, so nobody can say whether at least 80% of required results pass. This is not a pass. They are under Not run (2) and Stopped (1) below.",
+        ),
+      ).toBeVisible();
+      await expect(gate.getByRole("button")).toHaveCount(0);
+      await expect(page.getByRole("radio", { name: "Not run 2" }))
+        .toBeVisible();
+      await expect(page.getByRole("radio", { name: "Stopped 1" }))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-two-states");
+    });
+
+    test("results in every state each have a chip, and a chip shows only its state", async ({ page }) => {
+      await evaluationsFixture(page);
+      await page.goto(run(IDS.everyState));
+      for (
+        const chip of [
+          "Passed 3",
+          "Failed 2",
+          "Could not be scored 1",
+          "Not scored 1",
+          "Not run 1",
+          "Stopped 1",
+          "Skipped 1",
+        ]
+      ) {
+        await expect(page.getByRole("radio", { name: chip })).toBeVisible();
+      }
+      await expect(page.getByTestId("evaluation-gate").getByRole("button"))
+        .toHaveCount(0);
+      await page.getByRole("radio", { name: "Skipped 1" }).check();
+      await expect(
+        page.getByText("Skipped: The test case needs a file that was removed.")
+          .first(),
+      ).toBeVisible();
+      await expect(page.getByText(/: Passed/)).toHaveCount(0);
+      await page.getByRole("radio", { name: "All" }).check();
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-every-state");
+    });
+
+    test("a run no list names says its kind and version, in the list and on its page", async ({ page }) => {
+      await evaluationsFixture(page);
+      await page.goto(LIST);
+      await expect(page.getByText("An agent, version 4")).toBeVisible();
+      await expect(page.getByText("Version 1", { exact: true })).toBeVisible();
+      await page.goto(run(IDS.noName));
+      await expect(
+        page.getByRole("heading", { name: "An agent, version 4", level: 1 }),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-no-name");
     });
 
     test("a running run can be stopped after asking, with the version, and the page then reads Stopped", async ({ page }) => {

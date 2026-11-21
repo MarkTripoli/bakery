@@ -126,6 +126,17 @@ export type GateCard = {
     readonly count: number;
     readonly state: EvaluationResultState;
   } | null;
+  /**
+   * The unmeasured results when they sit in more than one state: there is no
+   * button then, because one button cannot show them all, and the sentence
+   * says where they are instead.
+   */
+  readonly spread:
+    | readonly {
+      readonly state: EvaluationResultState;
+      readonly count: number;
+    }[]
+    | null;
 };
 
 /** The states that are not a measured pass or fail, in the order the button prefers them. */
@@ -155,6 +166,7 @@ export function gateCard(
       title: { key: "library.evaluations.gate.pending.title" },
       body: { key: "library.evaluations.gate.pending.body", values: { rule } },
       show: null,
+      spread: null,
     };
   }
   if (batch.gate.decision === "met") {
@@ -163,6 +175,7 @@ export function gateCard(
       title: { key: "library.evaluations.gate.met.title" },
       body: { key: "library.evaluations.gate.met.body", values: { rule } },
       show: null,
+      spread: null,
     };
   }
   if (batch.gate.decision === "not_met") {
@@ -178,20 +191,28 @@ export function gateCard(
         values: { count },
       },
       show: count > 0 ? { count, state: "failed" } : null,
+      spread: null,
     };
   }
-  const unmeasured = Math.max(0, batch.requiredCount - batch.measuredCount);
-  const state = UNMEASURED.find((candidate) => batch.counts[candidate] > 0);
+  const found = UNMEASURED.flatMap((state) =>
+    batch.counts[state] > 0 ? [{ state, count: batch.counts[state] }] : []
+  );
+  const unmeasured = found.reduce((sum, entry) => sum + entry.count, 0);
+  const several = found.length > 1;
   return {
     tone: "neutral",
     title: { key: "library.evaluations.gate.cannot.title" },
     body: {
-      key: "library.evaluations.gate.cannot.body",
+      key: several
+        ? "library.evaluations.gate.cannot.bodyMany"
+        : "library.evaluations.gate.cannot.body",
       values: { count: unmeasured, required: batch.requiredCount, rule },
     },
-    show: state === undefined || unmeasured === 0
-      ? null
-      : { count: unmeasured, state },
+    // The button shows as many results as it names: one state, it selects it.
+    show: found.length === 1
+      ? { count: unmeasured, state: found[0].state }
+      : null,
+    spread: several ? found : null,
   };
 }
 
