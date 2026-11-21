@@ -11,6 +11,7 @@ import {
   RENDER,
   withPluginFixture,
 } from "../helpers/plugin-pages-fixture.ts";
+import { PLUGIN_PAGE_LIMITS } from "@bakery/contracts/plugin-sdk";
 
 /**
  * A plugin's own pages end to end (#76, FS24): versions name pages, one page's
@@ -274,4 +275,34 @@ Deno.test("the sidebar list pages by cursor over every page without repeats", ()
       pages += 1;
     } while (cursor !== null && pages < 10);
     assertEquals(seen, [`${a}/checklist`, `${a}/notes`, `${b}/notes`]);
+  }));
+
+Deno.test("a page file at the size limit publishes, and one byte over is refused", () =>
+  withPluginFixture(async (fixture, store) => {
+    const page = { id: "big", title: "Big page", file: "big.html" };
+    const html = (bytes: number) => {
+      const head = "<!doctype html><p>";
+      return head + "a".repeat(bytes - head.length);
+    };
+    const atLimit = await publishWithPages(
+      fixture,
+      store,
+      pagesManifest([page]),
+      { "big.html": html(PLUGIN_PAGE_LIMITS.documentMaxBytes) },
+    );
+    assertEquals(
+      atLimit.response.status,
+      201,
+      await atLimit.response.clone().text(),
+    );
+    const over = await publishWithPages(
+      fixture,
+      store,
+      pagesManifest([page]),
+      { "big.html": html(PLUGIN_PAGE_LIMITS.documentMaxBytes + 1) },
+      atLimit.packageId,
+    );
+    const body = await over.response.text();
+    assertEquals(over.response.status, 422, body);
+    assert(body.includes("VALIDATION_FAILED"), body);
   }));
