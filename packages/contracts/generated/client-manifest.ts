@@ -3102,6 +3102,32 @@ export const clientManifest = {
     {
       "group": "Skills",
       "method": "POST",
+      "path": "/v1/skills/{id}/source-update",
+      "action": "skills.sourceUpdate",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "SkillSourceUpdateCheck",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "MALFORMED_REQUEST",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
       "path": "/v1/skills/{id}/draft/check",
       "action": "skillDrafts.check",
       "access": "Owner for personal; Admin for organization",
@@ -18288,6 +18314,7 @@ export const clientManifest = {
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
+            "skills.sourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
@@ -45369,6 +45396,7 @@ export const clientManifest = {
                   "skillDrafts.get",
                   "skillDrafts.update",
                   "skillDrafts.discard",
+                  "skills.sourceUpdate",
                   "skillDrafts.check",
                   "skillDrafts.publish",
                   "skillDraftFiles.save",
@@ -65839,6 +65867,7 @@ export const clientManifest = {
             "skillDrafts.get",
             "skillDrafts.update",
             "skillDrafts.discard",
+            "skills.sourceUpdate",
             "skillDrafts.check",
             "skillDrafts.publish",
             "skillDraftFiles.save",
@@ -100478,9 +100507,10 @@ export const clientManifest = {
                     "type": "string",
                     "enum": [
                       "person",
-                      "step"
+                      "step",
+                      "agent"
                     ],
-                    "description": "Whether the file's current version was made by a person or by a step of a run; null for a library item."
+                    "description": "Who made the file's current version: agent when an agent's session wrote it with a member's access, step when a run step published it, person otherwise; null for a library item or a file with no current version."
                   },
                   {
                     "type": "null",
@@ -100494,7 +100524,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "The person's display name, or the step's key for a step; null for a library item."
+                    "description": "The person's display name (for an agent, the member whose access it used), or the step's key for a step; null for a library item."
                   },
                   {
                     "type": "null",
@@ -100509,7 +100539,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "For a step, the work item (task) its run belongs to; null otherwise."
+                    "description": "For a step or an agent, the work item (task) its run belongs to; null otherwise."
                   },
                   {
                     "type": "null",
@@ -100531,6 +100561,109 @@ export const clientManifest = {
                   }
                 ],
                 "description": "FileSearchHit.producerTaskTitle may be null in this transport value."
+              },
+              "producerStepId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The run step that produced the current version, as recorded when it was written; null for a person's version or a library item."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerStepId may be null in this transport value."
+              },
+              "producerRunId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The run that step belongs to; null with producerStepId."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerRunId may be null in this transport value."
+              },
+              "producerAttemptId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The job attempt the current version recorded when it was written; null for a person's version, a library item, or a version written before Bakery recorded it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerAttemptId may be null in this transport value."
+              },
+              "producerSessionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The agent session that wrote or published the current version, as recorded at that moment; null when none was recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerSessionId may be null in this transport value."
+              },
+              "producerAgentName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Name of the agent producerSessionId ran; null without a session or when the agent is not recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerAgentName may be null in this transport value."
+              },
+              "producerActingForId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The person the producing run acts for, as recorded when the current version was written; null for a person's version, a library item, or one written before Bakery recorded it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerActingForId may be null in this transport value."
+              },
+              "producerActingForName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of producerActingForId; null with it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "FileSearchHit.producerActingForName may be null in this transport value."
               },
               "nameMatchStart": {
                 "anyOf": [
@@ -100585,6 +100718,13 @@ export const clientManifest = {
               "producerName",
               "producerTaskId",
               "producerTaskTitle",
+              "producerStepId",
+              "producerRunId",
+              "producerAttemptId",
+              "producerSessionId",
+              "producerAgentName",
+              "producerActingForId",
+              "producerActingForName",
               "nameMatchStart",
               "nameMatchLength",
               "createdAt"
@@ -102933,6 +103073,260 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
     },
+    "SkillSourceUpdateCheck": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "skillId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the skill that was checked."
+        },
+        "sourceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the registered source the skill came from."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "current",
+            "update_available",
+            "unreachable"
+          ],
+          "description": "current when the source holds the same files as the installed version, update_available when any file was added, removed or changed, unreachable when the source could not be read (the skill still works)."
+        },
+        "requestedRevision": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The branch, tag or commit the skill's latest import followed; the check reads the source at this same name, so a moving branch finds what is newer."
+        },
+        "installedRevision": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The exact source revision the installed version was imported from."
+        },
+        "latestRevision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The exact revision the source's requested revision points to now, or null when the source could not be reached."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillSourceUpdateCheck.latestRevision may be null in this transport value."
+        },
+        "lastCheckedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC time of the last check that reached the source, which this check moves forward when it succeeds; null when the source was never reached."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillSourceUpdateCheck.lastCheckedAt may be null in this transport value."
+        },
+        "problem": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED or SOURCE_REVISION_MISMATCH); null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SkillSourceUpdateCheck.problem may be null in this transport value."
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "One entry per file that differs, by path: path, change (added, removed or changed), installedSha256 and latestSha256 (or null on the side without the file), installedSizeBytes and latestSizeBytes (or null), diff (hunks of lines with three lines of context, a line kept starting with a space, removed with - and added with +; null when none is shown) and diffOmitted (binary, too_large or mode_only when diff is null for that reason, otherwise null). At most 200. Each array item follows this format."
+          },
+          "description": "One entry per file that differs, by path: path, change (added, removed or changed), installedSha256 and latestSha256 (or null on the side without the file), installedSizeBytes and latestSizeBytes (or null), diff (hunks of lines with three lines of context, a line kept starting with a space, removed with - and added with +; null when none is shown) and diffOmitted (binary, too_large or mode_only when diff is null for that reason, otherwise null). At most 200."
+        },
+        "changesTruncated": {
+          "type": "boolean",
+          "description": "True when more than 200 files differ and the list stops at the first 200 by path."
+        }
+      },
+      "required": [
+        "skillId",
+        "sourceId",
+        "status",
+        "requestedRevision",
+        "installedRevision",
+        "latestRevision",
+        "lastCheckedAt",
+        "problem",
+        "changes",
+        "changesTruncated"
+      ],
+      "additionalProperties": false,
+      "description": "What a skill's source holds now compared with the installed version: whether an update is available and, file by file, what would change. Looking never installs anything; taking the update is a separate step.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
     "SkillDraft": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -104434,7 +104828,7 @@ export const clientManifest = {
                   "step",
                   "agent"
                 ],
-                "description": "Who made the version: step when a run step published it, agent when an agent's session wrote it with a member's access, person when a member or service wrote it."
+                "description": "Who made the version: agent when an agent's session wrote it with a member's access, step when a run step published it, person when a member or service wrote it."
               },
               "makerPrincipalId": {
                 "type": "string",
@@ -104462,7 +104856,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "The run step that published the version; null for a person's version."
+                    "description": "The run step that produced the version, as recorded when it was written; null for a person's version, or for an agent's version written before Bakery recorded it."
                   },
                   {
                     "type": "null",
@@ -104476,7 +104870,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "The step's key in its workflow; null for a person's version."
+                    "description": "The step's key in its workflow; null with stepId."
                   },
                   {
                     "type": "null",
@@ -104491,7 +104885,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "The run the step belongs to, for Open the run; null for a person's version."
+                    "description": "The run the producing step belongs to, for Open the run; null for a person's version, or for an agent's version written before Bakery recorded it."
                   },
                   {
                     "type": "null",
@@ -104506,7 +104900,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "The work item the run worked on; null for a person's version."
+                    "description": "The work item that run worked on; null with runId."
                   },
                   {
                     "type": "null",
@@ -104520,7 +104914,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "That work item's title; null for a person's version."
+                    "description": "That work item's title; null with workItemId."
                   },
                   {
                     "type": "null",
@@ -104535,7 +104929,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "The agent session behind the version, for Open the session: the step's most recent session for a step, the session that wrote it for an agent; null when there was none or for a person's version."
+                    "description": "The agent session that wrote or published the version, as recorded at that moment (never the step's later sessions), for Open the session; null for a person's version, or when none was recorded."
                   },
                   {
                     "type": "null",
@@ -104544,12 +104938,27 @@ export const clientManifest = {
                 ],
                 "description": "StorageFileVersion.sessionId may be null in this transport value."
               },
+              "attemptId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The job attempt the version recorded when it was written, for a step's or an agent's version; null for a person's version or for a version written before Bakery recorded it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.attemptId may be null in this transport value."
+              },
               "agentName": {
                 "anyOf": [
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Name of the agent whose session wrote the version, for an agent's version; null otherwise, or when the agent is not recorded."
+                    "description": "Name of the agent that sessionId ran; null without a session, or when the agent is not recorded."
                   },
                   {
                     "type": "null",
@@ -104557,6 +104966,35 @@ export const clientManifest = {
                   }
                 ],
                 "description": "StorageFileVersion.agentName may be null in this transport value."
+              },
+              "actingForPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The person the producing run acts for, recorded when the version was written: the principal of the attempt's session credential, else the run's requester; null for a person's version or one written before Bakery recorded it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.actingForPrincipalId may be null in this transport value."
+              },
+              "actingForName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of actingForPrincipalId; null with it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageFileVersion.actingForName may be null in this transport value."
               }
             },
             "required": [
@@ -104578,10 +105016,13 @@ export const clientManifest = {
               "workItemId",
               "workItemTitle",
               "sessionId",
-              "agentName"
+              "attemptId",
+              "agentName",
+              "actingForPrincipalId",
+              "actingForName"
             ],
             "additionalProperties": false,
-            "description": "One version of a storage-tree file: its number, when and by whom or which step it was saved, its size, and whether its contents are still there."
+            "description": "One version of a storage-tree file: its number, when and by whom it was saved (a person, or the run, step, attempt and agent session that produced it, with the person the run acts for), its size, and whether its contents are still there."
           },
           "description": "StorageFileVersion items in this cursor page. Page<StorageFileVersion>.items must contain at most 100 items."
         },

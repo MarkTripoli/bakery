@@ -5465,6 +5465,14 @@
   "files.preview.state.mismatchTitle": "⟪This file does not match its record⟫",
   "files.preview.state.mismatchDescription": "⟪What is stored is not what was recorded, so Bakery will not show or download it. Ask an organization Admin to check it.⟫",
   "files.preview.state.retry": "⟪Try again⟫",
+  "issues.work.progress.needsAnswer": "⟪Needs an answer⟫",
+  "issues.work.question.one": "⟪Bakery needs an answer⟫",
+  "issues.work.question.many": "⟪Bakery needs {count} answers⟫",
+  "issues.work.question.asked": "⟪Asked {when} · work is paused until someone answers⟫",
+  "issues.work.question.answer": "⟪Answer⟫",
+  "issues.work.question.cannot": "⟪Someone who can work on this task needs to answer.⟫",
+  "issues.work.question.expired": "⟪A question went unanswered and expired.⟫",
+  "issues.work.question.loadFailed": "⟪Bakery's questions could not be loaded.⟫",
   "batches.title": "⟪Batches⟫",
   "batches.description": "⟪A batch works through several ready issues in a row, within limits you set.⟫",
   "batches.link": "⟪Batches⟫",
@@ -5520,6 +5528,7 @@
   "batches.limit.issues": "⟪{max, plural, one {# issue is} other {# issues are}} merged⟫",
   "batches.limit.generic": "⟪A limit is reached⟫",
   "batches.banner.working.title": "⟪Working on #{number}, the {ordinal, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} of up to {max}⟫",
+  "batches.banner.working.body": "⟪Bakery is working on it. Open the task to see where it is.⟫",
   "batches.banner.choosing.title": "⟪Choosing the next issue⟫",
   "batches.banner.choosing.body": "⟪Bakery is reading GitHub.⟫",
   "batches.banner.waiting.title": "⟪#{number} is merged. Start the next issue?⟫",
@@ -5646,6 +5655,5 @@
   "batches.start.leave.confirm": "⟪Leave⟫",
   "batches.page.back": "⟪Back to batches⟫",
   "batches.page.notFound": "⟪This batch was not found, or you do not have access to it.⟫",
-  "batches.someone": "⟪Someone⟫",
-  "batches.banner.working.body": "⟪Bakery is working on it. Open the task to see where it is.⟫"
+  "batches.someone": "⟪Someone⟫"
 }

@@ -5465,6 +5465,14 @@
   "files.preview.state.mismatchTitle": "⟦Ŧĥïš ƒïļë ðôëš ñôŧ ɱàŧçĥ ïŧš ŕëçôŕð ŧëšŧ çôþÿŧ⟧",
   "files.preview.state.mismatchDescription": "⟦Ŵĥàŧ ïš šŧôŕëð ïš ñôŧ ŵĥàŧ ŵàš ŕëçôŕðëð, šô Ɓàķëŕÿ ŵïļļ ñôŧ šĥôŵ ôŕ ðôŵñļôàð ïŧ. Àšķ àñ ôŕĝàñïžàŧïôñ Àðɱïñ ŧô çĥëçķ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "files.preview.state.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
+  "issues.work.progress.needsAnswer": "⟦Ñëëðš àñ àñšŵëŕ ŧëš⟧",
+  "issues.work.question.one": "⟦Ɓàķëŕÿ ñëëðš àñ àñšŵëŕ ŧëšŧŧ⟧",
+  "issues.work.question.many": "⟦Ɓàķëŕÿ ñëëðš {count} àñšŵëŕš ŧëšŧ çô⟧",
+  "issues.work.question.asked": "⟦Àšķëð {when} · ŵôŕķ ïš þàûšëð ûñŧïļ šôɱëôñë àñšŵëŕš ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "issues.work.question.answer": "⟦Àñšŵëŕ…⟧",
+  "issues.work.question.cannot": "⟦Šôɱëôñë ŵĥô çàñ ŵôŕķ ôñ ŧĥïš ŧàšķ ñëëðš ŧô àñšŵëŕ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "issues.work.question.expired": "⟦À ǫûëšŧïôñ ŵëñŧ ûñàñšŵëŕëð àñð ëẋþïŕëð. ŧëšŧ çôþÿ ŧ⟧",
+  "issues.work.question.loadFailed": "⟦Ɓàķëŕÿ'š ǫûëšŧïôñš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧ⟧",
   "batches.title": "⟦Ɓàŧçĥëš…⟧",
   "batches.description": "⟦À ƀàŧçĥ ŵôŕķš ŧĥŕôûĝĥ šëṽëŕàļ ŕëàðÿ ïššûëš ïñ à ŕôŵ, ŵïŧĥïñ ļïɱïŧš ÿôû šëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "batches.link": "⟦Ɓàŧçĥëš…⟧",
@@ -5520,6 +5528,7 @@
   "batches.limit.issues": "⟦{max, plural, one {# issue is} other {# issues are}} ɱëŕĝëð ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "batches.limit.generic": "⟦À ļïɱïŧ ïš ŕëàçĥëð ŧëšŧ⟧",
   "batches.banner.working.title": "⟦Ŵôŕķïñĝ ôñ #{number}, ŧĥë {ordinal, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} ôƒ ûþ ŧô {max} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "batches.banner.working.body": "⟦Ɓàķëŕÿ ïš ŵôŕķïñĝ ôñ ïŧ. Ôþëñ ŧĥë ŧàšķ ŧô šëë ŵĥëŕë ïŧ ïš. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "batches.banner.choosing.title": "⟦Çĥôôšïñĝ ŧĥë ñëẋŧ ïššûë ŧëšŧ ç⟧",
   "batches.banner.choosing.body": "⟦Ɓàķëŕÿ ïš ŕëàðïñĝ ĜïŧĤûƀ. ŧëšŧ ç⟧",
   "batches.banner.waiting.title": "⟦#{number} ïš ɱëŕĝëð. Šŧàŕŧ ŧĥë ñëẋŧ ïššûë? ŧëšŧ çôþÿ ŧë⟧",
@@ -5646,6 +5655,5 @@
   "batches.start.leave.confirm": "⟦Ļëàṽë⟧",
   "batches.page.back": "⟦Ɓàçķ ŧô ƀàŧçĥëš ŧëš⟧",
   "batches.page.notFound": "⟦Ŧĥïš ƀàŧçĥ ŵàš ñôŧ ƒôûñð, ôŕ ÿôû ðô ñôŧ ĥàṽë àççëšš ŧô ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "batches.someone": "⟦Šôɱëôñë…⟧",
-  "batches.banner.working.body": "⟦Ɓàķëŕÿ ïš ŵôŕķïñĝ ôñ ïŧ. Ôþëñ ŧĥë ŧàšķ ŧô šëë ŵĥëŕë ïŧ ïš. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
+  "batches.someone": "⟦Šôɱëôñë…⟧"
 }
