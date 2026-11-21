@@ -11,7 +11,7 @@ STATES="${STATES:-$(BAKERY_DESKTOP_LIST_PREVIEWS=1 "$BIN")}"
 SIZES="${SIZES:-960x640 400x560}"
 THEMES="${THEMES:-light dark}"
 mkdir -p "$OUT"
-: > "$OUT/results.tsv"
+[ -n "${APPEND:-}" ] || : > "$OUT/results.tsv"
 export DISPLAY=:99 WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 NO_AT_BRIDGE=1 TZ=UTC LANG=C.UTF-8
 
 for size in $SIZES; do

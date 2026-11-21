@@ -49,6 +49,14 @@ tested them, so follow their own documentation.
 
 After the keyring is running, press **Sign in with your browser** again.
 
+## If the keyring refuses the sign-in
+
+Bakery tries the keyring before it asks the server for a sign-in, so a computer with no keyring never
+makes the server issue one nobody holds. If the keyring fails in the instant after that check, Bakery
+ends the unused sign-in on the server before it shows this window. If the server does not answer, the
+window says the sign-in may still be listed under **Active sessions** in Account and security on the
+web as "Bakery app", and you can revoke it there.
+
 ## What Bakery keeps, and where
 
 - The sign-in the server issued to this app, in the keyring, under the service name

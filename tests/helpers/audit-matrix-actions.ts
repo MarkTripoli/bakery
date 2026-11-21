@@ -16,6 +16,7 @@ export const AUDIT_MATRIX_ACTIONS = [
   "organizationInvitations.recipientReject",
   "browserSessions.revoke",
   "browserSessions.revokeOthers",
+  "browserSessions.revokeCurrent",
   "connectedClients.revoke",
   "userPreferences.update",
   "installationSettings.update",
