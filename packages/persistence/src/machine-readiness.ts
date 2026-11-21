@@ -34,6 +34,9 @@ export type MachineReadinessOptions = {
   enrollmentTtlSeconds: number;
   randomSecret: () => string;
   hash: (value: string) => Promise<string>;
+  /** A fresh XXXX-XXXX link code for a new enrollment row (#70); only its hash is stored. */
+  mintLinkCode: () => string;
+  hashLinkCode: (code: string) => Promise<string>;
   /** Encrypts protected challenge material with the server secret. */
   protect: (value: unknown) => Promise<string>;
   /** Decrypts protected challenge material for same-attempt re-delivery. */
@@ -41,9 +44,10 @@ export type MachineReadinessOptions = {
 };
 
 export type EnrollmentIntent = {
-  name: string;
-  os: string;
-  architecture: string;
+  /** Null while a link-code enrollment leaves these to the machine (#70). */
+  name: string | null;
+  os: string | null;
+  architecture: string | null;
   capabilities: readonly string[];
   slots: number;
 };
@@ -57,9 +61,9 @@ export type EnrollmentState =
 export type EnrollmentInspection = {
   enrollmentId: string;
   organizationName: string;
-  name: string;
-  os: string;
-  architecture: string;
+  name: string | null;
+  os: string | null;
+  architecture: string | null;
   slots: number;
   capabilities: readonly string[];
   expiresAt: string;
@@ -704,9 +708,9 @@ export function createMachineReadinessWorkflows(
     id: string;
     organizationId: string;
     principalId: string;
-    name: string;
-    os: string;
-    architecture: string;
+    name: string | null;
+    os: string | null;
+    architecture: string | null;
     capabilities: string[];
     slots: number;
     expiresAt: string;
@@ -725,9 +729,9 @@ export function createMachineReadinessWorkflows(
       id: string;
       organization_id: string;
       principal_id: string;
-      name: string;
-      os: string;
-      architecture: string;
+      name: string | null;
+      os: string | null;
+      architecture: string | null;
       allowed_capabilities: unknown;
       slots: number;
       expires_at: Date | string;
@@ -822,18 +826,24 @@ export function createMachineReadinessWorkflows(
     expectedCredentialGeneration: number | null;
     metadata: RequestMetadata;
     now: Date;
-  }): Promise<{ id: string; token: string; expiresAt: string }> {
+  }): Promise<
+    { id: string; token: string; linkCode: string; expiresAt: string }
+  > {
     const token = config.randomSecret();
     const tokenHash = await config.hash(token);
+    const linkCode = config.mintLinkCode();
+    const linkHash = await config.hashLinkCode(linkCode);
     const inserted = await transaction.query<
       { id: string; expires_at: Date | string }
     >(
       `insert into bakery.worker_enrollments (
          organization_id, principal_id, name, os, architecture,
          allowed_capabilities, slots, token_hash, expires_at,
-         replacement_of_id, target_worker_host_id, expected_credential_generation
+         replacement_of_id, target_worker_host_id, expected_credential_generation,
+         link_code_hash
        ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8,
-         clock_timestamp() + ($9::integer * interval '1 second'), $10, $11, $12)
+         clock_timestamp() + ($9::integer * interval '1 second'), $10, $11, $12,
+         $13)
        returning id, expires_at`,
       [
         options.organizationId,
@@ -848,6 +858,7 @@ export function createMachineReadinessWorkflows(
         options.replacementOfId,
         options.targetWorkerHostId,
         options.expectedCredentialGeneration,
+        linkHash,
       ],
     );
     const row = inserted.rows[0];
@@ -855,6 +866,7 @@ export function createMachineReadinessWorkflows(
     return {
       id: row.id,
       token,
+      linkCode,
       expiresAt: new Date(row.expires_at).toISOString(),
     };
   }
@@ -864,9 +876,9 @@ export function createMachineReadinessWorkflows(
       const rows = await transaction.query<{
         id: string;
         organization_name: string;
-        name: string;
-        os: string;
-        architecture: string;
+        name: string | null;
+        os: string | null;
+        architecture: string | null;
         allowed_capabilities: unknown;
         slots: number;
         expires_at: Date | string;
@@ -1099,6 +1111,7 @@ export function createMachineReadinessWorkflows(
         enrollmentId: successor.id,
         enrollmentToken: successor.token,
         expiresAt: successor.expiresAt,
+        linkCode: successor.linkCode,
       };
       await saveMutationReplay(
         organizationId,
@@ -1233,6 +1246,7 @@ export function createMachineReadinessWorkflows(
         enrollmentId: enrollment.id,
         enrollmentToken: enrollment.token,
         expiresAt: enrollment.expiresAt,
+        linkCode: enrollment.linkCode,
       };
       await saveMutationReplay(
         organizationId,
