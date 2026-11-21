@@ -79,6 +79,11 @@ function stand(options: Options = {}) {
           rowCount: 1,
         });
       }
+      // The waitingOn read (#58) joins the issues to the task's open questions;
+      // none are open here, so it must not be answered with the issue rows.
+      if (sql.includes("join bakery.questions")) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
       if (sql.includes("from bakery.batch_issues")) {
         return Promise.resolve({ rows: issues, rowCount: issues.length });
       }

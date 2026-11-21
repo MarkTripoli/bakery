@@ -56,7 +56,8 @@ const strictObjectSchema = z.custom<z.ZodObject>(isStrictObject, {
   "Strict zod object schema; unknown keys are rejected so callers cannot smuggle extra fields.",
 );
 
-const PATH_PARAM_SOURCE = /^(?:input|binding:[a-zA-Z][a-zA-Z0-9_]*)$/;
+const PATH_PARAM_SOURCE =
+  /^(?:input|input-text|binding:[a-zA-Z][a-zA-Z0-9_]*)$/;
 
 /** The static query text a graphql template declares, or null when it has none. */
 function graphqlDocumentOf(template: {
@@ -226,7 +227,7 @@ export const requestTemplateSchema = z.strictObject({
       "Placeholder name used in the path template.",
     ),
     z.string().regex(PATH_PARAM_SOURCE).describe(
-      "Source of the path value: binding:<attribute> is supplied by the host from the bound resource; input comes from the validated request input.",
+      "Source of the path value: binding:<attribute> is supplied by the host from the bound resource; input comes from the validated request input and must be a plain name; input-text comes from the validated request input and may be free text (a label name), which the host percent-encodes into one segment.",
     ),
   ).describe(
     "Maps every path placeholder to its source; unmapped or extra placeholders are rejected.",
@@ -313,7 +314,7 @@ export const requestTemplateSchema = z.strictObject({
   }
   const shape = t.input.shape as Record<string, unknown>;
   for (const [name, source] of Object.entries(t.pathParams)) {
-    if (source === "input" && !(name in shape)) {
+    if ((source === "input" || source === "input-text") && !(name in shape)) {
       issue(`input path param ${name} missing from request input`, [
         "pathParams",
         name,
