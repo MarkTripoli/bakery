@@ -315,7 +315,7 @@ Deno.test("issue 71 sweep: a checkpoint per stream is created for each selected 
     const s = await subjectOf(f, { selected: 2 });
     assertEquals(await checkpointRows(f), []);
     assertEquals(await ensureCheckpoints(f.runtimePgDatabase!), {
-      created: 6,
+      created: 8,
       rearmed: 0,
     });
     assertEquals(await ensureCheckpoints(f.runtimePgDatabase!), {
@@ -323,7 +323,7 @@ Deno.test("issue 71 sweep: a checkpoint per stream is created for each selected 
       rearmed: 0,
     });
     const rows = await checkpointRows(f);
-    assertEquals(rows.length, 6);
+    assertEquals(rows.length, 8);
     assertEquals(
       new Set(rows.map((row) => row.resource_id)).size,
       2,
@@ -344,6 +344,8 @@ Deno.test("issue 71 sweep: a checkpoint per stream is created for each selected 
         "checks",
         "issues",
         "issues",
+        "line_counts",
+        "line_counts",
         "pull_requests",
         "pull_requests",
       ],
@@ -1000,7 +1002,7 @@ Deno.test("issue 71 sweep: a deselected repository or a revoked connection gets 
         "only the still-selected repository",
       );
     }
-    assertEquals(claimed.length, 3);
+    assertEquals(claimed.length, 4);
 
     // A checkpoint already claimed is parked by the recheck, with no call.
     const parked = (await checkpointRows(f, s.resource.id))[0];
@@ -1075,7 +1077,7 @@ Deno.test("issue 71 sweep: a repository whose authority is gone gets no checkpoi
     }
     assertEquals(
       (await ensureCheckpoints(database)).created,
-      3,
+      4,
       "control: with the authority intact every stream is created",
     );
 
@@ -1129,14 +1131,14 @@ Deno.test("issue 71 sweep: a repository whose authority is gone gets no checkpoi
       );
       assertEquals(
         (await checkpointRows(f)).map(({ status }) => status),
-        ["blocked", "blocked", "blocked"],
+        ["blocked", "blocked", "blocked", "blocked"],
         `${state.name}: still blocked`,
       );
       await state.restore();
     }
     assertEquals(
       await ensureCheckpoints(database),
-      { created: 0, rearmed: 3 },
+      { created: 0, rearmed: 4 },
       "control: armed again once the authority is back",
     );
   });
@@ -1177,13 +1179,16 @@ Deno.test("issue 71 sweep: concurrent claims take disjoint checkpoints and a cla
     await ensureCheckpoints(f.runtimePgDatabase!);
     const claims = await Promise.all(
       Array.from(
-        { length: 9 },
+        { length: 12 },
         () => claimDueCheckpoint(f.runtimePgDatabase!),
       ),
     );
     const ids = claims.map((claim) => claim?.id);
-    assert(ids.every((id) => typeof id === "string"), "nine due, nine claimed");
-    assertEquals(new Set(ids).size, 9, "no checkpoint is claimed twice");
+    assert(
+      ids.every((id) => typeof id === "string"),
+      "twelve due, twelve claimed",
+    );
+    assertEquals(new Set(ids).size, 12, "no checkpoint is claimed twice");
     assertEquals(await claimDueCheckpoint(f.runtimePgDatabase!), null);
     const rows = await checkpointRows(f);
     for (const row of rows) {
@@ -1250,7 +1255,7 @@ Deno.test("issue 71 sweep: a step whose lease was taken over writes nothing", as
   });
 });
 
-Deno.test("issue 71 sweep: with 30 checkpoints and a 25-step cap every checkpoint runs within two sweeps", async () => {
+Deno.test("issue 71 sweep: with 40 checkpoints and a 25-step cap every checkpoint runs within two sweeps", async () => {
   await withFixture(async (f) => {
     await subjectOf(f, { selected: 10, repositories: 10 });
     const sweep = capture();
@@ -1266,18 +1271,18 @@ Deno.test("issue 71 sweep: with 30 checkpoints and a 25-step cap every checkpoin
       ran: number;
       outcomes: Record<string, number>;
     };
-    assertEquals([first.created, first.ran], [30, 25]);
+    assertEquals([first.created, first.ran], [40, 25]);
     assertEquals(first.outcomes, { completed: 25 });
     const completed = (await checkpointRows(f)).filter((row) =>
       row.last_completed_at !== null
     );
     assertEquals(completed.length, 25);
-    // The five never-completed checkpoints go first in the next sweep, and the
+    // The 15 never-completed checkpoints go first in the next sweep, and the
     // 25 that just rested are not due.
     const second = await sweep.run() as { created: number; ran: number };
-    assertEquals([second.created, second.ran], [0, 5]);
+    assertEquals([second.created, second.ran], [0, 15]);
     const rows = await checkpointRows(f);
-    assertEquals(rows.length, 30);
+    assertEquals(rows.length, 40);
     assertEquals(rows.every((row) => row.last_completed_at !== null), true);
     assertEquals(rows.every((row) => row.generation === 2), true);
     const third = await sweep.run() as { ran: number };
@@ -1294,8 +1299,8 @@ Deno.test("issue 71 sweep: a claim goes to the checkpoint that has waited longes
       ...dependenciesOf(f),
     });
     const first = await sweep.run() as { created: number; ran: number };
-    assertEquals([first.created, first.ran], [30, 25]);
-    // All 30 are due again: five never completed, 25 completed one after another.
+    assertEquals([first.created, first.ran], [40, 25]);
+    // All 40 are due again: 15 never completed, 25 completed one after another.
     await f.pgDatabase.query(
       `update bakery.integration_sync_checkpoints
           set not_before = now() - interval '1 second'`,
@@ -1307,7 +1312,7 @@ Deno.test("issue 71 sweep: a claim goes to the checkpoint that has waited longes
       `select id from bakery.integration_sync_checkpoints
         where last_completed_at is not null order by last_completed_at`,
     )).rows.map((row) => row.id);
-    assertEquals([never.length, completed.length], [5, 25]);
+    assertEquals([never.length, completed.length], [15, 25]);
     const expected = [...never, ...completed];
 
     const database = f.runtimePgDatabase!;
@@ -1364,10 +1369,10 @@ Deno.test("issue 71 sweep: one sweep runs a checkpoint at most once, however lon
       if (result === null) break;
       ran.push(result.checkpointId);
     }
-    // Three streams, each once: the capped issue scan is partial and due, yet
+    // Four streams, each once: the capped issue scan is partial and due, yet
     // not claimed again in the same sweep.
-    assertEquals(ran.length, 3);
-    assertEquals(new Set(ran).size, 3);
+    assertEquals(ran.length, 4);
+    assertEquals(new Set(ran).size, 4);
     assertEquals((await checkpointOf(s, "issues")).status, "partial");
   });
 });
@@ -2888,6 +2893,213 @@ Deno.test("issue 71 sweep: a check run for another commit and a pull request tha
         (await checkpointOf(s, "pull_requests")).cursor,
         { after: null },
         "the rotation still moved on",
+      );
+    } finally {
+      await removeSeed(f, seed);
+    }
+  });
+});
+
+// ------------------------------------------------------------- line counts
+
+Deno.test("issue 46 sweep: the line-count stream counts each merged pull request's head once, keeps binary and truncated counts unknown, and recounts a moved head", async () => {
+  await withFixture(async (f) => {
+    const s = await subjectOf(f);
+    const seed = await seedTaskAndRepository(f, s.resource);
+    try {
+      const heads = new Map([[1, SHA_A], [2, SHA_B], [3, SHA_C], [4, SHA_A]]);
+      await trackPullRequests(s, seed, [1, 2, 3, 4], heads);
+      for (const number of [1, 2, 3, 4]) {
+        f.github.seedPullRequest(s.repositoryId, {
+          number,
+          headSha: heads.get(number),
+        });
+      }
+      // #3 stays open: the stream never reads it.
+      await f.pgDatabase.query(
+        `update bakery.pull_requests set status = 'merged'
+          where provider_number in (1, 2, 4)`,
+      );
+      // #4 says it changed 150 files; GitHub lists 120 of them.
+      await f.pgDatabase.query(
+        "update bakery.pull_requests set changed_files = 150 where provider_number = 4",
+      );
+      f.github.seedPullRequestFiles(s.repositoryId, 1, [
+        {
+          filename: "src/a.ts",
+          status: "modified",
+          additions: 10,
+          deletions: 2,
+          patch: "@@",
+        },
+        {
+          filename: "tests/a_test.ts",
+          status: "added",
+          additions: 30,
+          deletions: 0,
+          patch: "@@",
+        },
+        {
+          filename: "pnpm-lock.yaml",
+          status: "modified",
+          additions: 900,
+          deletions: 800,
+          patch: "@@",
+        },
+      ]);
+      f.github.seedPullRequestFiles(s.repositoryId, 2, [
+        {
+          filename: "src/b.ts",
+          status: "modified",
+          additions: 1,
+          deletions: 1,
+          patch: "@@",
+        },
+        {
+          filename: "assets/logo.png",
+          status: "added",
+          additions: 0,
+          deletions: 0,
+        },
+      ]);
+      f.github.seedPullRequestFiles(
+        s.repositoryId,
+        4,
+        range(1, 120).map((index) => ({
+          filename: `src/f${index}.ts`,
+          status: "modified",
+          additions: 1,
+          deletions: 0,
+          patch: "@@",
+        })),
+      );
+      f.github.calls.length = 0;
+      const first = await step(s, "line_counts");
+      assertEquals([first.status, first.code], ["idle", "completed"]);
+      assertEquals(
+        [first.tally.rows, first.tally.written, first.tally.truncated],
+        [3, 3, 1],
+      );
+      const paths = readUrls(f);
+      assertEquals(
+        paths.filter((path) => path.endsWith("/files")).length,
+        4,
+        "one page each for #1 and #2, two for #4",
+      );
+      assert(!paths.some((path) => path.includes("/pulls/3")), "#3 is open");
+
+      type CountRow = {
+        provider_number: number;
+        head_sha: string;
+        counter_version: string;
+        coverage: string;
+        added: number;
+        deleted: number;
+        counted_files: number;
+        excluded_files: number;
+        binary_files: number;
+        categories: unknown;
+      };
+      const counts = async () =>
+        (await f.pgDatabase.query<CountRow>(
+          `select pr.provider_number, c.head_sha, c.counter_version,
+                  c.coverage, c.added, c.deleted, c.counted_files,
+                  c.excluded_files, c.binary_files, c.categories
+             from bakery.pull_request_line_counts c
+             join bakery.pull_requests pr on pr.id = c.pull_request_id
+            order by pr.provider_number, c.counted_at`,
+        )).rows;
+      const stored = await counts();
+      assertEquals(
+        stored.map((row) => [
+          row.provider_number,
+          row.head_sha,
+          row.coverage,
+          row.added,
+          row.deleted,
+          row.counted_files,
+          row.excluded_files,
+          row.binary_files,
+        ]),
+        [
+          [1, SHA_A, "complete", 40, 2, 2, 1, 0],
+          [2, SHA_B, "binary", 1, 1, 1, 0, 1],
+          [4, SHA_A, "truncated", 120, 0, 120, 0, 0],
+        ],
+      );
+      assertEquals(stored[0].categories, [
+        { category: "source", added: 10, deleted: 2, files: 1 },
+        { category: "test", added: 30, deleted: 0, files: 1 },
+      ]);
+      assertEquals(stored[0].counter_version, "loc-1");
+
+      // Counted heads are not read again.
+      await makeDue(f, (await checkpointOf(s, "line_counts")).id);
+      f.github.calls.length = 0;
+      const again = await step(s, "line_counts");
+      assertEquals([again.code, again.tally.requests], ["completed", 0]);
+      assertEquals(readUrls(f), []);
+
+      // A head that moved is counted again; the old count is kept.
+      await f.pgDatabase.query(
+        "update bakery.pull_requests set head_sha = $1 where provider_number = 1",
+        [SHA_C],
+      );
+      await makeDue(f, (await checkpointOf(s, "line_counts")).id);
+      const moved = await step(s, "line_counts");
+      assertEquals([moved.tally.rows, moved.tally.written], [1, 1]);
+      assertEquals(
+        (await counts()).filter((row) => row.provider_number === 1)
+          .map((row) => row.head_sha),
+        [SHA_A, SHA_C],
+      );
+    } finally {
+      await removeSeed(f, seed);
+    }
+  });
+});
+
+Deno.test("issue 46 sweep: a merged pull request GitHub answers 404 for is counted as gone, gets no count, and the later rows are still counted", async () => {
+  await withFixture(async (f) => {
+    const s = await subjectOf(f);
+    const seed = await seedTaskAndRepository(f, s.resource);
+    try {
+      const heads = new Map([[1, SHA_A], [2, SHA_B], [3, SHA_C]]);
+      await trackPullRequests(s, seed, [1, 2, 3], heads);
+      // #1 is deleted on GitHub: its files route answers 404.
+      for (const number of [2, 3]) {
+        f.github.seedPullRequest(s.repositoryId, {
+          number,
+          headSha: heads.get(number),
+        });
+        f.github.seedPullRequestFiles(s.repositoryId, number, [
+          {
+            filename: `src/f${number}.ts`,
+            status: "modified",
+            additions: number,
+            deletions: 0,
+            patch: "@@",
+          },
+        ]);
+      }
+      await f.pgDatabase.query(
+        `update bakery.pull_requests set status = 'merged'
+          where provider_number in (1, 2, 3)`,
+      );
+      const result = await step(s, "line_counts");
+      assertEquals([result.status, result.code], ["idle", "completed"]);
+      assertEquals(
+        [result.tally.rows, result.tally.gone, result.tally.written],
+        [3, 1, 2],
+      );
+      assertEquals(
+        (await f.pgDatabase.query<{ provider_number: number }>(
+          `select pr.provider_number
+             from bakery.pull_request_line_counts c
+             join bakery.pull_requests pr on pr.id = c.pull_request_id
+            order by pr.provider_number`,
+        )).rows.map((row) => row.provider_number),
+        [2, 3],
       );
     } finally {
       await removeSeed(f, seed);

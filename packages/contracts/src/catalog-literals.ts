@@ -1426,6 +1426,8 @@ export type ContractOutputName =
   | "MergeReconciliation"
   | "Message"
   | "MetricDeliveryPointCount"
+  | "MetricLineCategory"
+  | "MetricLineCount"
   | "MetricMissingReason"
   | "MetricPoint"
   | "MetricRepositorySource"
