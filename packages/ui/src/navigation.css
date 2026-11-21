@@ -59,6 +59,26 @@
   text-decoration: none;
 }
 
+/* A run of items that belong to someone else (a plugin's pages): a small muted
+   heading with room above it, or a divider on the compact rail. */
+.bakery-application-rail__group {
+  display: grid;
+  gap: var(--space-1);
+  padding-block: var(--space-3);
+}
+
+.bakery-application-rail__heading {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+  padding-inline: var(--space-2-5);
+}
+
+.bakery-application-rail__divider {
+  border-block-start: var(--border-default) solid var(--color-border);
+  display: block;
+  margin-inline: var(--space-2-5);
+}
+
 .bakery-application-rail__link .ui-icon {
   flex: none;
 }
