@@ -382,6 +382,21 @@ Deno.test("a reviewer never receives a writer step's side-writes; people and oth
       [output.artifactId, transcript.artifactId].sort(),
     );
     assertEquals(await listed(reviewer), [output.artifactId]);
+
+    // Library search: another session finds the transcript by its name, the
+    // reviewer finds only the declared output.
+    const found = async (agent: Agent) =>
+      ((await sessionResult(
+        await agent.call("library.search", {
+          query: "output",
+          kind: "artifact",
+        }),
+      )).items as Item[]).map((item) => item.id).sort();
+    assertEquals(
+      await found(other),
+      [output.artifactId, transcript.artifactId].sort(),
+    );
+    assertEquals(await found(reviewer), [output.artifactId]);
   }));
 
 Deno.test("a reviewer outside the writer's run tree, and its own writes, stay unfiltered", () =>
