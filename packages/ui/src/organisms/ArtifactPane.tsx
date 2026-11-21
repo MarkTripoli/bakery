@@ -9,6 +9,7 @@ import {
 import { Combobox } from "../molecules/Combobox.tsx";
 import { Disclosure } from "../molecules/Disclosure.tsx";
 import { InlineNotice } from "../molecules/InlineNotice.tsx";
+import { ArtifactViewerWithinRegion } from "./ArtifactViewer.tsx";
 import { SessionPane } from "./SessionPane.tsx";
 import "../collaboration.css";
 
@@ -204,7 +205,9 @@ export function ArtifactPane(
               role="region"
               tabIndex={0}
             >
-              {preview}
+              <ArtifactViewerWithinRegion.Provider value>
+                {preview}
+              </ArtifactViewerWithinRegion.Provider>
             </div>
           )
           : null}
