@@ -271,7 +271,16 @@ export function BatchStartPage() {
         <UI.InlineNotice
           tone="warning"
           data-testid="batch-startable-nothing"
-          action={
+        >
+          <UI.Stack gap="tight">
+            <UI.Text variant="strong">
+              {translate("batches.start.startable.nothing.title" as never, {
+                repository: repositoryName ?? "",
+              })}
+            </UI.Text>
+            <UI.Text>
+              {translate("batches.start.startable.nothing.body" as never)}
+            </UI.Text>
             <UI.Link
               href="/issues"
               onClick={(event) => {
@@ -283,17 +292,6 @@ export function BatchStartPage() {
                 repository: repositoryName ?? "",
               })}
             </UI.Link>
-          }
-        >
-          <UI.Stack gap="tight">
-            <UI.Text variant="strong">
-              {translate("batches.start.startable.nothing.title" as never, {
-                repository: repositoryName ?? "",
-              })}
-            </UI.Text>
-            <UI.Text>
-              {translate("batches.start.startable.nothing.body" as never)}
-            </UI.Text>
           </UI.Stack>
         </UI.InlineNotice>
       );
@@ -501,22 +499,7 @@ export function BatchStartPage() {
                   {form.repositoryId !== "" && startable.isSuccess &&
                       smallest === null
                     ? (
-                      <UI.InlineNotice
-                        tone="warning"
-                        action={
-                          <UI.Link
-                            href="/issues/settings"
-                            onClick={(event) => {
-                              event.preventDefault();
-                              void navigate({ to: "/issues/settings" });
-                            }}
-                          >
-                            {translate(
-                              "batches.start.spend.blocked.link" as never,
-                            )}
-                          </UI.Link>
-                        }
-                      >
+                      <UI.InlineNotice tone="warning">
                         <UI.Stack gap="tight">
                           <UI.Text variant="strong">
                             {translate(
@@ -529,6 +512,17 @@ export function BatchStartPage() {
                               "batches.start.spend.blocked.body" as never,
                             )}
                           </UI.Text>
+                          <UI.Link
+                            href="/issues/settings"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              void navigate({ to: "/issues/settings" });
+                            }}
+                          >
+                            {translate(
+                              "batches.start.spend.blocked.link" as never,
+                            )}
+                          </UI.Link>
                         </UI.Stack>
                       </UI.InlineNotice>
                     )
