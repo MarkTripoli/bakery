@@ -55,7 +55,8 @@ type World = {
 function world(overrides: Partial<World> = {}): World {
   return {
     mayShare: true,
-    canShare: false,
+    // Whoever may give access by a mention holds artifact:share; a test that wants the link hidden says so.
+    canShare: overrides.mayShare ?? true,
     sharers: [{ principalId: DANA, displayName: "Dana Lee" }],
     grants: [],
     revokeStatus: 200,
@@ -285,6 +286,10 @@ test("someone without access: the offer, Post is the yes, then the line and Undo
   );
   await expect(line).toBeVisible();
   await expect(offer).toHaveAttribute("data-tone", "success");
+  // The post gave access, so the link to the people added is there without a reload.
+  await expect(
+    page.getByRole("button", { name: "1 person was added by a mention" }),
+  ).toBeVisible();
   await page.mouse.move(700, 100);
   await still(page, "comment-mentions-posted");
   // The undo fails first: the line stays, with what happened.
@@ -327,7 +332,7 @@ test("a writer who may not share: the block names who can, Ask swaps the mention
     "Samir Okafor can't see this document, and you can't give access to it.",
   );
   await expect(block).toContainText(
-    "Dana Lee can. Ask one of them here, or post without the mention.",
+    "Dana Lee can. Ask them here, or post without the mention.",
   );
   await expect(post(page)).toBeDisabled();
   // Nothing is given here, so there is no level to choose.
@@ -512,6 +517,9 @@ test("Can also edit: the help line shows, the post gives edit, and the line says
     page.getByText(
       "Posted. Samir Okafor can now read, comment on and edit this document.",
     ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "1 person was added by a mention" }),
   ).toBeVisible();
   await page.mouse.move(700, 100);
   await still(page, "comment-mentions-posted-edit");

@@ -224,6 +224,10 @@ export function ArtifactComments(
     setInvalidAnchor(false);
     setAnchorGeneration((generation) => generation + 1);
     setSelected([]);
+    // A post that gave access added someone: the People added link must count them now.
+    if (canShare && input.data.accessLevel !== undefined) {
+      void added.refetch();
+    }
     await comments.refetch();
   };
   const resolve = async (root: ArtifactCommentResponse) => {

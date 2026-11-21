@@ -605,6 +605,8 @@ export function useMentionField(
                   organization: organizationName,
                 })
                 : translate(words.shareLine, {
+                  // One name asks "them"; several ask "one of them".
+                  count: sharers.length,
                   names: translate(
                     "mentions.share.names",
                     nameParts(sharers.map((sharer) => sharer.displayName)),
