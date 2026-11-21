@@ -178,7 +178,14 @@ for (
       await evaluationsFixture(page);
       await page.goto(run(IDS.gaps));
       await expect(page.getByText("3 attempts").first()).toBeVisible();
-      await page.getByRole("button", { name: "3 attempts" }).first().click();
+      const toggle = page.getByRole("button", { name: "3 attempts" }).first();
+      await toggle.click();
+      // Open: the label says what the next press does, and it toggles back.
+      await expect(page.getByRole("button", { name: "Hide 3 attempts" }))
+        .toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "3 attempts", exact: true }),
+      ).toHaveCount(0);
       const list = page.getByRole("list", { name: "Attempts at exact-answer" });
       await expect(list.getByRole("listitem")).toHaveCount(3);
       // Newest first: attempt 3 leads.
@@ -192,6 +199,12 @@ for (
       await expect(list.getByText("Trace reference")).toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "evaluation-run-attempts");
+      // Pressing it again closes the attempts and the label goes back.
+      await page.getByRole("button", { name: "Hide 3 attempts" }).click();
+      await expect(
+        page.getByRole("button", { name: "3 attempts", exact: true }),
+      ).toBeVisible();
+      await expect(list).toHaveCount(0);
     });
 
     test("a gate whose unmeasured results sit in two states has no button and says where they are", async ({ page }) => {
@@ -341,7 +354,12 @@ for (
     test("a finished run has no Stop button, and neither does a viewer", async ({ page }) => {
       await evaluationsFixture(page);
       await page.goto(run(IDS.met));
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(
+        page.getByRole("heading", {
+          name: "Reviewed coding, version 4",
+          level: 1,
+        }),
+      ).toBeVisible();
       await expect(page.getByRole("button", { name: "Stop run" })).toHaveCount(
         0,
       );
@@ -354,7 +372,9 @@ for (
         height: viewport.height,
       });
       await viewer.goto(run(IDS.running));
-      await expect(viewer.getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(
+        viewer.getByRole("heading", { name: "Reviewer, version 3", level: 1 }),
+      ).toBeVisible();
       await expect(viewer.getByRole("button", { name: "Stop run" }))
         .toHaveCount(0);
       await viewer.mouse.move(700, 700);
