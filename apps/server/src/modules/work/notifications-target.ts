@@ -4,6 +4,7 @@ import {
   accessScopeClause,
 } from "../auth/application/bindings.ts";
 import type { NotificationRow } from "./notifications-postgres.ts";
+import { memberRoleHolds } from "../conversation/mentions.ts";
 
 /**
  * A resolved destination. `path` is a validated internal route, never an
@@ -26,6 +27,8 @@ export type ResolvedTarget =
     targetKind: NotificationTargetKind;
     path: string;
     anchor: string | null;
+    /** Reached through a direct document grant, not through the task. */
+    viaDocumentGrant?: true;
   }
   | {
     // The task or document still opens but the inner part (step, card,
@@ -34,6 +37,7 @@ export type ResolvedTarget =
     targetKind: NotificationTargetKind;
     path: string;
     anchor: null;
+    viaDocumentGrant?: true;
   }
   | {
     status: "unavailable";
@@ -94,10 +98,33 @@ export async function resolveNotificationTarget(
   const targetKind = asTargetKind(row.targetKind);
   if (targetKind === null) return UNAVAILABLE("comment");
 
-  // Every destination of this slice is reached through its task page. A target
-  // with no task cannot be routed to a real surface yet, so it stays
-  // unavailable rather than pointing at a guess.
-  if (row.taskId === null) return UNAVAILABLE(targetKind);
+  // A person who holds only a direct grant on the document cannot open its task
+  // page, so a comment mention opens the document itself.
+  const viaGrant = async () =>
+    targetKind === "comment"
+      ? await resolveDocumentGrantTarget(transaction, scope, row)
+      : UNAVAILABLE(targetKind);
+
+  // Someone who holds a live grant on the document and whose role cannot read
+  // tasks is sent to the document, whatever the task's own scope says: the task
+  // page is one they cannot open.
+  if (targetKind === "comment") {
+    const document = await resolveDocumentGrantTarget(transaction, scope, row);
+    if (
+      document.status !== "unavailable" &&
+      !await memberRoleHolds(
+        transaction,
+        scope.organizationId,
+        scope.recipientId,
+        "task:read",
+      )
+    ) return document;
+  }
+
+  // Every other destination is reached through its task page. A target with no
+  // task cannot be routed to a real surface yet, so it stays unavailable
+  // rather than pointing at a guess.
+  if (row.taskId === null) return await viaGrant();
 
   const values: unknown[] = [scope.organizationId, row.taskId];
   let scopeSql = "";
@@ -115,7 +142,7 @@ export async function resolveNotificationTarget(
      where organization_id = $1::uuid and id = $2::uuid${scopeSql}`,
     values,
   );
-  if (task.rows.length === 0) return UNAVAILABLE(targetKind);
+  if (task.rows.length === 0) return await viaGrant();
 
   // Confirm the target row still exists inside this task, so a deleted step,
   // question or version reports a missing part rather than a dead anchor.
@@ -167,6 +194,52 @@ export async function resolveNotificationTarget(
     path: taskPath(row.taskId),
     anchor: row.targetAnchor,
   };
+}
+
+/**
+ * The destination of a comment mention for someone who may not open its task:
+ * the document page, at the comment, while their grant on that document is
+ * live. A revoked grant, a foreign comment or a deleted document answers
+ * unavailable, so the row degrades to "no longer shared" and names nothing.
+ */
+async function resolveDocumentGrantTarget(
+  transaction: PgTransactionClient,
+  scope: { organizationId: string; recipientId: string },
+  row: Pick<NotificationRow, "targetId">,
+): Promise<ResolvedTarget> {
+  const found = await transaction.query<
+    { versionId: string; deleted: boolean }
+  >(
+    `select version.id as "versionId", comment.deleted_at is not null as deleted
+       from bakery.artifact_comments as comment
+       join bakery.artifact_versions as version
+         on version.organization_id = comment.organization_id
+        and version.id = comment.artifact_version_id
+       join bakery.artifact_access_grants as grant_row
+         on grant_row.organization_id = version.organization_id
+        and grant_row.artifact_id = version.artifact_id
+      where comment.organization_id = $1::uuid and comment.id = $2::uuid
+        and grant_row.principal_id = $3::uuid and grant_row.revoked_at is null`,
+    [scope.organizationId, row.targetId, scope.recipientId],
+  );
+  const hit = found.rows[0];
+  if (hit === undefined) return UNAVAILABLE("comment");
+  const path = `/files/versions/${hit.versionId}`;
+  return hit.deleted
+    ? {
+      status: "part_unavailable",
+      targetKind: "comment",
+      path,
+      anchor: null,
+      viaDocumentGrant: true,
+    }
+    : {
+      status: "available",
+      targetKind: "comment",
+      path,
+      anchor: `comment:${row.targetId}`,
+      viaDocumentGrant: true,
+    };
 }
 
 async function targetExists(
@@ -262,8 +335,33 @@ export async function resolveDestinationSummary(
   if (target.status === "unavailable") {
     return { title: null, available: false };
   }
-  const title = await destinationTitle(transaction, scope.organizationId, row);
+  // Through a document grant only the document's own name may show, never the
+  // task's title.
+  const title = target.viaDocumentGrant
+    ? await documentGrantTitle(transaction, scope.organizationId, row.targetId)
+    : await destinationTitle(transaction, scope.organizationId, row);
   return { title, available: true };
+}
+
+async function documentGrantTitle(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  commentId: string,
+): Promise<string | null> {
+  const found = await transaction.query<{ name: string }>(
+    `select artifact.name
+       from bakery.artifact_comments as comment
+       join bakery.artifact_versions as version
+         on version.organization_id = comment.organization_id
+        and version.id = comment.artifact_version_id
+       join bakery.artifacts as artifact
+         on artifact.organization_id = version.organization_id
+        and artifact.id = version.artifact_id
+      where comment.organization_id = $1::uuid and comment.id = $2::uuid`,
+    [organizationId, commentId],
+  );
+  const name = found.rows[0]?.name?.trim();
+  return name ? name : null;
 }
 
 async function destinationTitle(

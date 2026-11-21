@@ -1,5 +1,6 @@
 import { WorkerRequestError } from "./client.ts";
 import type { SupervisorState } from "./supervisor-state.ts";
+import { machineChecks } from "./machine-checks.ts";
 import type { WorkerInventoryCheck } from "./types.ts";
 
 /**
@@ -70,6 +71,24 @@ function sameStatuses(
   return true;
 }
 
+/** The user's home directory when the worker may read it; the isolation check compares the state directory with it. */
+function homeDirectory(): string | null {
+  try {
+    return Deno.env.get("HOME") ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The worker's own user id; null where the platform has none. */
+function userId(): number | null {
+  try {
+    return Deno.uid();
+  } catch {
+    return null;
+  }
+}
+
 /** True when the executor reports local readiness checks. */
 export function hasReadinessChecks(state: SupervisorState): boolean {
   return typeof state.executor?.readinessChecks === "function";
@@ -126,12 +145,24 @@ export async function refreshReadiness(
   const revision = readiness.inventoryRevision;
   const hostGeneration = state.registration?.registrationGeneration;
   if (revision === null || hostGeneration === undefined) return;
+  let capabilityChecks: WorkerInventoryCheck[];
   let checks: WorkerInventoryCheck[];
   try {
-    checks = configuredCapabilityChecks(
+    capabilityChecks = configuredCapabilityChecks(
       state,
       await readinessChecks.call(state.executor),
     );
+    // The five machine checks the server requires travel with every report.
+    checks = [
+      ...await machineChecks({
+        stateDir: state.config.stateDir,
+        spoolPath: state.config.spoolPath,
+        stopping: state.stopping,
+        homeDir: homeDirectory(),
+        uid: userId(),
+      }),
+      ...capabilityChecks,
+    ];
   } catch (error) {
     logReadiness("readiness_checks_failed", {
       code: error instanceof Error ? error.name : "UNKNOWN",
@@ -139,18 +170,12 @@ export async function refreshReadiness(
     return;
   }
   readiness.localCapabilityStatus = new Map(
-    checks.map((check) => [
+    capabilityChecks.map((check) => [
       capabilityOf(check.checkId)!.toLowerCase(),
       check.status,
     ]),
   );
   const statuses = statusesOf(checks);
-  if (checks.length === 0) {
-    // Nothing applicable to report; there is nothing to hold claims for.
-    readiness.reportedRevision = revision;
-    readiness.reportedStatuses = statuses;
-    return;
-  }
   const now = state.monotonicNow();
   const due = readiness.reportedRevision !== revision ||
     !sameStatuses(readiness.reportedStatuses, statuses) ||

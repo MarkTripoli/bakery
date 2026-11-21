@@ -523,6 +523,114 @@ async function authorizeWithConversationGrant(
 }
 
 /**
+ * Document actions a direct document grant can open, and only on the one
+ * document the route names (directly, or through its version or comment).
+ * `read_comment` opens reading the document, its versions and its comments
+ * and writing a comment; only `edit` also opens publishing a version. Task,
+ * repository, agent and resharing actions are never here, and neither is
+ * artifacts.list: a grantee reaches the document from where they were told.
+ */
+const ARTIFACT_GRANT_ACTIONS: ReadonlyMap<
+  string,
+  { target: "artifact" | "version" | "comment"; level: "read_comment" | "edit" }
+> = new Map([
+  ["artifacts.get", { target: "artifact", level: "read_comment" }],
+  ["artifactVersions.list", { target: "artifact", level: "read_comment" }],
+  [
+    "artifactComments.listAcrossVersions",
+    { target: "artifact", level: "read_comment" },
+  ],
+  ["artifactAccess.list", { target: "artifact", level: "read_comment" }],
+  ["artifactAccess.sharers", { target: "artifact", level: "read_comment" }],
+  ["artifactVersions.content", { target: "version", level: "read_comment" }],
+  ["artifactVersions.probe", { target: "version", level: "read_comment" }],
+  ["artifactVersions.extract", { target: "version", level: "read_comment" }],
+  ["artifactComments.list", { target: "version", level: "read_comment" }],
+  ["artifactComments.create", { target: "version", level: "read_comment" }],
+  [
+    "artifactComments.mentionCandidates",
+    { target: "version", level: "read_comment" },
+  ],
+  ["artifactComments.update", { target: "comment", level: "read_comment" }],
+]);
+
+/**
+ * When the organization role refused a document action, a live direct grant on
+ * exactly that document may still allow it. The grant row is read `for share`
+ * so a concurrent revoke is ordered before or after this request. A grant never
+ * helps a non-human or a member with no system role, and a token still has to
+ * carry the scope the action needs.
+ */
+async function authorizeWithArtifactGrant(
+  transaction: PgTransactionClient,
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  routeId: string | undefined,
+  denied: unknown,
+): Promise<OrganizationActor> {
+  const rule = ARTIFACT_GRANT_ACTIONS.get(action.name);
+  if (
+    rule === undefined || routeId === undefined || !isUuid(routeId) ||
+    actor.subject.principalType !== PrincipalType.Human ||
+    actor.role === undefined ||
+    (actor.role === OrganizationRole.Guest && actor.customRole === undefined)
+  ) throw denied;
+  if (!isPermissionMiss(denied)) throw denied;
+  const found = await transaction.query<{ artifactId: string; level: string }>(
+    rule.target === "artifact"
+      ? `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_access_grants as grant_row
+          where grant_row.organization_id = $1 and grant_row.artifact_id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`
+      : rule.target === "version"
+      ? `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_versions as version
+           join bakery.artifact_access_grants as grant_row
+             on grant_row.organization_id = version.organization_id
+            and grant_row.artifact_id = version.artifact_id
+          where version.organization_id = $1 and version.id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`
+      : `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_comments as comment
+           join bakery.artifact_versions as version
+             on version.organization_id = comment.organization_id
+            and version.id = comment.artifact_version_id
+           join bakery.artifact_access_grants as grant_row
+             on grant_row.organization_id = version.organization_id
+            and grant_row.artifact_id = version.artifact_id
+          where comment.organization_id = $1 and comment.id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`,
+    [actor.organizationId, routeId, actor.subject.principalId],
+  );
+  const grant = found.rows[0];
+  if (grant === undefined) throw denied;
+  // A grant that reads and comments is refused the verbs only `edit` opens.
+  if (rule.level === "edit" && grant.level !== "edit") {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+  const permission = permissionForAction(action.name as CatalogActionName);
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows(permission, actor.tokenScopes)
+  ) {
+    throw new StandardError({
+      code: "INSUFFICIENT_SCOPE",
+      params: { requiredScopes: minimalScopes(permission) },
+    });
+  }
+  return {
+    ...actor,
+    artifactGrant: {
+      artifactId: grant.artifactId,
+      level: grant.level as "read_comment" | "edit",
+    },
+  };
+}
+
+/**
  * Read-state changes on the caller's OWN inbox. Every one of these handlers
  * scopes to recipient = the authenticated principal and never accepts a
  * recipient from the request, so a member whose role lacks
@@ -785,6 +893,15 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
               // original denial untouched, so only a permission miss is widened.
               if (CONVERSATION_GRANT_ACTIONS.has(action.name)) {
                 return await authorizeWithConversationGrant(
+                  transaction,
+                  action,
+                  actor,
+                  context.params.id,
+                  denied,
+                );
+              }
+              if (ARTIFACT_GRANT_ACTIONS.has(action.name)) {
+                return await authorizeWithArtifactGrant(
                   transaction,
                   action,
                   actor,
