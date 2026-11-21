@@ -1,20 +1,26 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type { BatchResponse } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
-import { batchesListQueryOptions } from "../api/query.ts";
+import {
+  batchesListQueryOptions,
+  externalTicketQueryOptions,
+} from "../api/query.ts";
 import { isForbiddenFailure } from "../app/async-state.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useSession } from "../app/session-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import {
+  currentIssue,
   dollars,
-  STATE_TONE,
-  stateKey,
+  stateBadgeFor,
+  waitingView,
   whyItEnded,
 } from "./batches/batch-display.ts";
+import { issueNumber, type IssueRow } from "./issue-state.ts";
 import { say } from "./batches/say.ts";
 import { BatchBreadcrumbs } from "./batches/BatchBreadcrumbs.tsx";
 import { useBatchLookups } from "./batches/use-batch-lookups.ts";
@@ -36,6 +42,7 @@ export function BatchesListPage() {
   const phone = useShellViewport() === "phone";
   const search = useSearch({ strict: false }) as Record<string, unknown>;
   const lookups = useBatchLookups();
+  const readerPrincipalId = useSession().identity?.principalId ?? null;
 
   const repositoryId = typeof search.repository === "string" &&
       search.repository !== ""
@@ -46,6 +53,28 @@ export function BatchesListPage() {
   );
   const batches = list.data?.pages.flatMap((page) => page.items) ?? [];
   const forbidden = list.isError && isForbiddenFailure(list.error);
+
+  // A batch that waits for a person says which issue; its number is on the issue, so read the few that wait.
+  const waitingBatches = batches.filter((batch) =>
+    batch.state === "running" && waitingView(batch, readerPrincipalId) !== null
+  );
+  const waitingIssues = useQueries({
+    queries: waitingBatches.map((batch) =>
+      externalTicketQueryOptions(
+        api,
+        scope,
+        currentIssue(batch)?.row.externalTicketId ?? "",
+      )
+    ),
+  });
+  const waitingNumber = (batch: BatchResponse): string | null => {
+    const index = waitingBatches.findIndex((item) => item.id === batch.id);
+    const row = index < 0
+      ? undefined
+      : (waitingIssues[index]?.data as IssueRow | undefined);
+    const number = row === undefined ? null : issueNumber(row);
+    return number === null ? null : String(number);
+  };
 
   const open = (id: string) =>
     void navigate({ to: "/issues/batches/$batchId", params: { batchId: id } });
@@ -89,17 +118,18 @@ export function BatchesListPage() {
       max: lookups.money(dollars(batch.maxSpendUsd)),
     });
   const whyText = (batch: BatchResponse) => {
-    const why = whyItEnded(batch);
+    const why = whyItEnded(batch, waitingNumber(batch));
     if (why === null) return "";
     // A reason starts the cell, so it starts with a capital.
     const text = say(translate, why);
     return text.charAt(0).toLocaleUpperCase(locale) + text.slice(1);
   };
-  const stateBadge = (batch: BatchResponse) => (
-    <UI.Badge tone={STATE_TONE[batch.state]}>
-      {translate(stateKey(batch.state) as never)}
-    </UI.Badge>
-  );
+  const stateBadge = (batch: BatchResponse) => {
+    const badge = stateBadgeFor(batch, waitingView(batch, readerPrincipalId));
+    return (
+      <UI.Badge tone={badge.tone}>{translate(badge.key as never)}</UI.Badge>
+    );
+  };
   const openButton = (batch: BatchResponse) => (
     <UI.Button
       variant="secondary"
