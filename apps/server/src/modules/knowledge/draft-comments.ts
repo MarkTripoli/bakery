@@ -283,6 +283,8 @@ type CommandInput = {
   attribution: ActionAttribution;
   requestId: string;
   traceId: string;
+  /** The session that made the call when an agent did (O50), else null. */
+  agentSessionId?: string | null;
   create: DraftCommentCreateInput;
 };
 
@@ -297,6 +299,7 @@ async function recordChange(
     principalId: string;
     requestId: string;
     traceId: string;
+    agentSessionId?: string | null;
   },
 ): Promise<void> {
   const { row } = change;
@@ -322,6 +325,7 @@ async function recordChange(
     resourceId: row.id,
     requestId: change.requestId,
     traceId: change.traceId,
+    agentSessionId: change.agentSessionId ?? null,
     details: {
       draftId: row.draft_id,
       rootId: row.parent_comment_id ?? row.id,
@@ -500,6 +504,7 @@ async function createReply(
     principalId: input.attribution.principalId,
     requestId: input.requestId,
     traceId: input.traceId,
+    agentSessionId: input.agentSessionId ?? null,
   });
   return toComment(row, null);
 }
@@ -576,6 +581,7 @@ export async function commitDraftCommentRoot(
     principalId: input.attribution.principalId,
     requestId: input.requestId,
     traceId: input.traceId,
+    agentSessionId: input.agentSessionId ?? null,
   });
   return toComment(row, anchorAnswer(position));
 }
@@ -736,6 +742,7 @@ export async function updateDraftComment(
     expectedVersion: string | number | undefined;
     requestId: string;
     traceId: string;
+    agentSessionId?: string | null;
     update: DraftCommentUpdateInput;
   },
 ): Promise<DraftCommentRead> {
@@ -846,6 +853,7 @@ export async function updateDraftComment(
     principalId: input.principalId,
     requestId: input.requestId,
     traceId: input.traceId,
+    agentSessionId: input.agentSessionId ?? null,
   });
   return toComment(updated, null);
 }

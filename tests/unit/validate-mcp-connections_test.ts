@@ -19,7 +19,11 @@ const SERVER = "33333333-3333-4333-8333-333333333333";
 const dependencies = { secretsKey: undefined, cursorSecret: "cursor-secret" };
 
 function stand(
-  options: { role?: string; expectedVersion?: number | null } = {},
+  options: {
+    role?: string;
+    expectedVersion?: number | null;
+    agent?: boolean;
+  } = {},
 ) {
   const recorded: string[] = [];
   const transaction = {
@@ -37,9 +41,12 @@ function stand(
     metadata.expectedVersion = options.expectedVersion ?? 1;
   }
   const context = {
+    ...(options.agent ? { agentSession: { attemptId: "attempt" } } : {}),
     transaction,
     params: { id: "11111111-1111-4111-8111-111111111111" },
-    principal: { principalId: "p" },
+    // A person's own request: attribution reads the principal's type, and a
+    // principal with none counts as an agent's.
+    principal: { principalId: "p", principalType: "human" },
     requestId: "r",
     traceId: "t",
     authority: {
@@ -109,6 +116,31 @@ Deno.test("a connection to a remote server carries no worker host, no integratio
   ];
   for (const [name, extra, reason] of cases) {
     const { context, recorded } = stand({ role: "admin" });
+    await refusedWith(
+      () => create(context, { ...valid, ...extra } as never),
+      "UNPROCESSABLE",
+      reason,
+    );
+    assertEquals(recorded, [], `${name} reached the database`);
+  }
+});
+
+Deno.test("an agent's connection is a personal draft: no secret, no organization scope, before anything is written", async () => {
+  const create = createMcpConnectionCreator(dependencies);
+  const cases: [string, Record<string, unknown>, string][] = [
+    [
+      "a secret",
+      { scope: "personal", secret: "sk-never-in-context" },
+      "agent_connection_secret_stays_with_people",
+    ],
+    [
+      "an organization scope",
+      { scope: "organization" },
+      "agent_connection_draft_is_personal",
+    ],
+  ];
+  for (const [name, extra, reason] of cases) {
+    const { context, recorded } = stand({ role: "admin", agent: true });
     await refusedWith(
       () => create(context, { ...valid, ...extra } as never),
       "UNPROCESSABLE",
