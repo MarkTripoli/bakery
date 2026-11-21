@@ -24004,6 +24004,7 @@ const transportSchemas = {
         "readiness",
         "readinessReason",
         "failedCheckIds",
+        "unsettledAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
         "createdAt",
@@ -24025,6 +24026,7 @@ const transportSchemas = {
         "readiness": "enum(checking|ready|needs_attention)",
         "readinessReason": "string|null",
         "failedCheckIds": "json",
+        "unsettledAttemptCount": "integer",
         "lastHeartbeatAt": "timestamp|null",
         "credentialGeneration": "integer",
         "createdAt": "timestamp",
@@ -24051,6 +24053,7 @@ const transportSchemas = {
         "readiness": "Server-derived from current-generation checks and scheduling policy; losing connectivity makes readiness unusable even if the last check passed.",
         "readinessReason": "Safe bounded explanation when readiness is needs_attention; null otherwise.",
         "failedCheckIds": "Check identifiers with a fresh failing result, sorted; empty when none.",
+        "unsettledAttemptCount": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
         "lastHeartbeatAt": "UTC timestamp when the worker last reported health.",
         "credentialGeneration": "Credential generation loaded by the worker host.",
         "createdAt": "UTC timestamp when the record was created.",
@@ -24062,7 +24065,8 @@ const transportSchemas = {
         "connectivity",
         "readiness",
         "readinessReason",
-        "failedCheckIds"
+        "failedCheckIds",
+        "unsettledAttemptCount"
       ]
     },
     "Preview": {

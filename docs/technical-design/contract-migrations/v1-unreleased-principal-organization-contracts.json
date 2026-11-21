@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "2e1a186904dbedcc6eb84cd23264207022718c37"
+    "931df69723f15304dce34cf1521d7555e75e8c22"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:5dc2c61e686ac8085c96decf85c409151156899804ac96cdd55561268eaeb5c2",
-  "reason": "#59 ask 9 by dev-workflows on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 2e1a186904dbedcc6eb84cd23264207022718c37: installationStatus gains a required updatePaused beside restoreHeld. Main's own approval is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:410873c344d34c4871c225fa82e132a5134f68d02f15c29bd41b15d58afb1efd",
+  "reason": "#59 ask 9 by dev-workflows on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 931df69723f15304dce34cf1521d7555e75e8c22: installationStatus gains a required updatePaused beside restoreHeld. Main's own approval is kept unchanged below, after this PR's previous one.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "2e1a186904dbedcc6eb84cd23264207022718c37"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5dc2c61e686ac8085c96decf85c409151156899804ac96cdd55561268eaeb5c2",
+      "reason": "#59 ask 9 by dev-workflows on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 2e1a186904dbedcc6eb84cd23264207022718c37: installationStatus gains a required updatePaused beside restoreHeld. Displaced when main moved again (#867 merged): the digest follows the tree."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

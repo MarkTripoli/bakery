@@ -116280,6 +116280,12 @@
               ],
               "description": "Check identifiers with a fresh failing result, sorted; empty when none."
             },
+            "unsettledAttemptCount": {
+              "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
             "lastHeartbeatAt": {
               "anyOf": [
                 {
@@ -157065,6 +157071,12 @@
                     ],
                     "description": "Check identifiers with a fresh failing result, sorted; empty when none."
                   },
+                  "unsettledAttemptCount": {
+                    "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
                   "lastHeartbeatAt": {
                     "anyOf": [
                       {
@@ -178453,6 +178465,12 @@
                         }
                       ],
                       "description": "Check identifiers with a fresh failing result, sorted; empty when none."
+                    },
+                    "unsettledAttemptCount": {
+                      "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     },
                     "lastHeartbeatAt": {
                       "anyOf": [
@@ -271188,7 +271206,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:5dc2c61e686ac8085c96decf85c409151156899804ac96cdd55561268eaeb5c2",
+  "compatibilityDigest": "sha256:410873c344d34c4871c225fa82e132a5134f68d02f15c29bd41b15d58afb1efd",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -338119,6 +338137,12 @@
           ],
           "description": "Check identifiers with a fresh failing result, sorted; empty when none."
         },
+        "unsettledAttemptCount": {
+          "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
         "lastHeartbeatAt": {
           "anyOf": [
             {
@@ -379032,6 +379056,12 @@
                 ],
                 "description": "Check identifiers with a fresh failing result, sorted; empty when none."
               },
+              "unsettledAttemptCount": {
+                "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
               "lastHeartbeatAt": {
                 "anyOf": [
                   {
@@ -400464,6 +400494,12 @@
                     }
                   ],
                   "description": "Check identifiers with a fresh failing result, sorted; empty when none."
+                },
+                "unsettledAttemptCount": {
+                  "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 },
                 "lastHeartbeatAt": {
                   "anyOf": [
