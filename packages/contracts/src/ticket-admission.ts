@@ -553,7 +553,7 @@ const policyLabelsSchema = z.object(policyLabelsShape).strict().refine(
 
 const policyCompletionSchema = z.enum(["task", "merged", "deployed_healthy"])
   .default("merged").describe(
-    "What counts as delivery for this source's tickets: task (the run finished, for work that opens no pull request), merged (a registered pull request merged and none still open; the default), or deployed_healthy (merged and healthy release evidence recorded). A planning-only request is always delivered when its run finishes. A closed issue or a pull request closed without a merge is never delivery.",
+    "What counts as delivery for this source's tickets: task (the run finished, for work that opens no pull request), merged (a registered pull request merged and none still open, or the run finished with no pull request registered, so there was nothing to merge; the default), or deployed_healthy (merged and healthy release evidence recorded). A planning-only request is always delivered when its run finishes. A closed issue or a pull request closed without a merge is never delivery.",
   );
 
 const policyApprovalSchema = z.object(policyApprovalShape).strict().describe(
