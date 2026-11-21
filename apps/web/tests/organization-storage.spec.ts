@@ -106,6 +106,58 @@ for (
       await still(page, "organization-storage-saved");
     });
 
+    test("the agent step limits are edited in megabytes and a count, and an empty box saves the default", async ({ page }) => {
+      const seen = await storageFixture(page);
+      await page.goto("/organization/storage");
+      await expect(page.getByRole("heading", { name: "Agent steps" }))
+        .toBeVisible();
+      const bytes = page.getByRole("textbox", {
+        name: "Most a step may write",
+        exact: true,
+      });
+      const files = page.getByRole("textbox", {
+        name: "Most files a step may write",
+        exact: true,
+      });
+      await expect(bytes).toHaveValue("2048");
+      await expect(files).toHaveValue("2000");
+      await bytes.fill("0");
+      await bytes.blur();
+      await expect(page.getByText("Enter a whole number above 0."))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "organization-storage-agent-error");
+      await bytes.fill("512");
+      await files.fill("");
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await expect(page.getByText("Storage settings saved.")).toBeVisible();
+      expect(seen.puts[0].body).toMatchObject({
+        stepWriteBytes: 512 * 1024 * 1024,
+        stepWriteFiles: 2000,
+      });
+    });
+
+    test("an emptied step limit box shows the word Default, not a number that looks typed", async ({ page }) => {
+      await storageFixture(page);
+      await page.goto("/organization/storage");
+      const bytes = page.getByRole("textbox", {
+        name: "Most a step may write",
+        exact: true,
+      });
+      const files = page.getByRole("textbox", {
+        name: "Most files a step may write",
+        exact: true,
+      });
+      await bytes.fill("");
+      await files.fill("");
+      await expect(bytes).toHaveAttribute("placeholder", "Default");
+      await expect(files).toHaveAttribute("placeholder", "Default");
+      await expect(bytes).toHaveValue("");
+      await bytes.scrollIntoViewIfNeeded();
+      await page.mouse.move(700, 700);
+      await still(page, "organization-storage-agent-emptied");
+    });
+
     test("the first save of an organization on the defaults sends no If-Match", async ({ page }) => {
       const seen = await storageFixture(page, { version: 0 });
       await page.goto("/organization/storage");
@@ -215,6 +267,8 @@ for (
       await page.goto("/organization/storage");
       const limits = page.getByTestId("storage-limits-readonly");
       await expect(limits.getByText("100 GB")).toBeVisible();
+      await expect(page.getByText("2 GB", { exact: true })).toBeVisible();
+      await expect(page.getByText("2,000 files")).toBeVisible();
       await expect(
         page.getByText("Only an organization Admin can change these."),
       )

@@ -69,6 +69,7 @@ import { pinEffectiveRepositoryRules } from "../repository-rules/pinned.ts";
 import { fixedPolicyPins as fixedPolicyPinsOf } from "../repository-rules/policy-digest.ts";
 import { assertPlanSatisfiesRules } from "../workflows/rule-guard.ts";
 import { writePlanRun } from "../workflow-adapter/plan-admission.ts";
+import { assertNotQuiesced } from "../../platform/maintenance.ts";
 import {
   type PlanAdmission,
   resolvePlanAdmission,
@@ -893,6 +894,8 @@ export async function createRunCommand(
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
+  // A backup holds the installation: no run is admitted until it lets go.
+  await assertNotQuiesced(transaction);
   requireCommandMetadata(context);
   const taskId = context.params.id;
   if (!taskId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
