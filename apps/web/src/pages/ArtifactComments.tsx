@@ -16,6 +16,8 @@ import {
 } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { useConnectivity } from "../app/connectivity.ts";
+import { useMentionField } from "../mentions/useMentionField.tsx";
 import {
   type ArtifactCommentComposerModel,
   ArtifactCommentComposerView,
@@ -131,6 +133,14 @@ export function ArtifactComments(
     comments.isFetching,
     comments.fetchNextPage,
   ]);
+  const connectivity = useConnectivity();
+  const mentionField = useMentionField({
+    source: { kind: "comment", id: reply?.artifactVersionId ?? version.id },
+    value: body,
+    onValue: setBody,
+    offline: connectivity === "offline",
+    disabled: busy,
+  });
   const submit = async () => {
     if (!scope.organizationId || busy || (!reply && invalidAnchor)) return;
     const bytes = new TextEncoder().encode(body.trim()).length;
@@ -141,6 +151,11 @@ export function ArtifactComments(
     const input = contractSchemas.ArtifactCommentCreate.safeParse({
       body: body.trim(),
       ...(reply ? { rootId: reply.id } : anchor ? { anchor } : {}),
+      ...(mentionField.mentions.length > 0
+        ? {
+          mentions: mentionField.mentions.map((mention) => mention.principalId),
+        }
+        : {}),
     });
     if (!input.success) {
       setFailure("failed");
@@ -169,6 +184,11 @@ export function ArtifactComments(
     if (abort.signal.aborted) return;
     setBusy(false);
     if (!result.ok) {
+      // A refused mention wrote nothing: the draft stays and the names say why.
+      if (mentionField.refuse(result.error)) {
+        pending.current = null;
+        return;
+      }
       setFailure(
         result.error.kind === "problem" && result.error.problem.status === 412
           ? "conflict"
@@ -177,6 +197,7 @@ export function ArtifactComments(
       return;
     }
     pending.current = null;
+    mentionField.clear();
     setBody("");
     setReply(null);
     setAnchor(null);
@@ -221,7 +242,9 @@ export function ArtifactComments(
     submitLabel: t(
       reply ? "artifact.comments.sendReply" : "artifact.comments.post",
     ),
-    disabled: busy || comments.isError || (!reply && invalidAnchor),
+    disabled: busy || comments.isError || (!reply && invalidAnchor) ||
+      mentionField.refused,
+    mentionField,
     mode: reply
       ? {
         kind: "reply",
