@@ -59,7 +59,8 @@ export function issueLine(row: IssueRow, translate: Translator): string {
   return [issueSnapshot(row).repository, note].filter(Boolean).join(" · ");
 }
 
-function IssueBadge(
+/** The row's one status. */
+function StatusBadge(
   { row, translate }: { row: IssueRow; translate: Translator },
 ) {
   const { status } = issueStatus(row);
@@ -70,23 +71,61 @@ function IssueBadge(
   );
 }
 
+/** "In the batch": a live batch has started or merged this issue. */
+function InBatchBadge({ translate }: { translate: Translator }) {
+  return (
+    <UI.Badge tone="neutral" data-in-batch="true">
+      {translate("issues.batch.inBatch" as never)}
+    </UI.Badge>
+  );
+}
+
+/** The table's status cell: the status, and "In the batch" beside it when a live batch has the issue. */
+function IssueBadge(
+  { row, inBatch, translate }: {
+    row: IssueRow;
+    inBatch: boolean;
+    translate: Translator;
+  },
+) {
+  const badge = <StatusBadge row={row} translate={translate} />;
+  if (!inBatch) return badge;
+  return (
+    <UI.Inline gap="compact">
+      {badge}
+      <InBatchBadge translate={translate} />
+    </UI.Inline>
+  );
+}
+
 function issueTitle(row: IssueRow): string {
   const number = issueNumber(row);
   const { title } = issueSnapshot(row);
   return number === null ? title : `#${number} ${title}`;
 }
 
-/** The row's accessible name: the issue, its status and its reason. */
-function rowName(row: IssueRow, translate: Translator): string {
+/** The row's accessible name: the issue, its status, whether a batch has it, and its reason. */
+function rowName(
+  row: IssueRow,
+  inBatch: boolean,
+  translate: Translator,
+): string {
   const { status } = issueStatus(row);
+  const batch = inBatch
+    ? `, ${translate("issues.batch.inBatch" as never)}`
+    : "";
   return `${issueTitle(row)}, ${
     translate(`issues.status.${status}` as never)
-  }, ${issueLine(row, translate)}`;
+  }${batch}, ${issueLine(row, translate)}`;
 }
 
 /** The issue's title as a link to its page, named with its status and reason. */
 function IssueTitle(
-  { row, translate }: { row: IssueRow; translate: Translator },
+  { row, inBatch, translate }: {
+    row: IssueRow;
+    inBatch: boolean;
+    translate: Translator;
+  },
 ) {
   const navigate = useNavigate();
   return (
@@ -94,7 +133,7 @@ function IssueTitle(
       href={`/issues/${row.id}`}
       variant="quiet"
       data-row-title="true"
-      aria-label={rowName(row, translate)}
+      aria-label={rowName(row, inBatch, translate)}
       onClick={(event) => {
         event.preventDefault();
         void navigate({ to: "/issues/$issueId", params: { issueId: row.id } });
@@ -151,9 +190,11 @@ function RowAction(
  * control. A table on a wide screen, stacked rows on a phone.
  */
 export function IssuesList(
-  { offered, onStart, rows, loading, phone, translate }: {
+  { offered, inBatch, onStart, rows, loading, phone, translate }: {
     /** Whether Start work is offered on this row (can start, GitHub readable, online). */
     offered: (row: IssueRow) => boolean;
+    /** The ids of the issues a live batch has started or merged. */
+    inBatch: ReadonlySet<string>;
     onStart: (row: IssueRow) => void;
     rows: readonly IssueRow[];
     loading: boolean;
@@ -192,9 +233,24 @@ export function IssuesList(
         {rows.map((row) => (
           <div key={row.id} role="listitem" data-issue-id={row.id}>
             <UI.StackedRow
-              title={<IssueTitle row={row} translate={translate} />}
-              status={<IssueBadge row={row} translate={translate} />}
+              // A real title is long: it wraps rather than sharing its line with two badges.
+              titleLines="wrap"
+              title={
+                <IssueTitle
+                  row={row}
+                  inBatch={inBatch.has(row.id)}
+                  translate={translate}
+                />
+              }
+              status={<StatusBadge row={row} translate={translate} />}
             >
+              {inBatch.has(row.id)
+                ? (
+                  <UI.Inline gap="compact">
+                    <InBatchBadge translate={translate} />
+                  </UI.Inline>
+                )
+                : null}
               <UI.Text variant="caption">{issueLine(row, translate)}</UI.Text>
               <RowAction
                 offered={offered(row)}
@@ -227,7 +283,11 @@ export function IssuesList(
           header: translate("issues.column.issue" as never),
           cell: (row) => (
             <UI.Stack gap="none">
-              <IssueTitle row={row} translate={translate} />
+              <IssueTitle
+                row={row}
+                inBatch={inBatch.has(row.id)}
+                translate={translate}
+              />
               <UI.Text variant="caption">{issueLine(row, translate)}</UI.Text>
             </UI.Stack>
           ),
@@ -236,7 +296,13 @@ export function IssuesList(
           id: "status",
           width: "20%",
           header: translate("issues.column.status" as never),
-          cell: (row) => <IssueBadge row={row} translate={translate} />,
+          cell: (row) => (
+            <IssueBadge
+              row={row}
+              inBatch={inBatch.has(row.id)}
+              translate={translate}
+            />
+          ),
         },
         {
           id: "action",
