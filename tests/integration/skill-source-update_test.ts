@@ -379,6 +379,9 @@ Deno.test("a skill from a source is checked against it file by file, and nothing
     const auditsBefore = await auditCount();
     const checkedBefore = await checkedAt();
     source.state.files = { ...SKILL_V1 };
+    // The result is checked after the call: an error thrown inside the adapter
+    // would be read as an unreachable source and hide the real failure.
+    let published = { status: 0, text: "not run" };
     source.during.run = async () => {
       const next = await f.post(
         f.ownerCookie,
@@ -386,10 +389,11 @@ Deno.test("a skill from a source is checked against it file by file, and nothing
         await upload({ "SKILL.md": "# Guide, second version\n" }, 2),
         "publish-guide-2",
       );
-      assertEquals(next.status, 201, await next.clone().text());
+      published = { status: next.status, text: await next.text() };
     };
     const raced = await owner("POST", path);
     source.during.run = null;
+    assertEquals(published.status, 201, published.text);
     const racedText = await raced.text();
     assertEquals(raced.status, 409, racedText);
     assertEquals(
