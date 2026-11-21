@@ -41,6 +41,8 @@ export type SafeProblem = Readonly<{
   reason?: string;
   /** Stable issue codes of a 422, such as a storage probe outcome. */
   issueCodes?: readonly string[];
+  /** A 422's field paths (JSON Pointers) and plain messages. */
+  issues?: readonly { readonly path: string; readonly message: string }[];
 }>;
 
 export type ApiFailure =
@@ -138,6 +140,21 @@ export type IntegrationClientCredentials =
   ClientOutputMap["IntegrationClientCredentials"];
 export type IntegrationClientCredentialsPut =
   ClientInputMap["IntegrationClientCredentialsPut"];
+export type TelemetryDestinationList =
+  ClientOutputMap["TelemetryDestinationList"];
+export type TelemetryDestination = ClientOutputMap["TelemetryDestination"];
+export type TelemetryDestinationListQuery =
+  ClientInputMap["TelemetryDestinationListQuery"];
+export type TelemetryDestinationDetail =
+  ClientOutputMap["TelemetryDestinationDetail"];
+export type TelemetryDestinationCreate =
+  ClientInputMap["TelemetryDestinationCreate"];
+export type TelemetryDestinationUpdate =
+  ClientInputMap["TelemetryDestinationUpdate"];
+export type TelemetryDestinationTest =
+  ClientInputMap["TelemetryDestinationTest"];
+export type TelemetryDestinationTestResult =
+  ClientOutputMap["TelemetryDestinationTestResult"];
 export type StorageSettings = ClientOutputMap["StorageSettings"];
 export type StorageSettingsPut = ClientInputMap["StorageSettingsPut"];
 export type SkillStorageSettings = ClientOutputMap["SkillStorageSettings"];
@@ -1228,6 +1245,49 @@ export type BakeryApiClient = {
       signal?: AbortSignal,
     ) => Promise<ApiResult<InstallationCapabilities>>;
   };
+  /**
+   * Where Bakery sends its measurements (#739); installation administrators
+   * with a browser session only. A result never carries a secret.
+   */
+  readonly telemetryDestinations: {
+    /** `GET /v1/installation/telemetry-destinations`: the kinds, the measurements, the providers and one page of the destinations that match the search and filters. */
+    readonly list: (
+      query?: TelemetryDestinationListQuery,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<TelemetryDestinationList>>;
+    /** `GET /v1/installation/telemetry-destinations/{id}`: one destination with its kind, provider and the measurements. */
+    readonly get: (
+      id: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<TelemetryDestinationDetail>>;
+    /** `POST /v1/installation/telemetry-destinations`: adds one. */
+    readonly create: (options: {
+      readonly input: TelemetryDestinationCreate;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TelemetryDestination>>;
+    /** `PATCH /v1/installation/telemetry-destinations/{id}`: changes one, with its version as If-Match. */
+    readonly update: (options: {
+      readonly id: string;
+      readonly input: Omit<TelemetryDestinationUpdate, "id">;
+      readonly version: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TelemetryDestination>>;
+    /** `DELETE /v1/installation/telemetry-destinations/{id}`: removes one, with its version as If-Match. */
+    readonly remove: (options: {
+      readonly id: string;
+      readonly version: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<undefined>>;
+    /** `POST /v1/installation/telemetry-destination-tests`: sends one harmless message and reports the answer. */
+    readonly test: (options: {
+      readonly input: TelemetryDestinationTest;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TelemetryDestinationTestResult>>;
+  };
   readonly storageSettings: {
     /** `GET /v1/storage/settings`: the organization's storage limits and how much of the quota is used. */
     readonly get: (options: {
@@ -2181,6 +2241,7 @@ function safeProblem(problem: ApiProblem): SafeProblem | null {
       ? { reason: problem.reason }
       : {}),
     ...(problem.issueCodes ? { issueCodes: problem.issueCodes } : {}),
+    ...(problem.issues ? { issues: problem.issues } : {}),
   };
 }
 
@@ -3878,6 +3939,99 @@ export function createBakeryApiClient({
             data: await client.actions["installation.capabilities"]({}, {
               signal,
             }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    telemetryDestinations: {
+      async list(query, signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.list"](
+              query ?? {},
+              { signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async get(id, signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.get"](
+              { id },
+              { signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async create(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.create"](
+              options.input,
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async update(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.update"](
+              { id: options.id, ...options.input },
+              {
+                ifMatch: versionEtag(options.version),
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async remove(options) {
+        try {
+          await client.actions["telemetryDestinations.delete"](
+            { id: options.id },
+            {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            },
+          );
+          return { ok: true, data: undefined };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async test(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["telemetryDestinations.test"](
+              options.input,
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
           };
         } catch (error) {
           return failed(error);

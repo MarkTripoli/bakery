@@ -14,6 +14,11 @@ import {
   StepError,
 } from "../../scripts/deploy/backup-runner/backup-step.ts";
 import {
+  cutoffFromView,
+  type CutoffView,
+} from "../../scripts/deploy/backup-runner/cutoff.ts";
+import type { Cutoff } from "../../apps/server/src/modules/backups/cutoff-rules.ts";
+import {
   type Offsite,
   OffsiteError,
 } from "../../scripts/deploy/backup-runner/offsite.ts";
@@ -73,13 +78,30 @@ async function until(condition: () => boolean) {
   throw new Error("condition not reached");
 }
 
+/** What the server answers to the cutoff request: one unsettled effect of each kind. */
+const cutoffView: CutoffView = {
+  runId: RUN,
+  cutoffAt: "2026-11-20T12:00:03.250Z",
+  effectsTotal: 3,
+  effectsPrepared: 1,
+  effectsSubmitted: 1,
+  effectsUncertain: 1,
+  effectsByOperation: [
+    { operation: "github.pull_request.merge", count: 2 },
+    { operation: "slack.message.post", count: 1 },
+  ],
+  effectsDigest: "a".repeat(64),
+};
+
 type Options = {
+  /** What the cutoff request answers; an Error is thrown instead. */
+  cutoff?: CutoffView | Error;
   claimed?: boolean;
   settings?: RunnerSettings;
   settingsError?: Error;
   /** Called for every report; may throw to simulate the server. */
   onReport?: (sequence: number, body: ReportBody) => void | Promise<void>;
-  backup?: (signal: AbortSignal) => Promise<Artifact>;
+  backup?: (signal: AbortSignal, cutoff: Cutoff) => Promise<Artifact>;
   offsite?: (settings: RunnerSettings) => Offsite | null;
   upload?: RunnerDeps["upload"];
   prune?: RunnerDeps["prune"];
@@ -110,6 +132,8 @@ function harness(options: Options = {}) {
   const logs: string[] = [];
   const sleepers: { ms: number; wake: () => void }[] = [];
   const pruned: (Offsite | null)[] = [];
+  const cutoffs: Cutoff[] = [];
+  let cutoffAsks = 0;
   let maintainCalls = 0;
   let clock = 0;
   const api: RunnerApi = {
@@ -136,6 +160,15 @@ function harness(options: Options = {}) {
         answers[Math.min(maintainCalls - 1, answers.length - 1)],
       );
     },
+    cutoff: (runId, leaseToken) => {
+      assertEquals(runId, RUN);
+      assertEquals(leaseToken, LEASE);
+      events.push("cutoff");
+      cutoffAsks += 1;
+      return options.cutoff instanceof Error
+        ? Promise.reject(options.cutoff)
+        : Promise.resolve(options.cutoff ?? cutoffView);
+    },
     settings: () => {
       events.push("settings");
       return options.settingsError
@@ -155,10 +188,11 @@ function harness(options: Options = {}) {
   const deps: RunnerDeps = {
     api,
     secrets: createSecrets([LEASE]),
-    backup: (signal) => {
+    backup: (signal, cutoff) => {
       events.push("backup");
+      cutoffs.push(cutoff);
       return options.backup
-        ? options.backup(signal)
+        ? options.backup(signal, cutoff)
         : Promise.resolve(artifact);
     },
     offsite: (settings) => {
@@ -205,6 +239,9 @@ function harness(options: Options = {}) {
       clock += ms;
     },
     maintainCalls: () => maintainCalls,
+    /** The cutoffs the backup step was given, in order. */
+    cutoffs,
+    cutoffAsks: () => cutoffAsks,
   };
 }
 
@@ -229,6 +266,7 @@ Deno.test("claim comes first and settings are read only after it, the backup bef
     "maintain", // the installation is held, and already quiet
     "settings",
     "report:running", // 5%
+    "cutoff", // after the quiet moment, before the dumps
     "backup",
     "offsite",
     "report:running", // 90%: no off-site copy to make
@@ -739,5 +777,69 @@ Deno.test("a lost claim while holding stops the run without a terminal report", 
   assertEquals(outcome.kind, "lease-lost");
   // The claim is gone, so no report can be taken; the hold lapses with it.
   assertEquals(h.reports.map((r) => r.body.status), ["running"]);
+  assertEquals(h.events.includes("backup"), false);
+});
+
+Deno.test("the cutoff is asked for once, after the installation is quiet and just before the backup, and the backup receives it", async () => {
+  const h = harness({ maintain: [draining(), quiet] });
+  const pending = runOnce(h.deps);
+  await until(() => drainWaits(h).length === 1);
+  // Not while the installation is still draining.
+  assertEquals(h.events.includes("cutoff"), false);
+  drainWaits(h)[0].wake();
+  const outcome = await pending;
+  assertEquals(outcome.kind, "completed");
+  assertEquals(h.cutoffAsks(), 1);
+  const at = (name: string) => h.events.indexOf(name);
+  assert(
+    at("maintain") < at("cutoff"),
+    "the cutoff came before the quiet check",
+  );
+  assert(at("cutoff") < at("backup"), "the cutoff came after the backup began");
+  assertEquals(h.events.filter((e) => e === "cutoff").length, 1);
+  // The backup step is given the database cutoff, with its census.
+  assertEquals(h.cutoffs, [cutoffFromView(cutoffView)]);
+  assertEquals(h.cutoffs[0].source, "database");
+  assertEquals(h.cutoffs[0].effects?.total, 3);
+});
+
+Deno.test("an idle poll and a run that never goes quiet ask for no cutoff", async () => {
+  const idle = harness({ claimed: false });
+  await runOnce(idle.deps);
+  assertEquals(idle.cutoffAsks(), 0);
+  const stuck = harness({
+    maintain: [draining({ liveAttempts: 3 })],
+    drainTimeoutMs: 60_000,
+  });
+  const pending = runOnce(stuck.deps);
+  await until(() => drainWaits(stuck).length === 1);
+  stuck.advance(61_000);
+  drainWaits(stuck)[0].wake();
+  assertEquals((await pending).kind, "failed");
+  assertEquals(stuck.cutoffAsks(), 0);
+  assertEquals(stuck.events.includes("backup"), false);
+});
+
+Deno.test("a cutoff the server refuses or cannot give fails the run as runner_error and takes no backup", async () => {
+  for (
+    const error of [
+      new ApiFatal(409, "not_quiesced"),
+      new ApiUnavailable("status 503"),
+    ]
+  ) {
+    const h = harness({ cutoff: error });
+    const outcome = await runOnce(h.deps);
+    assertEquals(outcome, { kind: "failed", runId: RUN, code: "runner_error" });
+    assertEquals(h.events.includes("backup"), false, error.message);
+    const last = h.reports.at(-1)!;
+    assertEquals(last.body.status, "failed");
+    assertStringIncludes(String(last.body.failureDetail), "cutoff");
+  }
+});
+
+Deno.test("a lost lease on the cutoff request stops the run before any backup", async () => {
+  const h = harness({ cutoff: new LeaseLost("lease_expired") });
+  const outcome = await runOnce(h.deps);
+  assertEquals(outcome.kind, "lease-lost");
   assertEquals(h.events.includes("backup"), false);
 });
