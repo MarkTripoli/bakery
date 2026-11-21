@@ -54,11 +54,11 @@ type SwitchRow = {
 const SWITCH_COLUMNS = `state, reason, owner_run_id as "ownerRunId",
   entered_at as "enteredAt", lease_expires_at as "leaseExpiresAt"`;
 
-function conflict(reason: string): StandardError {
+export function conflict(reason: string): StandardError {
   return new StandardError({ code: "STATE_CONFLICT", params: { reason } });
 }
 
-async function audit(
+export async function audit(
   transaction: PgTransactionClient,
   actor: MaintenanceActor,
   operation: string,
@@ -118,7 +118,7 @@ type RunLease = {
   dbNow: Date;
 };
 
-async function lockClaimedRun(
+export async function lockClaimedRun(
   transaction: PgTransactionClient,
   runId: string,
   leaseToken: string,

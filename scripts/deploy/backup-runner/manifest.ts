@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  type Cutoff,
+  parseCutoff,
+} from "../../../apps/server/src/modules/backups/cutoff-rules.ts";
 
 /**
  * What a complete Bakery backup contains, and the check that says whether one
@@ -28,7 +32,9 @@ export const CHECKSUMS_FILE = "SHA256SUMS";
  * newest good set, and no restore may use it.
  */
 export const INCOMPLETE_FILE = "INCOMPLETE.json";
-export const MANIFEST_FORMAT = 1;
+export const MANIFEST_FORMAT = 2;
+/** The first format: no cutoff record. Still readable, and reported as such. */
+export const LEGACY_MANIFEST_FORMAT = 1;
 
 export type StoreStatus = "captured" | "excluded" | "failed";
 
@@ -186,11 +192,18 @@ export type StoreEntry = {
 };
 
 export type Manifest = {
-  readonly format: typeof MANIFEST_FORMAT;
+  readonly format: typeof MANIFEST_FORMAT | typeof LEGACY_MANIFEST_FORMAT;
   readonly startedAt: string;
   readonly finishedAt: string;
-  /** The moment the capture began; everything after it is not in the set. */
-  readonly cutoffAt: string;
+  /**
+   * Format 2: when the snapshot began and where that time came from. A database
+   * cutoff (taken by the runner while the installation was quiet) carries a
+   * census of the unsettled effects; a host-clock cutoff (a backup no runner
+   * took) is weaker and carries none. Everything after it is not in the set.
+   */
+  readonly cutoff?: Cutoff;
+  /** Format 1 only: the host clock when the capture began. */
+  readonly cutoffAt?: string;
   readonly release: { readonly sha: string | null };
   readonly stores: readonly StoreEntry[];
   readonly references: {
@@ -206,6 +219,7 @@ export type Problem = {
     | "declared_incomplete"
     | "key_mismatch"
     | "manifest_invalid"
+    | "cutoff_not_database"
     | "store_not_captured"
     | "missing_file"
     | "size_mismatch"
@@ -218,6 +232,8 @@ export type Problem = {
 };
 
 export type Verification = {
+  /** The cutoff the manifest recorded, when it could be read (format 2). */
+  readonly cutoff?: Cutoff | null;
   readonly complete: boolean;
   /** No manifest: a set from before manifests existed. */
   readonly legacy: boolean;
@@ -268,6 +284,12 @@ export type BuildInput = {
   readonly finishedAt: Date;
   readonly key: KeyIdentity;
   readonly references: { readonly skillFiles: number; readonly blobs: number };
+  /**
+   * The database cutoff the runner took while the installation was quiet. Left
+   * out for a backup no runner took: the cutoff is then the host clock when the
+   * capture began, marked as weaker.
+   */
+  readonly cutoff?: Cutoff;
   /** Stores the capture itself reported as failed, with the reason. */
   readonly failed?: Readonly<Record<string, string>>;
 };
@@ -377,7 +399,12 @@ export async function writeBackupManifest(
     format: MANIFEST_FORMAT,
     startedAt: input.startedAt.toISOString(),
     finishedAt: input.finishedAt.toISOString(),
-    cutoffAt: input.startedAt.toISOString(),
+    cutoff: input.cutoff ??
+      {
+        at: input.startedAt.toISOString(),
+        source: "host-clock",
+        effects: null,
+      },
     release: { sha: releaseSha },
     stores,
     references: input.references,
@@ -491,10 +518,18 @@ export function parseManifest(value: unknown): Manifest | string {
     return "the manifest is not an object";
   }
   const manifest = value as Record<string, unknown>;
-  if (manifest.format !== MANIFEST_FORMAT) {
+  if (
+    manifest.format !== MANIFEST_FORMAT &&
+    manifest.format !== LEGACY_MANIFEST_FORMAT
+  ) {
     return `the manifest format is ${
       String(manifest.format)
     }, not ${MANIFEST_FORMAT}`;
+  }
+  // Format 2 requires a cutoff, and a malformed one makes the manifest invalid.
+  if (manifest.format === MANIFEST_FORMAT) {
+    const cutoff = parseCutoff(manifest.cutoff);
+    if (typeof cutoff === "string") return `the cutoff is invalid: ${cutoff}`;
   }
   if (!Array.isArray(manifest.stores)) return "the manifest has no stores";
   for (const raw of manifest.stores) {
@@ -569,6 +604,12 @@ export type VerifyOptions = {
    * (for a restore drill). The file is read once, only to fingerprint it.
    */
   readonly keyFile?: string;
+  /**
+   * Refuse a set whose cutoff is not a database cutoff: a restore that must not
+   * replay unknown effects needs the quiet moment and the census, which only a
+   * runner-taken backup records.
+   */
+  readonly requireDatabaseCutoff?: boolean;
 };
 
 /**
@@ -632,6 +673,17 @@ export async function verifyBackupDirectory(
   }
 
   const problems: Problem[] = [];
+  if (
+    options.requireDatabaseCutoff === true &&
+    manifest.cutoff?.source !== "database"
+  ) {
+    problems.push({
+      kind: "cutoff_not_database",
+      detail: manifest.cutoff === undefined
+        ? "this set predates cutoff records, so what may have happened after it cannot be known"
+        : "the cutoff is the host clock, not a quiet moment taken from the database",
+    });
+  }
   const byId = new Map(manifest.stores.map((store) => [store.id, store]));
   const listed = new Set<string>([MANIFEST_FILE, CHECKSUMS_FILE]);
   for (const store of STORES) {
@@ -794,5 +846,10 @@ export async function verifyBackupDirectory(
       }
     }
   }
-  return { complete: problems.length === 0, legacy: false, problems };
+  return {
+    complete: problems.length === 0,
+    legacy: false,
+    cutoff: manifest.cutoff ?? null,
+    problems,
+  };
 }

@@ -724,6 +724,7 @@ export const BackupImplementedAction = Object.freeze(
     BackupRunnerClaim: "backupRunner.claim",
     BackupRunnerReport: "backupRunner.report",
     BackupRunnerMaintain: "backupRunner.maintain",
+    BackupRunnerCutoff: "backupRunner.cutoff",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const backupImplementedActions = Object.freeze(
