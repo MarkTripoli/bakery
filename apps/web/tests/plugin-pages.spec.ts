@@ -1,5 +1,6 @@
 import {
   expect as baseExpect,
+  type Locator,
   type Page,
   type Route,
   test,
@@ -294,6 +295,9 @@ test("a page that cannot be shown says why in place of the frame", async ({ page
     await expect(page.locator("iframe.ui-sealed-frame")).toHaveCount(0);
     // A state that replaces the frame brings its own button: the strip has none.
     await expect(page.getByRole("button", { name: "Reload" })).toHaveCount(0);
+    if (words !== "You do not have access to this page") {
+      await expectBlockTitle(page, words);
+    }
     if (words === "Notes is turned off") {
       await expect(page.getByText("Off", { exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "Manage plugin" }))
@@ -301,6 +305,95 @@ test("a page that cannot be shown says why in place of the frame", async ({ page
       await shot(page, "plugin-page-off");
     }
   }
+});
+
+/**
+ * The turned-off and no-longer-here states draw the default block, like the
+ * could-not-load box: a full-strength title at the start, not the quiet centered
+ * one. The centered title is muted like its description, so equal colours or a
+ * centered section mean the layout came back.
+ */
+const expectBlockTitle = async (page: Page, words: string) => {
+  const section = page.locator('section[data-ui-component="emptyState"]');
+  await expect(section.getByRole("heading", { name: words })).toBeVisible();
+  await expect(section).not.toHaveClass(/ui-empty-state--centered/);
+  const looks = await section.evaluate((element) => {
+    const style = (selector: string) => {
+      const found = element.querySelector(selector);
+      if (found === null) throw new Error(`no ${selector}`);
+      return getComputedStyle(found);
+    };
+    return {
+      title: style(".ui-feedback-title").color,
+      description: style(".ui-feedback-description").color,
+      align: getComputedStyle(element).textAlign,
+    };
+  });
+  expect(looks.title).not.toBe(looks.description);
+  expect(looks.align).not.toBe("center");
+};
+
+const box = async (locator: Locator) => {
+  const found = await locator.boundingBox();
+  if (found === null) throw new Error("no box");
+  return found;
+};
+
+test("the strip's buttons keep a 44px touch target on every screen", async ({ page }) => {
+  await pluginPagesFixture(page);
+  await open(page);
+  await expect(page.locator("iframe.ui-sealed-frame")).toBeVisible();
+  const reload = await box(page.getByRole("button", { name: "Reload" }));
+  const manage = await box(
+    page.getByRole("button", { name: "Manage plugin" })
+      .or(page.getByRole("link", { name: "Manage plugin" })),
+  );
+  expect(reload.height).toBeGreaterThanOrEqual(44);
+  expect(manage.height).toBeGreaterThanOrEqual(44);
+});
+
+test("on a phone the buttons sit under the title, the frame fills the window and the drawer keeps room", async ({ page }) => {
+  test.skip(
+    (page.viewportSize()?.width ?? 1440) >= 744,
+    "the phone layout only",
+  );
+  await pluginPagesFixture(page);
+  await open(page);
+  const frame = page.locator("iframe.ui-sealed-frame");
+  await expect(frame).toBeVisible();
+  const reload = await box(page.getByRole("button", { name: "Reload" }));
+  const manage = await box(
+    page.getByRole("button", { name: "Manage plugin" })
+      .or(page.getByRole("link", { name: "Manage plugin" })),
+  );
+  const title = await box(
+    page.getByRole("heading", { name: "Release checklist", level: 1 }),
+  );
+  const strip = Math.max(reload.y + reload.height, manage.y + manage.height);
+  // The buttons are on a row of their own, under the title.
+  expect(Math.min(reload.y, manage.y)).toBeGreaterThanOrEqual(
+    title.y + title.height,
+  );
+  // A gap separates the strip from the frame, and the frame fills the window.
+  const framed = await box(frame);
+  expect(framed.y - strip).toBeGreaterThanOrEqual(8);
+  const window = page.viewportSize()?.height ?? 0;
+  expect(framed.height).toBeGreaterThanOrEqual(window * 0.7 - 1);
+  // The Plugins group has as much room below its last page as above its
+  // heading, so the account menu under it does not read as one of its pages.
+  await openRail(page);
+  const section = page.locator("li.bakery-application-rail__group");
+  const groupBox = await box(section);
+  const heading = await box(
+    section.locator(".bakery-application-rail__heading"),
+  );
+  const lastPage = await box(
+    page.getByRole("group", { name: "Plugins" }).getByRole("link").last(),
+  );
+  const above = heading.y - groupBox.y;
+  const below = groupBox.y + groupBox.height - (lastPage.y + lastPage.height);
+  expect(above).toBeGreaterThan(0);
+  expect(below).toBeGreaterThanOrEqual(above - 1);
 });
 
 test("seven pages show the first six and a way to the rest", async ({ page }) => {
