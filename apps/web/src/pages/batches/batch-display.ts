@@ -250,8 +250,6 @@ export type BannerFacts = Readonly<{
   who: string;
   /** When that happened, already formatted. */
   when: string;
-  /** The task's stage in the issue page's words, when it has been read. */
-  stage: string | null;
   /** The spend sentence values for a finish over the limit. */
   spent: string;
   limit: string;
@@ -289,12 +287,7 @@ export function bannerFor(batch: BatchResponse, facts: BannerFacts): Banner {
               max: batch.maxIssues,
             },
           },
-          body: facts.stage === null
-            ? { key: "batches.banner.working.body" }
-            : {
-              key: "batches.banner.working.stage",
-              params: { stage: facts.stage },
-            },
+          body: { key: "batches.banner.working.body" },
           actions: ["openTask"],
         };
     case "waiting":

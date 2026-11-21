@@ -64,6 +64,26 @@
   flex: none;
 }
 
+/* A banner whose buttons are its next step: on a phone they sit under the text, full width. */
+@media (max-width: 743px) {
+  .ui-alert-banner[data-action-layout="stretch"] {
+    flex-wrap: wrap;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action {
+    flex: 1 1 100%;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-inline {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-inline > * {
+    flex: none;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-button {
+    inline-size: 100%;
+  }
+}
+
 .ui-inline-notice__icon,
 .ui-alert-banner__icon {
   flex: none;

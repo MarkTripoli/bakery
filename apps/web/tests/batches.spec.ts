@@ -63,7 +63,7 @@ for (
         await expect(running).toContainText("Ana Reyes");
         await expect(running).toContainText("$22.40 of $40");
         await expect(running).toContainText("Still going");
-        await expect(finished).toContainText("it reached the spend limit");
+        await expect(finished).toContainText("It reached the spend limit");
         await expect(page.locator(`[data-batch-id="${batchId(3)}"]`))
           .toContainText("Asks before each next issue");
       }
@@ -275,6 +275,18 @@ for (
       );
       await expect(banner(page).getByRole("button", { name: "Open task" }))
         .toBeVisible();
+      // The page never reads the task's stage, so it does not say there is nothing to do.
+      await expect(banner(page)).toContainText(
+        "Bakery is working on it. Open the task to see where it is.",
+      );
+      if (viewport.width <= 743) {
+        // On a phone the banner's buttons are the full width of the banner.
+        const box = await banner(page).boundingBox();
+        const button = await banner(page).getByRole("button", {
+          name: "Open task",
+        }).boundingBox();
+        expect(button!.width).toBeGreaterThan(box!.width * 0.8);
+      }
       const issues = page.getByTestId("batch-meter-issues");
       await expect(issues.getByRole("meter", { name: "Issues merged" }))
         .toHaveAttribute("aria-valuetext", "3 of 5");

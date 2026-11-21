@@ -217,7 +217,6 @@ export function BatchPage({ batchId }: { batchId: string }) {
     lastNumber: number(last),
     who,
     when: whenIso === null ? "" : lookups.time(whenIso),
-    stage: null,
     spent: lookups.money(dollars(batch.spentUsd)),
     limit: lookups.money(dollars(batch.maxSpendUsd)),
   };
@@ -382,7 +381,7 @@ export function BatchPage({ batchId }: { batchId: string }) {
       over: lookups.money(reading.spend.over),
     });
 
-  const issueCell = (issue: BatchIssueResponse) => {
+  const issueLink = (issue: BatchIssueResponse) => {
     const row = ticketOf(issue);
     const n = numberOf(issue);
     const title = row === null ? "" : issueSnapshot(row).title;
@@ -400,17 +399,25 @@ export function BatchPage({ batchId }: { batchId: string }) {
         {[n === null ? null : `#${n}`, title].filter(Boolean).join(" ")}
       </UI.Link>
     );
+    return link;
+  };
+  /** Why a passed-over issue was left out, in the Issues page's words. */
+  const passedOverReason = (issue: BatchIssueResponse): string | null => {
+    const row = ticketOf(issue);
     return issue.state === "passed_over" && row !== null &&
         issue.reason !== null
-      ? (
-        <UI.Stack gap="none">
-          {link}
-          <UI.Text variant="caption">
-            {reasonSentence(row, issue.reason, translate)}
-          </UI.Text>
-        </UI.Stack>
-      )
-      : link;
+      ? reasonSentence(row, issue.reason, translate)
+      : null;
+  };
+  /** The table's issue cell: the link, and under it why a passed-over issue was left out. */
+  const issueCell = (issue: BatchIssueResponse) => {
+    const reason = passedOverReason(issue);
+    return reason === null ? issueLink(issue) : (
+      <UI.Stack gap="none">
+        {issueLink(issue)}
+        <UI.Text variant="caption">{reason}</UI.Text>
+      </UI.Stack>
+    );
   };
   const costCell = (issue: BatchIssueResponse) =>
     issue.state === "passed_over"
@@ -492,6 +499,7 @@ export function BatchPage({ batchId }: { batchId: string }) {
             </UI.InlineNotice>
           )}
         <UI.AlertBanner
+          actionLayout="stretch"
           tone={banner.tone === "neutral" ? "information" : banner.tone}
           action={bannerButtons.length === 0
             ? undefined
@@ -570,20 +578,30 @@ export function BatchPage({ batchId }: { batchId: string }) {
                 {tableRows.map(({ issue, position }) => (
                   <div key={issue.id} role="listitem">
                     <UI.StackedRow
-                      title={issueCell(issue)}
+                      titleLines="wrap"
+                      title={issueLink(issue)}
                       status={issueBadge(issue)}
                       selected={issue.state === "started"}
                     >
-                      <UI.Text variant="caption">
-                        {[
-                          position === null ? null : `${position}`,
-                          issue.startedAt === null
-                            ? null
-                            : lookups.time(issue.startedAt),
-                          costCell(issue),
-                        ].filter(Boolean).join(" · ")}
-                      </UI.Text>
-                      {taskButton(issue)}
+                      <UI.Stack gap="tight">
+                        {passedOverReason(issue) === null
+                          ? null
+                          : (
+                            <UI.Text variant="caption">
+                              {passedOverReason(issue)}
+                            </UI.Text>
+                          )}
+                        <UI.Text variant="caption">
+                          {[
+                            position === null ? null : `${position}`,
+                            issue.startedAt === null
+                              ? null
+                              : lookups.time(issue.startedAt),
+                            costCell(issue),
+                          ].filter(Boolean).join(" · ")}
+                        </UI.Text>
+                        {taskButton(issue)}
+                      </UI.Stack>
                     </UI.StackedRow>
                   </div>
                 ))}
@@ -592,7 +610,7 @@ export function BatchPage({ batchId }: { batchId: string }) {
             : (
               <UI.DataTable
                 variant="ruled"
-                inset="none"
+                inset="edge"
                 rowSize="double"
                 caption={translate("batches.issues.caption" as never)}
                 captionHidden
@@ -640,7 +658,12 @@ export function BatchPage({ batchId }: { batchId: string }) {
                   },
                   {
                     id: "task",
-                    header: translate("batches.action.openTask" as never),
+                    // The button says it; the heading is kept for screen readers only.
+                    header: (
+                      <UI.VisuallyHidden>
+                        {translate("batches.action.openTask" as never)}
+                      </UI.VisuallyHidden>
+                    ),
                     width: "128px",
                     align: "end",
                     cell: ({ issue }) => taskButton(issue),

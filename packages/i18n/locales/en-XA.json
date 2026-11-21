@@ -5520,8 +5520,6 @@
   "batches.limit.issues": "⟦{max, plural, one {# issue is} other {# issues are}} ɱëŕĝëð ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "batches.limit.generic": "⟦À ļïɱïŧ ïš ŕëàçĥëð ŧëšŧ⟧",
   "batches.banner.working.title": "⟦Ŵôŕķïñĝ ôñ #{number}, ŧĥë {ordinal, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} ôƒ ûþ ŧô {max} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "batches.banner.working.body": "⟦Ɓàķëŕÿ ïš ŵôŕķïñĝ ôñ ïŧ. Ñôŧĥïñĝ ƒôŕ ÿôû ŧô ðô. ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "batches.banner.working.stage": "⟦{stage}…⟧",
   "batches.banner.choosing.title": "⟦Çĥôôšïñĝ ŧĥë ñëẋŧ ïššûë ŧëšŧ ç⟧",
   "batches.banner.choosing.body": "⟦Ɓàķëŕÿ ïš ŕëàðïñĝ ĜïŧĤûƀ. ŧëšŧ ç⟧",
   "batches.banner.waiting.title": "⟦#{number} ïš ɱëŕĝëð. Šŧàŕŧ ŧĥë ñëẋŧ ïššûë? ŧëšŧ çôþÿ ŧë⟧",
@@ -5648,5 +5646,6 @@
   "batches.start.leave.confirm": "⟦Ļëàṽë⟧",
   "batches.page.back": "⟦Ɓàçķ ŧô ƀàŧçĥëš ŧëš⟧",
   "batches.page.notFound": "⟦Ŧĥïš ƀàŧçĥ ŵàš ñôŧ ƒôûñð, ôŕ ÿôû ðô ñôŧ ĥàṽë àççëšš ŧô ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "batches.someone": "⟦Šôɱëôñë…⟧"
+  "batches.someone": "⟦Šôɱëôñë…⟧",
+  "batches.banner.working.body": "⟦Ɓàķëŕÿ ïš ŵôŕķïñĝ ôñ ïŧ. Ôþëñ ŧĥë ŧàšķ ŧô šëë ŵĥëŕë ïŧ ïš. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }

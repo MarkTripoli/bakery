@@ -31,7 +31,7 @@ const NEW_BATCH_PATH = "/issues/batches/new";
 export function BatchesListPage() {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const { translate } = useI18n();
+  const { translate, locale } = useI18n();
   const navigate = useNavigate();
   const phone = useShellViewport() === "phone";
   const search = useSearch({ strict: false }) as Record<string, unknown>;
@@ -90,7 +90,10 @@ export function BatchesListPage() {
     });
   const whyText = (batch: BatchResponse) => {
     const why = whyItEnded(batch);
-    return why === null ? "" : say(translate, why);
+    if (why === null) return "";
+    // A reason starts the cell, so it starts with a capital.
+    const text = say(translate, why);
+    return text.charAt(0).toLocaleUpperCase(locale) + text.slice(1);
   };
   const stateBadge = (batch: BatchResponse) => (
     <UI.Badge tone={STATE_TONE[batch.state]}>
@@ -212,6 +215,7 @@ export function BatchesListPage() {
         {batches.map((batch) => (
           <div key={batch.id} role="listitem" data-batch-id={batch.id}>
             <UI.StackedRow
+              titleLines="wrap"
               title={repositoryLink(batch)}
               status={stateBadge(batch)}
             >
@@ -232,7 +236,7 @@ export function BatchesListPage() {
     body = (
       <UI.DataTable
         variant="ruled"
-        inset="none"
+        inset="edge"
         rowSize="single"
         caption={translate("batches.list.caption" as never)}
         captionHidden
@@ -281,7 +285,12 @@ export function BatchesListPage() {
           },
           {
             id: "open",
-            header: translate("batches.open" as never),
+            // The button says it; the heading is kept for screen readers only.
+            header: (
+              <UI.VisuallyHidden>
+                {translate("batches.open" as never)}
+              </UI.VisuallyHidden>
+            ),
             width: "96px",
             align: "end",
             cell: openButton,

@@ -78,7 +78,6 @@ const facts: BannerFacts = {
   lastNumber: "421",
   who: "Ana Ruiz",
   when: "09:12",
-  stage: null,
   spent: "$22.40",
   limit: "$40",
 };
@@ -139,14 +138,7 @@ Deno.test("a running batch with an issue started names it and its place; with no
     params: { number: "421", ordinal: 4, max: 5 },
   });
   assertEquals(started.actions, ["openTask"]);
-  const stage = bannerFor(batch({ issues: working }), {
-    ...facts,
-    stage: "Writing the change",
-  });
-  assertEquals(stage.body, {
-    key: "batches.banner.working.stage",
-    params: { stage: "Writing the change" },
-  });
+  assertEquals(started.body, { key: "batches.banner.working.body" });
   const choosing = bannerFor(
     batch({ issues: [issue(1, "merged")], issuesDone: 1 }),
     facts,

@@ -1638,7 +1638,7 @@ a.bakery-application-rail__link:hover {
   inline-size: 100%;
   max-inline-size: 520px; /* auth.css:10 .settings-content>.form-content */
 }
-/* The batch start page (#58): the form, a 300px summary beside it, the buttons under the form. */
+/* The batch start page (#58): the form (to 620px), a 300px summary beside it, the buttons under the form. */
 .ui-form-with-summary {
   display: grid;
   gap: var(--space-6);
@@ -1672,7 +1672,7 @@ a.bakery-application-rail__link:hover {
     grid-template-areas:
       "form aside"
       "actions aside";
-    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-columns: minmax(0, 620px) 300px;
   }
   .ui-form-with-summary__form {
     grid-area: form;

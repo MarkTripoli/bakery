@@ -5520,8 +5520,6 @@
   "batches.limit.issues": "⟪{max, plural, one {# issue is} other {# issues are}} merged⟫",
   "batches.limit.generic": "⟪A limit is reached⟫",
   "batches.banner.working.title": "⟪Working on #{number}, the {ordinal, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} of up to {max}⟫",
-  "batches.banner.working.body": "⟪Bakery is working on it. Nothing for you to do.⟫",
-  "batches.banner.working.stage": "⟪{stage}⟫",
   "batches.banner.choosing.title": "⟪Choosing the next issue⟫",
   "batches.banner.choosing.body": "⟪Bakery is reading GitHub.⟫",
   "batches.banner.waiting.title": "⟪#{number} is merged. Start the next issue?⟫",
@@ -5648,5 +5646,6 @@
   "batches.start.leave.confirm": "⟪Leave⟫",
   "batches.page.back": "⟪Back to batches⟫",
   "batches.page.notFound": "⟪This batch was not found, or you do not have access to it.⟫",
-  "batches.someone": "⟪Someone⟫"
+  "batches.someone": "⟪Someone⟫",
+  "batches.banner.working.body": "⟪Bakery is working on it. Open the task to see where it is.⟫"
 }
