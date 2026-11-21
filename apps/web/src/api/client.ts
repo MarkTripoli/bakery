@@ -211,6 +211,8 @@ export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
 export type BatchResponse = ClientOutputMap["Batch"];
 export type BatchListResponse = ClientOutputMap["Page<Batch>"];
 export type BatchIssueResponse = BatchResponse["issues"][number];
+export type BatchStartableResponse = ClientOutputMap["BatchStartable"];
+export type BatchStartableIssue = BatchStartableResponse["items"][number];
 export type BatchCreateInput = ClientInputMap["BatchCreate"];
 export type PluginPackageListResponse = ClientOutputMap["Page<PluginPackage>"];
 export type PluginVersionListResponse = ClientOutputMap["Page<PluginVersion>"];
@@ -290,6 +292,9 @@ export type MentionCandidate = MentionCandidatePage["items"][number];
 export type ConversationAccessPage =
   ClientOutputMap["Page<ConversationAccessGrant>"];
 export type ConversationAccessGrant = ConversationAccessPage["items"][number];
+/** Up to three people who may share one conversation, for a writer who may not. */
+export type ConversationSharers = ClientOutputMap["ConversationSharers"];
+export type ConversationSharer = ConversationSharers["items"][number];
 /** Where a mention is being written: a task's conversation, or a document's comment thread. */
 export type MentionSource =
   | { readonly kind: "conversation"; readonly id: string }
@@ -1018,6 +1023,14 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<BatchListResponse>>;
+    /** `GET /v1/batches/startable`: the issues a batch in one repository would take now, and the smallest spend that can start one. */
+    readonly startable: (options: {
+      readonly organizationId: string;
+      readonly repositoryId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchStartableResponse>>;
     /** `GET /v1/batches/{id}`: one batch with the issues it considered. */
     readonly get: (options: {
       readonly organizationId: string;
@@ -2310,6 +2323,12 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<ConversationAccessPage>>;
+  /** Who can give access to a conversation: up to three people, the author first. It grants nothing. */
+  readonly listConversationSharers: (options: {
+    readonly organizationId: string;
+    readonly conversationId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ConversationSharers>>;
   /** Takes one person's mention access back. `version` is the grant's own, sent as If-Match. */
   readonly revokeConversationAccess: (options: {
     readonly organizationId: string;
@@ -2961,6 +2980,17 @@ export function createBakeryApiClient({
           options.organizationId,
           (scoped) =>
             scoped.actions["batches.list"]({
+              repositoryId: options.repositoryId,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      startable(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["batches.startable"]({
               repositoryId: options.repositoryId,
               cursor: options.cursor,
               limit: options.limit,
@@ -5325,6 +5355,21 @@ export function createBakeryApiClient({
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listConversationSharers(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["conversationAccess.sharers"](
+          { id: options.conversationId },
           { signal: options.signal },
         );
         return { ok: true, data };

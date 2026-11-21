@@ -896,6 +896,7 @@ export function createNormalizedCommandMetadata(
   const conditionalPutActions: ReadonlySet<ActionDefinition["name"]> = new Set(
     [
       "backupOffsite.put",
+      "backupPointInTime.put",
       "backupSchedule.put",
       "emailSettings.put",
       "integrationAppRegistrations.put",

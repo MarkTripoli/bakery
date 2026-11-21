@@ -20,6 +20,7 @@ export type CreateRefusal =
   | "alreadyRunning"
   | "notTaking"
   | "notFound"
+  | "spendLow"
   | "notAllowed"
   | "failed";
 
@@ -34,6 +35,9 @@ export function createRefusal(error: unknown): CreateRefusal {
       return "notTaking";
   }
   if (problem.issueCodes?.includes("repository_not_found")) return "notFound";
+  if (problem.issueCodes?.includes("max_spend_below_smallest")) {
+    return "spendLow";
+  }
   return problem.status === 403 || problem.code === "AUTH_FORBIDDEN"
     ? "notAllowed"
     : "failed";
@@ -60,14 +64,16 @@ export const CREATE_REFUSAL_KEY: Record<CreateRefusal, string> = {
   alreadyRunning: "batches.start.error.alreadyRunning",
   notTaking: "batches.start.error.notTaking",
   notFound: "batches.start.error.notFound",
+  spendLow: "batches.start.error.maxSpendLowNoAmount",
   notAllowed: "batches.start.error.forbidden",
   failed: "batches.start.error.failed",
 };
 
-/** Where a start problem is shown: under the Repository field, or in a notice above the buttons. */
+/** Where a start problem is shown: under the Repository or the Spend field, or in a notice above the buttons. */
 export function createRefusalPlace(
   refusal: CreateRefusal,
-): "repository" | "notice" {
+): "repository" | "spend" | "notice" {
+  if (refusal === "spendLow") return "spend";
   return refusal === "notTaking" || refusal === "notFound"
     ? "repository"
     : "notice";

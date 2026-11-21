@@ -120,6 +120,18 @@ capture redis capture_redis
 capture files capture_files
 capture release-journal capture_release
 capture object-references capture_references
+# Restore to any minute: a physical base backup of the whole cluster, which the
+# archived WAL replays forward from. Only when the runner says the switch is on;
+# otherwise the manifest records it as excluded.
+capture_base_backup() {
+  "${compose[@]}" exec -T postgres pg_basebackup -U postgres -h /var/run/postgresql \
+    -D - -F tar -X none --checkpoint=fast |
+    encrypt > "$attempt/base.tar.age" || { rm -f "$attempt/base.tar.age"; return 1; }
+  test -s "$attempt/base.tar.age" || { rm -f "$attempt/base.tar.age"; return 1; }
+}
+if [[ "${BAKERY_POINT_IN_TIME:-}" == 1 ]]; then
+  capture postgres-base-backup capture_base_backup
+fi
 # The counts are read in this shell (a failed capture above does not stop them).
 if ! read_reference_counts; then
   failed+=(--failed "object-references=the reference counts could not be read")

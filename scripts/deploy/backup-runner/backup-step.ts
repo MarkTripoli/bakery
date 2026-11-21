@@ -99,6 +99,8 @@ export type BackupStepOptions = {
    * quiet-moment cutoff exists for (the script then records the host clock).
    */
   readonly cutoff?: Cutoff;
+  /** Restore to any minute is on: the script also takes a base backup. */
+  readonly pointInTime?: boolean;
   /** The script to run; production passes BACKUP_SCRIPT. */
   readonly script: string;
   readonly root: string;
@@ -123,11 +125,14 @@ export async function runBackupScript(
   let child: Deno.ChildProcess;
   try {
     child = new Deno.Command(options.script, {
-      // Merged into the inherited environment: the one added variable is the
-      // cutoff, which is not a secret.
-      env: options.cutoff
-        ? { BAKERY_BACKUP_CUTOFF: JSON.stringify(options.cutoff) }
-        : undefined,
+      // Merged into the inherited environment: the added variables are the
+      // cutoff and the point-in-time switch, neither of them secret.
+      env: {
+        ...(options.cutoff
+          ? { BAKERY_BACKUP_CUTOFF: JSON.stringify(options.cutoff) }
+          : {}),
+        ...(options.pointInTime ? { BAKERY_POINT_IN_TIME: "1" } : {}),
+      },
       stdin: "null",
       stdout: "piped",
       stderr: "piped",

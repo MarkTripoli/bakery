@@ -530,6 +530,7 @@ Deno.test("only the runner credential reads the decrypted settings, and no sessi
       offsiteSecretAccessKey: secretAccessKey,
       offsiteRefusal: null,
       offsiteVersion: 1,
+      pointInTimeEnabled: false,
     });
     // No key material of the backups themselves is part of the answer.
     assert(!JSON.stringify(body).toLowerCase().includes("age1"));

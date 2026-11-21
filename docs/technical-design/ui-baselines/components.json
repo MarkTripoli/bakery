@@ -21203,7 +21203,7 @@
       "requiredCases": [
         {
           "id": "contract",
-          "description": "Exercises AccessOffer for one person, for several people with the line on how to leave someone out, and while sending.",
+          "description": "Exercises AccessOffer for one person, for several people with the line on how to leave someone out, while sending, for a writer who may not share (who can be asked, or could not be read), and after the send with its Undo, in good-news and warning tones.",
           "variants": [
             "default"
           ],

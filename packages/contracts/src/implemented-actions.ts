@@ -418,9 +418,9 @@ export const evaluationImplementedActions = Object.freeze(
 );
 
 /**
- * Ticket source, cached ticket, readiness, link and request operations.
- * Remote ticket creation (`externalTickets.create`) is not part of this
- * group; the runtime registry and this list stay equal at every commit.
+ * Ticket source, cached ticket, readiness, link, request and remote ticket
+ * creation operations. The runtime registry and this list stay equal at every
+ * commit.
  */
 export const TicketImplementedAction = Object.freeze(
   {
@@ -434,6 +434,7 @@ export const TicketImplementedAction = Object.freeze(
     TicketSourcesSync: "ticketSources.sync",
     TicketRoutingRulesGet: "ticketRoutingRules.get",
     TicketRoutingRulesReplace: "ticketRoutingRules.replace",
+    ExternalTicketsCreate: "externalTickets.create",
     ExternalTicketsList: "externalTickets.list",
     ExternalTicketsGet: "externalTickets.get",
     TicketReadinessCreate: "ticketReadiness.create",
@@ -746,6 +747,8 @@ export const BackupImplementedAction = Object.freeze(
     BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
     BackupScheduleGet: "backupSchedule.get",
     BackupSchedulePut: "backupSchedule.put",
+    BackupPointInTimeGet: "backupPointInTime.get",
+    BackupPointInTimePut: "backupPointInTime.put",
     BackupOffsiteGet: "backupOffsite.get",
     BackupOffsitePut: "backupOffsite.put",
     BackupOffsiteVerify: "backupOffsite.verify",

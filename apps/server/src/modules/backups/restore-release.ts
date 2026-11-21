@@ -94,7 +94,45 @@ function takenOf(row: StoredRow): Record<RestoreStep, boolean> {
   };
 }
 
-function view(row: StoredRow): View {
+type Actor = { principalId: string; displayName: string };
+type Actors = Record<RestoreStep, Actor | null>;
+const NO_ACTORS: Actors = { intake: null, dispatch: null, workers: null };
+
+/**
+ * Who took each step, from the step's own audit row (one per step, written in
+ * the step's transaction), with the person's current display name.
+ */
+async function stepActors(
+  transaction: PgTransactionClient,
+  restoreId: string,
+): Promise<Actors> {
+  const result = await transaction.query<
+    { step: string; principalId: string; displayName: string }
+  >(
+    `select e.details ->> 'step' as step, e.principal_id as "principalId",
+            p.display_name as "displayName"
+       from bakery.audit_events e
+       join bakery.principals p on p.id = e.principal_id
+      where e.operation = $1 and e.resource_type = 'installation_restore'
+        and e.resource_id = $2
+      order by e.created_at`,
+    [Action.InstallationRestoreStep, restoreId],
+  );
+  const actors: Actors = { ...NO_ACTORS };
+  for (const row of result.rows) {
+    if (
+      row.step === "intake" || row.step === "dispatch" || row.step === "workers"
+    ) {
+      actors[row.step] ??= {
+        principalId: row.principalId,
+        displayName: row.displayName,
+      };
+    }
+  }
+  return actors;
+}
+
+function view(row: StoredRow, actors: Actors = NO_ACTORS): View {
   return {
     id: row.id,
     backupName: row.backupName,
@@ -105,8 +143,11 @@ function view(row: StoredRow): View {
     jobsAwaitingReconciliation: row.jobsAwaitingReconciliation,
     workersRevoked: row.workersRevoked,
     intakeEnabledAt: iso(row.intakeEnabledAt),
+    intakeEnabledBy: actors.intake,
     dispatchEnabledAt: iso(row.dispatchEnabledAt),
+    dispatchEnabledBy: actors.dispatch,
     workersEnabledAt: iso(row.workersEnabledAt),
+    workersEnabledBy: actors.workers,
     releasedAt: iso(row.releasedAt),
     nextStep: row.releasedAt === null ? nextRestoreStep(takenOf(row)) : null,
   };
@@ -128,11 +169,33 @@ export async function readHeldRestore(
   return row;
 }
 
-/** installationRestore.get */
+/**
+ * installationRestore.get: the most recent restore, held or released, so the
+ * finished page can be opened again as a record. RESTORE_NOT_HELD only when no
+ * restore has ever run.
+ */
 export async function getRestore(
   transaction: PgTransactionClient,
 ): Promise<View> {
-  return view(await readHeldRestore(transaction));
+  const result = await transaction.query<StoredRow>(
+    `select ${COLUMNS} from bakery.installation_restores
+      order by restored_at desc, id limit 1`,
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new StandardError({ code: "RESTORE_NOT_HELD" });
+  return view(row, await stepActors(transaction, row.id));
+}
+
+/** Whether a restore holds the installation now; readable by everyone. */
+export async function restoreHeld(
+  query: Pick<PgTransactionClient, "query">,
+): Promise<boolean> {
+  const result = await query.query<{ held: boolean }>(
+    `select exists (
+       select 1 from bakery.installation_restores where released_at is null
+     ) as held`,
+  );
+  return result.rows[0]?.held === true;
 }
 
 /** installationRestore.step */
@@ -182,5 +245,5 @@ export async function takeRestoreStep(
       released: releasing,
     },
   });
-  return view(result);
+  return view(result, await stepActors(transaction, result.id));
 }

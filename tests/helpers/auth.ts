@@ -140,6 +140,7 @@ export async function openAuthFixture(options: {
   ticketReader?: Parameters<typeof createApp>[0]["ticketReader"];
   ticketFactIndex?: Parameters<typeof createApp>[0]["ticketFactIndex"];
   ticketNoteWriter?: Parameters<typeof createApp>[0]["ticketNoteWriter"];
+  ticketCreator?: Parameters<typeof createApp>[0]["ticketCreator"];
   publicOrigin?: string;
   secret?: string;
   installationPolicy?: InstallationSettingsUpdate;
@@ -278,6 +279,7 @@ export async function openAuthFixture(options: {
       ticketReader: options.ticketReader,
       ticketFactIndex: options.ticketFactIndex,
       ticketNoteWriter: options.ticketNoteWriter,
+      ticketCreator: options.ticketCreator,
       draftIsolation: options.draftIsolation,
       skillFileStore: options.skillFileStore,
       skillSourceAdapter: options.skillSourceAdapter,

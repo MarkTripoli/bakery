@@ -138,6 +138,7 @@ function fakeApi(
     },
     batches: {
       list: rejecting,
+      startable: rejecting,
       get: rejecting,
       create: rejecting,
       control: rejecting,
@@ -351,6 +352,7 @@ function fakeApi(
     listMemoryRevisions: rejecting,
     listMentionCandidates: rejecting,
     listConversationAccess: rejecting,
+    listConversationSharers: rejecting,
     revokeConversationAccess: rejecting,
     listEvaluationBatches: rejecting,
     getEvaluationBatch: rejecting,
