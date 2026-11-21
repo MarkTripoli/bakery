@@ -239,6 +239,91 @@ Deno.test("an edit grant works one document's draft over REST and nothing beyond
       "refused",
     );
 
+    // Frozen references (the draft sent to an agent): the grantee freezes its
+    // own document's draft and reads the reference back; another document's
+    // reference and draft stay shut, and a read_comment grant opens neither.
+    const referenceBody = (draft: DraftView, prepared: typeof preparedA) => ({
+      expectedEpoch: draft.epoch,
+      checkpointId: draft.checkpointId,
+      textDigest: draft.textDigest,
+      threads: [{
+        commentId: prepared.commentId,
+        expectedVersion: prepared.commentVersion,
+      }],
+      mutationId: crypto.randomUUID(),
+    });
+    const draftNow = async (draft: DraftView) =>
+      (await callAs(fixture, owner, `/v1/drafts/${draft.id}`))
+        .json as DraftView;
+    const frozenFromA = await draftNow(draftA);
+    const frozenFromB = await draftNow(draftB);
+    const madeA = await callAs(
+      fixture,
+      editor,
+      `/v1/drafts/${draftA.id}/references`,
+      "POST",
+      referenceBody(frozenFromA, preparedA),
+    );
+    assert(ok(madeA.status), `the grantee freezes its draft: ${madeA.text}`);
+    const referenceA = (madeA.json as { id: string }).id;
+    assert(
+      ok(
+        (await callAs(fixture, editor, `/v1/draft-references/${referenceA}`))
+          .status,
+      ),
+      "the grantee reads back its own document's reference",
+    );
+    const madeB = await callAs(
+      fixture,
+      owner,
+      `/v1/drafts/${draftB.id}/references`,
+      "POST",
+      referenceBody(frozenFromB, preparedB),
+    );
+    assert(
+      ok(madeB.status),
+      `the owner freezes the other draft: ${madeB.text}`,
+    );
+    const referenceB = (madeB.json as { id: string }).id;
+    assert(
+      refused(
+        (await callAs(fixture, editor, `/v1/draft-references/${referenceB}`))
+          .status,
+      ),
+      "the grantee read another document's reference",
+    );
+    assert(
+      refused(
+        (await callAs(
+          fixture,
+          editor,
+          `/v1/drafts/${draftB.id}/references`,
+          "POST",
+          referenceBody(frozenFromB, preparedB),
+        )).status,
+      ),
+      "the grantee froze another document's draft",
+    );
+    assert(
+      refused(
+        (await callAs(
+          fixture,
+          reader,
+          `/v1/drafts/${draftA.id}/references`,
+          "POST",
+          referenceBody(frozenFromA, preparedA),
+        )).status,
+      ),
+      "a read_comment grantee froze the draft",
+    );
+    assert(
+      refused(
+        (await callAs(fixture, reader, `/v1/draft-references/${referenceA}`))
+          .status,
+      ),
+      "a read_comment grantee read a reference",
+    );
+
     // The writes that need more set-up: edit, publish, decide a suggestion, roll over.
     const sliceA = (await sliceOf(editor, draftA)).json as SliceView;
     const currentA = (await callAs(fixture, editor, `/v1/drafts/${draftA.id}`))
