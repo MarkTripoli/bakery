@@ -85,6 +85,7 @@ import {
 import {
   commitDraftEdit,
   commitDraftOpen,
+  commitDraftRollover,
   type DraftEditInput,
   type DraftEditRefusalReason,
   DraftPreparationComplete,
@@ -92,9 +93,11 @@ import {
   type DraftReceipt,
   type PreparedDraftEdit,
   type PreparedDraftOpen,
+  type PreparedDraftRollover,
   type PreparedDraftSlice,
   prepareDraftEdit,
   prepareDraftOpen,
+  prepareDraftRollover,
   prepareDraftSlice,
   readDraft,
   readDraftCheckpoint,
@@ -174,6 +177,7 @@ type DraftExecutionStage = {
   /** The organization preparation authorized: what the worker pool counts. */
   organizationId?: string;
   open?: PreparedDraftOpen;
+  rollover?: PreparedDraftRollover;
   edit?: PreparedDraftEdit;
   slice?: PreparedDraftSlice;
   candidate?: DraftCandidate;
@@ -323,6 +327,7 @@ async function threadProjection(
 
 function isStagedAction(name: string): boolean {
   return name === DraftImplementedAction.Open ||
+    name === DraftImplementedAction.Rollover ||
     name === DraftImplementedAction.Edit ||
     name === DraftImplementedAction.Slice ||
     name === DraftImplementedAction.SuggestionCreate ||
@@ -470,6 +475,12 @@ export function createDraftResourceRoutes(
           if (stage.open) {
             stage.candidate = await isolation.initialize(
               stage.open.text,
+              context.signal,
+              stage.organizationId,
+            );
+          } else if (stage.rollover) {
+            stage.candidate = await isolation.initialize(
+              stage.rollover.text,
               context.signal,
               stage.organizationId,
             );
@@ -666,6 +677,56 @@ export function createDraftResourceRoutes(
             transaction,
             organizationId,
             stage.open,
+            stage.candidate,
+          ),
+        );
+      },
+    })
+    .register({
+      name: DraftImplementedAction.Rollover,
+      method: HttpMethod.Post,
+      path: "/v1/drafts/:id/rollover",
+      input: contractSchemas.DraftRollover,
+      output: contractSchemas.Draft,
+      policy: commandPolicy,
+      naturalIdempotency: true,
+      naturalIdempotencyInputField: "checkpointId",
+      handler: async (context, input) => {
+        const { transaction, organizationId, principalId } =
+          requireWorkTransaction(context);
+        // Closing an epoch decides what becomes of every unsaved edit, so a
+        // person does it; an agent proposes changes and never reconciles them.
+        if (attributeAction(context, principalId).actorKind !== "person") {
+          throw new StandardError({
+            code: "AUTH_FORBIDDEN",
+            params: { reason: "rollover_requires_person" },
+          });
+        }
+        const stage = (context as StagedActionContext)[draftExecutionStage];
+        if (!stage) throw new Error("DRAFT_STAGE_MISSING");
+        if (!stage.candidate) {
+          const prepared = await prepareDraftRollover(
+            transaction,
+            organizationId,
+            draftId(context),
+            input,
+          );
+          if (!("kind" in prepared)) {
+            return withCapabilities(context, prepared);
+          }
+          stage.rollover = prepared;
+          stage.organizationId = organizationId;
+          throw new DraftPreparationComplete();
+        }
+        if (!stage.rollover) {
+          throw new Error("DRAFT_ROLLOVER_PREPARATION_MISSING");
+        }
+        return withCapabilities(
+          context,
+          await commitDraftRollover(
+            transaction,
+            organizationId,
+            stage.rollover,
             stage.candidate,
           ),
         );
@@ -896,6 +957,11 @@ export function createDraftResourceRoutes(
             principalId,
             draftId(context),
             input as DraftSuggestionCreateInput,
+            {
+              attribution: attributeAction(context, principalId),
+              requestId: context.requestId,
+              traceId: context.traceId,
+            },
           );
           if (!("kind" in prepared)) {
             announceSuggestion(context, organizationId, prepared, true);

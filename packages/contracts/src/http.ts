@@ -84,6 +84,10 @@ export const FAULTS = {
   DEPENDENCY_TIMEOUT: [504, true, "dependency-timeout"],
   REVIEWER_UNAVAILABLE: [503, true, "reviewer-unavailable"],
   WORKER_UNAVAILABLE: [503, true, "worker-unavailable"],
+  // The installation is held for a backup snapshot (#64): no new work is
+  // admitted until the lease on the maintenance switch ends. Retry-After says
+  // when to ask again.
+  INSTALLATION_QUIESCED: [503, true, "installation-quiesced"],
   SNAPSHOT_SCOPE_TOO_LARGE: [413, false, "snapshot-scope-too-large"],
   AUTH_INVALID: [401, false, "auth-invalid"],
   AUTH_EXPIRED: [401, false, "auth-expired"],
@@ -159,6 +163,8 @@ export type Problem = {
   reason?: string;
   /** Minimal access-token scope bundles that would allow the refused action. */
   requiredScopes?: readonly string[];
+  /** Whole seconds to wait before asking again, for the codes that say so. */
+  retryAfterSeconds?: number;
 };
 
 export class StandardError extends BakeryException {
@@ -343,6 +349,8 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
     AUTH_FORBIDDEN: new Set([
       "agent_edit_requires_suggestion",
       "suggestion_decision_requires_person",
+      // Closing a draft epoch decides what becomes of unsaved edits (#38).
+      "rollover_requires_person",
       // Coordinator proposals and save as workflow are a person's acts (#420).
       "definition_proposal_decision_requires_person",
       "workflow_listing_requires_person",
@@ -627,6 +635,7 @@ export function toProblem(
     ...(existingResourceId === undefined ? {} : { existingResourceId }),
     ...(requiredScopes === undefined ? {} : { requiredScopes }),
     ...((code === "DEPENDENCY_UNAVAILABLE" ||
+        code === "INSTALLATION_QUIESCED" ||
         code === "PROVIDER_QUOTA_EXCEEDED" || code === "RATE_LIMITED") &&
         typeof rawParams?.retryAfterSeconds === "number" &&
         Number.isInteger(rawParams.retryAfterSeconds) &&
@@ -666,6 +675,12 @@ export function problemResponse(
     Vary: "Accept-Language",
   });
   if (options.allow) headers.set("Allow", options.allow);
+  // The wait the problem body already carries is also the header every client
+  // and proxy understands for a 503 (INSTALLATION_QUIESCED, #64).
+  if (
+    problem.code === "INSTALLATION_QUIESCED" &&
+    typeof problem.retryAfterSeconds === "number"
+  ) headers.set("Retry-After", String(problem.retryAfterSeconds));
   if (problem.code === "INSUFFICIENT_SCOPE") {
     headers.set(
       "WWW-Authenticate",

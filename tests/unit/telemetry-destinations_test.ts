@@ -384,6 +384,20 @@ Deno.test("a destination that never answers fills only its own bounded queue whi
   assert(states.get("b")?.droppedSince !== null);
   // Nothing past the queue bound was ever held for it.
   assert(stuckBatches.every((size) => size <= fast.capacity));
+  // Each loss is kept as a report: how many, when and why, never the records.
+  const reports = fanout.drops("b");
+  assert(reports.length > 0, "the stuck destination has drop reports");
+  assertEquals(
+    reports.map((report) => report.id),
+    reports.map((_, index) => reports[0].id + index),
+  );
+  assert(reports.every((report) => report.count > 0 && report.at > 0));
+  assertEquals(
+    reports.reduce((sum, report) => sum + report.count, 0),
+    states.get("b")?.dropped,
+  );
+  assertEquals(fanout.drops("a"), []);
+  assertEquals(fanout.drops("nobody"), []);
   await fanout.close(0);
 });
 

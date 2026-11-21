@@ -807,7 +807,8 @@
         "PRECONDITION_FAILED",
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "IDEMPOTENCY_IN_FLIGHT"
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INSTALLATION_QUIESCED"
       ]
     },
     {
@@ -2645,7 +2646,8 @@
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "INSTALLATION_QUIESCED"
       ]
     },
     {
@@ -2787,7 +2789,8 @@
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "INSTALLATION_QUIESCED"
       ]
     },
     {
@@ -6178,7 +6181,8 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "INSTALLATION_QUIESCED"
       ]
     },
     {
@@ -6648,7 +6652,8 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
         "DEPENDENCY_UNAVAILABLE",
-        "DEPENDENCY_TIMEOUT"
+        "DEPENDENCY_TIMEOUT",
+        "INSTALLATION_QUIESCED"
       ],
       "organizationContext": "required_authenticated_context"
     },
@@ -9219,6 +9224,29 @@
     },
     {
       "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/runs/{id}/maintenance",
+      "action": "backupRunner.maintain",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupRunMaintenance",
+      "output": "BackupMaintenance",
+      "event": "",
+      "mcp": null,
+      "idempotency": "safe to repeat: the first ask holds the installation, later asks only check the drain",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Backup runner protocol",
       "method": "GET",
       "path": "/v1/backup-runner/settings",
       "action": "backupRunner.settings",
@@ -9243,7 +9271,7 @@
       "action": "telemetryDestinations.list",
       "access": "Installation administrator",
       "permission": "installationSetting:read",
-      "input": "Empty",
+      "input": "TelemetryDestinationListQuery",
       "output": "TelemetryDestinationList",
       "event": "",
       "mcp": null,
@@ -9255,6 +9283,58 @@
         "AUTH_FACTOR_REQUIRED",
         "AUTH_FORBIDDEN",
         "SESSION_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/telemetry-destinations/{id}",
+      "action": "telemetryDestinations.get",
+      "access": "Installation administrator",
+      "permission": "installationSetting:read",
+      "input": "IdPath",
+      "output": "TelemetryDestinationDetail",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/telemetry-destinations/{id}/dropped",
+      "action": "telemetryDestinations.dropped",
+      "access": "Installation administrator",
+      "permission": "installationSetting:read",
+      "input": "TelemetryDestinationDroppedQuery",
+      "output": "TelemetryDestinationDropped",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
         "INTERNAL"
       ],
       "organizationContext": "installation_administrator_scope"
@@ -11932,6 +12012,32 @@
         "UNPROCESSABLE",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Drafts",
+      "method": "POST",
+      "path": "/v1/drafts/{id}/rollover",
+      "action": "drafts.rollover",
+      "access": "Developer",
+      "permission": "draft:write",
+      "input": "DraftRollover",
+      "output": "Draft",
+      "event": "",
+      "mcp": "bakery_drafts_rollover",
+      "idempotency": "Natural idempotency by checkpointId: an exact retry after the roll answers with the draft at its current epoch instead of rolling twice; an optional Idempotency-Key is bound to that checkpoint",
+      "idempotencyKeyOptional": true,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
         "DEPENDENCY_UNAVAILABLE",
         "DEPENDENCY_TIMEOUT"
       ],

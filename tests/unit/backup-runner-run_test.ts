@@ -1,7 +1,9 @@
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import {
   ApiFatal,
+  ApiUnavailable,
   LeaseLost,
+  type Maintenance,
   type ReportBody,
   ReportUndelivered,
   type RunnerApi,
@@ -81,7 +83,26 @@ type Options = {
   offsite?: (settings: RunnerSettings) => Offsite | null;
   upload?: RunnerDeps["upload"];
   prune?: RunnerDeps["prune"];
+  /** Answers each drain check in turn; the last answer repeats. Default: quiet at once. */
+  maintain?: readonly Maintenance[] | (() => Promise<Maintenance>);
+  drainTimeoutMs?: number;
 };
+
+const quiet: Maintenance = {
+  state: "quiesced",
+  runId: "00000000-0000-4000-8000-000000000001",
+  leaseExpiresAt: "2026-11-20T12:05:00.000Z",
+  liveAttempts: 0,
+  openTransactions: 0,
+  retryAfterSeconds: 0,
+};
+const draining = (over: Partial<Maintenance> = {}): Maintenance => ({
+  ...quiet,
+  state: "draining",
+  liveAttempts: 2,
+  retryAfterSeconds: 2,
+  ...over,
+});
 
 function harness(options: Options = {}) {
   const events: string[] = [];
@@ -89,6 +110,8 @@ function harness(options: Options = {}) {
   const logs: string[] = [];
   const sleepers: { ms: number; wake: () => void }[] = [];
   const pruned: (Offsite | null)[] = [];
+  let maintainCalls = 0;
+  let clock = 0;
   const api: RunnerApi = {
     claim: () => {
       events.push("claim");
@@ -99,6 +122,18 @@ function harness(options: Options = {}) {
           leaseToken: LEASE,
           leaseExpiresAt: "2026-11-20T12:05:00.000Z",
         },
+      );
+    },
+    maintain: (runId, leaseToken) => {
+      assertEquals(runId, RUN);
+      assertEquals(leaseToken, LEASE);
+      events.push("maintain");
+      maintainCalls += 1;
+      const script = options.maintain;
+      if (typeof script === "function") return script();
+      const answers = script ?? [quiet];
+      return Promise.resolve(
+        answers[Math.min(maintainCalls - 1, answers.length - 1)],
       );
     },
     settings: () => {
@@ -153,8 +188,24 @@ function harness(options: Options = {}) {
         signal?.addEventListener("abort", () => resolve(), { once: true });
       }),
     log: (line) => logs.push(line),
+    now: () => clock,
+    ...(options.drainTimeoutMs === undefined
+      ? {}
+      : { drainTimeoutMs: options.drainTimeoutMs }),
   };
-  return { deps, events, reports, logs, sleepers, pruned };
+  return {
+    deps,
+    events,
+    reports,
+    logs,
+    sleepers,
+    pruned,
+    /** Moves the test clock forward, as the injected sleep would. */
+    advance: (ms: number) => {
+      clock += ms;
+    },
+    maintainCalls: () => maintainCalls,
+  };
 }
 
 Deno.test("nothing claimed: no settings read, no report, no work", async () => {
@@ -175,6 +226,7 @@ Deno.test("claim comes first and settings are read only after it, the backup bef
   assertEquals(h.events, [
     "claim",
     "report:running", // 0%: marks the run started
+    "maintain", // the installation is held, and already quiet
     "settings",
     "report:running", // 5%
     "backup",
@@ -572,4 +624,120 @@ Deno.test("an unexpected bug is reported as runner_error instead of leaving the 
   });
   const outcome = await runOnce(h.deps);
   assertEquals(outcome, { kind: "failed", runId: RUN, code: "runner_error" });
+});
+
+/** The drain waits only: the heartbeat's own sleep is not one of them. */
+const drainWaits = (h: { sleepers: { ms: number; wake: () => void }[] }) =>
+  h.sleepers.filter((sleeper) => sleeper.ms !== 120_000);
+
+Deno.test("the installation is held and quiet before settings are read or anything is backed up", async () => {
+  const h = harness({
+    maintain: [draining(), draining({ liveAttempts: 1 }), quiet],
+  });
+  const pending = runOnce(h.deps);
+  // Each drain check that is not quiet makes the runner wait, then ask again.
+  await until(() => drainWaits(h).length === 1);
+  assertEquals(h.events.filter((e) => e === "maintain").length, 1);
+  assertEquals(h.events.includes("settings"), false);
+  assertEquals(h.events.includes("backup"), false);
+  drainWaits(h)[0].wake();
+  await until(() => drainWaits(h).length === 2);
+  drainWaits(h)[1].wake();
+  const outcome = await pending;
+  assertEquals(outcome.kind, "completed");
+  assertEquals(h.maintainCalls(), 3);
+  // Nothing after the drain started until the third answer said quiesced.
+  const maintainAt = h.events.lastIndexOf("maintain");
+  assert(h.events.indexOf("settings") > maintainAt);
+  assert(h.events.indexOf("backup") > maintainAt);
+  // The waits follow the server's own hint, within bounds.
+  assertEquals(drainWaits(h)[0].ms, 2000);
+});
+
+Deno.test("a drain that never finishes fails the run with drain_timeout and takes no backup", async () => {
+  const h = harness({
+    maintain: [draining({ liveAttempts: 3, openTransactions: 1 })],
+    drainTimeoutMs: 60_000,
+  });
+  const pending = runOnce(h.deps);
+  await until(() => drainWaits(h).length === 1);
+  // The clock passes the window while the runner sleeps between two checks.
+  h.advance(61_000);
+  drainWaits(h)[0].wake();
+  const outcome = await pending;
+  assertEquals(outcome, {
+    kind: "failed",
+    runId: RUN,
+    code: "drain_timeout",
+  });
+  const last = h.reports.at(-1)!;
+  assertEquals(last.body.status, "failed");
+  assertEquals(last.body.failureCode, "drain_timeout");
+  // The cause names what was still in flight, so the operator knows what to look at.
+  assertStringIncludes(last.body.failureDetail ?? "", "3 worker attempts");
+  assertStringIncludes(last.body.failureDetail ?? "", "1 open transactions");
+  assertStringIncludes(last.body.failureDetail ?? "", "No backup was taken");
+  // No settings were read (no credentials released), nothing was backed up
+  // or uploaded; the failed report is what lets the installation go.
+  for (const never of ["settings", "backup", "upload", "prune"]) {
+    assertEquals(h.events.includes(never), false, never);
+  }
+});
+
+Deno.test("a server that cannot be reached for a moment is asked again inside the window", async () => {
+  let calls = 0;
+  const h = harness({
+    maintain: () => {
+      calls += 1;
+      return calls === 1
+        ? Promise.reject(new ApiUnavailable("status 503"))
+        : Promise.resolve(quiet);
+    },
+  });
+  const pending = runOnce(h.deps);
+  await until(() => drainWaits(h).length === 1);
+  assertEquals(drainWaits(h)[0].ms, 5000);
+  drainWaits(h)[0].wake();
+  const outcome = await pending;
+  assertEquals(outcome.kind, "completed");
+  assertEquals(calls, 2);
+});
+
+Deno.test("a server that stays unreachable past the window ends the run as runner_error", async () => {
+  const h = harness({
+    maintain: () => Promise.reject(new ApiUnavailable("status 503")),
+    drainTimeoutMs: 30_000,
+  });
+  const pending = runOnce(h.deps);
+  await until(() => drainWaits(h).length === 1);
+  h.advance(31_000);
+  drainWaits(h)[0].wake();
+  const outcome = await pending;
+  assertEquals(outcome.kind, "failed");
+  assertEquals(h.reports.at(-1)!.body.failureCode, "runner_error");
+  assertEquals(h.events.includes("backup"), false);
+});
+
+Deno.test("a refusal to hold the installation (another run holds it) ends the run as runner_error", async () => {
+  const h = harness({
+    maintain: () => Promise.reject(new ApiFatal(409, "maintenance_held")),
+  });
+  const outcome = await runOnce(h.deps);
+  assertEquals(outcome, { kind: "failed", runId: RUN, code: "runner_error" });
+  assertStringIncludes(
+    h.reports.at(-1)!.body.failureDetail ?? "",
+    "could not hold the installation",
+  );
+  assertEquals(h.events.includes("backup"), false);
+});
+
+Deno.test("a lost claim while holding stops the run without a terminal report", async () => {
+  const h = harness({
+    maintain: () => Promise.reject(new LeaseLost("lease_expired")),
+  });
+  const outcome = await runOnce(h.deps);
+  assertEquals(outcome.kind, "lease-lost");
+  // The claim is gone, so no report can be taken; the hold lapses with it.
+  assertEquals(h.reports.map((r) => r.body.status), ["running"]);
+  assertEquals(h.events.includes("backup"), false);
 });
