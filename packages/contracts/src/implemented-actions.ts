@@ -29,6 +29,7 @@ export const AuthImplementedAction = Object.freeze(
     BrowserSessionsList: "browserSessions.list",
     BrowserSessionsRevoke: "browserSessions.revoke",
     BrowserSessionsRevokeOthers: "browserSessions.revokeOthers",
+    BrowserSessionsRevokeCurrent: "browserSessions.revokeCurrent",
     ConnectedClientsList: "connectedClients.list",
     ConnectedClientsRevoke: "connectedClients.revoke",
     ProfileGet: "profile.get",
