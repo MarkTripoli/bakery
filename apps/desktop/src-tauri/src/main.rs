@@ -183,6 +183,7 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             get_view,
             press_button,
