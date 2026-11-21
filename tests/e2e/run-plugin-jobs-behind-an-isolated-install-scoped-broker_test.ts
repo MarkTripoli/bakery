@@ -42,11 +42,34 @@ async function dockerReady(): Promise<boolean> {
   }
 }
 const ready = await dockerReady();
+// Every directory a test makes, removed when that test ends, so a self-hosted
+// runner does not collect one per job.
+const tempDirs: string[] = [];
+async function makeTemp(prefix: string): Promise<string> {
+  const dir = await Deno.makeTempDir({ prefix });
+  tempDirs.push(dir);
+  return dir;
+}
+async function removeTemps(): Promise<void> {
+  for (const dir of tempDirs.splice(0)) {
+    await Deno.remove(dir, { recursive: true }).catch(() => undefined);
+  }
+}
 const dockerTest = (name: string, fn: () => Promise<void>) =>
-  Deno.test({ name, ignore: !ready, fn });
+  Deno.test({
+    name,
+    ignore: !ready,
+    fn: async () => {
+      try {
+        await fn();
+      } finally {
+        await removeTemps();
+      }
+    },
+  });
 
 async function job(script: string): Promise<string> {
-  const dir = await Deno.makeTempDir({ prefix: "plugin-job-" });
+  const dir = await makeTemp("plugin-job-");
   await Deno.writeTextFile(`${dir}/main.sh`, script);
   // A bind mount keeps host permissions, and the job runs as an unprivileged
   // user, so the code directory has to be readable by it.
@@ -289,7 +312,8 @@ dockerTest(
 );
 
 async function inspectWhileRunning(name: string) {
-  for (let waited = 0; waited < 40; waited++) {
+  // Twenty seconds: under load Docker takes several seconds to start one.
+  for (let waited = 0; waited < 200; waited++) {
     const out = await new Deno.Command("docker", {
       args: ["ps", "-q", "--filter", `name=${name}`],
       stdout: "piped",
@@ -575,7 +599,7 @@ dockerTest(
   async () => {
     // A `docker` that is slow to create, and whose run outlives its client the
     // way a daemon's in-flight create does.
-    const dir = await Deno.makeTempDir({ prefix: "slow-docker-" });
+    const dir = await makeTemp("slow-docker-");
     const wrapper = `${dir}/docker`;
     await Deno.writeTextFile(
       wrapper,
