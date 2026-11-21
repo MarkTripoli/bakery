@@ -118,7 +118,9 @@ async function open(page: Page, state: World = world()) {
       if (route.request().method() !== "POST") {
         return route.fulfill(json({ items: state.grants, nextCursor: null }));
       }
-      // Granting again at another level changes the grant, as the server does.
+      // Granting again at another level changes the grant, as the server does:
+      // the grant keeps the comment that gave the access (the integration test
+      // artifact-access-grants_test.ts proves it on the real action).
       const body = route.request().postDataJSON() as {
         principalId: string;
         level: string;
@@ -586,6 +588,8 @@ test("People added: each person's access can be changed, and a change is said pl
     level: "edit",
   }]);
   await expect(level).toHaveValue("edit");
+  // A level change keeps the comment that gave the access: Samir stays listed.
+  await expect(dialog.getByText("Samir Okafor", { exact: true })).toBeVisible();
   await page.mouse.move(700, 100);
   await still(page, "comment-mentions-added-edit");
   // Changing it back lowers the level again, through the same call.
@@ -599,6 +603,7 @@ test("People added: each person's access can be changed, and a change is said pl
     principalId: SAMIR,
     level: "read_comment",
   });
+  await expect(dialog.getByText("Samir Okafor", { exact: true })).toBeVisible();
 });
 
 test("the People added link is for someone who may share the document", async ({ page }) => {
