@@ -28,6 +28,7 @@ import {
   recordAuthAudit,
 } from "../../../application/audit.ts";
 import { normalizeLocaleTag } from "../../../application/preferences.ts";
+import { createDesktopHandoff } from "../../../adapters/desktop-handoff-postgres.ts";
 import type { PostgresOrganizationStore } from "../../../adapters/organization-postgres.ts";
 import {
   listConnectedClientGrants,
@@ -645,6 +646,25 @@ export async function browserSessionsRevoke(context: ActionContext) {
     details: { current: id === context.sessionId },
   });
   return { revoked: true, current: id === context.sessionId };
+}
+
+/**
+ * `desktopHandoffs.create`: a one-use code that opens a browser session for
+ * the desktop window. Only the desktop app's own sign-in may ask.
+ */
+export async function desktopHandoffsCreate(
+  context: ActionContext,
+  input: z.output<typeof contractSchemas.DesktopHandoffCreate>,
+) {
+  const authorized = requireAuthorizedContext(context);
+  return await createDesktopHandoff(
+    authorized.transaction,
+    { sessionId: context.sessionId, returnTo: input.returnTo },
+    {
+      principalId: authorized.principal.principalId,
+      correlation: authorized,
+    },
+  );
 }
 
 export async function browserSessionsRevokeOthers(context: ActionContext) {

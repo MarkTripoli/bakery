@@ -4395,6 +4395,31 @@
       ]
     },
     {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-handoffs",
+      "action": "desktopHandoffs.create",
+      "access": "Authenticated",
+      "permission": "browserSession:write",
+      "input": "DesktopHandoffCreate",
+      "output": "DesktopHandoff",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; every call issues a new 30-second one-use code",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "UNPROCESSABLE",
+        "VALIDATION_FAILED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "authenticated_principal_scope"
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/installation/audit-events",
