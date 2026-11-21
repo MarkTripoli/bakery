@@ -25,6 +25,7 @@ import {
 } from "../../apps/worker/src/config.ts";
 import { WorkerSupervisor } from "../../apps/worker/src/supervisor.ts";
 import { READINESS_REFRESH_MS } from "../../apps/worker/src/supervisor-readiness.ts";
+import { MACHINE_CHECK_IDS } from "../../apps/worker/src/machine-checks.ts";
 import type { WorkerInventoryCheck } from "../../apps/worker/src/types.ts";
 import {
   fastSleep,
@@ -36,6 +37,13 @@ import {
 } from "../helpers/worker-execution/recovery-support.ts";
 
 const NO_SANITIZE = { sanitizeResources: false, sanitizeOps: false } as const;
+
+/** The capability checks of a report: the machine checks travel beside them (#70). */
+function capabilityChecks(
+  checks: readonly WorkerInventoryCheck[],
+): WorkerInventoryCheck[] {
+  return checks.filter((c) => c.checkId.startsWith("capability:"));
+}
 
 async function withDirectory<T>(
   work: (directory: string) => Promise<T>,
@@ -358,12 +366,19 @@ Deno.test({
         stopWhen: (state) => state.claims.length >= 1,
       });
       assertEquals(harness.claims[0].capabilities, ["shell"]);
-      // Only checks for configured capabilities are reported.
+      // Only checks for configured capabilities are reported, beside the five
+      // machine checks the server requires.
+      const reportedChecks = harness.reports[0]
+        .checks as WorkerInventoryCheck[];
       assertEquals(
-        (harness.reports[0].checks as WorkerInventoryCheck[]).map((c) =>
-          c.checkId
-        ),
+        capabilityChecks(reportedChecks).map((c) => c.checkId),
         ["capability:model"],
+      );
+      assertEquals(
+        reportedChecks.map((c) => c.checkId).filter((id) =>
+          !id.startsWith("capability:")
+        ),
+        [...MACHINE_CHECK_IDS],
       );
     }),
 });
@@ -406,7 +421,7 @@ Deno.test({
       const revisions = harness.reports.map((r) => r.expectedInventoryRevision);
       assertEquals(revisions, [2, 2, 2, 3]);
       const statuses = harness.reports.map((r) =>
-        (r.checks as WorkerInventoryCheck[])[0].status
+        capabilityChecks(r.checks as WorkerInventoryCheck[])[0].status
       );
       assertEquals(statuses, ["pass", "pass", "fail", "fail"]);
     }),
@@ -472,7 +487,9 @@ Deno.test({
         capabilities: ["git", "model"],
         stopWhen: (state) => state.claims.length >= 1,
       });
-      const reported = harness.reports[0].checks as WorkerInventoryCheck[];
+      const reported = capabilityChecks(
+        harness.reports[0].checks as WorkerInventoryCheck[],
+      );
       assertEquals(reported.length, 1);
       assertEquals(reported[0].checkId, "capability:git");
       assertEquals(reported[0].status, "fail");
@@ -538,7 +555,7 @@ Deno.test({
       ["model", "reviewer"],
       { credentials: true, cli: true },
     );
-    assertEquals(reported.map((c) => [c.checkId, c.status]), [
+    assertEquals(capabilityChecks(reported).map((c) => [c.checkId, c.status]), [
       ["capability:reviewer", "pass"],
     ]);
     assertEquals(claimed, ["model", "reviewer"]);
@@ -560,9 +577,10 @@ Deno.test({
         ["model", "reviewer"],
         options,
       );
-      assertEquals(reported[0].checkId, "capability:reviewer");
-      assertEquals(reported[0].status, "fail");
-      assertFalse((reported[0].reason ?? "").includes("/"));
+      const [reviewer] = capabilityChecks(reported);
+      assertEquals(reviewer.checkId, "capability:reviewer");
+      assertEquals(reviewer.status, "fail");
+      assertFalse((reviewer.reason ?? "").includes("/"));
       assertEquals(claimed, ["model"]);
     }
   },
