@@ -19,16 +19,22 @@ import {
   batchStateOf,
   compareBatches,
   compatibility,
+  corpusReport,
   emptyCounts,
   type GateBlocker,
   type GateRule,
   isMeasured,
   judgeGateCounts,
+  optionalScorerProblem,
+  pinSpec,
+  type ReportFact,
   RESULT_STATES,
   type ResultFact,
   type ResultState,
   ResultState as State,
+  resultStateOfAttempt,
   type Role,
+  validatePin,
 } from "./domain.ts";
 
 /** The most result rows one batch may admit. */
@@ -399,6 +405,8 @@ type ScorerPin = {
   slug: string;
   scorerRevision: number;
   evaluatorType: string;
+  /** False for an optional (sampled) model scorer; absent on a batch admitted before it existed. */
+  required?: boolean;
 };
 
 type BatchRow = {
@@ -454,6 +462,7 @@ export type BatchCreate = {
   candidate: unknown;
   baseline?: unknown;
   scorerIds: string[];
+  optionalScorerIds?: string[];
   requireAllPassed?: boolean;
   minPassRate?: number;
   repetitions?: number;
@@ -467,6 +476,16 @@ export type BatchCreate = {
 export async function createBatch(context: ActionContext, input: BatchCreate) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
+  // A pin names one exact version, so a repeated run measures the same thing.
+  const pins = [["candidate", input.candidate], [
+    "baseline",
+    input.baseline,
+  ]] as const;
+  for (const [field, pin] of pins) {
+    if (field === "baseline" && (pin === undefined || pin === null)) continue;
+    const checked = validatePin(pin);
+    if (!checked.ok) unprocessable(field, checked.reason);
+  }
   const dataset = await tx.query<DatasetRow>(
     "select * from bakery.evaluation_datasets where organization_id = $1 and id = $2",
     [organizationId, input.datasetId],
@@ -491,12 +510,22 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
   if (scorerRows.rows.some((s) => !s.enabled)) {
     unprocessable("scorerIds", "scorer_disabled");
   }
+  const optionalIds = input.optionalScorerIds ?? [];
+  const problem = optionalScorerProblem(
+    scorerRows.rows.map((s) => ({
+      scorerId: s.id,
+      evaluatorType: s.evaluator_type,
+    })),
+    optionalIds,
+  );
+  if (problem !== null) unprocessable(problem.field, problem.reason);
   const scorers: ScorerPin[] = scorerRows.rows
     .map((s) => ({
       scorerId: s.id,
       slug: s.slug,
       scorerRevision: Number(s.revision),
       evaluatorType: s.evaluator_type,
+      required: !optionalIds.includes(s.id),
     }))
     .sort((a, b) =>
       (a.evaluatorType === "deterministic" ? 0 : 1) -
@@ -541,11 +570,12 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
   await tx.query(
     `insert into bakery.evaluation_results (organization_id, batch_id, role,
        case_id, case_revision, ordinal, scorer_id, scorer_revision, repetition,
-       state, reason)
+       state, reason, required)
      select $1, $2, role, (c.value->>'caseId')::uuid,
             (c.value->>'caseRevision')::integer, c.ordinality::integer,
             (s.value->>'scorerId')::uuid, (s.value->>'scorerRevision')::integer,
-            rep, 'missing', 'Not run yet.'
+            rep, 'missing', 'Not run yet.',
+            coalesce((s.value->>'required')::boolean, true)
        from jsonb_array_elements($3::jsonb) with ordinality as c
        cross join jsonb_array_elements($4::jsonb) as s
        cross join unnest($5::text[]) as role
@@ -618,6 +648,49 @@ async function viewOf(
     "select name from bakery.evaluation_datasets where organization_id = $1 and id = $2",
     [organizationId, row.dataset_id],
   );
+  // The corpus report: each candidate result's history, grouped, so a batch of
+  // thousands is one read. A result is interrupted if any attempt at it was.
+  const history = await tx.query<
+    {
+      required: boolean;
+      state: ResultState;
+      attempted: boolean;
+      interrupted: boolean;
+      n: string;
+    }
+  >(
+    `select r.required, r.state, r.attempt_count > 0 as attempted,
+            exists (select 1 from bakery.evaluation_attempts a
+                     where a.organization_id = r.organization_id
+                       and a.result_id = r.id and a.state = 'interrupted') as interrupted,
+            count(*)::text as n
+       from bakery.evaluation_results r
+      where r.organization_id = $1 and r.batch_id = $2 and r.role = 'candidate'
+      group by 1, 2, 3, 4`,
+    [organizationId, row.id],
+  );
+  const factsOf = (required: boolean): ReportFact[] =>
+    history.rows.filter((h) => h.required === required).map((h) => ({
+      state: h.state,
+      attempts: h.attempted ? 1 : 0,
+      interrupted: h.interrupted,
+      count: Number(h.n),
+    }));
+  const optionalFacts = factsOf(false);
+  const scorers = row.scorers.map((s) => ({
+    ...s,
+    required: s.required ?? true,
+  }));
+  const repetitions = Number(
+    (row.limits as { repetitions?: unknown } | null)?.repetitions ?? 1,
+  );
+  const pinDigest = await sha256(canonical(pinSpec({
+    datasetDigest: row.dataset_digest,
+    candidate: row.candidate,
+    baseline: row.baseline,
+    scorers,
+    repetitions,
+  })));
   return {
     id: row.id,
     datasetId: row.dataset_id,
@@ -629,11 +702,16 @@ async function viewOf(
     baselineDefinition: row.baseline === null
       ? null
       : await pinDefinition(tx, organizationId, row.baseline),
-    scorers: row.scorers,
+    scorers,
+    pinDigest,
     state,
     requiredCount: required,
     measuredCount: counts.passed + counts.failed,
     counts,
+    report: corpusReport(factsOf(true)),
+    optionalReport: optionalFacts.length === 0
+      ? null
+      : corpusReport(optionalFacts),
     gate: judgeGateCounts(
       { required, counts, blockers: blockers.rows },
       row.gate_rule,
@@ -848,7 +926,7 @@ type AttemptRow = {
   id: string;
   result_id: string;
   attempt_no: number;
-  state: ResultState;
+  state: ResultState | "interrupted";
   reason: string | null;
   score: string | null;
   started_at: Date | null;
@@ -915,7 +993,8 @@ export function createAttemptLister(secret: string) {
 
 export type AttemptRecord = Readonly<{
   deliveryKey: string;
-  state: Exclude<ResultState, "missing">;
+  /** "interrupted": the attempt ended before it measured anything; its result is an error with the reason. */
+  state: Exclude<ResultState, "missing"> | "interrupted";
   reason: string | null;
   score: number | null;
   startedAt: Date | null;
@@ -938,7 +1017,7 @@ export async function recordAttempt(
   resultId: string,
   attempt: AttemptRecord,
 ): Promise<"recorded" | "duplicate" | "canceled"> {
-  const measured = isMeasured(attempt.state);
+  const measured = attempt.state !== "interrupted" && isMeasured(attempt.state);
   if (measured !== (attempt.score !== null)) {
     unprocessable("score", measured ? "score_required" : "score_not_allowed");
   }
@@ -1003,7 +1082,7 @@ export async function recordAttempt(
     [
       organizationId,
       resultId,
-      attempt.state,
+      resultStateOfAttempt(attempt.state),
       attempt.reason,
       attempt.score,
       attempt.outputArtifactVersionId ?? null,

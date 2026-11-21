@@ -13947,7 +13947,7 @@ const transportSchemas = {
           "name": "candidate",
           "type": "json",
           "required": true,
-          "description": "What is measured: a pin naming the workflow or agent and its exact version, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}.",
+          "description": "What is measured: a pin naming one exact version as {kind, id, version}, where kind is agentVersion, workflowVersion, skillVersion, profileVersion or artifactVersion, id is the uuid and version is a whole number from 1, for example {\"kind\":\"agentVersion\",\"id\":\"…\",\"version\":3}. Any other shape is refused.",
           "bounds": {
             "maxBytes": 4000
           }
@@ -13956,7 +13956,7 @@ const transportSchemas = {
           "name": "baseline",
           "type": "json",
           "required": false,
-          "description": "Optional pin of what the candidate is compared with, in the same shape.",
+          "description": "Optional pin of what the candidate is compared with, in the same {kind, id, version} shape.",
           "bounds": {
             "maxBytes": 4000
           }
@@ -13968,6 +13968,15 @@ const transportSchemas = {
           "description": "Scorer revisions applied to every case; deterministic checks run before model scorers.",
           "bounds": {
             "minItems": 1,
+            "maxItems": 50
+          }
+        },
+        {
+          "name": "optionalScorerIds",
+          "type": "uuid[]",
+          "required": false,
+          "description": "Which of scorerIds are optional (sampled) model scorers: their results are reported apart and do not count toward the gate. A deterministic check cannot be optional, and a required check is never sampled away.",
+          "bounds": {
             "maxItems": 50
           }
         },
@@ -35530,20 +35539,70 @@ const transportSchemas = {
         "scorerId",
         "slug",
         "scorerRevision",
-        "evaluatorType"
+        "evaluatorType",
+        "required"
       ],
       "fieldTypes": {
         "scorerId": "uuid",
         "slug": "string",
         "scorerRevision": "integer",
-        "evaluatorType": "enum(deterministic|model)"
+        "evaluatorType": "enum(deterministic|model)",
+        "required": "boolean"
       },
       "description": "One scorer revision a batch pinned.",
       "fieldDescriptions": {
         "scorerId": "The scorer definition, for linking to it.",
         "slug": "Its name.",
         "scorerRevision": "Its revision.",
-        "evaluatorType": "Deterministic check or model rubric."
+        "evaluatorType": "Deterministic check or model rubric.",
+        "required": "True when the gate needs its results; false for an optional (sampled) model scorer, whose results are reported apart and never count toward the gate. A deterministic check is always required."
+      }
+    },
+    "EvaluationCorpusReport": {
+      "fields": [
+        "total",
+        "attempted",
+        "passed",
+        "failed",
+        "unknown",
+        "unrun",
+        "interrupted",
+        "recovered",
+        "passedOfAttempted",
+        "failedOfAttempted",
+        "recoveredOfInterrupted"
+      ],
+      "fieldTypes": {
+        "total": "integer",
+        "attempted": "integer",
+        "passed": "integer",
+        "failed": "integer",
+        "unknown": "integer",
+        "unrun": "integer",
+        "interrupted": "integer",
+        "recovered": "integer",
+        "passedOfAttempted": "number|null",
+        "failedOfAttempted": "number|null",
+        "recoveredOfInterrupted": "number|null"
+      },
+      "nullableFields": [
+        "passedOfAttempted",
+        "failedOfAttempted",
+        "recoveredOfInterrupted"
+      ],
+      "description": "The offline corpus report over a set of candidate results. Unknown and unrun stay apart from failed, and a share with nothing to divide is null, never zero.",
+      "fieldDescriptions": {
+        "total": "Results in the set.",
+        "attempted": "Results with at least one attempt.",
+        "passed": "Attempted, and the latest attempt measured a pass.",
+        "failed": "Attempted, and the latest attempt measured a fail.",
+        "unknown": "Attempted, but the latest attempt measured nothing, so the outcome is not known.",
+        "unrun": "Never attempted: neither a pass nor a failure.",
+        "interrupted": "Results with at least one attempt that was interrupted before it measured anything.",
+        "recovered": "Of those, results whose latest attempt measured a pass or a fail.",
+        "passedOfAttempted": "passed divided by attempted; null when nothing was attempted.",
+        "failedOfAttempted": "failed divided by attempted; null when nothing was attempted.",
+        "recoveredOfInterrupted": "recovered divided by interrupted; null when nothing was interrupted."
       }
     },
     "EvaluationStateCounts": {
@@ -35641,10 +35700,13 @@ const transportSchemas = {
         "baseline",
         "baselineDefinition",
         "scorers",
+        "pinDigest",
         "state",
         "requiredCount",
         "measuredCount",
         "counts",
+        "report",
+        "optionalReport",
         "gate",
         "hiddenCount",
         "canceledAt",
@@ -35664,10 +35726,13 @@ const transportSchemas = {
         "baseline": "json|null",
         "baselineDefinition": "EvaluationPinDefinition|null",
         "scorers": "EvaluationScorerPin[]",
+        "pinDigest": "string",
         "state": "enum(queued|running|completed|completed_with_errors|canceled|failed)",
         "requiredCount": "integer",
         "measuredCount": "integer",
         "counts": "EvaluationStateCounts",
+        "report": "EvaluationCorpusReport",
+        "optionalReport": "EvaluationCorpusReport|null",
         "gate": "EvaluationGate",
         "hiddenCount": "integer",
         "canceledAt": "timestamp|null",
@@ -35681,6 +35746,7 @@ const transportSchemas = {
         "candidateDefinition",
         "baseline",
         "baselineDefinition",
+        "optionalReport",
         "canceledAt",
         "canceledBy",
         "completedAt"
@@ -35695,11 +35761,14 @@ const transportSchemas = {
         "candidateDefinition": "The definition the candidate pin names and its current name, for display; null when the pin names no definition.",
         "baseline": "What it is compared with, as pinned; null without a baseline.",
         "baselineDefinition": "The definition the baseline pin names and its current name, for display; null without a baseline or when the pin names no definition.",
-        "scorers": "The scorer revisions pinned.",
+        "scorers": "The scorer revisions pinned, each with whether the gate requires it.",
+        "pinDigest": "A SHA-256 over what the batch measures: the dataset revision, both pins, the scorer revisions with whether each is required, and the repetitions. Two batches with the same digest measured the same thing, so a repeated deterministic run is comparable at a glance. The budget is not part of it.",
         "state": "queued, running, completed, completed_with_errors (some required results unmeasured), canceled or failed.",
         "requiredCount": "Required candidate results.",
         "measuredCount": "Of those, how many were measured (passed or failed).",
         "counts": "Required candidate results per state.",
+        "report": "The offline corpus report over the required candidate results: how many were attempted, passed, failed, unknown and unrun, how many were interrupted and recovered, and the shares of those.",
+        "optionalReport": "The same report over the optional (sampled) model results, kept apart so an opinion never mixes into the required numbers; null when the batch has no optional scorer.",
         "gate": "The gate's answer.",
         "hiddenCount": "Results the reader may not open; 0, since readers see the organization's evaluations.",
         "canceledAt": "When it was canceled.",
@@ -35797,7 +35866,7 @@ const transportSchemas = {
         "id": "uuid",
         "resultId": "uuid",
         "attemptNo": "integer",
-        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing)",
+        "state": "enum(passed|failed|error|unscored|canceled|skipped|missing|interrupted)",
         "reason": "string|null",
         "score": "number|null",
         "startedAt": "timestamp|null",
@@ -35817,7 +35886,7 @@ const transportSchemas = {
         "id": "Attempt id.",
         "resultId": "Its result.",
         "attemptNo": "Order, from 1.",
-        "state": "The attempt's outcome state.",
+        "state": "The attempt's outcome state. interrupted means it ended before it measured anything; its result then reads error with the reason, and a later measured attempt counts it as recovered.",
         "reason": "Why, as a sentence; null when passed.",
         "score": "Its measurement; null unless passed or failed.",
         "startedAt": "When it started.",

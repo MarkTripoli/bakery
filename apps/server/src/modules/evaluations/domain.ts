@@ -468,6 +468,8 @@ export type ReportFact = Readonly<{
   attempts: number;
   /** At least one attempt at it was interrupted before it measured anything. */
   interrupted: boolean;
+  /** How many results share this history; 1 when absent. */
+  count?: number;
 }>;
 
 export type CorpusReport = Readonly<{
@@ -496,26 +498,29 @@ export type CorpusReport = Readonly<{
 export function corpusReport(facts: readonly ReportFact[]): CorpusReport {
   let attempted = 0, passed = 0, failed = 0, unknown = 0;
   let interrupted = 0, recovered = 0;
+  let total = 0;
   for (const f of facts) {
+    const n = f.count ?? 1;
+    total += n;
     if (f.attempts > 0) {
-      attempted += 1;
-      if (f.state === ResultState.Passed) passed += 1;
-      else if (f.state === ResultState.Failed) failed += 1;
-      else unknown += 1;
+      attempted += n;
+      if (f.state === ResultState.Passed) passed += n;
+      else if (f.state === ResultState.Failed) failed += n;
+      else unknown += n;
     }
     if (f.interrupted) {
-      interrupted += 1;
-      if (isMeasured(f.state)) recovered += 1;
+      interrupted += n;
+      if (isMeasured(f.state)) recovered += n;
     }
   }
   const share = (n: number, of: number) => of === 0 ? null : n / of;
   return {
-    total: facts.length,
+    total,
     attempted,
     passed,
     failed,
     unknown,
-    unrun: facts.length - attempted,
+    unrun: total - attempted,
     interrupted,
     recovered,
     passedOfAttempted: share(passed, attempted),

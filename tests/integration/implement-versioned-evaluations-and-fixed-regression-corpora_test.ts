@@ -1,0 +1,366 @@
+/**
+ * #41 against Postgres and the real routes. AC1: a batch pins exact versions,
+ * so the same pins give the same digest and a loose pin is refused. AC2: an
+ * optional model scorer that never ran neither blocks the release gate nor
+ * stands in for a required check, and a deterministic check cannot be made
+ * optional. AC3: the corpus report keeps unknown and unrun apart from zero, a
+ * duplicate completion is one attempt, and an interrupted result that recovers
+ * is counted once.
+ */
+
+import { assertEquals } from "@std/assert";
+import { withPgTransaction } from "@bakery/persistence/postgres";
+import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
+import { seedEligibleJob } from "../helpers/worker-execution.ts";
+import { recordAttempt } from "../../apps/server/src/modules/evaluations/store.ts";
+
+type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
+type Json = Record<string, unknown>;
+
+function call(
+  fixture: Fixture,
+  method: string,
+  path: string,
+  options: { body?: unknown; ifMatch?: number; organizationId?: string } = {},
+): Promise<Response> {
+  return Promise.resolve(fixture.app.fetch(
+    new Request(fixture.config.publicBaseUrl + path, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Origin: fixture.config.publicBaseUrl,
+        "Bakery-Organization-Id": options.organizationId ??
+          fixture.organizationId,
+        Cookie: fixture.adminCookie,
+        ...(method === "GET" ? {} : { "Idempotency-Key": crypto.randomUUID() }),
+        ...(options.ifMatch === undefined
+          ? {}
+          : { "If-Match": '"' + options.ifMatch + '"' }),
+      },
+      ...(options.body === undefined
+        ? {}
+        : { body: JSON.stringify(options.body) }),
+    }),
+  ));
+}
+
+async function ok(response: Response, status = 200): Promise<Json> {
+  const text = await response.text();
+  assertEquals(response.status, status, text);
+  return JSON.parse(text) as Json;
+}
+
+/** A repository, an input artifact version, two cases, a dataset, two scorers. */
+async function world(fixture: Fixture) {
+  const db = fixture.pgDatabase;
+  const job = await seedEligibleJob(
+    db,
+    fixture.organizationId,
+    fixture.principalId,
+  );
+  const repositoryId = crypto.randomUUID();
+  await db.query(
+    `insert into bakery.repositories (id, organization_id, application_id,
+       integration_connection_id, provider_repo_id, owner, name, default_branch)
+     values ($1, $2, $3, $4, 'eval-44', 'acme', 'evals', 'main')`,
+    [
+      repositoryId,
+      fixture.organizationId,
+      job.applicationId,
+      crypto.randomUUID(),
+    ],
+  );
+  const artifactId = crypto.randomUUID();
+  const versionId = crypto.randomUUID();
+  await db.query(
+    "insert into bakery.artifacts (id,organization_id,task_id,artifact_type,name) values ($1,$2,$3,'document','input')",
+    [artifactId, fixture.organizationId, job.taskId],
+  );
+  await db.query(
+    `insert into bakery.artifact_versions (id,organization_id,artifact_id,task_id,
+       author_id,revision,content,sha256,size_bytes,media_type,retention_class)
+     values ($1,$2,$3,$4,$5,1,$6,$7,2,'text/plain','evidence')`,
+    [
+      versionId,
+      fixture.organizationId,
+      artifactId,
+      job.taskId,
+      fixture.principalId,
+      new TextEncoder().encode("hi"),
+      "8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4",
+    ],
+  );
+  const cases = [];
+  for (const name of ["first", "second"]) {
+    cases.push(
+      await ok(
+        await call(fixture, "POST", "/v1/evaluation-cases", {
+          body: {
+            repositoryId,
+            name,
+            inputArtifactVersionId: versionId,
+            expected: { ok: true },
+          },
+        }),
+        201,
+      ),
+    );
+  }
+  const scorer = async (
+    slug: string,
+    revision = 1,
+    evaluatorType = "deterministic",
+  ) =>
+    await ok(
+      await call(fixture, "POST", "/v1/evaluation-definitions", {
+        body: { slug, revision, evaluatorType, config: { check: slug } },
+      }),
+      201,
+    );
+  const schema = await scorer("schema");
+  const rubric = await scorer("rubric", 1, "model");
+  const dataset = await ok(
+    await call(fixture, "POST", "/v1/evaluation-datasets", {
+      body: { name: "smoke", caseIds: cases.map((c) => c.id) },
+    }),
+    201,
+  );
+  return { cases, schema, rubric, dataset, scorer, versionId };
+}
+
+async function results(fixture: Fixture, batchId: unknown, state?: string) {
+  const page = await ok(
+    await call(
+      fixture,
+      "GET",
+      "/v1/evaluation-batches/" + batchId + "/results" +
+        (state ? "?state=" + state : ""),
+    ),
+  );
+  return page.items as Json[];
+}
+
+function record(
+  fixture: Fixture,
+  resultId: unknown,
+  state: string,
+  score: number | null,
+  deliveryKey = crypto.randomUUID(),
+) {
+  return withPgTransaction(
+    fixture.pgDatabase,
+    (tx) =>
+      recordAttempt(tx, fixture.organizationId, String(resultId), {
+        deliveryKey,
+        state: state as "passed",
+        reason: score === null ? "The checker failed: " + state : null,
+        score,
+        startedAt: new Date(),
+        endedAt: new Date(),
+      }),
+  );
+}
+
+const PIN = {
+  kind: "agentVersion",
+  id: "6f1d2c3a-4b5e-4f60-8a71-92b3c4d5e6f7",
+  version: 2,
+};
+
+function admitWith(
+  fixture: Fixture,
+  w: Awaited<ReturnType<typeof world>>,
+  body: Json,
+) {
+  return call(fixture, "POST", "/v1/evaluation-batches", {
+    body: { datasetId: w.dataset.id, candidate: PIN, ...body },
+  });
+}
+
+Deno.test("AC1: a loose pin is refused, and the same pins give the same digest", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const scorerIds = [w.schema.id];
+    for (
+      const [candidate, reason] of [
+        [{ kind: "agent", id: PIN.id, version: 1 }, "pin_kind_unknown"],
+        [{ kind: "agentVersion", id: PIN.id }, "pin_version_required"],
+        [{ kind: "agentVersion", id: "x", version: 1 }, "pin_id_invalid"],
+        [{ ...PIN, latest: true }, "pin_unknown_field"],
+      ] as const
+    ) {
+      const refused = await admitWith(fixture, w, { candidate, scorerIds });
+      const text = await refused.text();
+      assertEquals(refused.status, 422, text);
+      assertEquals(text.includes(reason), true, text);
+    }
+    const first = await ok(await admitWith(fixture, w, { scorerIds }), 201);
+    const again = await ok(await admitWith(fixture, w, { scorerIds }), 201);
+    assertEquals(typeof first.pinDigest, "string");
+    assertEquals(first.pinDigest, again.pinDigest, "same pins, same digest");
+    const other = await ok(
+      await admitWith(fixture, w, {
+        scorerIds,
+        candidate: { ...PIN, version: 3 },
+      }),
+      201,
+    );
+    assertEquals(other.pinDigest === first.pinDigest, false);
+    const more = await ok(
+      await admitWith(fixture, w, { scorerIds, repetitions: 2 }),
+      201,
+    );
+    assertEquals(more.pinDigest === first.pinDigest, false);
+    // The budget is not part of what is measured.
+    const budgeted = await ok(
+      await admitWith(fixture, w, { scorerIds, budgetLimitUsd: "5" }),
+      201,
+    );
+    assertEquals(budgeted.pinDigest, first.pinDigest);
+  }));
+
+Deno.test("AC2: an optional model scorer that never ran neither blocks the gate nor replaces a required check", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    // A deterministic check is never optional; the scorer must be pinned.
+    for (const optionalScorerIds of [[w.schema.id], [crypto.randomUUID()]]) {
+      const refused = await admitWith(fixture, w, {
+        scorerIds: [w.schema.id, w.rubric.id],
+        optionalScorerIds,
+      });
+      assertEquals(refused.status, 422, await refused.text());
+    }
+    const batch = await ok(
+      await admitWith(fixture, w, {
+        scorerIds: [w.schema.id, w.rubric.id],
+        optionalScorerIds: [w.rubric.id],
+      }),
+      201,
+    );
+    assertEquals(
+      (batch.scorers as Json[]).map((s) => [s.evaluatorType, s.required]),
+      [["deterministic", true], ["model", false]],
+    );
+    // Only the deterministic results are required: 2 cases x 1 scorer.
+    assertEquals(batch.requiredCount, 2);
+    assertEquals((batch.report as Json).total, 2);
+    assertEquals((batch.optionalReport as Json).total, 2);
+    assertEquals((batch.optionalReport as Json).unrun, 2);
+    const rows = await results(fixture, batch.id);
+    assertEquals(rows.length, 4);
+    // The model scorer is unavailable: its results stay unscored with a reason.
+    for (const row of rows) {
+      if (row.scorerId === w.rubric.id) {
+        await record(fixture, row.id, "unscored", null);
+      } else await record(fixture, row.id, "passed", 1);
+    }
+    const read = await ok(
+      await call(fixture, "GET", "/v1/evaluation-batches/" + batch.id),
+    );
+    assertEquals([read.state, (read.gate as Json).decision], [
+      "completed",
+      "met",
+    ]);
+    assertEquals((read.report as Json).passed, 2);
+    const optional = read.optionalReport as Json;
+    assertEquals([optional.attempted, optional.passed, optional.unknown], [
+      2,
+      0,
+      2,
+    ]);
+    assertEquals(
+      optional.passedOfAttempted,
+      0,
+      "measured nothing passed: a real zero, not unknown",
+    );
+    // A required model scorer that is unavailable keeps the gate from judging.
+    const strict = await ok(
+      await admitWith(fixture, w, { scorerIds: [w.schema.id, w.rubric.id] }),
+      201,
+    );
+    for (const row of await results(fixture, strict.id)) {
+      if (row.scorerId === w.rubric.id) {
+        await record(fixture, row.id, "unscored", null);
+      } else await record(fixture, row.id, "passed", 1);
+    }
+    const judged = await ok(
+      await call(fixture, "GET", "/v1/evaluation-batches/" + strict.id),
+    );
+    assertEquals((judged.gate as Json).decision, "cannot_be_judged");
+  }));
+
+Deno.test("AC3: unknown and unrun stay apart from zero, a duplicate completion is one attempt, and a recovery is counted once", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const batch = await ok(
+      await admitWith(fixture, w, { scorerIds: [w.schema.id], repetitions: 2 }),
+      201,
+    );
+    const rows = await results(fixture, batch.id);
+    assertEquals(rows.length, 4);
+    // Nothing attempted: no share, not zero.
+    let report = batch.report as Json;
+    assertEquals([report.total, report.attempted, report.unrun], [4, 0, 4]);
+    assertEquals(report.passedOfAttempted, null);
+    assertEquals(report.recoveredOfInterrupted, null);
+
+    // One duplicate delivery adds nothing.
+    const key = crypto.randomUUID();
+    assertEquals(
+      await record(fixture, rows[0].id, "passed", 1, key),
+      "recorded",
+    );
+    assertEquals(
+      await record(fixture, rows[0].id, "passed", 1, key),
+      "duplicate",
+    );
+    // One result is interrupted and then recovers.
+    assertEquals(
+      await record(fixture, rows[1].id, "interrupted", null),
+      "recorded",
+    );
+    let read = await ok(
+      await call(fixture, "GET", "/v1/evaluation-batches/" + batch.id),
+    );
+    report = read.report as Json;
+    assertEquals(
+      [report.attempted, report.passed, report.unknown, report.unrun],
+      [2, 1, 1, 2],
+    );
+    assertEquals([report.interrupted, report.recovered], [1, 0]);
+    // An interrupted attempt leaves its result an error with the reason.
+    const interrupted = (await results(fixture, batch.id, "error"))[0];
+    assertEquals(interrupted.id, rows[1].id);
+    assertEquals(await record(fixture, rows[1].id, "failed", 0), "recorded");
+    // A third result fails outright.
+    assertEquals(await record(fixture, rows[2].id, "failed", 0), "recorded");
+    read = await ok(
+      await call(fixture, "GET", "/v1/evaluation-batches/" + batch.id),
+    );
+    report = read.report as Json;
+    assertEquals(
+      [
+        report.attempted,
+        report.passed,
+        report.failed,
+        report.unknown,
+        report.unrun,
+      ],
+      [3, 1, 2, 0, 1],
+    );
+    assertEquals([report.interrupted, report.recovered], [1, 1]);
+    assertEquals(report.recoveredOfInterrupted, 1);
+    assertEquals(report.passedOfAttempted, 1 / 3);
+    assertEquals(report.failedOfAttempted, 2 / 3);
+    const attempts = await ok(
+      await call(
+        fixture,
+        "GET",
+        "/v1/evaluation-results/" + rows[1].id + "/attempts",
+      ),
+    );
+    assertEquals((attempts.items as Json[]).map((a) => a.state), [
+      "interrupted",
+      "failed",
+    ]);
+  }));

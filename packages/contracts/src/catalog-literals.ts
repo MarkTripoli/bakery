@@ -1383,6 +1383,7 @@ export type ContractOutputName =
   | "EvaluationCasePin"
   | "EvaluationCaseSides"
   | "EvaluationComparison"
+  | "EvaluationCorpusReport"
   | "EvaluationDataset"
   | "EvaluationDefinition"
   | "EvaluationGate"

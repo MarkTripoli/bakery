@@ -314,7 +314,7 @@ Deno.test("a batch and its results carry the names a list shows, and a cancel na
         body: {
           datasetId: w.dataset.id,
           candidate: { kind: "agentVersion", id: agentId, version: 2 },
-          baseline: { kind: "workflow", id: workflowId, version: 1 },
+          baseline: { kind: "workflowVersion", id: workflowId, version: 1 },
           scorerIds: [w.schema.id],
         },
       }),
