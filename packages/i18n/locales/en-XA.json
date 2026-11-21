@@ -5321,5 +5321,12 @@
   "tasks.waiting.agent.mastra": "⟦Ṁàšŧŕà…⟧",
   "tasks.waiting.payment.subscription.inline": "⟦ŧĥë šûƀšçŕïþŧïôñ ôñ à ɱàçĥïñë ŧëšŧ çôþ⟧",
   "tasks.waiting.payment.api_metered.inline": "⟦àñ ÀÞÏ ķëÿ çĥàŕĝëð þëŕ ûšë ŧëšŧ çô⟧",
-  "tasks.waiting.payment.local.inline": "⟦à ɱôðëļ ŕûññïñĝ ôñ à ɱàçĥïñë ŧëšŧ çô⟧"
+  "tasks.waiting.payment.local.inline": "⟦à ɱôðëļ ŕûññïñĝ ôñ à ɱàçĥïñë ŧëšŧ çô⟧",
+  "issues.work.question.one": "⟦Ɓàķëŕÿ ñëëðš àñ àñšŵëŕ ŧëšŧŧ⟧",
+  "issues.work.question.many": "⟦Ɓàķëŕÿ ñëëðš {count} àñšŵëŕš ŧëšŧ çô⟧",
+  "issues.work.question.asked": "⟦Àšķëð {when} · ŵôŕķ ïš þàûšëð ûñŧïļ šôɱëôñë àñšŵëŕš ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "issues.work.question.answer": "⟦Àñšŵëŕ…⟧",
+  "issues.work.question.cannot": "⟦Šôɱëôñë ŵĥô çàñ ŵôŕķ ôñ ŧĥïš ŧàšķ ñëëðš ŧô àñšŵëŕ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "issues.work.question.expired": "⟦À ǫûëšŧïôñ ŵëñŧ ûñàñšŵëŕëð àñð ëẋþïŕëð. ŧëšŧ çôþÿ ŧ⟧",
+  "issues.work.question.loadFailed": "⟦Ɓàķëŕÿ'š ǫûëšŧïôñš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧ⟧"
 }

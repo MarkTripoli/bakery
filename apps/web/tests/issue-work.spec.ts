@@ -274,6 +274,108 @@ for (
         .toHaveCount(0);
     });
 
+    test("an open question is the first row, with one way to answer it", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [{
+          status: "open",
+          prompt:
+            "Which database should the invoice export read from?\nThe reporting replica or the primary?\nThird line is not shown.",
+        }],
+      });
+      const row = page.getByTestId("issue-question");
+      await expect(row.getByText("Bakery needs an answer")).toBeVisible();
+      await expect(
+        row.getByText("Which database should the invoice export read from?"),
+      )
+        .toBeVisible();
+      await expect(row.getByText("The reporting replica or the primary?"))
+        .toBeVisible();
+      await expect(row.getByText("Third line is not shown.")).toHaveCount(0);
+      await expect(
+        row.getByText(
+          "Asked 25 minutes ago · work is paused until someone answers",
+        ),
+      )
+        .toBeVisible();
+      // The first thing in the section, above how the work is going.
+      await expect(section(page).locator("> *").nth(1)).toHaveAttribute(
+        "data-testid",
+        "issue-question",
+      );
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-question");
+      await row.getByRole("button", { name: "Answer" }).click();
+      await expect(page).toHaveURL(new RegExp(`/tasks/${uuid(8100)}`));
+    });
+
+    test("several open questions are counted and the oldest is shown", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [
+          { status: "open", prompt: "Newest question", minutesAgo: 5 },
+          { status: "open", prompt: "Oldest question", minutesAgo: 90 },
+        ],
+      });
+      const row = page.getByTestId("issue-question");
+      await expect(row.getByText("Bakery needs 2 answers")).toBeVisible();
+      await expect(row.getByText("Oldest question")).toBeVisible();
+      await expect(row.getByText("Newest question")).toHaveCount(0);
+    });
+
+    test("someone who may not answer sees the question without the button", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [{ status: "open", prompt: "Which database?" }],
+      }, { role: "viewer" });
+      const row = page.getByTestId("issue-question");
+      await expect(row.getByText("Bakery needs an answer")).toBeVisible();
+      await expect(
+        row.getByText("Someone who can work on this task needs to answer."),
+      )
+        .toBeVisible();
+      await expect(row.getByRole("button", { name: "Answer" })).toHaveCount(0);
+    });
+
+    test("an expired question says so and opens the task; an answered one shows nothing", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [{ status: "expired", prompt: "Which database?" }],
+      });
+      await expect(
+        section(page).getByText("A question went unanswered and expired."),
+      )
+        .toBeVisible();
+      await expect(page.getByTestId("issue-question")).toHaveCount(0);
+    });
+
+    test("an answered question and an approval show no row", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [
+          { status: "answered", prompt: "Which database?" },
+          { status: "open", prompt: "Approve the plan?", kind: "approval" },
+        ],
+      });
+      await expect(section(page).getByText("Working", { exact: true }))
+        .toBeVisible();
+      await expect(page.getByTestId("issue-question")).toHaveCount(0);
+      await expect(
+        section(page).getByText("A question went unanswered and expired."),
+      )
+        .toHaveCount(0);
+    });
+
+    test("questions that cannot be loaded say so and Try again reads them", async ({ page }) => {
+      await open(page, { ...ONE_REPOSITORY, questionsFail: true });
+      await expect(
+        section(page).getByText("Bakery's questions could not be loaded."),
+      )
+        .toBeVisible();
+      await expect(section(page).getByRole("button", { name: "Try again" }))
+        .toBeVisible();
+    });
+
     test("on hold pauses with an information banner", async ({ page }) => {
       await open(page, {
         issue: 201,

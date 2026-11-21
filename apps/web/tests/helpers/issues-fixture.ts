@@ -177,6 +177,16 @@ export type WorkSeed = {
   };
   /** Tasks that only mention the issue. */
   mentioned?: { title: string; status: string }[];
+  /** The questions the work's own task has raised (served from the questions read). */
+  questions?: {
+    status: "open" | "answered" | "expired";
+    prompt: string;
+    /** How long ago it was asked; 25 minutes by default. */
+    minutesAgo?: number;
+    kind?: "question" | "approval";
+  }[];
+  /** Questions cannot be read (the read answers an error). */
+  questionsFail?: boolean;
 };
 
 export type Options = {
@@ -188,7 +198,7 @@ export type Options = {
   sources?: "none" | "healthy" | "degraded" | "authRequired" | "unknown";
   pageSize?: number;
   /** The person's role in the organization; an administrator by default. */
-  role?: "admin" | "developer";
+  role?: "admin" | "developer" | "viewer";
   /** What starting work answers: ok (default), or a refusal. */
   start?:
     | "ok"
@@ -679,6 +689,46 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         version: 1,
         runId: null,
       }));
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: page_(items),
+      });
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/questions",
+    (route) => {
+      if (work?.questionsFail) {
+        return route.fulfill(problem(503, "DEPENDENCY_UNAVAILABLE"));
+      }
+      const asked = new URL(route.request().url()).searchParams.get("taskId");
+      const items = asked === taskId
+        ? (work?.questions ?? []).map((question, index) => ({
+          id: uuid(8950 + index),
+          kind: question.kind ?? "question",
+          conversationId: uuid(8400),
+          taskId,
+          runId: null,
+          turnId: null,
+          generation: 1,
+          prompt: question.prompt,
+          options: null,
+          allowFreeText: true,
+          audience: { type: "task_participants" },
+          expiresAt: null,
+          status: question.status,
+          answer: null,
+          answeredBy: null,
+          answeredAt: null,
+          createdAt: new Date(
+            Date.now() - (question.minutesAgo ?? 25) * 60_000,
+          ).toISOString(),
+          updatedAt: stamp,
+          version: 1,
+          responseSchema: null,
+        }))
+        : [];
       return route.fulfill({
         status: 200,
         contentType: "application/json",

@@ -5321,5 +5321,12 @@
   "tasks.waiting.agent.mastra": "⟪Mastra⟫",
   "tasks.waiting.payment.subscription.inline": "⟪the subscription on a machine⟫",
   "tasks.waiting.payment.api_metered.inline": "⟪an API key charged per use⟫",
-  "tasks.waiting.payment.local.inline": "⟪a model running on a machine⟫"
+  "tasks.waiting.payment.local.inline": "⟪a model running on a machine⟫",
+  "issues.work.question.one": "⟪Bakery needs an answer⟫",
+  "issues.work.question.many": "⟪Bakery needs {count} answers⟫",
+  "issues.work.question.asked": "⟪Asked {when} · work is paused until someone answers⟫",
+  "issues.work.question.answer": "⟪Answer⟫",
+  "issues.work.question.cannot": "⟪Someone who can work on this task needs to answer.⟫",
+  "issues.work.question.expired": "⟪A question went unanswered and expired.⟫",
+  "issues.work.question.loadFailed": "⟪Bakery's questions could not be loaded.⟫"
 }

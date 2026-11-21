@@ -9,6 +9,7 @@ import type {
 import {
   organizationMembersQueryOptions,
   pullRequestsQueryOptions,
+  questionsQueryOptions,
   repositoryQueryOptions,
   taskQueryOptions,
   ticketLinksByIssueQueryOptions,
@@ -25,6 +26,7 @@ import {
   PROGRESS_TONE,
   progressNext,
   progressReason,
+  questionRow,
   startedBy,
   type WorkStartedBy,
 } from "./issues/work-model.ts";
@@ -91,6 +93,100 @@ function PullRequests({ taskId }: { readonly taskId: string }) {
         </UI.Inline>
       ))}
     </>
+  );
+}
+
+/**
+ * The row at the top of "Bakery's work" while the task waits on a question: what
+ * it asks and one way to answer it. The answer form stays on the task page, so
+ * there is one place to answer; this row only points at it.
+ */
+function QuestionRow(
+  { taskId, canWrite }: {
+    readonly taskId: string;
+    /** Developers and administrators may answer; others see who can. */
+    readonly canWrite: boolean;
+  },
+) {
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const navigate = useNavigate();
+  const { translate } = useI18n();
+  const questions = useQuery({
+    ...questionsQueryOptions(api, scope, taskId),
+    enabled: scope.organizationId !== null,
+  });
+  if (questions.isError) {
+    return (
+      <UI.InlineNotice
+        tone="error"
+        action={
+          <UI.Button
+            variant="secondary"
+            onClick={() => void questions.refetch()}
+          >
+            {translate("issues.retry" as never)}
+          </UI.Button>
+        }
+      >
+        {translate("issues.work.question.loadFailed" as never)}
+      </UI.InlineNotice>
+    );
+  }
+  const row = questionRow(questions.data?.items ?? []);
+  if (row === null) return null;
+  const openTask = () =>
+    void navigate({ to: "/tasks/$taskId", params: { taskId } });
+  if (row.kind === "expired") {
+    return (
+      <UI.InlineNotice
+        tone="neutral"
+        action={
+          <UI.Button variant="secondary" onClick={openTask}>
+            {translate("issues.work.openTask" as never)}
+          </UI.Button>
+        }
+      >
+        {translate("issues.work.question.expired" as never)}
+      </UI.InlineNotice>
+    );
+  }
+  return (
+    <UI.InlineNotice
+      tone="warning"
+      data-testid="issue-question"
+      action={canWrite
+        ? (
+          <UI.Button variant="secondary" onClick={openTask}>
+            {translate("issues.work.question.answer" as never)}
+          </UI.Button>
+        )
+        : undefined}
+    >
+      <UI.Stack gap="compact">
+        <UI.Text variant="strong">
+          {translate(
+            (row.count === 1
+              ? "issues.work.question.one"
+              : "issues.work.question.many") as never,
+            { count: row.count },
+          )}
+        </UI.Text>
+        {row.lines.map((line, index) => (
+          <UI.Text key={index} lines={2}>{line}</UI.Text>
+        ))}
+        <UI.Text variant="caption">
+          {translate("issues.work.question.asked" as never, {
+            when: ago(row.askedAt, translate),
+          })}
+        </UI.Text>
+        {canWrite ? null : (
+          <UI.Text variant="caption">
+            {translate("issues.work.question.cannot" as never)}
+          </UI.Text>
+        )}
+      </UI.Stack>
+    </UI.InlineNotice>
   );
 }
 
@@ -339,6 +435,9 @@ export function IssueWork(
       <UI.Heading level="section">
         {translate("issues.work.title" as never)}
       </UI.Heading>
+      {own !== undefined
+        ? <QuestionRow taskId={own.taskId} canWrite={canWrite} />
+        : null}
       {request !== null && by !== null
         ? (
           <UI.Stack gap="compact" aria-live="polite">
