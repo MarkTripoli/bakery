@@ -319,7 +319,7 @@ test.describe("machine page: the one banner", () => {
       0,
     );
     // The line under the name is where it is and when it was last seen, not its status.
-    await expect(detail.getByText(/^Linux · x86_64 · Last seen /))
+    await expect(detail.getByText(/^Linux · x64 · Last seen /))
       .toBeVisible();
     // The coding agents are rows with no internal words: this machine reports
     // Claude Code and nothing has signed it in yet.
