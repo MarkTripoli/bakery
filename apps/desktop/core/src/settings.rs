@@ -30,8 +30,8 @@ impl Settings {
 
     /// The same settings after the app switched to `address`.
     pub fn after_switch(&self, address: &str) -> Settings {
-        let is_local = address == THIS_COMPUTER
-            || crate::address::is_this_computer_address(address);
+        // Only the chooser's own first option is not remembered as the "other" address.
+        let is_local = address == THIS_COMPUTER || crate::address::is_default_server(address);
         Settings {
             server: Some(address.to_string()),
             last_other: if is_local {
@@ -148,6 +148,9 @@ mod tests {
         let elsewhere = start.after_switch("https://bakery.example.com");
         assert_eq!(elsewhere.server.as_deref(), Some("https://bakery.example.com"));
         assert_eq!(elsewhere.last_other.as_deref(), Some("https://bakery.example.com"));
+        // A server on this computer at another port is another server, and is remembered as such.
+        let nearby = Settings::default().after_switch("http://127.0.0.1:46289");
+        assert_eq!(nearby.last_other.as_deref(), Some("http://127.0.0.1:46289"));
         let back = elsewhere.after_switch("http://127.0.0.1:8000");
         assert_eq!(back.server.as_deref(), Some("http://127.0.0.1:8000"));
         assert_eq!(back.last_other.as_deref(), Some("https://bakery.example.com"), "kept for the chooser");

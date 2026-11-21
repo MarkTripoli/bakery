@@ -178,10 +178,8 @@ fn main() {
         ])
         .setup(move |app| {
             // After a server change the window comes back where it was.
-            if let (Some(place), Some(window)) = (
-                startup.handoff.as_ref().and_then(|h| h.place),
-                app.get_webview_window("main"),
-            ) {
+            let restored = startup.handoff.as_ref().and_then(|h| h.place);
+            if let (Some(place), Some(window)) = (restored, app.get_webview_window("main")) {
                 let _ = window.set_size(tauri::PhysicalSize::new(place.width, place.height));
                 let _ = window.set_position(tauri::PhysicalPosition::new(place.x, place.y));
             }
@@ -193,6 +191,9 @@ fn main() {
             );
             app.manage(Arc::clone(&shell));
             test_hooks(app, &shell, &server);
+            if let Some(place) = restored {
+                shell.report("place_restored", json!({ "width": place.width, "height": place.height }));
+            }
             shell.report(
                 "app_started",
                 json!({ "os": std::env::consts::OS, "arch": std::env::consts::ARCH }),

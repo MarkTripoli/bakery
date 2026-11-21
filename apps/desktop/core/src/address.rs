@@ -59,7 +59,19 @@ fn is_this_computer(host: &Host<&str>) -> bool {
     }
 }
 
-/// Whether an address is this computer's own server, which the chooser offers as its first option.
+/// Whether an address is the server the chooser offers as "This computer": plain http on this
+/// computer's own address at the usual port. A server on this computer at another port is a server
+/// of its own, offered under "Another address" and remembered there.
+pub fn is_default_server(address: &str) -> bool {
+    Url::parse(address).is_ok_and(|u| {
+        u.scheme() == "http"
+            && u.port_or_known_default() == Some(8000)
+            && u.host().is_some_and(|h| is_this_computer(&h))
+    })
+}
+
+/// Whether an address is on this computer at all, on any port: the words "not running on this
+/// computer" fit every such address.
 pub fn is_this_computer_address(address: &str) -> bool {
     Url::parse(address)
         .ok()
@@ -130,6 +142,19 @@ mod tests {
         for bad in ["ftp://bakery.example.com", "file:///etc/hosts", "https://", "https://exa mple.com", "javascript://x"] {
             assert_eq!(parse_server_address(bad), Err(AddressProblem::NotWebAddress), "{bad}");
         }
+    }
+
+    #[test]
+    fn only_the_usual_local_server_is_the_one_the_chooser_calls_this_computer() {
+        for yes in ["http://127.0.0.1:8000", "http://localhost:8000", "http://[::1]:8000"] {
+            assert!(is_default_server(yes), "{yes}");
+        }
+        // Local, but another server: it belongs under "Another address".
+        for no in ["http://127.0.0.1:46289", "https://127.0.0.1:8000", "http://localhost:3000",
+                   "https://bakery.example.com", "http://192.168.1.2:8000", "nonsense"] {
+            assert!(!is_default_server(no), "{no}");
+            }
+        assert!(is_this_computer_address("http://127.0.0.1:46289"), "still on this computer");
     }
 
     #[test]

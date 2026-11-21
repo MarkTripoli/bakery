@@ -195,7 +195,15 @@ impl Shell {
             }
             *last = Some(v.clone());
         }
-        self.report("view", json!({ "window": v.window, "dialog": v.dialog }));
+        // The notice is words and an address, never a secret, so a run can check what the window carried.
+        self.report(
+            "view",
+            json!({
+                "window": v.window,
+                "dialog": v.dialog,
+                "notice": v.panel.as_ref().and_then(|p| p.notice.clone()),
+            }),
+        );
         let _ = self.app.emit("view", v);
     }
 
@@ -451,7 +459,10 @@ impl Shell {
         let kept = std::fs::create_dir_all(&self.config_dir).is_ok()
             && write_replacing(&self.config_dir.join(SETTINGS_FILE), &settings.to_text())
             && write_replacing(&self.config_dir.join(HANDOFF_FILE), &handoff.to_text());
-        self.report("effect", json!({ "name": "switch_server", "address": address, "kept": kept }));
+        self.report(
+            "effect",
+            json!({ "name": "switch_server", "address": address, "kept": kept, "place": place }),
+        );
         if kept {
             self.app.restart();
         }

@@ -4,7 +4,7 @@
 //! out. It opens no browser, talks to no server and touches no secret store, so every transition is
 //! tested here without a window system. The states and their wording are design-ux's (#77 slice 3).
 
-use crate::address::{is_this_computer_address, parse_server_address, AddressProblem, THIS_COMPUTER};
+use crate::address::{is_default_server, parse_server_address, AddressProblem, THIS_COMPUTER};
 use crate::compat::Kind;
 use crate::csp::store_key;
 use crate::wire::ExchangeFailure;
@@ -668,13 +668,13 @@ pub fn step(session: Session, event: Event) -> (Session, Vec<Effect>) {
         // ---- choosing a server ------------------------------------------------------------
         (P::SignedOut | P::SignedIn | P::NotAnswering { .. }, E::UseDifferentServer) => {
             let chooser = Chooser {
-                selected: if is_this_computer_address(&session.server) {
+                selected: if is_default_server(&session.server) {
                     ServerChoice::ThisComputer
                 } else {
                     ServerChoice::Another
                 },
                 // On another server the box starts with it; on this computer, with the last other one.
-                typed: if is_this_computer_address(&session.server) {
+                typed: if is_default_server(&session.server) {
                     session.last_other.clone()
                 } else {
                     session.server.clone()
@@ -1433,6 +1433,10 @@ mod server_tests {
         assert_eq!(chooser_of(&here).selected, ServerChoice::ThisComputer);
         assert_eq!(chooser_of(&here).typed, "");
         // On this computer the box offers the last other address again.
+        // A server on this computer at another port starts under "Another address", showing itself.
+        let nearby = open_chooser(Session::start(false).on_server("http://127.0.0.1:46289"));
+        assert_eq!(chooser_of(&nearby).selected, ServerChoice::Another);
+        assert_eq!(chooser_of(&nearby).typed, "http://127.0.0.1:46289");
         let remembered = open_chooser(Session::start(false).on_server(HERE).with_last_other(OTHER));
         assert_eq!(chooser_of(&remembered).typed, OTHER);
         assert_eq!(chooser_of(&remembered).selected, ServerChoice::ThisComputer);
