@@ -124,6 +124,7 @@ Deno.test("a pre-registered client uses PKCE, calls tools, is listed, and revoke
       "bakery_blobUploads_start",
       "bakery_conversationAccess_list",
       "bakery_conversationAccess_revoke",
+      "bakery_conversationAccess_sharers",
       "bakery_conversationTurns_cancel",
       "bakery_conversationTurns_get",
       "bakery_conversationTurns_list",
