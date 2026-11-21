@@ -284,6 +284,16 @@ Deno.test("text is counted whole, and utf8 is a fact rather than a hope", () => 
     lineCount: 3,
     utf8: true,
   });
+  // A trailing newline ends the last line; it does not start an empty one.
+  assertEquals(
+    describeText(new TextEncoder().encode("alpha\nbeta\ngamma\n")),
+    { lineCount: 3, utf8: true },
+  );
+  // One newline and nothing else is one empty line, not two.
+  assertEquals(describeText(new TextEncoder().encode("\n")), {
+    lineCount: 1,
+    utf8: true,
+  });
   assertEquals(describeText(new Uint8Array()), { lineCount: 0, utf8: true });
   assertEquals(
     describeText(new Uint8Array([0xff, 0xfe, 0x61, 0x00])),

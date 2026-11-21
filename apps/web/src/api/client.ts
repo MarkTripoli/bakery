@@ -507,6 +507,14 @@ export type ExtractArtifactVersionOptions = Readonly<
   }
 >;
 
+export type ArtifactProbeResponse = ClientOutputMap["ArtifactProbeAnswer"];
+
+export type ReadArtifactProbeOptions = Readonly<{
+  organizationId: string;
+  versionId: string;
+  signal?: AbortSignal;
+}>;
+
 export type ListArtifactCommentsOptions = Readonly<
   ArtifactCommentQuery & {
     organizationId: string;
@@ -686,13 +694,28 @@ export type BakeryApiClient = {
       cursor?: string,
       signal?: AbortSignal,
     ) => Promise<ApiResult<LibraryPage>>;
-    /** A file's bytes: its current version, or the one at `revision`. */
+    /**
+     * A file's bytes: its current version, or the one at `revision`. A `range`
+     * asks for part of them, as `bytes=0-0` does to check a digest without
+     * reading a whole video into the page.
+     */
     readonly content: (
       organizationId: string,
       fileId: string,
       revision: number | undefined,
       signal?: AbortSignal,
+      range?: string,
     ) => Promise<ApiResult<ClientOutputMap["BinaryArtifact"]>>;
+    /**
+     * What the probe measured about this version's bytes, or nulls. A file
+     * stored inline has no blob and so no answer yet, which is not a refusal.
+     */
+    readonly probe: (
+      organizationId: string,
+      fileId: string,
+      revision: number | undefined,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<ClientOutputMap["ArtifactProbeAnswer"]>>;
   };
   readonly output: {
     readonly attempts: (
@@ -2037,6 +2060,9 @@ export type BakeryApiClient = {
   readonly extractArtifactVersion: (
     options: ExtractArtifactVersionOptions,
   ) => Promise<ApiResult<ArtifactExtractionResponse>>;
+  readonly readArtifactProbe: (
+    options: ReadArtifactProbeOptions,
+  ) => Promise<ApiResult<ArtifactProbeResponse>>;
   readonly listArtifactComments: (
     options: ListArtifactCommentsOptions,
   ) => Promise<ApiResult<ArtifactCommentListResponse>>;
@@ -2561,7 +2587,9 @@ async function getArtifactContentResponse(
     throw new ApiTransportError("protocol", status);
   }
   if (status === 200 && await sha256Hex(content) !== contentDigest) {
-    throw new ApiTransportError("protocol", status);
+    // Named, not generic: the file is not the file the record describes, and the
+    // screen has a state for exactly that (#437).
+    throw new ApiTransportError("digest-mismatch", status);
   }
 
   if (status === 206) {
@@ -3330,7 +3358,7 @@ export function createBakeryApiClient({
           return failed(error);
         }
       },
-      async content(org, fileId, revision, signal) {
+      async content(org, fileId, revision, signal, range) {
         const scoped = createBakeryClient({
           baseUrl,
           fetch: fetchImpl,
@@ -3342,6 +3370,26 @@ export function createBakeryApiClient({
             data: await scoped.actions["storageFiles.content"]({
               id: fileId,
               revision,
+              ...(range === undefined ? {} : { range }),
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async probe(org, fileId, revision, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFiles.probe"]({
+              id: fileId,
+              organizationId: org,
+              ...(revision === undefined ? {} : { revision }),
             }, { signal }),
           };
         } catch (error) {
@@ -4650,6 +4698,27 @@ export function createBakeryApiClient({
               ? {}
               : { maxBytes: options.maxBytes }),
           },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    /**
+     * What the probe learned about this version's bytes, or nulls.
+     *
+     * Separate from the content read on purpose: the answer is small, it needs
+     * no bytes, and a caller wants it before deciding whether to fetch any.
+     */
+    async readArtifactProbe(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["artifactVersions.probe"](
+          { id: options.versionId },
           { signal: options.signal },
         );
         return { ok: true, data };
