@@ -115498,6 +115498,12 @@
               ],
               "description": "Check identifiers with a fresh failing result, sorted; empty when none."
             },
+            "unsettledAttemptCount": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0."
+            },
             "lastHeartbeatAt": {
               "anyOf": [
                 {
@@ -115548,6 +115554,7 @@
             "toolchainVersions",
             "slots",
             "status",
+            "unsettledAttemptCount",
             "lastHeartbeatAt",
             "credentialGeneration",
             "createdAt",
@@ -156275,6 +156282,12 @@
                     ],
                     "description": "Check identifiers with a fresh failing result, sorted; empty when none."
                   },
+                  "unsettledAttemptCount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0."
+                  },
                   "lastHeartbeatAt": {
                     "anyOf": [
                       {
@@ -156325,6 +156338,7 @@
                   "toolchainVersions",
                   "slots",
                   "status",
+                  "unsettledAttemptCount",
                   "lastHeartbeatAt",
                   "credentialGeneration",
                   "createdAt",
@@ -177664,6 +177678,12 @@
                       ],
                       "description": "Check identifiers with a fresh failing result, sorted; empty when none."
                     },
+                    "unsettledAttemptCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0."
+                    },
                     "lastHeartbeatAt": {
                       "anyOf": [
                         {
@@ -177714,6 +177734,7 @@
                     "toolchainVersions",
                     "slots",
                     "status",
+                    "unsettledAttemptCount",
                     "lastHeartbeatAt",
                     "credentialGeneration",
                     "createdAt",
@@ -269500,7 +269521,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:5374259f977dc1ddd3bc5a96feb89e86bfe19b901f6dbb907a910eb450d4a8f9",
+  "compatibilityDigest": "sha256:6de89232c0426bed552f5a21c696817bd6d0bc2ba24f05c124a4882cb32f0d5c",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -336252,6 +336273,12 @@
           ],
           "description": "Check identifiers with a fresh failing result, sorted; empty when none."
         },
+        "unsettledAttemptCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0."
+        },
         "lastHeartbeatAt": {
           "anyOf": [
             {
@@ -336302,6 +336329,7 @@
         "toolchainVersions",
         "slots",
         "status",
+        "unsettledAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
         "createdAt",
@@ -377157,6 +377185,12 @@
                 ],
                 "description": "Check identifiers with a fresh failing result, sorted; empty when none."
               },
+              "unsettledAttemptCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0."
+              },
               "lastHeartbeatAt": {
                 "anyOf": [
                   {
@@ -377207,6 +377241,7 @@
               "toolchainVersions",
               "slots",
               "status",
+              "unsettledAttemptCount",
               "lastHeartbeatAt",
               "credentialGeneration",
               "createdAt",
@@ -398590,6 +398625,12 @@
                   ],
                   "description": "Check identifiers with a fresh failing result, sorted; empty when none."
                 },
+                "unsettledAttemptCount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0."
+                },
                 "lastHeartbeatAt": {
                   "anyOf": [
                     {
@@ -398640,6 +398681,7 @@
                 "toolchainVersions",
                 "slots",
                 "status",
+                "unsettledAttemptCount",
                 "lastHeartbeatAt",
                 "credentialGeneration",
                 "createdAt",
