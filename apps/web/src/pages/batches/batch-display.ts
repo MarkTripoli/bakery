@@ -164,6 +164,95 @@ export function issueStateKey(state: BatchIssueState): string {
   return ISSUE_STATE_KEY[state];
 }
 
+type Tone = "neutral" | "success" | "warning" | "danger" | "information";
+
+/**
+ * The State cell of an issue row. The issue being worked on reads "Waiting",
+ * in the warning tone, while the batch is waiting for a person (UX revision 3).
+ */
+export function issueBadgeFor(
+  state: BatchIssueState,
+  waiting: boolean,
+): { key: string; tone: Tone } {
+  return waiting && state === "started"
+    ? { key: "batches.issueState.waiting", tone: "warning" }
+    : { key: ISSUE_STATE_KEY[state], tone: ISSUE_STATE_TONE[state] };
+}
+
+// ---- waiting for a person (UX revision 3, slice 3b) -----------------------
+
+/**
+ * What the batch's current issue waits for, as this reader sees it. Only a
+ * batch that is working, paused, finishing or stopping can wait on a person:
+ * the other states have no issue being worked on.
+ */
+export type WaitingView = Readonly<{
+  kind: "question" | "approval";
+  /** True when the reader was asked by name. */
+  forYou: boolean;
+  /** Who else it was asked of, by name: at most two when the reader is named, three when not. */
+  others: readonly string[];
+  /** When it was put. */
+  since: string;
+  /** The task where the person answers. */
+  taskId: string;
+}>;
+
+/** The most names a banner shows, counting the reader. */
+export const WAITING_NAMES_SHOWN = 3;
+
+export function waitingView(
+  batch: BatchResponse,
+  readerPrincipalId: string | null,
+): WaitingView | null {
+  const waiting = batch.waitingOn;
+  if (waiting === null || waiting === undefined) return null;
+  if (
+    batch.state !== "running" && batch.state !== "paused" &&
+    batch.state !== "finishing" && batch.state !== "stopping"
+  ) return null;
+  const asked = waiting.askedOf;
+  const forYou = readerPrincipalId !== null &&
+    asked.some((person) => person.principalId === readerPrincipalId);
+  const others = asked
+    .filter((person) => person.principalId !== readerPrincipalId)
+    .map((person) => person.displayName)
+    .slice(0, WAITING_NAMES_SHOWN - (forYou ? 1 : 0));
+  return {
+    kind: waiting.kind,
+    forYou,
+    others,
+    since: waiting.since,
+    taskId: waiting.taskId,
+  };
+}
+
+/** "you and Ben Okafor": the reader first, then the others, joined the way the language joins a list. */
+export function waitingNames(
+  view: WaitingView,
+  youWord: string,
+  locale: string,
+): string {
+  const names = [...(view.forYou ? [youWord] : []), ...view.others];
+  return new Intl.ListFormat(locale, { style: "long", type: "conjunction" })
+    .format(names);
+}
+
+/** What the state badge says: the batch's own state, or that it waits for a person while it is working. */
+export function stateBadgeFor(
+  batch: BatchResponse,
+  waiting: WaitingView | null,
+): { key: string; tone: Tone } {
+  return waiting !== null && batch.state === "running"
+    ? {
+      key: waiting.forYou
+        ? "batches.badge.waitingForYou"
+        : "batches.badge.waitingForSomeone",
+      tone: "warning",
+    }
+    : { key: STATE_KEY[batch.state], tone: STATE_TONE[batch.state] };
+}
+
 export const ISSUE_STATE_TONE: Record<
   BatchIssueState,
   "neutral" | "success" | "warning" | "danger" | "information"
@@ -221,12 +310,22 @@ export function finishReasonKey(reason: string | null): string | null {
 }
 
 /** What the "Why it ended" column of the list says for a batch: a reason once it ended, a muted line while live. */
-export function whyItEnded(batch: BatchResponse): Message | null {
+export function whyItEnded(
+  batch: BatchResponse,
+  /** The number of the issue waiting for a person, when the batch is and the number is known. */
+  waitingNumber: string | null = null,
+): Message | null {
   if (batch.state === "finished") {
     const key = finishReasonKey(batch.finishReason);
     return key === null ? null : { key };
   }
   if (batch.state === "stopped") return { key: "batches.finish.stopped" };
+  if (
+    batch.state === "running" && batch.waitingOn !== null &&
+    batch.waitingOn !== undefined && waitingNumber !== null
+  ) {
+    return { key: "batches.why.waitingOn", params: { number: waitingNumber } };
+  }
   return {
     key: batch.state === "waiting"
       ? "batches.why.asks"
@@ -266,6 +365,8 @@ export type Banner = Readonly<{
   title: Message;
   body: Message;
   actions: readonly BannerAction[];
+  /** One more sentence under the body, such as what the current issue waits for. */
+  extra?: Message;
 }>;
 
 /** What the caller knows that the batch alone does not carry: names, times and issue numbers. */
@@ -281,14 +382,73 @@ export type BannerFacts = Readonly<{
   /** The spend sentence values for a finish over the limit. */
   spent: string;
   limit: string;
+  /** What the current issue waits for a person to do, ready to say; null when nothing does. */
+  waiting: WaitingFacts | null;
+}>;
+
+/** The waiting banner's values that the page words: how long ago, and who was asked. */
+export type WaitingFacts = Readonly<{
+  view: WaitingView;
+  /** "5 minutes ago", already in the person's language. */
+  ago: string;
+  /** "you and Ben Okafor", or "" when it was put to the task's participants. */
+  names: string;
 }>;
 
 function ordinalOf(batch: BatchResponse): number {
   return currentIssue(batch)?.position ?? batch.issuesDone + 1;
 }
 
-/** The banner for a batch, one row of the design's table. */
+/**
+ * The banner for a batch, one row of the design's table. While the current
+ * issue waits for a person a working batch says so; a paused, finishing or
+ * stopping one keeps its banner and adds one sentence.
+ */
 export function bannerFor(batch: BatchResponse, facts: BannerFacts): Banner {
+  const base = stateBanner(batch, facts);
+  const waiting = facts.waiting;
+  if (waiting === null) return base;
+  const { view } = waiting;
+  const number = facts.currentNumber ?? "";
+  if (batch.state !== "running") {
+    return {
+      ...base,
+      extra: {
+        key: view.kind === "question"
+          ? "batches.banner.waitingOn.extra.question"
+          : view.forYou
+          ? "batches.banner.waitingOn.extra.approvalYou"
+          : "batches.banner.waitingOn.extra.approval",
+        params: { number },
+      },
+    };
+  }
+  const outcome = phrase(
+    view.kind === "question"
+      ? "batches.banner.waitingOn.answered"
+      : "batches.banner.waitingOn.approved",
+  );
+  return {
+    tone: "warning",
+    title: {
+      key: view.kind === "question"
+        ? "batches.banner.waitingOn.title.question"
+        : view.forYou
+        ? "batches.banner.waitingOn.title.approvalYou"
+        : "batches.banner.waitingOn.title.approval",
+      params: { number },
+    },
+    body: {
+      key: waiting.names === ""
+        ? "batches.banner.waitingOn.body.open"
+        : "batches.banner.waitingOn.body.named",
+      params: { time: waiting.ago, names: waiting.names, outcome },
+    },
+    actions: ["openTask"],
+  };
+}
+
+function stateBanner(batch: BatchResponse, facts: BannerFacts): Banner {
   const current = currentIssue(batch);
   const n = facts.currentNumber ?? "";
   const last = facts.lastNumber ?? "";
