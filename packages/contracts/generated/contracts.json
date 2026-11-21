@@ -137220,7 +137220,7 @@
                       "description": "JSON object value."
                     }
                   ],
-                  "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
+                  "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, restoreState, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, restoreState is true when that try asked for a restore (restoreState on the request) and false when it did not, so plugin_state_incompatible with false means the version cannot read the data the install holds now, and with true means it cannot read the kept copy either; and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
                 },
                 {
                   "type": "null",
@@ -231217,7 +231217,7 @@
                             "description": "JSON object value."
                           }
                         ],
-                        "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
+                        "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, restoreState, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, restoreState is true when that try asked for a restore (restoreState on the request) and false when it did not, so plugin_state_incompatible with false means the version cannot read the data the install holds now, and with true means it cannot read the kept copy either; and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
                       },
                       {
                         "type": "null",
@@ -271566,7 +271566,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:038000ebd0da6d23f04b1529e3f45f2c36deae072b1393ccedcd40f9bb850ec5",
+  "compatibilityDigest": "sha256:6662a2cc7c2ee6b39a287053f344cf67ed24b8c8a49efa57ebb99e49637c349d",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -359517,7 +359517,7 @@
                   "description": "JSON object value."
                 }
               ],
-              "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
+              "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, restoreState, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, restoreState is true when that try asked for a restore (restoreState on the request) and false when it did not, so plugin_state_incompatible with false means the version cannot read the data the install holds now, and with true means it cannot read the kept copy either; and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
             },
             {
               "type": "null",
@@ -453652,7 +453652,7 @@
                         "description": "JSON object value."
                       }
                     ],
-                    "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
+                    "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, restoreState, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, restoreState is true when that try asked for a restore (restoreState on the request) and false when it did not, so plugin_state_incompatible with false means the version cannot read the data the install holds now, and with true means it cannot read the kept copy either; and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
                   },
                   {
                     "type": "null",
