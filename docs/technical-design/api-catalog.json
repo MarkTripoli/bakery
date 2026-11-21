@@ -808,7 +808,8 @@
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ]
     },
     {
@@ -2647,7 +2648,8 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ]
     },
     {
@@ -2790,7 +2792,8 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ]
     },
     {
@@ -2856,7 +2859,7 @@
       "action": "skills.list",
       "access": "Developer",
       "permission": "skill:read",
-      "input": "CursorQuery",
+      "input": "SkillQuery",
       "output": "Page<Skill>",
       "event": "",
       "mcp": "bakery_skills_list",
@@ -6207,7 +6210,8 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ]
     },
     {
@@ -6700,7 +6704,8 @@
         "IDEMPOTENCY_IN_FLIGHT",
         "DEPENDENCY_UNAVAILABLE",
         "DEPENDENCY_TIMEOUT",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context"
     },
@@ -8068,6 +8073,27 @@
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/access/sharers",
+      "action": "conversationAccess.sharers",
+      "access": "Developer",
+      "permission": "message:read",
+      "input": "IdPath",
+      "output": "ConversationSharers",
+      "event": "",
+      "mcp": "bakery_conversationAccess_sharers",
+      "idempotency": "read",
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
         "MALFORMED_REQUEST"
       ]
     },
@@ -11430,6 +11456,28 @@
     {
       "group": "Tickets",
       "method": "GET",
+      "path": "/v1/batches/startable",
+      "action": "batches.startable",
+      "access": "Developer",
+      "permission": "batch:read",
+      "input": "BatchStartableQuery",
+      "output": "BatchStartable",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
       "path": "/v1/batches/{id}",
       "action": "batches.get",
       "access": "Developer",
@@ -11907,6 +11955,72 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-pages",
+      "action": "pluginPages.list",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "CursorQuery",
+      "output": "Page<PluginPageEntry>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/pages/{pageId}",
+      "action": "pluginPages.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "PluginPagePath",
+      "output": "PluginPageAccess",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/pages/{pageId}/document",
+      "action": "pluginPageDocuments.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "organizationContext": "required_authenticated_context",
+      "organizationIdQuery": "organizationId",
+      "input": "PluginPageDocumentQuery",
+      "output": "PluginPageDocument",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ]
     },
     {
       "group": "Plugins",

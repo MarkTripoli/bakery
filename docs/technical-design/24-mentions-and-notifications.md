@@ -75,6 +75,7 @@ These are planned additions, not routes or schemas that callers can use today. R
 | `conversations.mentionCandidates` | Scoped name/email directory search, existing-access and can-share projection. |
 | `messages.create` extension | Typed people references; atomic message, grants, notifications, receipt and outbox under existing idempotency. |
 | `conversationAccess.list` / `.revoke` | Inspect provenance and revoke a direct grant under sharing authority; does not remove inherited access. |
+| `conversationAccess.sharers` | Up to three people who may give access to the conversation, its author first, so a writer who may not share can ask one of them; grants nothing. |
 | `notifications.list` / `.get` / `.count` | Current recipient only; cursor filters, safe target projection, unread count and freshness. |
 | `notifications.setRead` / `.markAllRead` | Idempotent recipient-only read/unread mutation and snapshot-bounded bulk read, with authoritative revision. |
 | `notifications.resolveTarget` | Reauthorize stored typed target and return a validated internal route/anchor or safe unavailable state. |

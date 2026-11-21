@@ -178,6 +178,7 @@ export const ConversationImplementedAction = Object.freeze(
     ConversationsMentionCandidates: "conversations.mentionCandidates",
     ConversationAccessList: "conversationAccess.list",
     ConversationAccessRevoke: "conversationAccess.revoke",
+    ConversationAccessSharers: "conversationAccess.sharers",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
@@ -533,6 +534,7 @@ export const workflowImplementedActions = Object.freeze(
 export const BatchImplementedAction = Object.freeze(
   {
     BatchesList: "batches.list",
+    BatchesStartable: "batches.startable",
     BatchesGet: "batches.get",
     BatchesCreate: "batches.create",
     BatchesPause: "batches.pause",
@@ -875,6 +877,9 @@ export const PluginInstallImplementedAction = Object.freeze(
     PluginStateGet: "pluginState.get",
     PluginStateItemsList: "pluginStateItems.list",
     PluginStatePut: "pluginState.put",
+    PluginPagesList: "pluginPages.list",
+    PluginPagesGet: "pluginPages.get",
+    PluginPageDocumentsGet: "pluginPageDocuments.get",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const pluginInstallImplementedActions = Object.freeze(

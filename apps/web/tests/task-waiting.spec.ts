@@ -897,6 +897,55 @@ for (const scheme of SCHEMES) {
   }
 }
 
+test("the OpenAI mark is drawn at twice the art size and overflows its slot without moving the name", async ({ page }) => {
+  await openWaiting(page, [wideOffer()]);
+  await chooseButton(page).click();
+  await expect(chooser(page)).toBeVisible();
+  const measure = (provider: string) =>
+    chooser(page).locator(`.ui-provider-mark[data-provider="${provider}"]`)
+      .evaluate((slot) => {
+        const art = slot.querySelector("img");
+        if (art === null) throw new Error("no art");
+        const s = slot.getBoundingClientRect();
+        const a = art.getBoundingClientRect();
+        const clipped: string[] = [];
+        for (
+          let node: Element | null = slot.parentElement;
+          node !== null &&
+          node.getAttribute("data-testid") !== "route-waiting-chooser";
+          node = node.parentElement
+        ) {
+          const box = node.getBoundingClientRect();
+          // A scroll area that still holds the whole art does not clip it.
+          const holdsArt = box.left <= a.left && box.right >= a.right &&
+            box.top <= a.top && box.bottom >= a.bottom;
+          if (getComputedStyle(node).overflow !== "visible" && !holdsArt) {
+            clipped.push(node.tagName);
+          }
+        }
+        return {
+          slot: [s.width, s.height],
+          art: [a.width, a.height],
+          offset: [
+            a.left + a.width / 2 - (s.left + s.width / 2),
+            a.top + a.height / 2 - (s.top + s.height / 2),
+          ],
+          pointer: getComputedStyle(slot).pointerEvents,
+          clipped,
+        };
+      });
+  const openai = await measure("openai");
+  expect(openai.slot).toEqual([24, 24]);
+  expect(openai.art).toEqual([40, 40]);
+  expect(Math.abs(openai.offset[0])).toBeLessThan(1);
+  expect(Math.abs(openai.offset[1])).toBeLessThan(1);
+  expect(openai.pointer).toBe("none");
+  expect(openai.clipped).toEqual([]);
+  const openrouter = await measure("openrouter");
+  expect(openrouter.slot).toEqual([24, 24]);
+  expect(openrouter.art).toEqual([20, 20]);
+});
+
 for (const scheme of SCHEMES) {
   for (const [size, width, height] of SIZES) {
     for (const [name, where, act] of CHOOSER_CASES) {

@@ -104,6 +104,12 @@ export const AgentFileRefusal = Object.freeze(
      * there needs a person's grant.
      */
     ConnectionNotBound: "agent_file_connection_not_bound",
+    /**
+     * A reviewer's session writes only its declared outputs, through its
+     * step's result (O47): no storage write, whatever its files section or a
+     * grant to the folder says.
+     */
+    ReviewerOutputsOnly: "agent_file_reviewer_outputs_only",
   } as const,
 );
 export type AgentFileRefusal =

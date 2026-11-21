@@ -158,6 +158,25 @@ JS
     cd "$root/releases/$sha/apps/server"
     runuser --preserve-environment -u bakery-migrate -- deno run --no-prompt --allow-env --allow-net --allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations,src/modules/knowledge/migrations,src/modules/catalog/migrations src/tasks.ts migrate
     ;;
+  inngest-stop)
+    # restore.sh (issue #64 slice E2): Inngest must not touch Postgres or Redis
+    # while they are replaced. It stays stopped after the restore.
+    "${compose[@]}" stop inngest
+    ;;
+  restore-fence)
+    # restore.sh (issue #64 slice E2): the privileged fence task, run as the
+    # database owner on the restored stores before any service starts. Like
+    # migrate: no network beyond the database, no write access.
+    sha=${1:?sha required}
+    valid_sha "$sha" || exit 64
+    shift
+    set -a
+    source /etc/bakery/owner.env
+    set +a
+    export HOME=/home/bakery-migrate DENO_DIR=/home/bakery-migrate/.cache/deno
+    cd "$root/releases/$sha/apps/server"
+    runuser --preserve-environment -u bakery-migrate -- deno run --no-prompt --allow-env --allow-net --allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations,src/modules/knowledge/migrations,src/modules/catalog/migrations src/tasks.ts restore-fence "$@"
+    ;;
   background)
     sha=${1:?sha required}
     stop_worker

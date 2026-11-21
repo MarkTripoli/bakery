@@ -169,6 +169,10 @@ import { createExecutionRoutes } from "./modules/execution/index.ts";
 import { createRunControlRegistry } from "./modules/execution/control.ts";
 import { createCatalogActionRegistry } from "./modules/catalog/actions.ts";
 import { createCatalogHandlers } from "./modules/catalog/persistence.ts";
+import {
+  createGlobalSkillAuthority,
+  withGlobalSkillInstall,
+} from "./modules/catalog/global-skills.ts";
 import { createAgentsActionRegistry } from "./modules/agents/actions.ts";
 import { createAgentsHandlers } from "./modules/agents/postgres.ts";
 import { createSessionToolRegistry } from "./modules/execution/session-registry.ts";
@@ -423,13 +427,20 @@ export function createApp(options: {
    * call something different from the route the rest of the product calls.
    */
   const catalogRegistry = createCatalogActionRegistry(
-    createCatalogHandlers(options.config.auth.secret, {
-      normalizeSourceLocator: options.skillSourceLocatorNormalizer,
-      // A draft is started from a published version's files, read from here.
-      skillFileStore,
-    }),
+    withGlobalSkillInstall(
+      createCatalogHandlers(options.config.auth.secret, {
+        normalizeSourceLocator: options.skillSourceLocatorNormalizer,
+        // A draft is started from a published version's files, read from here.
+        skillFileStore,
+      }),
+    ),
     {
-      authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
+      // Listing skills installs Bakery's own skills the first time: it needs
+      // the file store, so the install runs in stages under this authority.
+      authorityRunner: createGlobalSkillAuthority(
+        new PostgresAuthorityRunner(options.pgDatabase),
+        skillFileStore,
+      ),
       commandRunner: createPostgresCommandRunner(),
       includeSkillVersionPublication: false,
     },
@@ -855,6 +866,11 @@ export function createApp(options: {
     "/",
     createPluginInstallRoutes({
       database: options.pgDatabase,
+      // Absent when no object store is configured; a page's document read
+      // then fails closed.
+      ...(skillFileStore
+        ? { bundles: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
@@ -891,6 +907,7 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      budget: options.config.budget,
     }),
   );
   app.route(
