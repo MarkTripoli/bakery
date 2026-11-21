@@ -234,7 +234,7 @@ Deno.test("under the shipped flags an idle pass makes one claim and nothing else
     assertEquals(api.seen.claims, 1);
     assertEquals(api.seen.settings, 0);
     assertEquals(api.seen.reports.length, 0);
-    assertEquals(receiver.requests.length, 0);
+    assertEquals(receiver.signedRequests, []);
   } finally {
     await api.stop();
     await receiver.stop();
