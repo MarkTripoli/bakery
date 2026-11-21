@@ -7,6 +7,7 @@ import {
 import {
   bearerGet,
   cleanupDesktopSignIns,
+  exchangeDesktopSignIn,
   signInDesktop,
 } from "../helpers/desktop-sign-in.ts";
 
@@ -340,5 +341,74 @@ Deno.test("a handed-off session never outlives the desktop sign-in it came from"
       [desktop.sessionId],
     );
     assert(rows.rows[0].browser.getTime() <= rows.rows[0].desktop.getTime());
+  });
+});
+
+Deno.test("signing out other sessions from the person's browser ends the app and its window sessions", async () => {
+  await withFixture(async (f) => {
+    const desktop = await signInDesktop(f, f.developerCookie);
+    const cookie = cookieOf(
+      await openHandoff(f, (await codeFor(f, desktop.credential)).code),
+    )!;
+    assertEquals((await me(f, cookie)).status, 200);
+    const r = await f.app.fetch(
+      new Request(`${authTestOrigin}/v1/me/sessions/revoke-others`, {
+        method: "POST",
+        headers: {
+          cookie: f.developerCookie,
+          origin: authTestOrigin,
+          "content-type": "application/json",
+          "idempotency-key": crypto.randomUUID(),
+        },
+        body: "{}",
+      }),
+    );
+    const rt = await r.text();
+    assertEquals(r.status, 200, rt);
+    const win = (await me(f, cookie)).status;
+    assertEquals(win, 401);
+    assertEquals((await me(f, f.developerCookie)).status, 200);
+  });
+});
+
+Deno.test("sign out other sessions asked from a window keeps that window", async () => {
+  await withFixture(async (f) => {
+    const desktop = await signInDesktop(f, f.developerCookie);
+    const cookie = cookieOf(
+      await openHandoff(f, (await codeFor(f, desktop.credential)).code),
+    )!;
+    const r = await f.app.fetch(
+      new Request(`${authTestOrigin}/v1/me/sessions/revoke-others`, {
+        method: "POST",
+        headers: {
+          cookie,
+          origin: authTestOrigin,
+          "content-type": "application/json",
+          "idempotency-key": crypto.randomUUID(),
+        },
+        body: "{}",
+      }),
+    );
+    await r.body?.cancel();
+    const own = (await me(f, cookie)).status;
+    assertEquals(r.status, 200);
+    assertEquals(own, 200);
+  });
+});
+
+Deno.test("a replayed desktop sign-in code ends the window sessions it handed off", async () => {
+  await withFixture(async (f) => {
+    const desktop = await signInDesktop(f, f.developerCookie);
+    const cookie = cookieOf(
+      await openHandoff(f, (await codeFor(f, desktop.credential)).code),
+    )!;
+    assertEquals((await me(f, cookie)).status, 200);
+    const replay = await exchangeDesktopSignIn(f, desktop.id, {
+      code: desktop.code,
+      codeVerifier: desktop.verifier,
+    });
+    await replay.body?.cancel();
+    const win = (await me(f, cookie)).status;
+    assertEquals(win, 401);
   });
 });

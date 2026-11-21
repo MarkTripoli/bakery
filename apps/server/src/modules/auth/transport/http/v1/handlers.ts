@@ -719,6 +719,7 @@ export async function browserSessionsRevokeOthers(context: ActionContext) {
   await endHandedOffSessions(
     authorized.transaction,
     result.rows.map((row) => (row as { id: string }).id),
+    { keep: context.sessionId },
   );
   await audit(authorized, {
     organizationId: null,
