@@ -80,13 +80,15 @@ export async function pluginJobFilesRoute(
     throw refusal("plugin_install_gone");
   }
   if (row.status !== "enabled") throw refusal("plugin_install_off");
+  // A version that is not this install's package's is checked first: it asked
+  // for nothing, and "not granted" would name the wrong problem.
+  if (row.bundle_object_ref === null || row.bundle_digest === null) {
+    throw refusal("plugin_job_version_gone");
+  }
   // The install must still hold the capability, and the version the job was
   // admitted with must have asked for it: the install may have been widened
   // since, and that widening is not the job's.
   if (!row.granted || !row.asked) throw refusal("plugin_job_not_granted");
-  if (row.bundle_object_ref === null || row.bundle_digest === null) {
-    throw refusal("plugin_job_version_gone");
-  }
   const bundleDigest = row.bundle_digest;
   if (attempt.entry === null) throw refusal("plugin_job_entry_missing");
   // The stored ref is recomputed rather than trusted, as at publication.
