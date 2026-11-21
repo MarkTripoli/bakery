@@ -3,7 +3,24 @@
 // an update blindly: the operation reconciles, and only the digest the host
 // reports as installed decides whether it succeeded.
 import { assert, assertEquals } from "@std/assert";
-import { problemCode, registeredWorker } from "../helpers/worker-execution.ts";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  MaintenanceExecutor,
+  MaintenanceJournalStore,
+} from "../../apps/worker/src/maintenance.ts";
+import {
+  createReleaseDirectoryAdapter,
+  WORKER_COMPONENT_KEY,
+  workerMaintenanceAdapters,
+} from "../../apps/worker/src/maintenance-release.ts";
+import {
+  problemCode,
+  registeredWorker,
+  workerRequest,
+} from "../helpers/worker-execution.ts";
 import {
   claimAssignment,
   withWorkerFixture,
@@ -180,4 +197,166 @@ Deno.test("a crash before the switch reconciles to failed and reopens claims", (
     );
     const claimed = await claimAssignment(fixture, worker);
     assert(claimed.attemptId.length > 0);
+  }));
+
+// Slice B2 end to end: the worker executor switches a real release directory
+// and the server records the outcome. The switch swaps a symlink, and Deno
+// refuses symlink() under a path-scoped --allow-write, so these run in the
+// recovery lane (unscoped write) rather than the integration lane.
+Deno.test("the worker executor applies an assigned update and the server records success", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-b2-e2e" });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    const bytes = (text: string) => new TextEncoder().encode(text);
+    const oldRelease = {
+      bytes: bytes("bakery 1.0"),
+      version: "1.0",
+      stateFormat: 1,
+    };
+    const newRelease = {
+      bytes: bytes("bakery 1.1"),
+      version: "1.1",
+      stateFormat: 1,
+    };
+    const targetDigest = createHash("sha256").update(newRelease.bytes)
+      .digest("hex");
+    const base = await mkdtemp(join(tmpdir(), "bakery-maintenance-e2e-"));
+    try {
+      const adapter = createReleaseDirectoryAdapter({
+        componentKey: "harness.bakery",
+        root: join(base, "component"),
+        fetchArtifact: (target) =>
+          Promise.resolve(
+            target.digest === targetDigest ? newRelease : oldRelease,
+          ),
+        health: () => Promise.resolve(true),
+      });
+      await adapter.switchTo(
+        await adapter.stage({
+          digest: createHash("sha256").update(oldRelease.bytes).digest("hex"),
+          version: "1.0",
+        }),
+      );
+      const created = await createMaintenance(fixture, hostId, {
+        verb: "update_component",
+        componentKey: "harness.bakery",
+        targetVersion: "1.1",
+        targetDigest,
+      });
+      assertEquals(created.status, 201);
+      const operation = await created.json() as MaintenanceOperation;
+      const assignments = await heartbeatAssignments(fixture, worker);
+      assertEquals(assignments.map((item) => item.operationId), [operation.id]);
+      const statuses: number[] = [];
+      const executor = new MaintenanceExecutor({
+        journal: await MaintenanceJournalStore.open(join(base, "state")),
+        adapters: [adapter],
+        log: () => undefined,
+        report: async (operationId, body) => {
+          const response = await sendMaintenanceReport(
+            fixture,
+            worker,
+            operationId,
+            body,
+          );
+          statuses.push(response.status);
+          await response.body?.cancel();
+          if (response.status !== 200) {
+            throw { status: response.status, retryable: false };
+          }
+        },
+      });
+      await executor.accept(
+        assignments as unknown as Parameters<typeof executor.accept>[0],
+      );
+      assertEquals(statuses, [200, 200]);
+      const finished = await maintenancePhase(fixture, operation.id);
+      assertEquals(finished.phase, "succeeded");
+      assertEquals(
+        (finished.result as { installedDigest?: string }).installedDigest,
+        targetDigest,
+      );
+      assertEquals((await adapter.installed())?.digest, targetDigest);
+      // A duplicate delivery replays the stored answer; nothing runs again.
+      await executor.accept(
+        assignments as unknown as Parameters<typeof executor.accept>[0],
+      );
+      assertEquals(statuses, [200, 200, 200]);
+      assertEquals(await heartbeatAssignments(fixture, worker), []);
+      assert(!executor.claimsClosed());
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
+  }));
+
+Deno.test("the worker's reported own release can be targeted by an Admin update", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-b2-own" });
+    const hostId = worker.registration.workerHostId;
+    const base = await mkdtemp(join(tmpdir(), "bakery-maintenance-own-"));
+    try {
+      const bytes = new TextEncoder().encode("bakery worker 1.0.0");
+      const digest = createHash("sha256").update(bytes).digest("hex");
+      await mkdir(join(base, "source", digest), { recursive: true });
+      await writeFile(join(base, "source", digest, "artifact"), bytes);
+      await writeFile(
+        join(base, "source", digest, "release.json"),
+        JSON.stringify({ version: "1.0.0", stateFormat: 1 }),
+      );
+      const adapters = workerMaintenanceAdapters({
+        maintenanceRelease: {
+          root: join(base, "release"),
+          sourceDir: join(base, "source"),
+        },
+      });
+      await adapters[0]!.switchTo(
+        await adapters[0]!.stage({ digest, version: null }),
+      );
+      const executor = new MaintenanceExecutor({
+        journal: await MaintenanceJournalStore.open(join(base, "state")),
+        adapters,
+        report: () => Promise.resolve(),
+        log: () => undefined,
+      });
+      const components = await executor.inventoryComponents(
+        new Date().toISOString(),
+      );
+      const reported = await workerRequest(
+        fixture,
+        worker.credential,
+        "/v1/worker/inventory",
+        {
+          reportId: crypto.randomUUID(),
+          hostGeneration: worker.registration.registrationGeneration,
+          expectedInventoryRevision: 1,
+          components,
+          checks: [],
+        },
+        {
+          headers: { "X-Bakery-Worker-Protocol-Version": "2" },
+          idempotencyKey: crypto.randomUUID(),
+        },
+      );
+      assertEquals(reported.status, 200, await reported.clone().text());
+      await reported.body?.cancel();
+      const stored = await fixture.pgDatabase.query<{
+        install_owner: string;
+      }>(
+        `select install_owner from bakery.worker_components
+          where worker_host_id = $1 and component_key = $2`,
+        [hostId, WORKER_COMPONENT_KEY],
+      );
+      assertEquals(stored.rows[0]?.install_owner, "bakery");
+      const created = await createMaintenance(fixture, hostId, {
+        verb: "update_component",
+        componentKey: WORKER_COMPONENT_KEY,
+        targetVersion: "1.1.0",
+        targetDigest: "a".repeat(64),
+      });
+      assertEquals(created.status, 201, await created.clone().text());
+      await created.body?.cancel();
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
   }));
