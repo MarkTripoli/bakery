@@ -7448,6 +7448,28 @@ export const clientManifest = {
     },
     {
       "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/access/sharers",
+      "action": "conversationAccess.sharers",
+      "access": "Developer",
+      "permission": "message:read",
+      "input": "IdPath",
+      "output": "ConversationSharers",
+      "event": "",
+      "mcp": "bakery_conversationAccess_sharers",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
       "method": "POST",
       "path": "/v1/conversations/{id}/access/{principalId}/revoke",
       "action": "conversationAccess.revoke",
@@ -18730,6 +18752,7 @@ export const clientManifest = {
             "conversationParticipants.list",
             "conversations.mentionCandidates",
             "conversationAccess.list",
+            "conversationAccess.sharers",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -46138,6 +46161,7 @@ export const clientManifest = {
                   "conversationParticipants.list",
                   "conversations.mentionCandidates",
                   "conversationAccess.list",
+                  "conversationAccess.sharers",
                   "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
@@ -66617,6 +66641,7 @@ export const clientManifest = {
             "conversationParticipants.list",
             "conversations.mentionCandidates",
             "conversationAccess.list",
+            "conversationAccess.sharers",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -100886,6 +100911,43 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "One person's direct, mention-granted access to one conversation, with who granted it and from which message."
+    },
+    "ConversationSharers": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The person who may give access."
+              },
+              "displayName": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "Their current display name; never an email address. ConversationSharer.displayName must contain at most 200 characters."
+              }
+            },
+            "required": [
+              "principalId",
+              "displayName"
+            ],
+            "additionalProperties": false,
+            "description": "Up to three active people in the reader's organization whose role may share the conversation, its author first when the author is one of them, then by display name. Empty when nobody may. Each array item follows this format."
+          },
+          "description": "Up to three active people in the reader's organization whose role may share the conversation, its author first when the author is one of them, then by display name. Empty when nobody may."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "Who can give access to one conversation: up to three people, so a writer who may not share can ask one of them. It grants nothing."
     },
     "Page<ConversationAccessGrant>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

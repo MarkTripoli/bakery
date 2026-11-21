@@ -51,7 +51,7 @@ export const MentionRefusal = Object.freeze(
 type MentionRefusalCode = (typeof MentionRefusal)[keyof typeof MentionRefusal];
 
 /** One organization member as the mention rules see them. */
-type MemberRow = {
+export type MemberRow = {
   principalId: string;
   displayName: string;
   role: string | null;
@@ -85,7 +85,7 @@ function actorOf(context: ActionContext): OrganizationActor {
  * permission. Capabilities are deliberately ignored: an exact action grant is
  * not a person's standing access to a conversation.
  */
-function memberHolds(
+export function memberHolds(
   row: Pick<MemberRow, "role" | "customRoleId" | "customPermissions">,
   permissions: readonly CatalogPermissionKey[],
 ): boolean {
@@ -137,7 +137,7 @@ export function writerMayShare(actor: OrganizationActor): boolean {
  * membership, a system role other than a bare guest. Disabled, removed and
  * invited-but-not-joined people are not members here and never match.
  */
-const ELIGIBLE_MEMBER_SQL = `
+export const ELIGIBLE_MEMBER_SQL = `
   from bakery.organization_memberships as membership
   join bakery.principals as principal on principal.id = membership.principal_id
   left join public."user" as account on account.id = principal.provider_user_id
@@ -182,6 +182,64 @@ function accessFor(
     hasAccess,
     gainsAccessOnSend: !hasAccess && mayShare,
   };
+}
+
+/** The most people a "who can give access" answer names. */
+export const MAX_SHARERS = 3;
+
+/**
+ * Up to MAX_SHARERS active human members whose organization role holds
+ * `permission`, the author first when the author is one of them, then by
+ * display name. People are read in pages of 100 so a large organization with
+ * few sharers still finds them, and the answer never reaches outside the
+ * organization. It names nobody the reader could not already see in the
+ * mention picker: display names only.
+ */
+export async function findSharers(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  authorId: string | null,
+  permission: CatalogPermissionKey,
+): Promise<{ principalId: string; displayName: string }[]> {
+  const found: { principalId: string; displayName: string }[] = [];
+  let after: string | null = null;
+  let authorChecked = authorId === null;
+  while (found.length < MAX_SHARERS) {
+    const result: { rows: MemberRow[] } = await transaction.query<MemberRow>(
+      `select ${MEMBER_COLUMNS}
+       ${ELIGIBLE_MEMBER_SQL}
+         and ($3::uuid is null or principal.id = $3::uuid)
+         and ($4::uuid is null or (lower(principal.display_name), principal.id) >
+           (select lower(after_row.display_name), after_row.id
+            from bakery.principals as after_row where after_row.id = $4::uuid))
+       order by lower(principal.display_name), principal.id
+       limit 100`,
+      [
+        organizationId,
+        null,
+        authorChecked ? null : authorId,
+        authorChecked ? after : null,
+      ],
+    );
+    for (const row of result.rows) {
+      if (!memberHolds(row, [permission])) continue;
+      if (found.some((person) => person.principalId === row.principalId)) {
+        continue;
+      }
+      found.push({
+        principalId: row.principalId,
+        displayName: row.displayName,
+      });
+      if (found.length === MAX_SHARERS) break;
+    }
+    if (!authorChecked) {
+      authorChecked = true;
+      continue;
+    }
+    if (result.rows.length < 100) break;
+    after = result.rows.at(-1)?.principalId ?? null;
+  }
+  return found;
 }
 
 function likePattern(query: string): string {
