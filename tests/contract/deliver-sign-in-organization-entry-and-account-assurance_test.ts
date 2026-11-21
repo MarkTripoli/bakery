@@ -47,6 +47,7 @@ Deno.test("installation status, browser session list, revoke, and revoke-others 
     assertEquals(await beforeBootstrap.json(), {
       bootstrapped: false,
       restoreHeld: false,
+      updatePaused: false,
     });
 
     await createSuperuser({
@@ -61,6 +62,7 @@ Deno.test("installation status, browser session list, revoke, and revoke-others 
     assertEquals(await afterBootstrap.json(), {
       bootstrapped: true,
       restoreHeld: false,
+      updatePaused: false,
     });
 
     const signIn = await fixture.auth.handler(authRequest(
@@ -142,6 +144,7 @@ Deno.test("GET /v1/installation/status returns its boolean body even with an unp
     assertEquals(await response.json(), {
       bootstrapped: false,
       restoreHeld: false,
+      updatePaused: false,
     });
   } finally {
     await fixture.close();

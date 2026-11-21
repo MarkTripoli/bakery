@@ -75,8 +75,10 @@ done
 cat > /usr/local/sbin/bakery-release <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-case "${1:-}" in bootstrap|deploy|rollback|recover) ;; *) exit 64;; esac
+case "${1:-}" in bootstrap|deploy|rollback|recover|status) ;; *) exit 64;; esac
 [[ "${1:-}" != bootstrap || "${SUDO_USER:-}" != bakery-deploy ]] || exit 77
+# status only reads the journal, so it takes no lock and works mid-switch.
+[[ "${1:-}" != status ]] || exec /usr/bin/node /opt/bakery/deploy/release.mjs status
 exec /usr/bin/systemd-run --wait --pipe --collect --unit="bakery-release-$(cat /proc/sys/kernel/random/uuid)" \
   --property=RuntimeMaxSec=30min --property=TimeoutStopSec=15 --property=ExecStopPost=/usr/local/sbin/bakery-recover \
   /usr/bin/flock --exclusive --timeout 300 /run/lock/bakery-deploy.lock /usr/bin/node /opt/bakery/deploy/release.mjs "$@"
