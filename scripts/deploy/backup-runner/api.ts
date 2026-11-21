@@ -54,6 +54,8 @@ export type RunnerSettings = {
   readonly offsiteAccessKeyId: string | null;
   readonly offsiteSecretAccessKey: string | null;
   readonly offsiteRefusal: string | null;
+  /** Restore to any minute is on: ship archived WAL off-site. */
+  readonly pointInTimeEnabled?: boolean;
 };
 
 /** The runner credential was refused, or a request the runner built is invalid: retrying cannot help. */
@@ -87,6 +89,15 @@ export class ApiUnavailable extends Error {
 export type RunnerApi = {
   claim(signal?: AbortSignal): Promise<Claim>;
   settings(signal?: AbortSignal): Promise<RunnerSettings>;
+  /** Reports the restorable window the destination holds (Restore to any minute). */
+  reportWal(
+    window: {
+      latestArchivedAt: string;
+      earliestBaseBackupAt: string;
+      latestSegment: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<void>;
   /**
    * Holds the installation for the claimed run and says whether it is quiet.
    * The first call enters maintenance (new work is refused from then on); each
@@ -242,6 +253,17 @@ export function createRunnerApi(
       );
       await assertOk(response);
       return await response.json() as RunnerSettings;
+    },
+
+    async reportWal(window, signal) {
+      const response = await request(
+        "POST",
+        "/v1/backup-runner/wal",
+        window,
+        signal,
+      );
+      await assertOk(response);
+      await response.body?.cancel();
     },
 
     async maintain(runId, leaseToken, signal) {

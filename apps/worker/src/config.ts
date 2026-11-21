@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { GIT_EXECUTABLE } from "./git-executable.ts";
+import { DF_EXECUTABLE } from "./machine-checks.ts";
 import { assertAbsolutePath } from "./storage.ts";
 import { WORKER_SPOOL_MIN_BYTES, WORKER_SPOOL_MIN_RECORDS } from "./types.ts";
 import {
@@ -469,8 +470,9 @@ export type WorkerLaunchPermissions = {
 };
 
 /**
- * Launch run grants. Base set is Deno, bwrap and ldd; setsid, git and the
- * harness executable are granted only when a coding harness is configured.
+ * Launch run grants. Base set is Deno, bwrap, ldd, kill and df (the free-disk
+ * machine check); setsid, git and the harness executable are granted only when
+ * a coding harness is configured.
  */
 export function workerRunExecutables(
   denoPath: string,
@@ -481,6 +483,7 @@ export function workerRunExecutables(
     "/usr/bin/bwrap",
     "/usr/bin/ldd",
     "/usr/bin/kill",
+    DF_EXECUTABLE,
     ...(harnessExecutable
       ? ["/usr/bin/setsid", GIT_EXECUTABLE, harnessExecutable]
       : []),
@@ -505,6 +508,7 @@ export function workerRuntimeReadPaths(
     "/usr/bin/true",
     "/usr/bin/ldd",
     "/usr/bin/kill",
+    DF_EXECUTABLE,
     ...(options.codingHarness ? ["/usr/bin/setsid"] : []),
     // ldd reports the loader and libraries by their merged-usr symlink
     // paths; Deno checks the path as given, so grant those spellings too.

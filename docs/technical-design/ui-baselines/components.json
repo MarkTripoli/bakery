@@ -1,5 +1,5 @@
 {
-  "revision": "81eb26088a6ca669e586d115ca3d4990beea2a0bba58467d08a9f1d810eede28",
+  "revision": "80e6793cf36fcf3fefe5d5c061f43ac3ecb90f76c4480c3544cf2323b55a8616",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -21203,7 +21203,7 @@
       "requiredCases": [
         {
           "id": "contract",
-          "description": "Exercises AccessOffer for one person, for several people with the line on how to leave someone out, and while sending.",
+          "description": "Exercises AccessOffer for one person, for several people with the line on how to leave someone out, while sending, for a writer who may not share (who can be asked, or could not be read), and after the send with its Undo, in good-news and warning tones.",
           "variants": [
             "default"
           ],
@@ -21424,6 +21424,118 @@
         ]
       },
       "paperAbsentReason": "Designed in the UX design comment on issue 73 (revision 2), not in Paper; the Paper manifests have no mention picker."
+    },
+    {
+      "id": "ui.sealedFrame",
+      "name": "SealedFrame",
+      "description": "The frame a plugin's own page runs in: scripts may run and nothing else is granted; it fills its parent and scrolls inside.",
+      "level": "organism",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Organisms/SealedFrame",
+      "usage": {
+        "whenToUse": "Show a page that a plugin made, under Bakery's own strip that says who made it.",
+        "whenNotToUse": "Do not show a page that Bakery made, a page from an address the plugin names, or anything that needs the person's sign-in or storage: the frame has none.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "none",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Tab moves into the page and out of it in order."
+        ],
+        "notes": "The frame's accessible name is supplied by the caller (as its title), such as the page title and the plugin that provided it; the page inside cannot change it."
+      },
+      "tokens": [
+        "--border-none",
+        "--color-canvas"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "A sealed frame showing a page of its own, at the size it fills.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.sealedFrame.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.sealedFrame.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.sealedFrame.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 76 (revision 5), not in Paper; the Paper manifests have no plugin page frame."
     },
     {
       "id": "ui.paneSection",

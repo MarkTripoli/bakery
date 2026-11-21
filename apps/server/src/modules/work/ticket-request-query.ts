@@ -13,6 +13,11 @@ import {
 } from "../../platform/cursor.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import {
+  readRequestDeliveryFacts,
+  type RequestDeliveryFacts,
+  requestDeliveryVerdict,
+} from "./ticket-delivery-store.ts";
+import {
   dispositionReasonCode,
   pausedReason,
   ticketRequestProgress,
@@ -115,6 +120,7 @@ function triggerLabelName(row: ViewRow): string | null {
 function toView(
   row: ViewRow,
   targets: ViewOutput["targets"] | undefined,
+  facts: RequestDeliveryFacts | undefined,
 ): ViewOutput {
   if (!isTicketRequestDisposition(row.disposition)) {
     throw new Error("TICKET_REQUEST_ROW_INVALID");
@@ -132,7 +138,11 @@ function toView(
     dispositionReasonCode: dispositionReasonCode(row.disposition_reason),
     pausedAt: row.pause_requested_at?.toISOString() ?? null,
     pausedReason: pausedReason(row.pause_requested_at, row.disposition_reason),
-    progress: ticketRequestProgress(row.disposition, row.run_status),
+    progress: ticketRequestProgress(
+      row.disposition,
+      row.run_status,
+      requestDeliveryVerdict(facts, row.run_status === "completed").delivered,
+    ),
     workflowRunId: row.workflow_run_id,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -146,12 +156,14 @@ async function project(
   organizationId: string,
   rows: readonly ViewRow[],
 ): Promise<ViewOutput[]> {
-  const targets = await targetsFor(
+  const ids = rows.map((row) => row.id);
+  const targets = await targetsFor(transaction, organizationId, ids);
+  const facts = await readRequestDeliveryFacts(
     transaction,
     organizationId,
-    rows.map((row) => row.id),
+    ids,
   );
-  return rows.map((row) => toView(row, targets.get(row.id)));
+  return rows.map((row) => toView(row, targets.get(row.id), facts.get(row.id)));
 }
 
 /** `ticketRequests.list`: one ticket's requests, newest first, keyset paged. */

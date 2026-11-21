@@ -1,13 +1,63 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a90e69c734392ec761caf3fd8805c1c6355444c2"
+    "f5ec00f7de45132935cf369a5841a7b710f99c61"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:b0253a3aff00da400668344c5c722ef264a95cac2480a9daefb10d4a985f76e0",
-  "reason": "#46 slice C line-count rebind by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main a90e69c734392ec761caf3fd8805c1c6355444c2: merged pull requests carry lineCount evidence for development metrics, re-bound after merging main. Main's own approval is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:72801058163e0c9d7f8eefb0fbabdc15b7fc436355124e42ab17b78394aac147",
+  "reason": "#80 point-in-time P1a by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main f5ec00f7de45132935cf369a5841a7b710f99c61: backupPointInTime.get/put, the runner's WAL report, and BackupRunnerSettings gains a required pointInTimeEnabled. Main's own approval is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "b5c94881564cc3f2254efb23fd52338828d047d3"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:dc9bc9faa37e598d625d1fb669b99daaa3a52e6492cc63feebb4f07363963f31",
+      "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main b5c94881564cc3f2254efb23fd52338828d047d3: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "fcf081cba36cd29784a4da1d7e6777662e46384a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:282e7c27884d1391ae1a77fd9d18c934a7e8f93033f0bdbbec81965c31b313a0",
+      "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main fcf081cba36cd29784a4da1d7e6777662e46384a: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "523b2647da5129abd555c6cc708911c3c6d1878d"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:aec7dd9ef6d8ecb08c7c33c910f664b11dfb3bf15c7c9a05bfd269ee9cfb1544",
+      "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 523b2647da5129abd555c6cc708911c3c6d1878d: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "88dafb55652383258303edc4de6e86815d7e9c33"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:51e88572c295c52a4d4c78d5215a9f166f47c2aa448eadf3f50c1edbec4da04e",
+      "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 88dafb55652383258303edc4de6e86815d7e9c33: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "a90e69c734392ec761caf3fd8805c1c6355444c2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b0253a3aff00da400668344c5c722ef264a95cac2480a9daefb10d4a985f76e0",
+      "reason": "#46 slice C line-count rebind by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main a90e69c734392ec761caf3fd8805c1c6355444c2: merged pull requests carry lineCount evidence for development metrics, re-bound after merging main. Main's own approval is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

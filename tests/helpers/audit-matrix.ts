@@ -16,6 +16,7 @@ import {
 } from "./installation-settings.ts";
 import { orgHeader } from "./account-settings.ts";
 import { authRequest, enrollTotp, sessionCookie } from "./auth.ts";
+import { signInDesktop } from "./desktop-sign-in.ts";
 import { connectClient, registerTestClient } from "./oauth-mcp.ts";
 import { createFakeGitHubApp } from "./fake-github-app.ts";
 import { seedRigIntegration } from "./external-effects.ts";
@@ -508,6 +509,43 @@ export async function runAuditMatrix(
       },
     },
     {
+      operation: "desktopHandoffs.create",
+      // A browser cookie session may not ask for a code: refused, no row.
+      failure: () =>
+        call(f, "POST", "/v1/desktop-handoffs", f.adminCookie, {
+          body: { returnTo: "/projects" },
+          headers: org,
+        }),
+      success: async () => {
+        const desktop = await signInDesktop(f, f.adminCookie);
+        const response = await f.app.fetch(
+          new Request(
+            `${
+              new URL(f.config.auth!.publicOrigin).origin
+            }/v1/desktop-handoffs`,
+            {
+              method: "POST",
+              headers: {
+                authorization: `Bearer ${desktop.credential}`,
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({ returnTo: "/projects" }),
+            },
+          ),
+        );
+        const row = await f.pgDatabase.query<{ id: string }>(
+          `select id from bakery.desktop_handoffs
+            where desktop_session_id = $1`,
+          [desktop.sessionId],
+        );
+        return {
+          response,
+          organizationId: null,
+          resourceId: row.rows[0]?.id,
+        };
+      },
+    },
+    {
       operation: "userPreferences.update",
       failure: () =>
         adminCall("PATCH", "/v1/user-preferences", {
@@ -987,6 +1025,27 @@ export async function runAuditMatrix(
               timeOfDayUtc: "03:00",
               daysToKeep: 30,
             },
+            headers: { "Idempotency-Key": key() },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
+      operation: "backupPointInTime.put",
+      failure: () =>
+        call(f, "PUT", "/v1/installation/backup-point-in-time", developer, {
+          body: { enabled: true },
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "PUT",
+          "/v1/installation/backup-point-in-time",
+          f.adminCookie,
+          {
+            body: { enabled: true },
             headers: { "Idempotency-Key": key() },
           },
         ),

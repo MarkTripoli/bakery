@@ -23,11 +23,13 @@ import type {
   BakeryApiClient,
   BatchListResponse,
   BatchResponse,
+  BatchStartableResponse,
   BrowserSessionList,
   CheckRunListResponse,
   ConnectedClientList,
   ConversationAccessGrant,
   ConversationParticipantListResponse,
+  ConversationSharers,
   ConversationTurnListResponse,
   CoordinationPlanListResponse,
   DeliveryDecisionListResponse,
@@ -78,6 +80,8 @@ import type {
   PlanRevisionListResponse,
   PluginInstallListResponse,
   PluginPackageListResponse,
+  PluginPageAccessResponse,
+  PluginPageListResponse,
   PluginVersionListResponse,
   PrincipalPage,
   PullRequestListResponse,
@@ -464,6 +468,52 @@ export function pluginInstallsQueryOptions(
       );
     },
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The pages the sidebar lists: every page of every plugin that is on and that this person has. */
+export function pluginPagesQueryOptions(
+  client: Pick<BakeryApiClient, "plugins">,
+  scope: ApiScope,
+) {
+  return queryOptions<PluginPageListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "pluginPages.list", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.plugins.pages({
+          organizationId: requireOrganization(scope),
+          limit: 100,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Whether one plugin page may be shown now, and the reason when it may not. */
+export function pluginPageQueryOptions(
+  client: Pick<BakeryApiClient, "plugins">,
+  scope: ApiScope,
+  installId: string,
+  pageId: string,
+) {
+  return queryOptions<PluginPageAccessResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "pluginPages.get", {
+      installId,
+      pageId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.plugins.page({
+          organizationId: requireOrganization(scope),
+          installId,
+          pageId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && installId !== "" && pageId !== "",
     retry: retryNetworkOnce,
   });
 }
@@ -3355,6 +3405,35 @@ export function batchesListQueryOptions(
   });
 }
 
+/** How many startable issues the start page reads and lists; the design shows the first five. */
+export const STARTABLE_PAGE_SIZE = 5;
+
+/**
+ * The first page of the issues a batch in one repository would take now, with
+ * the smallest spend that can start one. Read again each time the page opens:
+ * it is a forecast from the last stored readiness check.
+ */
+export function batchStartableQueryOptions(
+  client: Pick<BakeryApiClient, "batches">,
+  scope: ApiScope,
+  repositoryId: string,
+) {
+  return queryOptions<BatchStartableResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "batches.startable", { repositoryId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.batches.startable({
+          organizationId: requireOrganization(scope),
+          repositoryId,
+          limit: STARTABLE_PAGE_SIZE,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && repositoryId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
 /**
  * One batch. While it is live and the tab is showing, it is read again every
  * ten seconds so the page follows the supervisor; a finished batch is read once.
@@ -4062,6 +4141,31 @@ export function mentionCandidatesQueryOptions(
     gcTime: 30_000,
     staleTime: 0,
     retry: false,
+  });
+}
+
+/** Who can give access to one conversation (up to three people), read only while a writer who may not share needs them. */
+export function conversationSharersQueryOptions(
+  client: Pick<BakeryApiClient, "listConversationSharers">,
+  scope: ApiScope,
+  conversationId: string,
+  enabled: boolean,
+) {
+  return queryOptions<ConversationSharers, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "conversationAccess.sharers", {
+      conversationId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listConversationSharers({
+          organizationId: requireOrganization(scope),
+          conversationId,
+          signal,
+        }),
+      ),
+    enabled: enabled && Boolean(scope.organizationId) && conversationId !== "",
+    staleTime: 30_000,
+    retry: retryNetworkOnce,
   });
 }
 
