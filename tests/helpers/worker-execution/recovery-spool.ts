@@ -958,6 +958,7 @@ Deno.test("worker cgroup launch grants stay inside canonical subtree", () => {
     "/usr/bin/bwrap",
     "/usr/bin/ldd",
     "/usr/bin/kill",
+    "/usr/bin/df",
   ]);
   assertEquals(permissions.sys, ["uid"]);
   assert(permissions.read.includes("/sys/fs/cgroup/worker-subtree"));
