@@ -1665,14 +1665,14 @@ a.bakery-application-rail__link:hover {
   justify-content: flex-end;
   padding-block-start: var(--space-6);
 }
-@media (min-width: 1024px) {
+@media (min-width: 1280px) {
   .ui-form-with-summary {
     align-items: start;
     column-gap: var(--space-8);
     grid-template-areas:
       "form aside"
       "actions aside";
-    grid-template-columns: minmax(0, 620px) 300px;
+    grid-template-columns: minmax(0, var(--layout-form)) var(--layout-form-summary);
   }
   .ui-form-with-summary__form {
     grid-area: form;

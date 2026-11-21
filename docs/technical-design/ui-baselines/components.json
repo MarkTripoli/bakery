@@ -1,5 +1,5 @@
 {
-  "revision": "c47890ab1c7c5960c05a7b447002e6040c5c0d4602d058f8d30cde33fdb5e26b",
+  "revision": "479719e985834718e7dd9f57eea0fbc5b1f542dd0db5871c656063cd8de33b40",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -12569,7 +12569,7 @@
       "a11y": {
         "accessibleName": "none",
         "keyboard": [],
-        "notes": "A form column and a 300px summary column from 1024px; below that the summary sits between the form and its buttons, and on a phone the buttons stack with the main step first. The summary is a complementary region."
+        "notes": "A form column and a 300px summary column from 1280px; below that the summary sits between the form and its buttons, and on a phone the buttons stack with the main step first. The summary is a complementary region."
       },
       "tokens": [
         "--space-6"

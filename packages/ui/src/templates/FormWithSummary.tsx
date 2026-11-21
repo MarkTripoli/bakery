@@ -16,7 +16,7 @@ export type FormWithSummaryProps =
 /**
  * A form page with a plain summary beside it (the batch start page, #58).
  *
- * From 1024px the form is at most 620px wide and the summary is a 300px column
+ * From 1280px (the shell's desktop width) the form is at most 620px wide and the summary is a 300px column
  * at its side, level with the top of the form; the buttons sit under the form,
  * at its end. Below that the summary comes between the form and the buttons, so
  * it is read before the step is taken. On a phone the buttons stack with the
