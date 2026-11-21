@@ -155,10 +155,18 @@ function bindingEventVersion(
  * but succeeded, failed, canceled or expired. The worker claim gate and the
  * Admin create path both read it under the worker_hosts row lock, so a claim
  * and a new operation cannot interleave.
+ *
+ * `needs_attention` (a busy host waited past the idle window) is the one
+ * open phase that does NOT close claims: the host goes back to work, because
+ * a busy host waits but is never bricked. Pass `{ forClaims: true }` from the
+ * claim gate. The Admin create path keeps counting it, like the
+ * one-mutating partial index, so no conflicting update is created until an
+ * Admin cancels the stuck operation.
  */
 export async function openMutatingMaintenance(
   transaction: Pick<PgTransactionClient, "query">,
   workerHostId: string,
+  options: { forClaims?: boolean } = {},
 ): Promise<boolean> {
   const result = await transaction.query<{ open: boolean }>(
     `select exists (
@@ -166,8 +174,9 @@ export async function openMutatingMaintenance(
        where worker_host_id = $1
          and verb not in ('refresh_inventory', 'verify')
          and phase not in ('succeeded', 'failed', 'canceled', 'expired')
+         and not ($2::boolean and phase = 'needs_attention')
      ) as open`,
-    [workerHostId],
+    [workerHostId, options.forClaims === true],
   );
   return result.rows[0]?.open === true;
 }

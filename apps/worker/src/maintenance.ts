@@ -338,6 +338,25 @@ export class MaintenanceExecutor {
           });
         }
       }
+      // An "applying" report the server never acknowledged is retried on
+      // every accepted heartbeat, even when the server stopped delivering the
+      // operation (an Admin canceled it meanwhile: the resend gets 409 and
+      // the entry stops locally without touching the disk).
+      const delivered = new Set(assignments.map((item) => item.operationId));
+      for (const entry of this.journal.entries()) {
+        if (
+          entry.localPhase !== "accepted" || delivered.has(entry.operationId) ||
+          !entry.lastReport || entry.lastReport.acknowledged
+        ) continue;
+        try {
+          await this.recoverEntry(entry);
+        } catch (error) {
+          this.log("maintenance_failed", {
+            operationId: entry.operationId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
     });
     this.tail = run.catch(() => undefined);
     return run;
@@ -371,6 +390,12 @@ export class MaintenanceExecutor {
       if (!await this.resend(entry)) return;
       entry = this.journal.entry(entry.operationId) ?? entry;
       if (entry.localPhase === "terminal") return;
+    }
+    if (entry.localPhase === "accepted") {
+      // Nothing on disk has changed yet (the server had not acknowledged
+      // "applying"), so the operation simply continues from where it stopped.
+      await this.execute(entry);
+      return;
     }
     if (!MUTATING.has(entry.verb)) {
       // Read-only work has no local effect; run it again.
@@ -576,8 +601,9 @@ export class MaintenanceExecutor {
       await this.finish(entry, { phase: "failed", reason: "target_missing" });
       return;
     }
-    entry = await this.send(entry, { phase: "applying" }, "applying");
-    if (entry.localPhase === "terminal") return;
+    const applying = await this.beginApplying(entry);
+    if (!applying) return;
+    entry = applying;
     const staged = await adapter.stage({
       digest: target,
       version: entry.target.version,
@@ -609,8 +635,9 @@ export class MaintenanceExecutor {
       });
       return;
     }
-    entry = await this.send(entry, { phase: "applying" }, "applying");
-    if (entry.localPhase === "terminal") return;
+    const applying = await this.beginApplying(entry);
+    if (!applying) return;
+    entry = applying;
     await this.switchAndCheck(entry, adapter, release);
   }
 
@@ -618,8 +645,9 @@ export class MaintenanceExecutor {
     entry: MaintenanceJournalEntry,
     adapter: MaintenanceComponentAdapter,
   ): Promise<void> {
-    entry = await this.send(entry, { phase: "applying" }, "applying");
-    if (entry.localPhase === "terminal") return;
+    const applying = await this.beginApplying(entry);
+    if (!applying) return;
+    entry = applying;
     await this.journal.save({ ...entry, localPhase: "switching" });
     await adapter.remove();
     const installed = await adapter.installed();
@@ -690,6 +718,33 @@ export class MaintenanceExecutor {
       reason: "rollback_failed",
       ...releaseFields(restored),
     }, true);
+  }
+
+  /**
+   * Reports "applying" and requires the server to acknowledge it before any
+   * local change. The server's checks on assigned -> applying (the requester
+   * is still an Admin, the Admin cancel window) must run first, so an
+   * unacknowledged report leaves the entry "accepted" and the next accepted
+   * heartbeat resends it. Returns the entry, now "applying", or null.
+   */
+  private async beginApplying(
+    entry: MaintenanceJournalEntry,
+  ): Promise<MaintenanceJournalEntry | null> {
+    const last = entry.lastReport;
+    if (last?.body.phase !== "applying") {
+      entry = await this.send(entry, { phase: "applying" });
+    } else if (!last.acknowledged) {
+      await this.resend(entry);
+      entry = this.journal.entry(entry.operationId) ?? entry;
+    }
+    if (
+      entry.localPhase === "terminal" || entry.lastReport?.acknowledged !== true
+    ) {
+      return null;
+    }
+    entry = { ...entry, localPhase: "applying" };
+    await this.journal.save(entry);
+    return entry;
   }
 
   /** Sends a final report and marks the entry terminal. */

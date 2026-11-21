@@ -389,6 +389,64 @@ Deno.test("transient report failures retry with the same journaled key", () =>
     assertEquals(inventory.components[0].installedDigest, OLD.digest);
   }));
 
+Deno.test("an applying report the server never acknowledges changes nothing on disk", () =>
+  withHarness(async (harness) => {
+    harness.reportFailure = () => ({ status: 503, retryable: true });
+    const executor = await harness.executor();
+    const work = assignment();
+    await executor.accept([work]);
+    await executor.accept([work]);
+    // Only the journaled "applying" report travels, always under one key.
+    assert(harness.sent.length > 1);
+    assert(harness.sent.every((item) => item.body.phase === "applying"));
+    assertEquals(new Set(harness.sent.map((item) => item.key)).size, 1);
+    assertEquals(harness.fetches, 0);
+    assertEquals(await installedDigest(harness.root), OLD.digest);
+    const journal = await MaintenanceJournalStore.open(harness.stateDir);
+    assertEquals(journal.entry(work.operationId)?.localPhase, "accepted");
+    assert(executor.claimsClosed());
+  }));
+
+Deno.test("an applying report acknowledged on a later heartbeat switches exactly once", () =>
+  withHarness(async (harness) => {
+    harness.reportFailure = () => ({ status: 503, retryable: true });
+    const executor = await harness.executor();
+    const work = assignment();
+    await executor.accept([work]);
+    assertEquals(await installedDigest(harness.root), OLD.digest);
+    harness.reportFailure = null;
+    // The server need not deliver it again: the next accepted heartbeat
+    // resends the pending report and then continues.
+    await executor.accept([]);
+    await executor.accept([work]);
+    assertEquals(harness.fetches, 1);
+    assertEquals(await installedDigest(harness.root), NEW.digest);
+    const finals = harness.sent.filter((item) =>
+      item.body.phase !== "applying"
+    );
+    assertEquals(finals.map((item) => item.body.phase), [
+      "succeeded",
+      "succeeded",
+    ]);
+    assertEquals(finals[0], finals[1]);
+    assertEquals(finals[0]?.body.sequence, 2);
+    assertFalse(executor.claimsClosed());
+  }));
+
+Deno.test("an operation canceled while its applying report was pending is never applied", () =>
+  withHarness(async (harness) => {
+    harness.reportFailure = () => ({ status: 503, retryable: true });
+    const executor = await harness.executor();
+    const work = assignment();
+    await executor.accept([work]);
+    // The Admin canceled meanwhile: the server refuses the report.
+    harness.reportFailure = () => ({ status: 409, retryable: false });
+    await executor.accept([]);
+    assertEquals(harness.fetches, 0);
+    assertEquals(await installedDigest(harness.root), OLD.digest);
+    assertFalse(executor.claimsClosed());
+  }));
+
 Deno.test("an unset release root configures no managed components", () => {
   assertEquals(readMaintenanceRelease({}), undefined);
   assertEquals(workerMaintenanceAdapters({}), []);

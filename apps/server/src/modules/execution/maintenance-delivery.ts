@@ -408,6 +408,24 @@ function decideOutcome(
       };
   }
   if (input.phase === "succeeded") {
+    // A digest-pinned operation succeeds only on disk evidence: the host must
+    // name the digest it installed, as the reconciling path already requires.
+    if (
+      installed === undefined && row.target_digest !== null &&
+      row.verb !== "remove_component"
+    ) {
+      throw new StandardError({
+        code: "UNPROCESSABLE",
+        params: {
+          issues: [{
+            path: ["installedDigest"],
+            code: "required",
+            message:
+              "installedDigest: required when the operation pins a target digest",
+          }],
+        },
+      });
+    }
     // A success that names a different installed digest is not a success.
     if (
       installed !== undefined && row.target_digest !== null &&

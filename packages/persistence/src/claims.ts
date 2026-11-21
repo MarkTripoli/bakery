@@ -299,7 +299,12 @@ export function createClaimsRepository(
       // An unfinished mutating maintenance operation closes the claim gate
       // (issue #25). The host row is already locked FOR UPDATE by
       // loadWorkerIdentity, the same lock the Admin create path takes.
-      if (await openMutatingMaintenance(transaction, identity.host.id)) {
+      // needs_attention reopens claims: a busy host waits, it is never bricked.
+      if (
+        await openMutatingMaintenance(transaction, identity.host.id, {
+          forClaims: true,
+        })
+      ) {
         return { ...gate, allBlocked: true };
       }
       return gate;

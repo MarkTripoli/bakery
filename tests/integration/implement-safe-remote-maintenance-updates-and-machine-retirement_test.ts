@@ -514,6 +514,144 @@ Deno.test("waiting past the idle deadline needs attention and leaves work alone"
     assert(["leased", "running"].includes(status.rows[0]?.status ?? ""));
   }));
 
+Deno.test("needs_attention reopens claims, keeps the mutating slot, and an Admin cancel clears it", () =>
+  withWorkerFixture(async (fixture) => {
+    // Decision (PR #878 review): a busy host waits but is never bricked.
+    // needs_attention reopens the claim gate, stays in the one-mutating
+    // index so no conflicting update is created, is never delivered to the
+    // host, and an Admin clears it by canceling it.
+    const worker = await registeredWorker(fixture, { name: "issue25-attn-2" });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const attempt = await claimAssignment(fixture, worker);
+    const operation = await queuedUpdate(fixture, hostId);
+    await expireMaintenanceClock(fixture, operation.id);
+    assertEquals(
+      await heartbeatAssignments(fixture, worker, crypto.randomUUID(), [
+        attempt.attemptId,
+      ]),
+      [],
+    );
+    assertEquals(
+      (await maintenancePhase(fixture, operation.id)).phase,
+      "needs_attention",
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.job_attempts set status = 'completed',
+         ended_at = clock_timestamp() where id = $1`,
+      [attempt.attemptId],
+    );
+    // (a) The idle host is not delivered the operation and claims work again.
+    assertEquals(await heartbeatAssignments(fixture, worker), []);
+    await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const next = await claimAssignment(fixture, worker);
+    assert(next.attemptId !== attempt.attemptId);
+    await fixture.pgDatabase.query(
+      `update bakery.job_attempts set status = 'completed',
+         ended_at = clock_timestamp() where id = $1`,
+      [next.attemptId],
+    );
+    // (b) A second mutating operation is still refused.
+    const conflicting = await createMaintenance(fixture, hostId, {
+      verb: "update_component",
+      componentKey: "harness.bakery",
+      targetVersion: "1.2",
+      targetDigest: "d".repeat(64),
+    });
+    assertEquals(conflicting.status, 409);
+    const problem = await conflicting.json() as { reason?: string };
+    assertEquals(problem.reason, "maintenance_in_progress");
+    // (c) An Admin cancel clears it, after which a new update is accepted.
+    const canceled = await cancelMaintenance(fixture, hostId, operation.id);
+    assertEquals(canceled.status, 200, await canceled.clone().text());
+    await canceled.body?.cancel();
+    assertEquals(
+      (await maintenancePhase(fixture, operation.id)).phase,
+      "canceled",
+    );
+    await queuedUpdate(fixture, hostId);
+  }));
+
+Deno.test("five concurrent Admin updates on one machine create exactly one operation", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-race" });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    const responses = await Promise.all(
+      Array.from(
+        { length: 5 },
+        (_, index) =>
+          createMaintenance(fixture, hostId, {
+            verb: "update_component",
+            componentKey: "harness.bakery",
+            targetVersion: `1.${index + 1}`,
+            targetDigest: String(index + 1).repeat(64),
+          }),
+      ),
+    );
+    const statuses = responses.map((response) => response.status).sort();
+    assertEquals(statuses, [201, 409, 409, 409, 409]);
+    for (const response of responses) {
+      const body = await response.json() as { reason?: string };
+      if (response.status === 409) {
+        assertEquals(body.reason, "maintenance_in_progress");
+      }
+    }
+    const open = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.worker_maintenance_operations
+        where worker_host_id = $1
+          and phase not in ('succeeded', 'failed', 'canceled', 'expired')`,
+      [hostId],
+    );
+    assertEquals(open.rows[0]?.count, "1");
+  }));
+
+Deno.test("a success report without installedDigest is refused for a digest-pinned update", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, {
+      name: "issue25-nodigest",
+    });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    const operation = await queuedUpdate(fixture, hostId);
+    const [assignment] = await heartbeatAssignments(fixture, worker);
+    assertEquals(assignment?.operationId, operation.id);
+    const bare = await sendMaintenanceReport(fixture, worker, operation.id, {
+      fence: assignment!.fence,
+      sequence: 1,
+      phase: "succeeded",
+      installedVersion: "1.1",
+    });
+    assertEquals(bare.status, 422);
+    assertEquals(await problemCode(bare), "UNPROCESSABLE");
+    assertEquals(
+      (await maintenancePhase(fixture, operation.id)).phase,
+      "assigned",
+    );
+    const proven = await sendMaintenanceReport(fixture, worker, operation.id, {
+      fence: assignment!.fence,
+      sequence: 1,
+      phase: "succeeded",
+      installedDigest: TARGET_DIGEST,
+      installedVersion: "1.1",
+    });
+    assertEquals(proven.status, 200, await proven.clone().text());
+    await proven.body?.cancel();
+    assertEquals(
+      (await maintenancePhase(fixture, operation.id)).phase,
+      "succeeded",
+    );
+  }));
+
 Deno.test("each new operation gets a strictly greater fence on the machine", () =>
   withWorkerFixture(async (fixture) => {
     const worker = await registeredWorker(fixture, { name: "issue25-fence" });

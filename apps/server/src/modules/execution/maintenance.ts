@@ -46,11 +46,17 @@ export const TERMINAL_PHASES: ReadonlySet<string> = new Set([
   "canceled",
   "expired",
 ]);
-/** Phases an Admin may still cancel: nothing has started on the host. */
+/**
+ * Phases an Admin may still cancel: nothing has started on the host.
+ * needs_attention (the idle wait ran out) is never delivered to the host and
+ * reopens its claims, but it still holds the one-mutating slot so no
+ * conflicting update can be created; an Admin clears it by canceling it.
+ */
 const CANCELABLE_PHASES: ReadonlySet<string> = new Set([
   "queued",
   "waiting_for_idle",
   "assigned",
+  "needs_attention",
 ]);
 /** A busy host waits this long before the operation needs attention. */
 export const IDLE_WAIT_SECONDS = 30 * 60;
