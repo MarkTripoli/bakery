@@ -6,6 +6,7 @@ import {
   StepError,
 } from "../../scripts/deploy/backup-runner/backup-step.ts";
 import { createSecrets } from "../../scripts/deploy/backup-runner/redact.ts";
+import type { Cutoff } from "../../apps/server/src/modules/backups/cutoff-rules.ts";
 import {
   STORES,
   writeBackupManifest,
@@ -42,6 +43,7 @@ async function writeCompleteSet(
   directory: string,
   skip: readonly string[] = [],
   manifest = true,
+  cutoff?: Cutoff,
 ): Promise<void> {
   await Deno.mkdir(directory);
   for (const store of STORES) {
@@ -64,6 +66,7 @@ async function writeCompleteSet(
         fingerprint: "0123456789abcdef",
       },
       references: { skillFiles: 1, blobs: 0 },
+      cutoff,
     });
   }
 }
@@ -281,4 +284,93 @@ Deno.test("a script that cannot start, or is cancelled, is a runner error", asyn
     assertEquals(error.code, "runner_error");
     assert(performance.now() - started < 10_000);
   });
+});
+
+// ---- #64 slice C: the cutoff ------------------------------------------------
+
+const CUTOFF: Cutoff = {
+  at: "2026-11-20T02:59:58.125Z",
+  source: "database",
+  effects: {
+    total: 2,
+    prepared: 1,
+    submitted: 0,
+    uncertain: 1,
+    byOperation: [{ operation: "github.merge", count: 2 }],
+    digest: "b".repeat(64),
+  },
+};
+
+Deno.test("the script is handed the database cutoff as one JSON value, and the set carries exactly it", async () => {
+  await withRoot(async (root, script) => {
+    await writeCompleteSet(`${root}/${NAME}`, [], true, CUTOFF);
+    const seen = `${root}/../cutoff-seen.json`;
+    const path = await script(
+      `printf '%s' "\${BAKERY_BACKUP_CUTOFF-UNSET}" > "${seen}"\n${
+        announce(NAME)
+      }`,
+    );
+    const artifact = await runBackupScript({
+      script: path,
+      root,
+      secrets: secrets(),
+      cutoff: CUTOFF,
+    });
+    assertEquals(artifact.name, NAME);
+    assertEquals(JSON.parse(await Deno.readTextFile(seen)), CUTOFF);
+  });
+});
+
+Deno.test("with no cutoff the script gets none, and a host-clock set is still accepted", async () => {
+  await withRoot(async (root, script) => {
+    await writeCompleteSet(`${root}/${NAME}`);
+    const seen = `${root}/../cutoff-seen.txt`;
+    const path = await script(
+      `printf '%s' "\${BAKERY_BACKUP_CUTOFF-UNSET}" > "${seen}"\n${
+        announce(NAME)
+      }`,
+    );
+    const artifact = await runBackupScript({
+      script: path,
+      root,
+      secrets: secrets(),
+    });
+    assertEquals(artifact.name, NAME);
+    assertEquals(await Deno.readTextFile(seen), "UNSET");
+  });
+});
+
+Deno.test("a set whose manifest carries another cutoff than the server recorded is refused as incomplete_set", async () => {
+  const other: [string, Cutoff | undefined][] = [
+    ["another time", { ...CUTOFF, at: "2026-11-20T03:10:00.000Z" }],
+    [
+      "another census",
+      {
+        ...CUTOFF,
+        effects: { ...CUTOFF.effects!, digest: "c".repeat(64) },
+      },
+    ],
+    // No runner cutoff in the manifest: the weaker host clock.
+    ["the host clock", undefined],
+  ];
+  for (const [name, recorded] of other) {
+    await withRoot(async (root, script) => {
+      await writeCompleteSet(`${root}/${NAME}`, [], true, recorded);
+      const path = await script(announce(NAME));
+      const error = await assertRejects(
+        () =>
+          runBackupScript({
+            script: path,
+            root,
+            secrets: secrets(),
+            cutoff: CUTOFF,
+          }),
+        StepError,
+        undefined,
+        name,
+      );
+      assertEquals(error.code, "incomplete_set", name);
+      assert(error.detail.includes("cutoff"), `${name}: ${error.detail}`);
+    });
+  }
 });
