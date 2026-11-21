@@ -189,7 +189,10 @@ for _ in $(seq 1 3600); do
   fi
   IFS='|' read -r restarts running < <(docker inspect -f '{{.RestartCount}}|{{.State.Running}}' "$container")
   if [[ "$running" != true || "$restarts" != "$restarts_at_start" ]]; then
-    if "${compose[@]}" logs --no-log-prefix --since "$started_at" postgres 2>&1 | grep -q "recovery ended before configured recovery target was reached"; then
+    # Read the whole log first: grep -q closing the pipe early can fail the
+    # writer under pipefail and miss the line.
+    since_start=$("${compose[@]}" logs --no-log-prefix --since "$started_at" postgres 2>&1 || true)
+    if grep -q "recovery ended before configured recovery target was reached" <<< "$since_start"; then
       outcome=wal_short
     else
       outcome=postgres_failed

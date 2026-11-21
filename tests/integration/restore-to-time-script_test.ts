@@ -26,7 +26,7 @@ type Sandbox = {
 
 async function withSandbox(
   options: {
-    replay?: "promoted" | "short" | "stale" | "crash";
+    replay?: "promoted" | "short" | "stale" | "crash" | "restarting";
     base?: boolean;
     drill?: "fail";
     backup?: "fail";
@@ -109,12 +109,14 @@ async function withSandbox(
         `  *"ps -aq postgres"*) echo container-1 ;;`,
         replay === "short" || replay === "crash"
           ? `  *State.Running*) echo "1|false" ;;`
+          : replay === "restarting"
+          ? `  *State.Running*) echo "1|true" ;;`
           : `  *State.Running*) echo "0|true" ;;`,
         `  inspect*) echo 0 ;;`,
         // A container keeps every earlier start's lines: without --since the
         // old refusal is always there.
         `  *"logs --no-log-prefix --since"*) ${
-          replay === "short"
+          replay === "short" || replay === "restarting"
             ? 'echo "FATAL:  recovery ended before configured recovery target was reached"'
             : replay === "crash"
             ? 'echo "FATAL:  data directory has wrong ownership"'
@@ -496,5 +498,19 @@ Deno.test("a target exactly at the set's finish is accepted", async () => {
   await withSandbox({}, async (s) => {
     const result = await s.run(...args(s, "2026-11-21T03:01:00Z"));
     assertEquals(result.code, 0, result.stderr);
+  });
+});
+
+Deno.test("a Postgres that restarts by itself (restart: unless-stopped) after refusing the target is still judged", async () => {
+  // The container is running again, but its restart count rose: that start
+  // ended, and its log says why.
+  await withSandbox({ replay: "restarting", timeoutMs: 15000 }, async (s) => {
+    const result = await s.run(...args(s));
+    assertEquals(result.code, 69, result.stderr);
+    assert(result.stderr.includes("PITR_WAL_SHORT"), result.stderr);
+    assertEquals(
+      await Deno.readTextFile(join(s.state, "postgres/PG_VERSION")),
+      "old cluster",
+    );
   });
 });
