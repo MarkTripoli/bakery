@@ -5540,6 +5540,63 @@
     {
       "group": "Worker protocol",
       "method": "POST",
+      "path": "/v1/worker/link-code-inspection",
+      "action": "worker.inspectLinkCode",
+      "access": "Public",
+      "permission": null,
+      "input": "WorkerLinkCodeInspect",
+      "output": "WorkerLinkCodeInspection",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read-only inspection; rate-limited per source and code; no-store",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/link-requests",
+      "action": "worker.createLinkRequest",
+      "access": "Public",
+      "permission": null,
+      "input": "WorkerLinkRequestCreate",
+      "output": "WorkerLinkRequestCreated",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; every call opens a new ten-minute request; rate-limited per source",
+      "errors": [
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/link-requests/{requestId}/polls",
+      "action": "worker.pollLinkRequest",
+      "access": "Public",
+      "permission": null,
+      "input": "WorkerLinkRequestPoll",
+      "output": "WorkerLinkRequestPollResult",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; an approved poll mints a fresh link code each time; rate-limited per source",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
       "path": "/v1/worker/inventory",
       "action": "worker.reportInventory",
       "access": "Worker",
@@ -5600,6 +5657,78 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/worker-link-requests/lookups",
+      "action": "workerLinkRequests.find",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "WorkerLinkRequestLookup",
+      "output": "WorkerLinkRequest",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; rate-limited per principal and per code",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/worker-link-requests/{id}/approvals",
+      "action": "workerLinkRequests.approve",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "WorkerLinkRequestApprove",
+      "output": "WorkerLinkRequest",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required; a request is decided once",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/worker-link-requests/{id}/declines",
+      "action": "workerLinkRequests.decline",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "WorkerLinkRequestDecline",
+      "output": "WorkerLinkRequest",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required; a request is decided once",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "RATE_LIMITED",
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context"
@@ -6210,7 +6339,8 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "RATE_LIMITED"
       ]
     },
     {

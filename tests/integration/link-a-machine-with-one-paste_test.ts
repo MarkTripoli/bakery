@@ -1,0 +1,411 @@
+// One-paste machine link (#70), end to end through the real routes: the code
+// in the command (enroll, inspect, register with the link code, which mints
+// the worker's own credential) and the code a terminal prints for an Admin
+// (create, look up, approve or decline, poll, register).
+import { assert, assertEquals, assertMatch } from "@std/assert";
+import { authTestOrigin } from "../helpers/auth.ts";
+import {
+  adminRequest,
+  workerCredential,
+  type WorkerScope,
+} from "../helpers/worker-execution.ts";
+import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
+import { sha256Hex } from "../../apps/server/src/platform/canonical-json.ts";
+
+type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
+
+async function publicPost(
+  fixture: Fixture,
+  path: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Promise<Response> {
+  return await fixture.app.fetch(
+    new Request(`${authTestOrigin}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+async function clearLinkRateLimits(fixture: Fixture): Promise<void> {
+  await fixture.pgDatabase.query(
+    `delete from public."rateLimit" where key like 'bakery:worker-link:%'`,
+  );
+}
+
+const MACHINE = {
+  os: "linux",
+  architecture: "aarch64",
+  hostname: "build-box-01",
+};
+
+async function enrollForLink(
+  fixture: Fixture,
+  body: Record<string, unknown> = {},
+  scope?: WorkerScope,
+): Promise<{ enrollmentId: string; linkCode: string; command: string }> {
+  const response = await adminRequest(
+    fixture,
+    "/v1/worker-enrollments",
+    { capabilities: ["git"], slots: 2, ...body },
+    { idempotencyKey: crypto.randomUUID(), scope },
+  );
+  assertEquals(response.status, 201, await response.clone().text());
+  return await response.json();
+}
+
+function inspect(
+  fixture: Fixture,
+  linkCode: string,
+  machine: Partial<typeof MACHINE> = {},
+): Promise<Response> {
+  return publicPost(fixture, "/v1/worker/link-code-inspection", {
+    linkCode,
+    ...MACHINE,
+    ...machine,
+  });
+}
+
+function registerWithLinkCode(
+  fixture: Fixture,
+  linkCode: string,
+  credential: string,
+  options: {
+    name?: string;
+    os?: string;
+    architecture?: string;
+    slots?: number;
+    capabilities?: string[];
+  } = {},
+): Promise<Response> {
+  return publicPost(fixture, "/v1/worker/registration", {
+    linkCode,
+    workerCredential: credential,
+    name: options.name ?? MACHINE.hostname,
+    os: options.os ?? "linux",
+    architecture: options.architecture ?? "arm64",
+    capabilities: options.capabilities ?? ["git"],
+    toolchainVersions: { deno: "2.x" },
+    slots: options.slots ?? 2,
+  }, { "Idempotency-Key": crypto.randomUUID() });
+}
+
+async function createRequest(fixture: Fixture) {
+  const response = await publicPost(
+    fixture,
+    "/v1/worker/link-requests",
+    MACHINE,
+  );
+  assertEquals(response.status, 201, await response.clone().text());
+  return await response.json() as {
+    requestId: string;
+    userCode: string;
+    deviceSecret: string;
+    expiresAt: string;
+    pollIntervalSeconds: number;
+  };
+}
+
+async function poll(fixture: Fixture, requestId: string, deviceSecret: string) {
+  return await publicPost(
+    fixture,
+    `/v1/worker/link-requests/${requestId}/polls`,
+    { deviceSecret },
+  );
+}
+
+async function problem(response: Response) {
+  return await response.json() as { code?: string; reason?: string };
+}
+
+const CODE = /^[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}$/;
+
+Deno.test("a link code in the command adds one machine and mints its own credential", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const enrollment = await enrollForLink(fixture);
+    assertMatch(enrollment.linkCode, CODE);
+    assertEquals(
+      enrollment.command,
+      `npx @bakery/worker link --server ${
+        new URL(fixture.config.publicBaseUrl).origin
+      } --code ${enrollment.linkCode}`,
+    );
+    const stored = await fixture.pgDatabase.query<
+      { link_code_hash: string; name: string | null; os: string | null }
+    >(
+      `select link_code_hash, name, os from bakery.worker_enrollments where id = $1`,
+      [enrollment.enrollmentId],
+    );
+    assert(stored.rows[0]!.link_code_hash !== enrollment.linkCode);
+    assertEquals(stored.rows[0]!.name, null);
+    assertEquals(stored.rows[0]!.os, null);
+
+    // Capitals and the dash do not matter.
+    const typed = enrollment.linkCode.toLowerCase().replace("-", "");
+    const inspection = await inspect(fixture, typed);
+    assertEquals(inspection.status, 200, await inspection.clone().text());
+    assertEquals(inspection.headers.get("cache-control"), "no-store");
+    const preview = await inspection.json();
+    const organization = await fixture.pgDatabase.query<{ name: string }>(
+      "select name from bakery.organizations where id = $1",
+      [fixture.organizationId],
+    );
+    assertEquals(preview, {
+      organizationName: organization.rows[0]!.name,
+      name: "build-box-01",
+      slots: 2,
+      capabilities: ["git"],
+      supported: true,
+      supportedSystems: [{ os: "linux", architecture: "arm64" }],
+      expiresAt: preview.expiresAt,
+    });
+
+    const credential = workerCredential();
+    const registered = await registerWithLinkCode(
+      fixture,
+      enrollment.linkCode,
+      credential,
+    );
+    assertEquals(registered.status, 200, await registered.clone().text());
+    const registration = await registered.json() as {
+      workerHostId: string;
+      status: string;
+    };
+    assertEquals(registration.status, "registered");
+    fixture.workerHostIds.push(registration.workerHostId);
+    const host = await fixture.pgDatabase.query<{
+      name: string;
+      architecture: string;
+      slots: number;
+      credential_hash: string;
+    }>(
+      `select name, architecture, slots, credential_hash from bakery.worker_hosts where id = $1`,
+      [registration.workerHostId],
+    );
+    assertEquals(host.rows[0]!.name, "build-box-01");
+    assertEquals(host.rows[0]!.architecture, "arm64");
+    assertEquals(host.rows[0]!.credential_hash, await sha256Hex(credential));
+
+    // The existing status watch sees the machine.
+    const status = await fixture.app.fetch(
+      new Request(
+        `${authTestOrigin}/v1/worker-enrollments/${enrollment.enrollmentId}`,
+        {
+          headers: {
+            cookie: fixture.adminCookie,
+            origin: fixture.config.publicBaseUrl,
+            "Bakery-Organization-Id": fixture.organizationId,
+          },
+        },
+      ),
+    );
+    const statusBody = await status.json() as {
+      state: string;
+      workerHostId: string;
+    };
+    assertEquals(statusBody.state, "consumed");
+    assertEquals(statusBody.workerHostId, registration.workerHostId);
+
+    const again = await inspect(fixture, enrollment.linkCode);
+    assertEquals(again.status, 409);
+    assertEquals((await problem(again)).reason, "used");
+
+    const audits = await fixture.pgDatabase.query<{ operation: string }>(
+      `select operation from bakery.audit_events
+       where organization_id = $1
+         and operation in ('workers.enroll', 'worker.inspectLinkCode', 'workers.register')
+       order by id`,
+      [fixture.organizationId],
+    );
+    assertEquals(audits.rows.map((row) => row.operation).sort(), [
+      "worker.inspectLinkCode",
+      "workers.enroll",
+      "workers.register",
+    ]);
+  }));
+
+Deno.test("an enroll retry replays the same link code", () =>
+  withWorkerFixture(async (fixture) => {
+    const key = crypto.randomUUID();
+    const body = {
+      name: "replayed",
+      os: "linux",
+      architecture: "arm64",
+      capabilities: ["git"],
+      slots: 1,
+    };
+    const first = await adminRequest(fixture, "/v1/worker-enrollments", body, {
+      idempotencyKey: key,
+    });
+    const second = await adminRequest(fixture, "/v1/worker-enrollments", body, {
+      idempotencyKey: key,
+    });
+    const [a, b] = [await first.json(), await second.json()];
+    assertEquals(a.linkCode, b.linkCode);
+    assertEquals(a.command, b.command);
+  }));
+
+Deno.test("a machine with no code is approved in the browser, then links", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const request = await createRequest(fixture);
+    assertMatch(request.userCode, CODE);
+    assertEquals(request.pollIntervalSeconds, 5);
+    const pending = await poll(
+      fixture,
+      request.requestId,
+      request.deviceSecret,
+    );
+    assertEquals(await pending.json(), { state: "pending" });
+
+    const found = await adminRequest(
+      fixture,
+      "/v1/worker-link-requests/lookups",
+      {
+        userCode: request.userCode.toLowerCase(),
+      },
+    );
+    assertEquals(found.status, 200, await found.clone().text());
+    const waiting = await found.json();
+    assertEquals(waiting.userCode, request.userCode);
+    assertEquals(waiting.hostname, "build-box-01");
+    assertEquals(waiting.os, "linux");
+    assertEquals(waiting.architecture, "arm64");
+    assertEquals(waiting.supported, true);
+    assertEquals(waiting.state, "pending");
+    assertEquals(waiting.enrollmentId, null);
+
+    const key = crypto.randomUUID();
+    const approved = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/approvals`,
+      { slots: 2, capabilities: ["git"] },
+      { idempotencyKey: key },
+    );
+    assertEquals(approved.status, 200, await approved.clone().text());
+    const approval = await approved.json();
+    assertEquals(approval.state, "approved");
+    assertEquals(approval.decidedBy, fixture.principalId);
+    assert(approval.enrollmentId);
+    const replay = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/approvals`,
+      { slots: 2, capabilities: ["git"] },
+      { idempotencyKey: key },
+    );
+    assertEquals(replay.status, 200);
+    assertEquals((await replay.json()).enrollmentId, approval.enrollmentId);
+
+    const answer =
+      await (await poll(fixture, request.requestId, request.deviceSecret))
+        .json();
+    assertEquals(answer.state, "approved");
+    assertMatch(answer.linkCode, CODE);
+    const preview = await (await inspect(fixture, answer.linkCode)).json();
+    assertEquals(preview.name, "build-box-01");
+    assertEquals(preview.slots, 2);
+
+    const registered = await registerWithLinkCode(
+      fixture,
+      answer.linkCode,
+      workerCredential(),
+    );
+    assertEquals(registered.status, 200, await registered.clone().text());
+    const { workerHostId } = await registered.json();
+    fixture.workerHostIds.push(workerHostId);
+
+    assertEquals(
+      await (await poll(fixture, request.requestId, request.deviceSecret))
+        .json(),
+      { state: "approved" },
+    );
+    const after =
+      await (await adminRequest(fixture, "/v1/worker-link-requests/lookups", {
+        userCode: request.userCode,
+      })).json();
+    assertEquals(after.workerHostId, workerHostId);
+    const audits = await fixture.pgDatabase.query<{ operation: string }>(
+      `select operation from bakery.audit_events
+       where organization_id = $1 and operation like 'worker%Link%'
+       order by id`,
+      [fixture.organizationId],
+    );
+    assertEquals(audits.rows.map((row) => row.operation).sort(), [
+      "worker.inspectLinkCode",
+      "worker.pollLinkRequest",
+      "workerLinkRequests.approve",
+    ]);
+  }));
+
+Deno.test("a declined machine stops and can no longer be approved", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const request = await createRequest(fixture);
+    const declined = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/declines`,
+      {},
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(declined.status, 200, await declined.clone().text());
+    assertEquals((await declined.json()).state, "declined");
+    assertEquals(
+      await (await poll(fixture, request.requestId, request.deviceSecret))
+        .json(),
+      { state: "declined" },
+    );
+    const approve = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/approvals`,
+      { slots: 1, capabilities: ["git"] },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(approve.status, 409);
+    assertEquals((await problem(approve)).reason, "declined");
+  }));
+
+Deno.test("set up again returns the same one command for the machine", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const enrollment = await enrollForLink(fixture, {
+      name: "repair-me",
+      os: "linux",
+      architecture: "arm64",
+    });
+    const registered = await registerWithLinkCode(
+      fixture,
+      enrollment.linkCode,
+      workerCredential(),
+      { name: "repair-me" },
+    );
+    const { workerHostId } = await registered.json();
+    fixture.workerHostIds.push(workerHostId);
+    const revoked = await adminRequest(
+      fixture,
+      `/v1/workers/${workerHostId}/revocations`,
+      {},
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(revoked.status, 200, await revoked.clone().text());
+    const repair = await adminRequest(
+      fixture,
+      `/v1/workers/${workerHostId}/enrollments`,
+      {},
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(repair.status, 201, await repair.clone().text());
+    const body = await repair.json();
+    assertMatch(body.linkCode, CODE);
+    assert(body.command.endsWith(`--code ${body.linkCode}`));
+    const again = await registerWithLinkCode(
+      fixture,
+      body.linkCode,
+      workerCredential(),
+      { name: "repair-me" },
+    );
+    assertEquals(again.status, 200, await again.clone().text());
+    assertEquals((await again.json()).status, "updated");
+  }));

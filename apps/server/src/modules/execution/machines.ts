@@ -38,6 +38,7 @@ import {
   withPgTransaction,
   workerTransaction,
 } from "./shared.ts";
+import { linkCodeHash, mintShortCode, withLinkCommand } from "./link-codes.ts";
 
 const WORKER_UPDATE_STATUS_DESIRED_MODE: Record<string, string> = {
   online: "accepting",
@@ -129,6 +130,8 @@ export function readinessWorkflows(
     enrollmentTtlSeconds: ENROLLMENT_TTL_MS / 1000,
     randomSecret,
     hash: sha256Hex,
+    mintLinkCode: mintShortCode,
+    hashLinkCode: linkCodeHash,
     protect: (value) => protect(options.secret, value),
     unprotect: (value) => unprotect(options.secret, value),
   });
@@ -472,7 +475,7 @@ export async function replaceWorkerEnrollment(
         metadata,
         now: new Date(),
       });
-      const response = contractSchemas.WorkerEnrollment.parse(result.response);
+      const response = withLinkCommand(options, result.response);
       return jsonResponse(response, 201, result.replayed);
     },
   );
@@ -503,7 +506,7 @@ export async function repairWorkerEnrollment(
         metadata,
         now: new Date(),
       });
-      const response = contractSchemas.WorkerEnrollment.parse(result.response);
+      const response = withLinkCommand(options, result.response);
       return jsonResponse(response, 201, result.replayed);
     },
   );
