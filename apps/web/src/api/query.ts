@@ -2988,8 +2988,9 @@ const OPEN_QUESTION_PAGES = 10;
 /**
  * Every open question of a task, not just the newest page: the list is newest
  * first and a page holds at most 100, so a count or an oldest read from one
- * page would miss older open ones. Follows the cursor to the end or to the cap,
- * and says when the cap cut it short.
+ * page would miss older open ones. Follows the cursor to the end or to the cap
+ * of ten pages, so a task with more than 1,000 open questions has the newest
+ * 1,000 counted; no task is expected to have that many.
  */
 export function openQuestionsQueryOptions(
   client: Pick<BakeryApiClient, "listQuestions">,
@@ -2997,10 +2998,7 @@ export function openQuestionsQueryOptions(
   taskId: string,
 ) {
   return queryOptions<
-    {
-      readonly items: QuestionListResponse["items"];
-      readonly truncated: boolean;
-    },
+    { readonly items: QuestionListResponse["items"] },
     ApiFailure
   >({
     queryKey: protectedQueryKey(scope, "questions.list", {
@@ -3023,10 +3021,10 @@ export function openQuestionsQueryOptions(
           }),
         );
         items.push(...result.items);
-        if (!result.nextCursor) return { items, truncated: false };
+        if (!result.nextCursor) break;
         cursor = result.nextCursor;
       }
-      return { items, truncated: true };
+      return { items };
     },
     retry: retryNetworkOnce,
   });
