@@ -30,6 +30,7 @@ import {
   randomSecret,
 } from "../domain/desktop-sign-in.ts";
 import { spendRateLimitAttempt } from "./rate-limit-postgres.ts";
+import { endHandedOffSessions } from "./desktop-handoff-postgres.ts";
 
 /** Browser page that asks the person to confirm; served by the API server under `/api`. */
 export const DESKTOP_SIGN_IN_PAGE_PATH = "/api/desktop/sign-in";
@@ -383,6 +384,7 @@ export async function exchangeDesktopSignIn(
             "delete from public.session where id = $1",
             [row.sessionId],
           );
+          await endHandedOffSessions(transaction, [row.sessionId]);
           await audit(DesktopSignInAuditOperation.ReplayRevoke, {
             sessionId: row.sessionId,
             revokedSessionCount: revoked.rowCount ?? 0,

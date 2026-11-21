@@ -28,7 +28,10 @@ import {
   recordAuthAudit,
 } from "../../../application/audit.ts";
 import { normalizeLocaleTag } from "../../../application/preferences.ts";
-import { createDesktopHandoff } from "../../../adapters/desktop-handoff-postgres.ts";
+import {
+  createDesktopHandoff,
+  endHandedOffSessions,
+} from "../../../adapters/desktop-handoff-postgres.ts";
 import type { PostgresOrganizationStore } from "../../../adapters/organization-postgres.ts";
 import {
   listConnectedClientGrants,
@@ -638,6 +641,8 @@ export async function browserSessionsRevoke(context: ActionContext) {
   if (result.rowCount !== 1) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
+  // Revoking the Bakery app also ends the window sessions it handed off.
+  await endHandedOffSessions(authorized.transaction, [id]);
   await audit(authorized, {
     organizationId: null,
     operation: Action.BrowserSessionsRevoke,
@@ -666,6 +671,8 @@ export async function browserSessionsRevokeCurrent(context: ActionContext) {
     `delete from public.session where id = $1 and "userId" = $2`,
     [context.sessionId, providerUserId],
   );
+  // A desktop sign-out also ends the window sessions it handed off.
+  await endHandedOffSessions(authorized.transaction, [context.sessionId]);
   await audit(authorized, {
     organizationId: null,
     operation: Action.BrowserSessionsRevokeCurrent,
@@ -708,6 +715,10 @@ export async function browserSessionsRevokeOthers(context: ActionContext) {
       where "userId" = $1 and id <> $2 and "expiresAt" > now()
       returning id`,
     [providerUserId, context.sessionId],
+  );
+  await endHandedOffSessions(
+    authorized.transaction,
+    result.rows.map((row) => (row as { id: string }).id),
   );
   await audit(authorized, {
     organizationId: null,

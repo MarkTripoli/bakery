@@ -249,6 +249,9 @@ Deno.test("a return path that leaves the origin, or loops into the handoff, is r
         "/\\evil.example",
         "projects",
         "/api/desktop/handoff",
+        "/.//evil.example",
+        "/a/..//evil.example",
+        "/%2e//evil.example",
       ]
     ) {
       const response = await createHandoff(f, desktop.credential, returnTo);
@@ -270,5 +273,72 @@ Deno.test("each person's code opens a session for that person only", async () =>
       (await (await me(f, asDeveloper)).json()).principalId,
       f.developerId,
     );
+  });
+});
+
+Deno.test("signing the desktop app out ends the browser sessions it handed off", async () => {
+  await withFixture(async (f) => {
+    const desktop = await signInDesktop(f, f.developerCookie);
+    const cookie = cookieOf(
+      await openHandoff(f, (await codeFor(f, desktop.credential)).code),
+    )!;
+    assertEquals((await me(f, cookie)).status, 200);
+    const signOut = await f.app.fetch(
+      new Request(`${authTestOrigin}/v1/me/sessions/revoke-current`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${desktop.credential}`,
+          "content-type": "application/json",
+          "idempotency-key": crypto.randomUUID(),
+        },
+        body: "{}",
+      }),
+    );
+    assertEquals(signOut.status, 200, await signOut.clone().text());
+    assertEquals((await me(f, cookie)).status, 401);
+  });
+});
+
+Deno.test("revoking the Bakery app from the sessions list ends its window sessions too", async () => {
+  await withFixture(async (f) => {
+    const desktop = await signInDesktop(f, f.developerCookie);
+    const cookie = cookieOf(
+      await openHandoff(f, (await codeFor(f, desktop.credential)).code),
+    )!;
+    const revoked = await f.app.fetch(
+      new Request(`${authTestOrigin}/v1/me/sessions/${desktop.sessionId}`, {
+        method: "DELETE",
+        headers: {
+          cookie: f.developerCookie,
+          origin: authTestOrigin,
+          "idempotency-key": crypto.randomUUID(),
+        },
+      }),
+    );
+    assertEquals(revoked.status, 200, await revoked.clone().text());
+    assertEquals((await me(f, cookie)).status, 401);
+    // The person's own browser sign-in is untouched.
+    assertEquals((await me(f, f.developerCookie)).status, 200);
+  });
+});
+
+Deno.test("a handed-off session never outlives the desktop sign-in it came from", async () => {
+  await withFixture(async (f) => {
+    const desktop = await signInDesktop(f, f.developerCookie);
+    await f.pgDatabase.query(
+      `update public.session set "expiresAt" = now() + interval '1 hour'
+        where id = $1`,
+      [desktop.sessionId],
+    );
+    await openHandoff(f, (await codeFor(f, desktop.credential)).code);
+    const rows = await f.pgDatabase.query<{ browser: Date; desktop: Date }>(
+      `select b."expiresAt" as browser, d."expiresAt" as desktop
+         from bakery.desktop_handoffs h
+         join public.session b on b.id = h.browser_session_id
+         join public.session d on d.id = h.desktop_session_id
+        where h.desktop_session_id = $1`,
+      [desktop.sessionId],
+    );
+    assert(rows.rows[0].browser.getTime() <= rows.rows[0].desktop.getTime());
   });
 });

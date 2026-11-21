@@ -61,7 +61,11 @@ export function safeReturnPath(value: string): string | null {
   }
   if (url.origin !== base) return null;
   if (url.pathname === DESKTOP_HANDOFF_PATH) return null;
-  return `${url.pathname}${url.search}${url.hash}`;
+  const path = `${url.pathname}${url.search}${url.hash}`;
+  // Dot segments can collapse "/.//host" into "//host", which a browser reads
+  // as another origin; the resolved path is checked again, not only the input.
+  if (path.startsWith("//") || path.startsWith("/\\")) return null;
+  return path;
 }
 
 /**

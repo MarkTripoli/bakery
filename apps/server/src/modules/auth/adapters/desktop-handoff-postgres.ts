@@ -183,15 +183,23 @@ export async function redeemDesktopHandoff(
       userId: string;
       userAgent: string | null;
       factorVerifiedAt: Date | null;
+      expiresAt: Date;
     }>(
-      `select "userId", "userAgent", "factorVerifiedAt" from public.session
+      `select "userId", "userAgent", "factorVerifiedAt", "expiresAt"
+         from public.session
         where id = $1 and "expiresAt" > $2 and starts_with(token, $3)`,
       [row.desktopSessionId, now, DESKTOP_CREDENTIAL_PREFIX],
     );
     const source = desktop.rows[0];
     if (!source) return await spend(DesktopHandoffRefusal.SignedOut);
     const token = browserSessionToken();
-    const expiresAt = new Date(now.getTime() + DESKTOP_SESSION_TTL_MS);
+    // Never longer than the desktop sign-in it came from.
+    const expiresAt = new Date(
+      Math.min(
+        now.getTime() + DESKTOP_SESSION_TTL_MS,
+        source.expiresAt.getTime(),
+      ),
+    );
     const session = await transaction.query<{ id: string }>(
       `insert into public.session (
          token, "userId", "expiresAt", "createdAt", "updatedAt",
@@ -221,4 +229,27 @@ export async function redeemDesktopHandoff(
     });
     return { kind: "issued", token, returnTo: row.returnTo, expiresAt };
   });
+}
+
+/**
+ * Ends every browser session the given desktop sign-ins handed off, so a
+ * window session never outlives the app's own sign-in: called wherever a
+ * desktop session is deleted (sign out, revoke from the sessions list, revoke
+ * others, a replayed sign-in code). Returns how many it ended.
+ */
+export async function endHandedOffSessions(
+  transaction: Pick<PgTransactionClient, "query">,
+  desktopSessionIds: readonly string[],
+): Promise<number> {
+  if (desktopSessionIds.length === 0) return 0;
+  const ended = await transaction.query(
+    `delete from public.session
+      where id in (
+        select browser_session_id from bakery.desktop_handoffs
+         where desktop_session_id = any($1::uuid[])
+           and browser_session_id is not null
+      )`,
+    [desktopSessionIds],
+  );
+  return ended.rowCount ?? 0;
 }

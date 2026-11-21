@@ -24,6 +24,10 @@ Deno.test("anything that could leave the origin or loop is refused", () => {
       "/" + "a".repeat(2048),
       DESKTOP_HANDOFF_PATH,
       `${DESKTOP_HANDOFF_PATH}?code=x`,
+      "/.//evil.example",
+      "/a/..//evil.example",
+      "/%2e//evil.example",
+      "/./\\evil.example",
     ]
   ) {
     assertEquals(safeReturnPath(value), null, JSON.stringify(value));
