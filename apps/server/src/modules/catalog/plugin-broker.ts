@@ -75,7 +75,7 @@ export type InstallAuthorityPort = {
 
 /** One typed operation. The only things a plugin job may ask the host to do. */
 export type BrokerOperation = Readonly<{
-  /** Dotted name, also the capability a grant must carry as `broker.<name>`. */
+  /** Dotted name, also the capability an install grant must carry, unchanged. */
   name: string;
   run(
     claims: BrokerClaims,
@@ -288,7 +288,7 @@ export function createPluginBroker(options: BrokerOptions): PluginBroker {
         return deny("install_gone");
       }
       if (authority.status !== "enabled") return deny("install_off");
-      if (!authority.grants.includes(`broker.${operation}`)) {
+      if (!authority.grants.includes(operation)) {
         return deny("not_granted");
       }
       const typed = operations.get(operation);

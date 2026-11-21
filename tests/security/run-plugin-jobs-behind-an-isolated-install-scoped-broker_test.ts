@@ -24,7 +24,7 @@ const INSTALL = "install-1";
 function setup(
   authority: () => InstallAuthority | null = () => ({
     status: "enabled",
-    grants: ["broker.state.read"],
+    grants: ["state.read"],
   }),
 ) {
   let clock = 1_000_000;
@@ -237,7 +237,7 @@ Deno.test("an operation the install is not granted, or the host does not offer, 
   // Granted by name but never registered: a shell, a socket, a database.
   const granted = setup(() => ({
     status: "enabled",
-    grants: ["broker.shell.exec", "broker.db.query"],
+    grants: ["shell.exec", "db.query"],
   }));
   const second = await granted.mint();
   for (const operation of ["shell.exec", "db.query"]) {
@@ -256,7 +256,7 @@ Deno.test("an operation the install is not granted, or the host does not offer, 
 Deno.test("turning the plugin off, removing a grant or uninstalling stops the very next call", async () => {
   let authority: InstallAuthority | null = {
     status: "enabled",
-    grants: ["broker.state.read"],
+    grants: ["state.read"],
   };
   const t = setup(() => authority);
   const { token } = await t.mint();
@@ -264,13 +264,13 @@ Deno.test("turning the plugin off, removing a grant or uninstalling stops the ve
     t.broker.call({ token, installId: INSTALL, body: t.body({ sequence }) });
   assertEquals((await call(1)).ok, true);
 
-  authority = { status: "disabled", grants: ["broker.state.read"] };
+  authority = { status: "disabled", grants: ["state.read"] };
   assertEquals(await call(2), { ok: false, denial: "install_off" });
 
   authority = { status: "enabled", grants: [] };
   assertEquals(await call(3), { ok: false, denial: "not_granted" });
 
-  authority = { status: "uninstalled", grants: ["broker.state.read"] };
+  authority = { status: "uninstalled", grants: ["state.read"] };
   assertEquals(await call(4), { ok: false, denial: "install_gone" });
 
   authority = null;
@@ -281,7 +281,7 @@ Deno.test("turning the plugin off, removing a grant or uninstalling stops the ve
 Deno.test("a revoked install cannot replay a recorded request either", async () => {
   let authority: InstallAuthority = {
     status: "enabled",
-    grants: ["broker.state.read"],
+    grants: ["state.read"],
   };
   const t = setup(() => authority);
   const { token } = await t.mint();
