@@ -1,13 +1,64 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "7ff69adbf5f71387997af40d3febc5760ca5a8a2"
+    "bab18ab7ded93a5ea4b5ca7ebde825cee1971226"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:6da4387e06fe3baf8453668e397561d7b4ac346ed9012201f9ea7409f987e74c",
-  "reason": "#25 slice C by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 7ff69adbf5f71387997af40d3febc5760ca5a8a2: workers.archive, WorkerHost.cleanup, archived hosts hidden by default. Main's own approval is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:2199a6ed830ff45d9b59b5fe83b40c9f92dd0b0594789e40e697003d74dce978",
+  "reason": "#25 maintenance (slices A, B1, B2, C) by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main bab18ab7ded93a5ea4b5ca7ebde825cee1971226: workers.archive, WorkerHost.cleanup, archived hosts hidden by default. Main's own approval is kept unchanged below, after this PR's previous one.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "7ff69adbf5f71387997af40d3febc5760ca5a8a2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:6da4387e06fe3baf8453668e397561d7b4ac346ed9012201f9ea7409f987e74c",
+      "reason": "#25 slice C by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 7ff69adbf5f71387997af40d3febc5760ca5a8a2: workers.archive, WorkerHost.cleanup, archived hosts hidden by default. Displaced when main moved again (#59 ask 9 merged): the digest follows the tree."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "547ccc62b40c98376db5f5ef44238a8d23c96495",
+        "931df69723f15304dce34cf1521d7555e75e8c22"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:410873c344d34c4871c225fa82e132a5134f68d02f15c29bd41b15d58afb1efd",
+      "reason": "#59 ask 9 by dev-workflows on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 931df69723f15304dce34cf1521d7555e75e8c22: installationStatus gains a required updatePaused beside restoreHeld. Main's own approval is kept unchanged below, after this PR's previous one."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "2e1a186904dbedcc6eb84cd23264207022718c37"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5dc2c61e686ac8085c96decf85c409151156899804ac96cdd55561268eaeb5c2",
+      "reason": "#59 ask 9 by dev-workflows on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 2e1a186904dbedcc6eb84cd23264207022718c37: installationStatus gains a required updatePaused beside restoreHeld. Displaced when main moved again (#867 merged): the digest follows the tree."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "77dc67ce584a210f1c1f54b2c588ef1d6349232f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:342031789a41b0d6954e7d86e02bf0427dfe01e81fe8b20108e71c4f5e36f370",
+      "reason": "#64 E4 server by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 77dc67ce584a210f1c1f54b2c588ef1d6349232f: installationStatus gains restoreHeld, and installationRestore gains who took each step (InstallationRestoreActor). Main's own approval is kept unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "aa871531a3328a642137a85b370e51973391b6a6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:512ee3f1b960b1871b2f3dad5ce2e26e387d318f82e0553bc8da73b9731a6914",
+      "reason": "#64 E4 server by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main aa871531a3328a642137a85b370e51973391b6a6: installationStatus gains restoreHeld, and installationRestore gains who took each step (InstallationRestoreActor). Main's own approval is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

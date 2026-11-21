@@ -5264,6 +5264,13 @@
       "frames": []
     },
     {
+      "routeId": "installation-restore",
+      "path": "/installation/restore",
+      "status": "no-mock",
+      "rationale": "The Finish the restore page (#64 E4) is designed by design-ux on #64 (E3 design, mocks at pr-evidence design-64/e3/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "delivery",
       "path": "/delivery",
       "status": "no-mock",

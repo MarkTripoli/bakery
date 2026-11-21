@@ -28,6 +28,8 @@ import {
   recordAuthAudit,
 } from "../../../application/audit.ts";
 import { normalizeLocaleTag } from "../../../application/preferences.ts";
+import { restoreHeld } from "../../../../backups/restore-release.ts";
+import { updatePaused } from "../../../../../platform/maintenance.ts";
 import {
   createDesktopHandoff,
   endHandedOffSessions,
@@ -555,7 +557,12 @@ export async function organizationInvitationsCancel(
   return cancelled;
 }
 
-/** Whether any enabled human principal exists, i.e. first-admin bootstrap is done. */
+/**
+ * Whether any enabled human principal exists, i.e. first-admin bootstrap is
+ * done, whether a restore holds the installation (#64 E4: every page shows
+ * the banner before a refused action), and whether the launcher has paused
+ * work for an update (#59 ask 9).
+ */
 export async function installationStatus(
   _context: ActionContext,
   _input: z.output<typeof contractSchemas.Empty>,
@@ -568,7 +575,11 @@ export async function installationStatus(
       where id = true and bootstrap_principal_id is not null
     ) as bootstrapped`,
   );
-  return { bootstrapped: result.rows[0]?.bootstrapped === true };
+  return {
+    bootstrapped: result.rows[0]?.bootstrapped === true,
+    restoreHeld: await restoreHeld(database),
+    updatePaused: await updatePaused(database),
+  };
 }
 
 /** Better Auth's provider user id for the authorized principal, read live. */

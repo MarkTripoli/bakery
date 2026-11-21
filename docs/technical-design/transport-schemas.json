@@ -1081,7 +1081,7 @@
           "name": "accessLevel",
           "type": "enum(read_comment|edit)",
           "required": false,
-          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written."
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written."
         }
       ],
       "rules": [
@@ -12612,7 +12612,7 @@
           "name": "level",
           "type": "enum(read_comment|edit)",
           "required": false,
-          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do."
+          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it)."
         }
       ],
       "rules": [
@@ -24228,6 +24228,7 @@
         "readiness",
         "readinessReason",
         "failedCheckIds",
+        "unsettledAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
         "archivedAt",
@@ -24251,6 +24252,7 @@
         "readiness": "enum(checking|ready|needs_attention)",
         "readinessReason": "string|null",
         "failedCheckIds": "json",
+        "unsettledAttemptCount": "integer",
         "lastHeartbeatAt": "timestamp|null",
         "credentialGeneration": "integer",
         "archivedAt": "timestamp|null",
@@ -24280,6 +24282,7 @@
         "readiness": "Server-derived from current-generation checks and scheduling policy; losing connectivity makes readiness unusable even if the last check passed.",
         "readinessReason": "Safe bounded explanation when readiness is needs_attention; null otherwise.",
         "failedCheckIds": "Check identifiers with a fresh failing result, sorted; empty when none.",
+        "unsettledAttemptCount": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
         "lastHeartbeatAt": "UTC timestamp when the worker last reported health.",
         "credentialGeneration": "Credential generation loaded by the worker host.",
         "archivedAt": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID.",
@@ -24293,7 +24296,8 @@
         "connectivity",
         "readiness",
         "readinessReason",
-        "failedCheckIds"
+        "failedCheckIds",
+        "unsettledAttemptCount"
       ]
     },
     "Preview": {
@@ -26234,14 +26238,20 @@
     },
     "InstallationStatus": {
       "fields": [
-        "bootstrapped"
+        "bootstrapped",
+        "restoreHeld",
+        "updatePaused"
       ],
       "fieldTypes": {
-        "bootstrapped": "boolean"
+        "bootstrapped": "boolean",
+        "restoreHeld": "boolean",
+        "updatePaused": "boolean"
       },
-      "description": "Whether a first installation administrator already exists; carries no identity.",
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity.",
       "fieldDescriptions": {
-        "bootstrapped": "Whether a first installation administrator already exists; carries no identity."
+        "bootstrapped": "Whether a first installation administrator already exists; carries no identity.",
+        "restoreHeld": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action.",
+        "updatePaused": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
       }
     },
     "BrowserSession": {
@@ -33617,7 +33627,7 @@
         "artifactId": "The one document this grant opens; it never reaches the task, its other documents or its conversation.",
         "principalId": "The person who holds the grant.",
         "displayName": "The holder's current display name; never an email address.",
-        "level": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet.",
+        "level": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it.",
         "grantedById": "Who gave the access most recently.",
         "grantedByName": "The granting person's current display name.",
         "sourceCommentId": "The comment whose mention created or renewed the grant, or null when it was given directly or that comment is gone.",
@@ -36617,8 +36627,11 @@
         "jobsAwaitingReconciliation",
         "workersRevoked",
         "intakeEnabledAt",
+        "intakeEnabledBy",
         "dispatchEnabledAt",
+        "dispatchEnabledBy",
         "workersEnabledAt",
+        "workersEnabledBy",
         "releasedAt",
         "nextStep"
       ],
@@ -36635,7 +36648,10 @@
         "dispatchEnabledAt": "timestamp|null",
         "workersEnabledAt": "timestamp|null",
         "releasedAt": "timestamp|null",
-        "nextStep": "enum(intake|dispatch|workers)|null"
+        "nextStep": "enum(intake|dispatch|workers)|null",
+        "intakeEnabledBy": "InstallationRestoreActor|null",
+        "dispatchEnabledBy": "InstallationRestoreActor|null",
+        "workersEnabledBy": "InstallationRestoreActor|null"
       },
       "nullableFields": [
         "cutoffAt",
@@ -36643,9 +36659,12 @@
         "dispatchEnabledAt",
         "workersEnabledAt",
         "releasedAt",
-        "nextStep"
+        "nextStep",
+        "intakeEnabledBy",
+        "dispatchEnabledBy",
+        "workersEnabledBy"
       ],
-      "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown.",
+      "description": "The most recent restore of this installation, held or released, and how far its ordered re-enable got, with who took each step. Names, counts and times only: nothing the restore touched is shown.",
       "fieldDescriptions": {
         "id": "The restore's id.",
         "backupName": "The directory name of the backup that was restored; it is the confirmation to type.",
@@ -36659,7 +36678,58 @@
         "dispatchEnabledAt": "When dispatch was re-enabled; null until then.",
         "workersEnabledAt": "When workers were re-enabled; null until then.",
         "releasedAt": "When the restore was released; null while it holds the installation.",
-        "nextStep": "The step to take next; null once released."
+        "nextStep": "The step to take next; null once released.",
+        "intakeEnabledBy": "Who turned on new work; null until that step is taken.",
+        "dispatchEnabledBy": "Who turned on the background consumers; null until that step is taken.",
+        "workersEnabledBy": "Who turned workers on and released the restore; null until that step is taken."
+      }
+    },
+    "InstallationRestoreActor": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "description": "The installation administrator who took one re-enable step.",
+      "fieldDescriptions": {
+        "principalId": "Principal id of the administrator who took the step.",
+        "displayName": "Their current display name."
+      }
+    },
+    "UncertainActionKind": {
+      "fields": [
+        "operation",
+        "count",
+        "since"
+      ],
+      "fieldTypes": {
+        "operation": "string",
+        "count": "integer",
+        "since": "timestamp"
+      },
+      "description": "One kind of outside action whose outcome Bakery cannot tell, with how many there are and since when. Words, counts and a time only: never where the action pointed or what it carried.",
+      "fieldDescriptions": {
+        "operation": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind.",
+        "count": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first.",
+        "since": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+      }
+    },
+    "InstallationUncertainActions": {
+      "fields": [
+        "kinds",
+        "total"
+      ],
+      "fieldTypes": {
+        "kinds": "UncertainActionKind[]",
+        "total": "integer"
+      },
+      "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only.",
+      "fieldDescriptions": {
+        "kinds": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain.",
+        "total": "How many actions are uncertain in all, counting kinds beyond the ones listed."
       }
     },
     "BackupDrill": {

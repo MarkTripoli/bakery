@@ -716,7 +716,7 @@ Deno.test("issue 82 recheck: a finished run ends the request once its work is me
     assertEquals((await fx.counts(sourceId)).reports, reports);
   }));
 
-Deno.test("issue 32 recheck: under the default merged policy a start request whose run finishes with no pull request is completed", () =>
+Deno.test("issue 32 recheck: under the default merged policy a run that finishes before its pull request registers is not delivered, and one with none after the hold is", () =>
   withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource({ policy: fx.policy() });
     setIssue(fx, 831);
@@ -727,9 +727,39 @@ Deno.test("issue 32 recheck: under the default merged policy a start request who
         where organization_id = $1 and id = $2`,
       [fx.organizationId, admitted.request!.workflowRunId],
     );
+    // The run ended a moment ago and no pull request is registered yet: the
+    // step that registers it may not have run. A terminal request never
+    // reopens, so the request is held, not delivered.
+    assertEquals((await fx.recheck(admitted.ticketId!)).applied, []);
+    // The pull request registers after the run finished: it still counts, and
+    // delivery waits for the merge.
+    await fx.registerPullRequest({
+      sourceId,
+      taskId: admitted.request!.taskId,
+      number: 94,
+      status: "open",
+    });
+    assertEquals((await fx.recheck(admitted.ticketId!)).applied, []);
+    await fx.owner.query(
+      "update bakery.pull_requests set status = 'merged' where provider_number = 94 and organization_id = $1",
+      [fx.organizationId],
+    );
+    const merged = await fx.recheck(admitted.ticketId!);
+    assertEquals(merged.applied, ["terminal"]);
+    assertEquals(merged.request?.disposition, "completed");
+
     // A docs or ops task, or a run that found nothing to change, registers no
-    // pull request: there is nothing to merge, so finished is delivered.
-    const ended = await fx.recheck(admitted.ticketId!);
+    // pull request: once the hold is over there is nothing to merge, so
+    // finished is delivered.
+    setIssue(fx, 833);
+    const bare = await fx.admit(sourceId, { number: 833, intent: "start" });
+    await fx.owner.query(
+      `update bakery.workflow_runs set status = 'completed',
+              finished_at = now() - interval '11 minutes'
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, bare.request!.workflowRunId],
+    );
+    const ended = await fx.recheck(bare.ticketId!);
     assertEquals(ended.applied, ["terminal"]);
     assertEquals(ended.request?.disposition, "completed");
     assertEquals(ended.request?.dispositionReason, "run_completed");

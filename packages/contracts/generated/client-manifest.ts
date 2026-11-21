@@ -8768,6 +8768,30 @@ export const clientManifest = {
     },
     {
       "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/uncertain-actions",
+      "action": "installationUncertainActions.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "InstallationUncertainActions",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
       "method": "POST",
       "path": "/v1/installation/restore/steps",
       "action": "installationRestore.step",
@@ -11200,6 +11224,32 @@ export const clientManifest = {
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED",
         "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/ticket-sources/{id}/tickets",
+      "action": "externalTickets.create",
+      "access": "Developer+exact external action grant",
+      "permission": "externalTicket:write",
+      "input": "RemoteTicketCreate",
+      "output": "IntegrationActionReceipt",
+      "event": "integration.action_requested",
+      "mcp": "bakery_externalTickets_create",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -15368,7 +15418,7 @@ export const clientManifest = {
           }
         },
         "accessLevel": {
-          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
           "type": "string",
           "enum": [
             "read_comment",
@@ -19157,6 +19207,7 @@ export const clientManifest = {
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -25367,6 +25418,181 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Requests Bakery to admit this external ticket for planning or implementation; current actor authority, source state, duplicate admission, readiness and budget are all checked atomically before one request generation is created."
     },
+    "RemoteTicketCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Title for the new remote ticket (for example, a GitHub issue title), passed through unchanged to the connected provider when the effect is submitted. RemoteTicketCreate.title must contain at most 200 characters."
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 20000,
+          "description": "Body or description text for the new remote ticket (for example, rendered as a GitHub issue body), passed through unchanged to the connected provider. RemoteTicketCreate.body must contain at most 20000 characters."
+        },
+        "providerFields": {
+          "description": "Additional provider-specific fields for the new ticket, such as labels or assignees, that don't map to Bakery's normalized title and body; passed through opaquely to the provider adapter. RemoteTicketCreate.providerFields must contain at most 16000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 16000
+        }
+      },
+      "required": [
+        "title",
+        "body"
+      ],
+      "additionalProperties": false,
+      "description": "Requests creation of a new ticket in the connected external tracker (GitHub first) through this ticket source's connection; the write goes through the external-effects ledger and remote identity is reconciled before any linked execution starts.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
     "PluginPackageQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -30518,7 +30744,7 @@ export const clientManifest = {
           "description": "The person to give access to: an active human member of this organization."
         },
         "level": {
-          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do.",
+          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it).",
           "type": "string",
           "enum": [
             "read_comment",
@@ -46816,6 +47042,7 @@ export const clientManifest = {
                   "backups.list",
                   "backups.drills.list",
                   "installationRestore.get",
+                  "installationUncertainActions.get",
                   "installationRestore.step",
                   "backups.status",
                   "backups.start",
@@ -48458,6 +48685,12 @@ export const clientManifest = {
                   }
                 ],
                 "description": "Check identifiers with a fresh failing result, sorted; empty when none."
+              },
+              "unsettledAttemptCount": {
+                "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               },
               "lastHeartbeatAt": {
                 "anyOf": [
@@ -68094,6 +68327,7 @@ export const clientManifest = {
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -69436,6 +69670,12 @@ export const clientManifest = {
             }
           ],
           "description": "Check identifiers with a fresh failing result, sorted; empty when none."
+        },
+        "unsettledAttemptCount": {
+          "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         },
         "lastHeartbeatAt": {
           "anyOf": [
@@ -74070,6 +74310,12 @@ export const clientManifest = {
                   ],
                   "description": "Check identifiers with a fresh failing result, sorted; empty when none."
                 },
+                "unsettledAttemptCount": {
+                  "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
                 "lastHeartbeatAt": {
                   "anyOf": [
                     {
@@ -75452,13 +75698,23 @@ export const clientManifest = {
         "bootstrapped": {
           "type": "boolean",
           "description": "Whether a first installation administrator already exists; carries no identity."
+        },
+        "restoreHeld": {
+          "type": "boolean",
+          "description": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+        },
+        "updatePaused": {
+          "type": "boolean",
+          "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
         }
       },
       "required": [
-        "bootstrapped"
+        "bootstrapped",
+        "restoreHeld",
+        "updatePaused"
       ],
       "additionalProperties": false,
-      "description": "Whether a first installation administrator already exists; carries no identity."
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
     },
     "BrowserSessionList": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -87178,6 +87434,39 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of InstallationAdministrator."
+    },
+    "IntegrationActionReceipt": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "effectId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this record to the related effect entity."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "prepared",
+            "submitted",
+            "uncertain"
+          ],
+          "description": "Current lifecycle status of the record."
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Provider location associated with the redirect."
+        }
+      },
+      "required": [
+        "effectId",
+        "status",
+        "location"
+      ],
+      "additionalProperties": false,
+      "description": "Durable 202 write receipt. It never claims provider completion."
     },
     "IntegrationDiscoveryReceipt": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -102570,7 +102859,7 @@ export const clientManifest = {
             "read_comment",
             "edit"
           ],
-          "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+          "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
         },
         "grantedById": {
           "type": "string",
@@ -102681,7 +102970,7 @@ export const clientManifest = {
                   "read_comment",
                   "edit"
                 ],
-                "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+                "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
               },
               "grantedById": {
                 "type": "string",
@@ -114399,6 +114688,37 @@ export const clientManifest = {
           ],
           "description": "InstallationRestore.intakeEnabledAt may be null in this transport value."
         },
+        "intakeEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned on new work; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.intakeEnabledBy may be null in this transport value."
+        },
         "dispatchEnabledAt": {
           "anyOf": [
             {
@@ -114414,6 +114734,37 @@ export const clientManifest = {
           ],
           "description": "InstallationRestore.dispatchEnabledAt may be null in this transport value."
         },
+        "dispatchEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned on the background consumers; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.dispatchEnabledBy may be null in this transport value."
+        },
         "workersEnabledAt": {
           "anyOf": [
             {
@@ -114428,6 +114779,37 @@ export const clientManifest = {
             }
           ],
           "description": "InstallationRestore.workersEnabledAt may be null in this transport value."
+        },
+        "workersEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned workers on and released the restore; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.workersEnabledBy may be null in this transport value."
         },
         "releasedAt": {
           "anyOf": [
@@ -114473,13 +114855,67 @@ export const clientManifest = {
         "jobsAwaitingReconciliation",
         "workersRevoked",
         "intakeEnabledAt",
+        "intakeEnabledBy",
         "dispatchEnabledAt",
+        "dispatchEnabledBy",
         "workersEnabledAt",
+        "workersEnabledBy",
         "releasedAt",
         "nextStep"
       ],
       "additionalProperties": false,
-      "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown."
+      "description": "The most recent restore of this installation, held or released, and how far its ordered re-enable got, with who took each step. Names, counts and times only: nothing the restore touched is shown."
+    },
+    "InstallationUncertainActions": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind."
+              },
+              "count": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first."
+              },
+              "since": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+              }
+            },
+            "required": [
+              "operation",
+              "count",
+              "since"
+            ],
+            "additionalProperties": false,
+            "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain. Each array item follows this format."
+          },
+          "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain."
+        },
+        "total": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many actions are uncertain in all, counting kinds beyond the ones listed."
+        }
+      },
+      "required": [
+        "kinds",
+        "total"
+      ],
+      "additionalProperties": false,
+      "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only."
     },
     "BackupDrill": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

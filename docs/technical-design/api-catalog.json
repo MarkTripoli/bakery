@@ -9364,6 +9364,29 @@
     },
     {
       "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/uncertain-actions",
+      "action": "installationUncertainActions.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "InstallationUncertainActions",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Installation administration",
       "method": "POST",
       "path": "/v1/installation/restore/steps",
       "action": "installationRestore.step",

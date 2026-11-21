@@ -9757,6 +9757,30 @@
     },
     {
       "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/uncertain-actions",
+      "action": "installationUncertainActions.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "InstallationUncertainActions",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
       "method": "POST",
       "path": "/v1/installation/restore/steps",
       "action": "installationRestore.step",
@@ -12560,7 +12584,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -14484,6 +14508,7 @@
     "ticketSources.sync",
     "ticketRoutingRules.get",
     "ticketRoutingRules.replace",
+    "externalTickets.create",
     "externalTickets.list",
     "externalTickets.get",
     "ticketReadiness.create",
@@ -14639,6 +14664,7 @@
     "backups.drills.list",
     "installationRestore.get",
     "installationRestore.step",
+    "installationUncertainActions.get",
     "backupRunnerCredential.issue",
     "backupSchedule.get",
     "backupSchedule.put",
@@ -39402,6 +39428,36 @@
           }
         }
       },
+      "/v1/installation/uncertain-actions": {
+        "get": {
+          "operationId": "installationUncertainActions.get",
+          "parameters": [],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InstallationUncertainActions"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
       "/v1/installation/restore/steps": {
         "post": {
           "operationId": "installationRestore.step",
@@ -52736,7 +52792,7 @@
               }
             },
             "accessLevel": {
-              "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
+              "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
               "type": "string",
               "enum": [
                 "read_comment",
@@ -57719,6 +57775,7 @@
                 "backups.list",
                 "backups.drills.list",
                 "installationRestore.get",
+                "installationUncertainActions.get",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -79319,7 +79376,7 @@
               "description": "The person to give access to: an active human member of this organization."
             },
             "level": {
-              "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do.",
+              "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it).",
               "type": "string",
               "enum": [
                 "read_comment",
@@ -108433,6 +108490,7 @@
                 "backups.list",
                 "backups.drills.list",
                 "installationRestore.get",
+                "installationUncertainActions.get",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -109107,6 +109165,7 @@
                 "backups.list",
                 "backups.drills.list",
                 "installationRestore.get",
+                "installationUncertainActions.get",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -109781,6 +109840,7 @@
                 "backups.list",
                 "backups.drills.list",
                 "installationRestore.get",
+                "installationUncertainActions.get",
                 "installationRestore.step",
                 "backups.status",
                 "backups.start",
@@ -116915,6 +116975,12 @@
                 }
               ],
               "description": "Check identifiers with a fresh failing result, sorted; empty when none."
+            },
+            "unsettledAttemptCount": {
+              "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
             },
             "lastHeartbeatAt": {
               "anyOf": [
@@ -155453,6 +155519,7 @@
                       "backups.list",
                       "backups.drills.list",
                       "installationRestore.get",
+                      "installationUncertainActions.get",
                       "installationRestore.step",
                       "backups.status",
                       "backups.start",
@@ -157773,6 +157840,12 @@
                       }
                     ],
                     "description": "Check identifiers with a fresh failing result, sorted; empty when none."
+                  },
+                  "unsettledAttemptCount": {
+                    "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
                   },
                   "lastHeartbeatAt": {
                     "anyOf": [
@@ -180164,6 +180237,12 @@
                         }
                       ],
                       "description": "Check identifiers with a fresh failing result, sorted; empty when none."
+                    },
+                    "unsettledAttemptCount": {
+                      "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
                     },
                     "lastHeartbeatAt": {
                       "anyOf": [
@@ -215443,13 +215522,23 @@
             "bootstrapped": {
               "type": "boolean",
               "description": "Whether a first installation administrator already exists; carries no identity."
+            },
+            "restoreHeld": {
+              "type": "boolean",
+              "description": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+            },
+            "updatePaused": {
+              "type": "boolean",
+              "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
             }
           },
           "required": [
-            "bootstrapped"
+            "bootstrapped",
+            "restoreHeld",
+            "updatePaused"
           ],
           "additionalProperties": false,
-          "description": "Whether a first installation administrator already exists; carries no identity."
+          "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
         },
         "BrowserSession": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -255253,7 +255342,7 @@
                 "read_comment",
                 "edit"
               ],
-              "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+              "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
             },
             "grantedById": {
               "type": "string",
@@ -255364,7 +255453,7 @@
                       "read_comment",
                       "edit"
                     ],
-                    "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+                    "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
                   },
                   "grantedById": {
                     "type": "string",
@@ -270479,6 +270568,37 @@
               ],
               "description": "InstallationRestore.intakeEnabledAt may be null in this transport value."
             },
+            "intakeEnabledBy": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "principalId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Principal id of the administrator who took the step."
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Their current display name."
+                    }
+                  },
+                  "required": [
+                    "principalId",
+                    "displayName"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Who turned on new work; null until that step is taken."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationRestore.intakeEnabledBy may be null in this transport value."
+            },
             "dispatchEnabledAt": {
               "anyOf": [
                 {
@@ -270494,6 +270614,37 @@
               ],
               "description": "InstallationRestore.dispatchEnabledAt may be null in this transport value."
             },
+            "dispatchEnabledBy": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "principalId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Principal id of the administrator who took the step."
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Their current display name."
+                    }
+                  },
+                  "required": [
+                    "principalId",
+                    "displayName"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Who turned on the background consumers; null until that step is taken."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationRestore.dispatchEnabledBy may be null in this transport value."
+            },
             "workersEnabledAt": {
               "anyOf": [
                 {
@@ -270508,6 +270659,37 @@
                 }
               ],
               "description": "InstallationRestore.workersEnabledAt may be null in this transport value."
+            },
+            "workersEnabledBy": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "principalId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Principal id of the administrator who took the step."
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Their current display name."
+                    }
+                  },
+                  "required": [
+                    "principalId",
+                    "displayName"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Who turned workers on and released the restore; null until that step is taken."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationRestore.workersEnabledBy may be null in this transport value."
             },
             "releasedAt": {
               "anyOf": [
@@ -270553,13 +270735,120 @@
             "jobsAwaitingReconciliation",
             "workersRevoked",
             "intakeEnabledAt",
+            "intakeEnabledBy",
             "dispatchEnabledAt",
+            "dispatchEnabledBy",
             "workersEnabledAt",
+            "workersEnabledBy",
             "releasedAt",
             "nextStep"
           ],
           "additionalProperties": false,
-          "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown."
+          "description": "The most recent restore of this installation, held or released, and how far its ordered re-enable got, with who took each step. Names, counts and times only: nothing the restore touched is shown."
+        },
+        "InstallationRestoreActor": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "principalId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal id of the administrator who took the step."
+            },
+            "displayName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Their current display name."
+            }
+          },
+          "required": [
+            "principalId",
+            "displayName"
+          ],
+          "additionalProperties": false,
+          "description": "The installation administrator who took one re-enable step."
+        },
+        "UncertainActionKind": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind."
+            },
+            "count": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first."
+            },
+            "since": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+            }
+          },
+          "required": [
+            "operation",
+            "count",
+            "since"
+          ],
+          "additionalProperties": false,
+          "description": "One kind of outside action whose outcome Bakery cannot tell, with how many there are and since when. Words, counts and a time only: never where the action pointed or what it carried."
+        },
+        "InstallationUncertainActions": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "kinds": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind."
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first."
+                  },
+                  "since": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+                  }
+                },
+                "required": [
+                  "operation",
+                  "count",
+                  "since"
+                ],
+                "additionalProperties": false,
+                "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain. Each array item follows this format."
+              },
+              "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain."
+            },
+            "total": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How many actions are uncertain in all, counting kinds beyond the ones listed."
+            }
+          },
+          "required": [
+            "kinds",
+            "total"
+          ],
+          "additionalProperties": false,
+          "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only."
         },
         "BackupDrill": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -272809,7 +273098,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:6da4387e06fe3baf8453668e397561d7b4ac346ed9012201f9ea7409f987e74c",
+  "compatibilityDigest": "sha256:2199a6ed830ff45d9b59b5fe83b40c9f92dd0b0594789e40e697003d74dce978",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -275471,7 +275760,7 @@
           }
         },
         "accessLevel": {
-          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
           "type": "string",
           "enum": [
             "read_comment",
@@ -280484,6 +280773,7 @@
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -302152,7 +302442,7 @@
           "description": "The person to give access to: an active human member of this organization."
         },
         "level": {
-          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do.",
+          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it).",
           "type": "string",
           "enum": [
             "read_comment",
@@ -331372,6 +331662,7 @@
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -332046,6 +332337,7 @@
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -332720,6 +333012,7 @@
             "backups.list",
             "backups.drills.list",
             "installationRestore.get",
+            "installationUncertainActions.get",
             "installationRestore.step",
             "backups.status",
             "backups.start",
@@ -339882,6 +340175,12 @@
             }
           ],
           "description": "Check identifiers with a fresh failing result, sorted; empty when none."
+        },
+        "unsettledAttemptCount": {
+          "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         },
         "lastHeartbeatAt": {
           "anyOf": [
@@ -378542,6 +378841,7 @@
                   "backups.list",
                   "backups.drills.list",
                   "installationRestore.get",
+                  "installationUncertainActions.get",
                   "installationRestore.step",
                   "backups.status",
                   "backups.start",
@@ -380868,6 +381168,12 @@
                   }
                 ],
                 "description": "Check identifiers with a fresh failing result, sorted; empty when none."
+              },
+              "unsettledAttemptCount": {
+                "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               },
               "lastHeartbeatAt": {
                 "anyOf": [
@@ -403307,6 +403613,12 @@
                     }
                   ],
                   "description": "Check identifiers with a fresh failing result, sorted; empty when none."
+                },
+                "unsettledAttemptCount": {
+                  "description": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 },
                 "lastHeartbeatAt": {
                   "anyOf": [
@@ -438596,13 +438908,23 @@
         "bootstrapped": {
           "type": "boolean",
           "description": "Whether a first installation administrator already exists; carries no identity."
+        },
+        "restoreHeld": {
+          "type": "boolean",
+          "description": "Whether a restore holds the installation right now, so new work is refused until an administrator finishes it; every page can show this before a refused action."
+        },
+        "updatePaused": {
+          "type": "boolean",
+          "description": "Whether the launcher has paused work for an update right now, so new work waits and retries on its own until the update finishes; false once the pause is released or its time limit passes."
         }
       },
       "required": [
-        "bootstrapped"
+        "bootstrapped",
+        "restoreHeld",
+        "updatePaused"
       ],
       "additionalProperties": false,
-      "description": "Whether a first installation administrator already exists; carries no identity."
+      "description": "Whether a first installation administrator already exists, whether a restore holds the installation, and whether an update has paused work; carries no identity."
     },
     "BrowserSession": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -478480,7 +478802,7 @@
             "read_comment",
             "edit"
           ],
-          "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+          "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
         },
         "grantedById": {
           "type": "string",
@@ -478591,7 +478913,7 @@
                   "read_comment",
                   "edit"
                 ],
-                "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+                "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
               },
               "grantedById": {
                 "type": "string",
@@ -493728,6 +494050,37 @@
           ],
           "description": "InstallationRestore.intakeEnabledAt may be null in this transport value."
         },
+        "intakeEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned on new work; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.intakeEnabledBy may be null in this transport value."
+        },
         "dispatchEnabledAt": {
           "anyOf": [
             {
@@ -493743,6 +494096,37 @@
           ],
           "description": "InstallationRestore.dispatchEnabledAt may be null in this transport value."
         },
+        "dispatchEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned on the background consumers; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.dispatchEnabledBy may be null in this transport value."
+        },
         "workersEnabledAt": {
           "anyOf": [
             {
@@ -493757,6 +494141,37 @@
             }
           ],
           "description": "InstallationRestore.workersEnabledAt may be null in this transport value."
+        },
+        "workersEnabledBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal id of the administrator who took the step."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Their current display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "Who turned workers on and released the restore; null until that step is taken."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.workersEnabledBy may be null in this transport value."
         },
         "releasedAt": {
           "anyOf": [
@@ -493802,13 +494217,120 @@
         "jobsAwaitingReconciliation",
         "workersRevoked",
         "intakeEnabledAt",
+        "intakeEnabledBy",
         "dispatchEnabledAt",
+        "dispatchEnabledBy",
         "workersEnabledAt",
+        "workersEnabledBy",
         "releasedAt",
         "nextStep"
       ],
       "additionalProperties": false,
-      "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown."
+      "description": "The most recent restore of this installation, held or released, and how far its ordered re-enable got, with who took each step. Names, counts and times only: nothing the restore touched is shown."
+    },
+    "InstallationRestoreActor": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal id of the administrator who took the step."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Their current display name."
+        }
+      },
+      "required": [
+        "principalId",
+        "displayName"
+      ],
+      "additionalProperties": false,
+      "description": "The installation administrator who took one re-enable step."
+    },
+    "UncertainActionKind": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first."
+        },
+        "since": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+        }
+      },
+      "required": [
+        "operation",
+        "count",
+        "since"
+      ],
+      "additionalProperties": false,
+      "description": "One kind of outside action whose outcome Bakery cannot tell, with how many there are and since when. Words, counts and a time only: never where the action pointed or what it carried."
+    },
+    "InstallationUncertainActions": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "What the action does, in the provider's own words, for example github.issue.create. It is a name, not a target: the same word covers every action of this kind."
+              },
+              "count": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many actions of this kind are held as uncertain. Bakery never sends them again; each is checked against the other system first."
+              },
+              "since": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the oldest action of this kind became uncertain, so a reader can say how long it has been unknown."
+              }
+            },
+            "required": [
+              "operation",
+              "count",
+              "since"
+            ],
+            "additionalProperties": false,
+            "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain. Each array item follows this format."
+          },
+          "description": "One entry per kind of action, oldest first, at most 200. Empty when nothing is uncertain."
+        },
+        "total": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many actions are uncertain in all, counting kinds beyond the ones listed."
+        }
+      },
+      "required": [
+        "kinds",
+        "total"
+      ],
+      "additionalProperties": false,
+      "description": "The outside actions whose outcome Bakery cannot tell, grouped by kind, oldest first. After a restore or an update some actions may or may not have happened; this is the one list of them. Installation administrators only."
     },
     "BackupDrill": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
