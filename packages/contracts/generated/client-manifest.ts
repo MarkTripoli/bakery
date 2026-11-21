@@ -29489,9 +29489,12 @@ export const clientManifest = {
             "run_control",
             "run_start",
             "steer",
-            "steer_reviewer"
+            "steer_reviewer",
+            "comment",
+            "edit_work",
+            "draft_connection"
           ],
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) or steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent), comment (write comments on documents and drafts from a session, as the person the run is for) edit_work (edit work items from a session, as the person the run is for) or draft_connection (draft a personal connection with no secret that a person completes)."
         },
         "workflowId": {
           "description": "AgentPowerGrantCreate.workflowId may be null in this transport value.",
@@ -99338,9 +99341,12 @@ export const clientManifest = {
             "run_control",
             "run_start",
             "steer",
-            "steer_reviewer"
+            "steer_reviewer",
+            "comment",
+            "edit_work",
+            "draft_connection"
           ],
-          "description": "The power granted: decide, run_control, run_start, steer or steer_reviewer."
+          "description": "The power granted: decide, run_control, run_start, steer, steer_reviewer, comment, edit_work or draft_connection."
         },
         "workflowId": {
           "anyOf": [
@@ -99460,6 +99466,16 @@ export const clientManifest = {
                     "maxLength": 65536,
                     "description": "Model identifier the source route pins; the model the step is waiting on."
                   },
+                  "providerName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The source provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+                  },
+                  "modelName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The source model as a person reads it; the model key, since Bakery has no model catalog."
+                  },
                   "harness": {
                     "type": "string",
                     "enum": [
@@ -99493,6 +99509,8 @@ export const clientManifest = {
                 "required": [
                   "provider",
                   "model",
+                  "providerName",
+                  "modelName",
                   "harness",
                   "billingRoute",
                   "health"
@@ -99539,20 +99557,6 @@ export const clientManifest = {
                 "maximum": 9007199254740991,
                 "description": "The run's version when this offer was made, so a submission can be refused if the run changed in between."
               },
-              "estimatedIncrementalCost": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "pattern": "^(?:0|[1-9][0-9]*)$",
-                    "description": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "RouteContinuationOffer.estimatedIncrementalCost may be null in this transport value."
-              },
               "targets": {
                 "type": "array",
                 "items": {
@@ -99562,17 +99566,27 @@ export const clientManifest = {
                       "type": "string",
                       "format": "uuid",
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                      "description": "UUID of the candidate provider route."
+                      "description": "UUID of the target provider route; the id a continuation submission names."
                     },
                     "provider": {
                       "type": "string",
                       "maxLength": 65536,
-                      "description": "Provider key the candidate route sends to."
+                      "description": "Provider key the target route sends to."
                     },
                     "model": {
                       "type": "string",
                       "maxLength": 65536,
-                      "description": "Model identifier the candidate route pins; a continuation runs the step on this model."
+                      "description": "Model identifier the target route pins; a continuation runs the step on this model."
+                    },
+                    "providerName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The provider as a person reads it (anthropic is Anthropic); the key itself when Bakery does not know the provider."
+                    },
+                    "modelName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The model as a person reads it; the model key, since Bakery has no model catalog and the key is the provider's own name for the model."
                     },
                     "harness": {
                       "type": "string",
@@ -99582,7 +99596,7 @@ export const clientManifest = {
                         "codex",
                         "mastra"
                       ],
-                      "description": "Harness path the candidate route executes on: pi, claude_code, codex or mastra."
+                      "description": "Harness path the target route executes on; always the step's own harness: pi, claude_code, codex or mastra."
                     },
                     "billingRoute": {
                       "type": "string",
@@ -99591,7 +99605,7 @@ export const clientManifest = {
                         "api_metered",
                         "local"
                       ],
-                      "description": "Billing route the candidate route's spend follows: subscription, api_metered or local."
+                      "description": "Billing route the target route's spend follows: subscription, api_metered or local."
                     },
                     "health": {
                       "type": "string",
@@ -99601,45 +99615,141 @@ export const clientManifest = {
                         "open",
                         "unverified"
                       ],
-                      "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
+                      "description": "The target route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes are listed with their health, so a person sees how much to trust a target before choosing it."
                     },
-                    "eligible": {
+                    "priced": {
                       "type": "boolean",
-                      "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
+                      "description": "True when Bakery has an active price for this route's provider, model, account and billing route. A continuation onto an unpriced route is refused with target_pricing_unavailable, so a page shows it as not choosable."
                     },
-                    "ineligibleReason": {
+                    "estimatedIncrementalCost": {
                       "anyOf": [
                         {
                           "type": "string",
-                          "enum": [
-                            "different_harness",
-                            "route_not_active",
-                            "route_open"
-                          ],
-                          "description": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+                          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                          "description": "Estimated extra spend in USD of continuing the step on this route, or null when unknown. Null is never free: Bakery has no forecast yet of how many tokens a step has left, so no route is estimated today."
                         },
                         {
                           "type": "null",
-                          "description": "Null indicates that the projected value is unavailable."
+                          "description": "Null indicates that the value is unavailable."
                         }
                       ],
-                      "description": "RouteContinuationTarget.ineligibleReason may be null in the safe projection."
+                      "description": "RouteContinuationTarget.estimatedIncrementalCost may be null in this transport value."
                     }
                   },
                   "required": [
                     "routeId",
                     "provider",
                     "model",
+                    "providerName",
+                    "modelName",
                     "harness",
                     "billingRoute",
                     "health",
-                    "eligible",
-                    "ineligibleReason"
+                    "priced",
+                    "estimatedIncrementalCost"
                   ],
                   "additionalProperties": false,
-                  "description": "Every other route of the organization, each marked eligible or not with the reason. Each array item follows this format."
+                  "description": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate. Each array item follows this format."
                 },
-                "description": "Every other route of the organization, each marked eligible or not with the reason."
+                "description": "The routes the step may continue on, in creation order; empty when none can be used. Each carries its own price flag and cost estimate."
+              },
+              "unavailable": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "different_harness",
+                        "route_not_active",
+                        "route_open"
+                      ],
+                      "description": "Why these routes cannot take the step: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident). A route with several reasons counts once, under the first a person would fix: not active, then harness, then open."
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "How many routes this reason covers, at least 1."
+                    },
+                    "harnesses": {
+                      "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "harness": {
+                            "type": "string",
+                            "enum": [
+                              "pi",
+                              "claude_code",
+                              "codex",
+                              "mastra"
+                            ],
+                            "description": "The other harness path: pi, claude_code, codex or mastra."
+                          },
+                          "count": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991,
+                            "description": "How many routes run on that harness, at least 1."
+                          }
+                        },
+                        "required": [
+                          "harness",
+                          "count"
+                        ],
+                        "additionalProperties": false,
+                        "description": "For different_harness only: the routes counted per harness, most first. Absent for any other reason. Each array item follows this format."
+                      }
+                    },
+                    "routes": {
+                      "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Provider key of the route."
+                          },
+                          "model": {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Model identifier of the route."
+                          },
+                          "providerName": {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "The provider as a person reads it; the key itself when Bakery does not know the provider."
+                          },
+                          "modelName": {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "The model as a person reads it; the model key, since Bakery has no model catalog."
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "providerName",
+                          "modelName"
+                        ],
+                        "additionalProperties": false,
+                        "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
+                      }
+                    }
+                  },
+                  "required": [
+                    "reason",
+                    "count"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list. Each array item follows this format."
+                },
+                "description": "The routes that cannot take the step, as one count per reason (not active, other harness, open); empty when every other route can be used. The source route is in neither list."
               }
             },
             "required": [
@@ -99653,8 +99763,8 @@ export const clientManifest = {
               "since",
               "nextCheckAt",
               "runVersion",
-              "estimatedIncrementalCost",
-              "targets"
+              "targets",
+              "unavailable"
             ],
             "additionalProperties": false,
             "description": "The open choices, empty when no step of the run is stalled behind an incident. Each array item follows this format."
