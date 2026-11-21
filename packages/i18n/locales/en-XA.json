@@ -5322,6 +5322,8 @@
   "tasks.waiting.payment.subscription.inline": "⟦ŧĥë šûƀšçŕïþŧïôñ ôñ à ɱàçĥïñë ŧëšŧ çôþ⟧",
   "tasks.waiting.payment.api_metered.inline": "⟦àñ ÀÞÏ ķëÿ çĥàŕĝëð þëŕ ûšë ŧëšŧ çô⟧",
   "tasks.waiting.payment.local.inline": "⟦à ɱôðëļ ŕûññïñĝ ôñ à ɱàçĥïñë ŧëšŧ çô⟧",
+  "problems.INSTALLATION_QUIESCED.description": "⟦Ɓàķëŕÿ ïš ŧàķïñĝ à ƀàçķûþ àñð ïš ñôŧ àççëþŧïñĝ ñëŵ ŵôŕķ ƒôŕ à šĥôŕŧ ŵĥïļë. Ŧŕÿ àĝàïñ àƒŧëŕ ŧĥë ŧïɱë ïñ ŧĥë Ŕëŧŕÿ-Àƒŧëŕ ĥëàðëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "problems.INSTALLATION_QUIESCED.title": "⟦Ïñšŧàļļàŧïôñ þàûšëð ƒôŕ à ƀàçķûþ ŧëšŧ çôþÿ⟧",
   "installation.monitoring.add": "⟦Àðð ðëšŧïñàŧïôñ ŧëš⟧",
   "installation.monitoring.description": "⟦Šëñð ŵĥàŧ Ɓàķëŕÿ ɱëàšûŕëš ŧô ŧĥë ŧôôļš ÿôû àļŕëàðÿ ûšë, àñð ƀë ŧôļð ŵĥëñ šôɱëŧĥïñĝ ƀŕëàķš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "installation.monitoring.empty.body": "⟦Àðð ôñë ŧô šëë ŧïɱïñĝš àñð ĥëàļŧĥ ïñ Ĝŕàƒàñà ôŕ àñÿ ÔþëñŦëļëɱëŧŕÿ ŧôôļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
@@ -5379,6 +5381,7 @@
   "installation.monitoring.test.took": "⟦Ïŧ ŧôôķ {ms} ɱš. ŧëš⟧",
   "installation.monitoring.test.button": "⟦Šëñð à ŧëšŧ ŧ⟧",
   "installation.monitoring.test.needsValues": "⟦Ƒïļļ ïñ ŧĥë çôññëçŧïôñ ƒïëļðš ŧô šëñð à ŧëšŧ. ŧëšŧ çôþÿ ŧëš⟧",
+  "installation.monitoring.test.needsSecret": "⟦Ëñŧëŕ ŧĥë {field} ŧô šëñð à ŧëšŧ. ŧëšŧ çôþÿ⟧",
   "installation.monitoring.form.removeSecretNamed": "⟦Ŕëɱôṽë ŧĥë šàṽëð {field} ŧëšŧ ç⟧",
   "installation.monitoring.test.failed": "⟦Ŧëšŧ ƒàïļëð. ŧë⟧",
   "installation.monitoring.test.passed": "⟦Ŧëšŧ þàššëð. ŧë⟧",
@@ -5419,6 +5422,7 @@
   "installation.monitoring.sendingLabel": "⟦Šëñðïñĝ…⟧",
   "installation.monitoring.kindLine": "⟦{kind} ðëšŧïñàŧïôñ ŧëšŧ⟧",
   "installation.monitoring.status.heading": "⟦Šŧàŧûš…⟧",
+  "installation.monitoring.status.droppedCount": "⟦{count, plural, one {# record} other {# records}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "installation.monitoring.status.never": "⟦Ñôŧĥïñĝ šëñŧ ÿëŧ ŧëš⟧",
   "installation.monitoring.status.noAnswer": "⟦Ñô àñšŵëŕ ÿëŧ ŧë⟧",
   "installation.monitoring.status.answer": "⟦Ļàšŧ àñšŵëŕ ŧ⟧",
@@ -5430,7 +5434,5 @@
   "installation.monitoring.leave.stay": "⟦Ķëëþ ëðïŧïñĝ ŧë⟧",
   "installation.monitoring.leave.confirm": "⟦Ļëàṽë⟧",
   "installation.monitoring.updated": "⟦Ļàšŧ ûþðàŧëð {time} ŧëšŧ⟧",
-  "shell.navigation.monitoring": "⟦Ṁôñïŧôŕïñĝ ŧ⟧",
-  "installation.monitoring.test.needsSecret": "⟦Ëñŧëŕ ŧĥë {field} ŧô šëñð à ŧëšŧ. ŧëšŧ çôþÿ⟧",
-  "installation.monitoring.status.droppedCount": "⟦{count, plural, one {# record} other {# records}} ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "shell.navigation.monitoring": "⟦Ṁôñïŧôŕïñĝ ŧ⟧"
 }

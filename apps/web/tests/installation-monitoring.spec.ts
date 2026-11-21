@@ -398,6 +398,25 @@ for (
       await expect(page).toHaveURL(/\/installation\/monitoring$/);
     });
 
+    test("the remove confirm is disabled while the delete runs", async ({ page }) => {
+      const seen = await monitoringFixture(page, { holdDelete: true });
+      await page.goto(LIST);
+      await page.getByRole("link", { name: "Old collector", exact: true })
+        .click();
+      await page.getByRole("button", { name: "Remove destination" }).click();
+      const confirm = page.getByRole("alertdialog").getByRole("button", {
+        name: "Remove",
+      });
+      await confirm.click();
+      await expect.poll(() => seen.seen.some((s) => s.method === "DELETE"))
+        .toBe(true);
+      // The answer is still held: a second press must not send a second delete.
+      await expect(confirm).toBeDisabled();
+      expect(seen.seen.filter((s) => s.method === "DELETE")).toHaveLength(1);
+      seen.releaseDelete();
+      await expect(page).toHaveURL(/\/installation\/monitoring$/);
+    });
+
     test("leaving with unsaved changes asks first", async ({ page }) => {
       await monitoringFixture(page);
       await page.goto(LIST);

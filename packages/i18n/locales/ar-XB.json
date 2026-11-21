@@ -5322,6 +5322,8 @@
   "tasks.waiting.payment.subscription.inline": "⟪the subscription on a machine⟫",
   "tasks.waiting.payment.api_metered.inline": "⟪an API key charged per use⟫",
   "tasks.waiting.payment.local.inline": "⟪a model running on a machine⟫",
+  "problems.INSTALLATION_QUIESCED.description": "⟪Bakery is taking a backup and is not accepting new work for a short while. Try again after the time in the Retry-After header.⟫",
+  "problems.INSTALLATION_QUIESCED.title": "⟪Installation paused for a backup⟫",
   "installation.monitoring.add": "⟪Add destination⟫",
   "installation.monitoring.description": "⟪Send what Bakery measures to the tools you already use, and be told when something breaks.⟫",
   "installation.monitoring.empty.body": "⟪Add one to see timings and health in Grafana or any OpenTelemetry tool.⟫",
@@ -5379,6 +5381,7 @@
   "installation.monitoring.test.took": "⟪It took {ms} ms.⟫",
   "installation.monitoring.test.button": "⟪Send a test⟫",
   "installation.monitoring.test.needsValues": "⟪Fill in the connection fields to send a test.⟫",
+  "installation.monitoring.test.needsSecret": "⟪Enter the {field} to send a test.⟫",
   "installation.monitoring.form.removeSecretNamed": "⟪Remove the saved {field}⟫",
   "installation.monitoring.test.failed": "⟪Test failed.⟫",
   "installation.monitoring.test.passed": "⟪Test passed.⟫",
@@ -5419,6 +5422,7 @@
   "installation.monitoring.sendingLabel": "⟪Sending⟫",
   "installation.monitoring.kindLine": "⟪{kind} destination⟫",
   "installation.monitoring.status.heading": "⟪Status⟫",
+  "installation.monitoring.status.droppedCount": "⟪{count, plural, one {# record} other {# records}}⟫",
   "installation.monitoring.status.never": "⟪Nothing sent yet⟫",
   "installation.monitoring.status.noAnswer": "⟪No answer yet⟫",
   "installation.monitoring.status.answer": "⟪Last answer⟫",
@@ -5430,7 +5434,5 @@
   "installation.monitoring.leave.stay": "⟪Keep editing⟫",
   "installation.monitoring.leave.confirm": "⟪Leave⟫",
   "installation.monitoring.updated": "⟪Last updated {time}⟫",
-  "shell.navigation.monitoring": "⟪Monitoring⟫",
-  "installation.monitoring.test.needsSecret": "⟪Enter the {field} to send a test.⟫",
-  "installation.monitoring.status.droppedCount": "⟪{count, plural, one {# record} other {# records}}⟫"
+  "shell.navigation.monitoring": "⟪Monitoring⟫"
 }

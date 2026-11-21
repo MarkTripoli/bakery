@@ -65,6 +65,7 @@ function fakeApi(options: {
 }) {
   const seen = {
     claims: 0,
+    maintain: 0,
     settings: 0,
     reports: [] as { sequence: number; body: Record<string, unknown> }[],
     auth: new Set<string | null>(),
@@ -96,6 +97,19 @@ function fakeApi(options: {
           leaseToken: null,
           leaseExpiresAt: null,
           triggerKind: null,
+        });
+      }
+      if (
+        request.method === "POST" && url.pathname.endsWith("/maintenance")
+      ) {
+        seen.maintain++;
+        return Response.json({
+          state: "quiesced",
+          runId: RUN,
+          leaseExpiresAt: new Date(Date.now() + 300_000).toISOString(),
+          liveAttempts: 0,
+          openTransactions: 0,
+          retryAfterSeconds: 0,
         });
       }
       if (request.method === "GET" && url.pathname.endsWith("/settings")) {
@@ -169,6 +183,8 @@ Deno.test("under the shipped flags the runner claims, backs up, uploads, verifie
     );
     assert(!/NotCapable|Requires .* access|PermissionDenied/i.test(text), text);
     assertEquals(api.seen.claims, 1);
+    // The installation is held once, before settings are read.
+    assertEquals(api.seen.maintain, 1);
     assertEquals(api.seen.settings, 1);
     const last = api.seen.reports.at(-1)!.body;
     assertEquals(last.status, "completed");

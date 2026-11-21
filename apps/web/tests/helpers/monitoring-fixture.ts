@@ -169,6 +169,8 @@ export type MonitoringOptions = {
   droppedWithoutTime?: boolean;
   /** The status the next create answers with, and its problem body. */
   createProblem?: { status: number; body: unknown };
+  /** Hold the answer to a remove until the test calls `releaseDelete`. */
+  holdDelete?: boolean;
   /** What the next test answers with. */
   testResult?: Record<string, unknown>;
 };
@@ -250,6 +252,12 @@ export async function monitoringFixture(
   const seen: Seen[] = [];
   let createProblem = options.createProblem;
   let conflictOnce = options.conflictOnce === true;
+  let releaseDelete: () => void = () => {};
+  const deleteHeld = options.holdDelete === true
+    ? new Promise<void>((resolve) => {
+      releaseDelete = resolve;
+    })
+    : null;
   const record = (route: import("@playwright/test").Route) => {
     const request = route.request();
     seen.push({
@@ -328,7 +336,7 @@ export async function monitoringFixture(
   );
   await page.route(
     /\/v1\/installation\/telemetry-destinations\/[^/]+$/,
-    (route) => {
+    async (route) => {
       const request = record(route);
       const id = new URL(request.url()).pathname.split("/").pop();
       const at = items.findIndex((item) => item.id === id);
@@ -363,6 +371,7 @@ export async function monitoringFixture(
         });
       }
       if (request.method() === "DELETE") {
+        await deleteHeld;
         items.splice(at, 1);
         return route.fulfill({ status: 204 });
       }
@@ -416,5 +425,5 @@ export async function monitoringFixture(
       });
     },
   );
-  return { seen, items };
+  return { seen, items, releaseDelete: () => releaseDelete() };
 }
