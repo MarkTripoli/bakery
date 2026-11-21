@@ -46,6 +46,8 @@ const namespacePrefixes = [
   "installation.",
   // The Delivery page: what was delivered and how long it took.
   "delivery.",
+  // Batches (#58): the list, the start page and a batch's own page.
+  "batches.",
   // Provider copy: `integrations.<slug>.*` is the one namespace where a provider's
   // own strings live, and `check-provider-literals.ts` exempts exactly it. The two
   // rails have to agree, so the prefix is allowed here rather than the keys moved.
@@ -80,6 +82,7 @@ const pseudoExpansionPrefixes = [
   "session.",
   "installation.",
   "delivery.",
+  "batches.",
 ] as const;
 
 function argumentNames(message: string): string[] {

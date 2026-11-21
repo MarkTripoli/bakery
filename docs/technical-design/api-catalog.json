@@ -808,7 +808,8 @@
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ]
     },
     {
@@ -2647,7 +2648,8 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ]
     },
     {
@@ -2790,7 +2792,8 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ]
     },
     {
@@ -6207,7 +6210,8 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ]
     },
     {
@@ -6700,7 +6704,8 @@
         "IDEMPOTENCY_IN_FLIGHT",
         "DEPENDENCY_UNAVAILABLE",
         "DEPENDENCY_TIMEOUT",
-        "INSTALLATION_QUIESCED"
+        "INSTALLATION_QUIESCED",
+        "INSTALLATION_RESTORING"
       ],
       "organizationContext": "required_authenticated_context"
     },
@@ -9021,6 +9026,30 @@
     {
       "group": "Installation administration",
       "method": "GET",
+      "path": "/v1/installation/backups/drills",
+      "action": "backups.drills.list",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "CursorQuery",
+      "output": "Page<BackupDrill>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
       "path": "/v1/installation/backups/status",
       "action": "backups.status",
       "access": "Installation administrator",
@@ -9309,6 +9338,29 @@
         "AUTH_FORBIDDEN",
         "MALFORMED_REQUEST",
         "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/drills",
+      "action": "backupRunner.drill",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupDrillReport",
+      "output": "BackupDrill",
+      "event": "",
+      "mcp": null,
+      "idempotency": "safe to repeat: the first report records the drill, later reports with the same id return the same record",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
         "STATE_CONFLICT",
         "BODY_TOO_LARGE",
         "UNSUPPORTED_MEDIA_TYPE",

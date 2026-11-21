@@ -39,6 +39,7 @@ import {
   requestBackup,
 } from "./postgres.ts";
 import { takeCutoff } from "./cutoff.ts";
+import { listBackupDrills, recordDrill } from "./drill.ts";
 import { maintainRun } from "./maintenance.ts";
 import {
   type BackupSettingsDependencies,
@@ -79,6 +80,21 @@ function list(
 ): Promise<Page> {
   const { context: value, actor } = installationActor(context);
   return listBackupRuns(
+    value.transaction,
+    actor.subject.principalId,
+    input,
+    secret,
+  );
+}
+
+/** backups.drills.list */
+function listDrills(
+  context: ActionContext,
+  input: { cursor?: string; limit?: number },
+  secret: string,
+) {
+  const { context: value, actor } = installationActor(context);
+  return listBackupDrills(
     value.transaction,
     actor.subject.principalId,
     input,
@@ -130,6 +146,7 @@ async function issueCredential(context: ActionContext): Promise<Issued> {
 
 const ADMIN_ACTIONS = [
   Action.BackupsList,
+  Action.BackupsDrillsList,
   Action.BackupsStatus,
   Action.BackupsStart,
   Action.BackupRunnerCredentialIssue,
@@ -166,6 +183,14 @@ export function createBackupActionRegistry(
     output: contractSchemas["Page<BackupRun>"],
     policy: { ...policy, type: ActionKind.Query },
     handler: (context, input) => list(context, input, secret),
+  }).register({
+    name: Action.BackupsDrillsList,
+    method: HttpMethod.Get,
+    path: "/v1/installation/backups/drills",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<BackupDrill>"],
+    policy: { ...policy, type: ActionKind.Query },
+    handler: (context, input) => listDrills(context, input, secret),
   }).register({
     name: Action.BackupsStatus,
     method: HttpMethod.Get,
@@ -438,6 +463,36 @@ export function createBackupRunnerRoutes(
             traceId: crypto.randomUUID(),
           },
         );
+        return noStoreJson(view, 200);
+      });
+    }),
+  );
+  // One restore drill the runner ran on the host: a backup set restored into an
+  // isolated, throwaway database and checked there. The runner chooses the id,
+  // so reporting it again returns the stored record.
+  app.post(
+    "/v1/backup-runner/drills",
+    guarded(async (context) => {
+      // Authenticate before reading the body, like the other runner routes.
+      await withPgTransaction(
+        options.database,
+        (transaction) =>
+          authenticateRunner(transaction, context.req.raw.headers),
+      );
+      const input = await parseContract(
+        context,
+        contractSchemas.BackupDrillReport,
+      );
+      return withPgTransaction(options.database, async (transaction) => {
+        const runner = await authenticateRunner(
+          transaction,
+          context.req.raw.headers,
+        );
+        const view = await recordDrill(transaction, input, {
+          generation: runner.generation,
+          requestId: crypto.randomUUID(),
+          traceId: crypto.randomUUID(),
+        });
         return noStoreJson(view, 200);
       });
     }),
