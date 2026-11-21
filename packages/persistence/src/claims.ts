@@ -38,6 +38,27 @@ import {
   rebindPreparedIdentityOperation as rebindPreparedIdentityOperationInternal,
 } from "./secret-identity.ts";
 import type { SealedCredentialOperation } from "@bakery/contracts/secret-identity";
+
+/**
+ * The agent session a claim hands an attempt of a job (the `agentSessionId`
+ * of its assignment), as a scalar subquery over the job row aliased
+ * `jobAlias`. Run admission creates exactly one session per step (the insert
+ * is guarded by "not exists" under a per-step advisory lock), and the
+ * application role cannot change a session afterwards, so the step's first
+ * session is the one every attempt of the step was told to run under and the
+ * one its worker results must name. A later session on the same step (a
+ * coordinator or continuation session) is never the attempt's. Callers that
+ * record which session an attempt acted in use this so they agree with the
+ * claim.
+ */
+export function assignedAgentSessionSql(jobAlias: string): string {
+  return `(select assigned_session.id
+     from bakery.agent_sessions assigned_session
+    where assigned_session.organization_id = ${jobAlias}.organization_id
+      and assigned_session.run_step_id = ${jobAlias}.run_step_id
+    order by assigned_session.created_at asc, assigned_session.id asc
+    limit 1)`;
+}
 export {
   DEFAULT_LEASE_SECONDS,
   IDEMPOTENCY_REPLAY_TTL_SECONDS,
@@ -365,14 +386,7 @@ export function createClaimsRepository(
        select id, action, requirements, input,
           current_checkpoints, agent_config, skill_refs, agent_version_id,
           billing, installation_reservation_id, current_fence,
-          (
-            select session.id
-              from bakery.agent_sessions session
-             where session.organization_id = jobs.organization_id
-               and session.run_step_id = jobs.run_step_id
-             order by session.created_at asc, session.id asc
-             limit 1
-          ) as agent_session_id,
+          ${assignedAgentSessionSql("jobs")} as agent_session_id,
           (
             select candidate_run.requested_by
               from bakery.run_steps claim_step

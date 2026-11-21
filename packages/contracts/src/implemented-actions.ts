@@ -714,6 +714,7 @@ export const BackupImplementedAction = Object.freeze(
     BackupsList: "backups.list",
     BackupsStatus: "backups.status",
     BackupsStart: "backups.start",
+    BackupsDrillsList: "backups.drills.list",
     BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
     BackupScheduleGet: "backupSchedule.get",
     BackupSchedulePut: "backupSchedule.put",
@@ -725,6 +726,7 @@ export const BackupImplementedAction = Object.freeze(
     BackupRunnerReport: "backupRunner.report",
     BackupRunnerMaintain: "backupRunner.maintain",
     BackupRunnerCutoff: "backupRunner.cutoff",
+    BackupRunnerDrill: "backupRunner.drill",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const backupImplementedActions = Object.freeze(
@@ -828,6 +830,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillDraftsUpdate: "skillDrafts.update",
     SkillDraftsDiscard: "skillDrafts.discard",
     SkillDraftsCheck: "skillDrafts.check",
+    SkillsSourceUpdate: "skills.sourceUpdate",
     SkillDraftsPublish: "skillDrafts.publish",
     SkillDraftFilesSave: "skillDraftFiles.save",
     SkillDraftFilesGet: "skillDraftFiles.get",
@@ -845,7 +848,8 @@ export const catalogIdentityImplementedActions = Object.freeze(
   Object.values(CatalogImplementedAction).filter((action) =>
     action !== CatalogImplementedAction.SkillVersionsCreate &&
     action !== CatalogImplementedAction.SkillsCopy &&
-    action !== CatalogImplementedAction.SkillDraftsPublish
+    action !== CatalogImplementedAction.SkillDraftsPublish &&
+    action !== CatalogImplementedAction.SkillsSourceUpdate
   ),
 );
 

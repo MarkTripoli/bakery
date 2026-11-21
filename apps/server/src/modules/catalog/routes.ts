@@ -21,6 +21,7 @@ import {
   createCatalogActionRegistry,
   createSkillCopyActionRegistry,
   createSkillDraftPublishActionRegistry,
+  createSkillSourceUpdateActionRegistry,
   createSkillVersionActionRegistry,
 } from "./actions.ts";
 import { createCatalogHandlers } from "./persistence.ts";
@@ -32,13 +33,23 @@ import {
   storeLocalSkillVersionPublication,
 } from "./publication.ts";
 import { SkillFileStore, type SkillFileStoreOperations } from "./storage.ts";
-import type { normalizeSkillSourceLocator } from "./source-adapters.ts";
+import type {
+  normalizeSkillSourceLocator,
+  SkillSourceAdapter,
+} from "./source-adapters.ts";
 import type { LocalSkillVersionInput } from "./validation.ts";
 import {
   commitSkillCopy,
   prepareSkillCopy,
   type SkillCopyPreparation,
 } from "./skill-copy.ts";
+import {
+  commitSkillSourceUpdate,
+  prepareSkillSourceUpdate,
+  readSkillSourceUpdate,
+  type SkillSourceUpdatePreparation,
+  type SkillSourceUpdateReading,
+} from "./skill-source-update.ts";
 import {
   commitSkillDraftPublish,
   prepareSkillDraftPublish,
@@ -88,6 +99,25 @@ export async function publishSkillDraft(context: ActionContext) {
   });
 }
 
+const sourceUpdateStage = Symbol("sourceUpdateStage");
+
+/** skills.sourceUpdate in stages: what was read, then what the source answered. */
+type SourceUpdateStage = {
+  preparation?: SkillSourceUpdatePreparation;
+  reading?: SkillSourceUpdateReading;
+};
+
+type SourceUpdateContext = ActionContext & {
+  [sourceUpdateStage]?: SourceUpdateStage;
+};
+
+class SourceUpdatePreflightRollbackError extends Error {
+  constructor() {
+    super("SKILL_SOURCE_UPDATE_PREFLIGHT_ROLLBACK");
+    this.name = "SourceUpdatePreflightRollbackError";
+  }
+}
+
 class PublicationPreflightRollbackError extends Error {
   constructor() {
     super("SKILL_VERSION_PUBLICATION_PREFLIGHT_ROLLBACK");
@@ -102,6 +132,7 @@ export function createCatalogRoutes(options: {
   cursorSecret: string;
   skillFileRoot?: string;
   skillFileStore?: SkillFileStoreOperations;
+  sourceAdapter?: SkillSourceAdapter;
   normalizeSourceLocator?: typeof normalizeSkillSourceLocator;
   /**
    * A registry built by the caller, so the same catalog operations can be
@@ -206,6 +237,54 @@ export function createCatalogRoutes(options: {
       );
     },
   };
+  // The source is read over the network, so no transaction may be open while it
+  // is: the first pass reads the skill and gives its connection up, the fetch
+  // runs with none, and a second, short pass checks the caller again and writes.
+  const sourceUpdateCommandRunner: CommandRunner = {
+    async run(request) {
+      const stage = (request.context as SourceUpdateContext)[
+        sourceUpdateStage
+      ];
+      if (!stage || stage.reading) {
+        return await postgresCommandRunner.run(request);
+      }
+      return await postgresCommandRunner.run({
+        ...request,
+        invokeAndEncode: async () => {
+          stage.preparation = await prepareSkillSourceUpdate(request.context);
+          throw new SourceUpdatePreflightRollbackError();
+        },
+      });
+    },
+  };
+  const sourceUpdateAuthority: ActionAuthorityRunner = {
+    async run(action, context, input, next) {
+      const stage: SourceUpdateStage = {};
+      try {
+        return await postgresAuthority.run(
+          action,
+          Object.assign({}, context, { [sourceUpdateStage]: stage }),
+          input,
+          next,
+        );
+      } catch (error) {
+        if (!(error instanceof SourceUpdatePreflightRollbackError)) throw error;
+      }
+      if (!stage.preparation) {
+        throw new Error("SKILL_SOURCE_UPDATE_PREPARATION_MISSING");
+      }
+      stage.reading = await readSkillSourceUpdate(stage.preparation, {
+        adapter: options.sourceAdapter,
+        store,
+      });
+      return await postgresAuthority.run(
+        action,
+        Object.assign({}, context, { [sourceUpdateStage]: stage }),
+        input,
+        next,
+      );
+    },
+  };
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/skill-sources", options.browserSession);
   app.use("/v1/skill-sources/*", options.browserSession);
@@ -300,6 +379,29 @@ export function createCatalogRoutes(options: {
       }, {
         authorityRunner: publicationAuthority,
         commandRunner: publicationCommandRunner,
+      }),
+      publicBaseUrl: options.publicBaseUrl,
+      createContext: createActionContext,
+    }),
+  );
+  app.route(
+    "/",
+    createApiRouter({
+      registry: createSkillSourceUpdateActionRegistry({
+        checkSkillSourceUpdate: async (context) => {
+          const stage = (context as SourceUpdateContext)[sourceUpdateStage];
+          if (!stage?.preparation || !stage.reading) {
+            throw new Error("SKILL_SOURCE_UPDATE_PROOF_MISSING");
+          }
+          return await commitSkillSourceUpdate(
+            context,
+            stage.preparation,
+            stage.reading,
+          );
+        },
+      }, {
+        authorityRunner: sourceUpdateAuthority,
+        commandRunner: sourceUpdateCommandRunner,
       }),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
