@@ -47,7 +47,10 @@ async function writeCompleteSet(
 ): Promise<void> {
   await Deno.mkdir(directory);
   for (const store of STORES) {
-    if (store.file === null || skip.includes(store.file)) continue;
+    // Optional stores (the point-in-time base backup) are absent by default.
+    if (store.file === null || !store.required || skip.includes(store.file)) {
+      continue;
+    }
     await Deno.writeTextFile(
       join(directory, store.file),
       store.file === "release.json"

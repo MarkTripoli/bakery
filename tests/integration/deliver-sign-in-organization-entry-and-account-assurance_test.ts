@@ -42,7 +42,10 @@ Deno.test("installation bootstraps, browser sessions list live devices, and revo
     const beforeBootstrap = await fixture.app.fetch(
       new Request(`${authTestOrigin}/v1/installation/status`),
     );
-    assertEquals(await beforeBootstrap.json(), { bootstrapped: false });
+    assertEquals(await beforeBootstrap.json(), {
+      bootstrapped: false,
+      restoreHeld: false,
+    });
 
     await createSuperuser({
       pgDatabase: fixture.pgDatabase,
@@ -52,7 +55,10 @@ Deno.test("installation bootstraps, browser sessions list live devices, and revo
     const afterBootstrap = await fixture.app.fetch(
       new Request(`${authTestOrigin}/v1/installation/status`),
     );
-    assertEquals(await afterBootstrap.json(), { bootstrapped: true });
+    assertEquals(await afterBootstrap.json(), {
+      bootstrapped: true,
+      restoreHeld: false,
+    });
 
     const signInA = await fixture.app.fetch(
       authRequest("/api/auth/sign-in/email", { email, password }),

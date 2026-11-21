@@ -5,7 +5,12 @@
  * be tested without a browser, and none returns a sentence: they return
  * catalogue keys with their values, and the page owns the words.
  */
-import type { BatchIssueResponse, BatchResponse } from "../../api/client.ts";
+import { STARTABLE_PAGE_SIZE } from "../../api/query.ts";
+import type {
+  BatchIssueResponse,
+  BatchResponse,
+  BatchStartableResponse,
+} from "../../api/client.ts";
 
 export type BatchState = BatchResponse["state"];
 export type BatchIssueState = BatchIssueResponse["state"];
@@ -509,8 +514,15 @@ export function parseSpend(text: string): number | null {
   return n > 0 && n <= LIMITS.spendMax ? n : null;
 }
 
-/** Each field's problem as a catalogue key; empty when the form can be sent. */
-export function validateStart(form: StartForm): StartErrors {
+/**
+ * Each field's problem as a catalogue key; empty when the form can be sent.
+ * `smallest` is the least spend that starts one issue in the chosen repository,
+ * when the server has said; an amount below it is a problem under the field.
+ */
+export function validateStart(
+  form: StartForm,
+  smallest: number | null = null,
+): StartErrors {
   const errors: Record<string, string> = {};
   if (form.repositoryId === "") {
     errors.repositoryId = "batches.start.error.repositoryNone";
@@ -521,8 +533,11 @@ export function validateStart(form: StartForm): StartErrors {
   if (wholeIn(form.maxHours, LIMITS.hours.min, LIMITS.hours.max) === null) {
     errors.maxHours = "batches.start.error.maxHours";
   }
-  if (parseSpend(form.maxSpend) === null) {
+  const spend = parseSpend(form.maxSpend);
+  if (spend === null) {
     errors.maxSpend = "batches.start.error.maxSpend";
+  } else if (smallest !== null && spend < smallest) {
+    errors.maxSpend = "batches.start.error.maxSpendLow";
   }
   if (form.continueMode === "") {
     errors.continueMode = "batches.start.error.continueMode";
@@ -573,4 +588,61 @@ export function planValues(
     spend: spend === null ? "…" : formatDollars(spend, locale),
     mode: form.continueMode,
   };
+}
+
+// ---- the start page's list and smallest spend (UX revision 3, slice 3a) ----
+
+export type StartableView = Readonly<{
+  /** The first issues a batch would take, in the server's order. */
+  issues: BatchStartableResponse["items"];
+  /** True when more than the listed issues can start. */
+  more: boolean;
+  /** The oldest stored readiness check among the listed issues; null when none is listed. */
+  checkedAt: string | null;
+}>;
+
+/** What the "It would start with" list shows of one page of the server's answer. */
+export function startableView(data: BatchStartableResponse): StartableView {
+  // The read asks for one page of STARTABLE_PAGE_SIZE; the slice and the
+  // length check guard a server that sends more than it was asked for.
+  const issues = data.items.slice(0, STARTABLE_PAGE_SIZE);
+  let checkedAt: string | null = null;
+  for (const issue of issues) {
+    if (
+      checkedAt === null ||
+      new Date(issue.checkedAt).getTime() < new Date(checkedAt).getTime()
+    ) checkedAt = issue.checkedAt;
+  }
+  return {
+    issues,
+    more: data.nextCursor !== null || data.items.length > STARTABLE_PAGE_SIZE,
+    checkedAt,
+  };
+}
+
+/** The least spend, in dollars, that starts one issue; null while unknown or when the repository cannot run work now. */
+export function smallestSpend(
+  data: BatchStartableResponse | undefined,
+): number | null {
+  if (data === undefined || data.smallestSpendUsd === null) return null;
+  const amount = Number(data.smallestSpendUsd);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+/** "5 minutes ago", "2 hours ago", "this minute", in the person's language. */
+export function timeAgo(iso: string, now: number, locale: string): string {
+  const seconds = Math.round((new Date(iso).getTime() - now) / 1000);
+  const format = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  for (
+    const [unit, size] of [
+      ["day", 86_400],
+      ["hour", 3_600],
+      ["minute", 60],
+    ] as const
+  ) {
+    if (Math.abs(seconds) >= size) {
+      return format.format(Math.round(seconds / size), unit);
+    }
+  }
+  return format.format(0, "minute");
 }

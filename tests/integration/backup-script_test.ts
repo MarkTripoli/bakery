@@ -33,6 +33,9 @@ cmd=("\${args[@]:$((i+3))}")
 case "$service" in
   postgres)
     case "\${cmd[0]}" in
+      pg_basebackup)
+        if [[ -n "\${FAKE_FAIL_BASE:-}" ]]; then exit 1; fi
+        echo "base backup tar" ;;
       pg_dump)
         database=\${cmd[\${#cmd[@]}-1]}
         if [[ -n "\${FAKE_FAIL_DUMP:-}" && "$database" == "$FAKE_FAIL_DUMP" ]]; then
@@ -239,6 +242,61 @@ Deno.test("a complete set holds every declared store, a manifest and verifies", 
       cwd: set,
     }).output();
     assertEquals(check.code, 0);
+  });
+});
+
+Deno.test("with Restore to any minute on, the set also holds a base backup; off, the manifest records it excluded", async () => {
+  await withSandbox({}, async (box) => {
+    const on = await box.run({ BAKERY_POINT_IN_TIME: "1" });
+    assertEquals(on.code, 0, on.stderr);
+    const onSet = join(
+      box.backups,
+      /BACKUP_COMPLETED (\S+)/.exec(on.stdout)![1],
+    );
+    assert((await entries(onSet)).includes("base.tar.age"));
+    const onManifest = JSON.parse(
+      await Deno.readTextFile(join(onSet, "manifest.json")),
+    ) as Manifest;
+    assertEquals(
+      onManifest.stores.find((s) => s.id === "postgres-base-backup")?.status,
+      "captured",
+    );
+    assertEquals((await verifyBackupDirectory(onSet)).complete, true);
+
+    const off = await box.run();
+    assertEquals(off.code, 0, off.stderr);
+    const offSet = join(
+      box.backups,
+      /BACKUP_COMPLETED (\S+)/.exec(off.stdout)![1],
+    );
+    assert(!(await entries(offSet)).includes("base.tar.age"));
+    const offManifest = JSON.parse(
+      await Deno.readTextFile(join(offSet, "manifest.json")),
+    ) as Manifest;
+    assertEquals(
+      offManifest.stores.find((s) => s.id === "postgres-base-backup")?.status,
+      "excluded",
+    );
+  });
+});
+
+Deno.test("with Restore to any minute on, a failed base backup is reported, and the set still completes", async () => {
+  await withSandbox({}, async (box) => {
+    const result = await box.run({
+      BAKERY_POINT_IN_TIME: "1",
+      FAKE_FAIL_BASE: "1",
+    });
+    // The base backup is an optional store: its failure is recorded, and the
+    // logical backup the restore path needs is still complete.
+    const name = /BACKUP_COMPLETED (\S+)/.exec(result.stdout)?.[1];
+    assert(name, result.stdout + result.stderr);
+    const manifest = JSON.parse(
+      await Deno.readTextFile(join(box.backups, name, "manifest.json")),
+    ) as Manifest;
+    assertEquals(
+      manifest.stores.find((s) => s.id === "postgres-base-backup")?.status,
+      "failed",
+    );
   });
 });
 

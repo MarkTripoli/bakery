@@ -28,27 +28,6 @@ import {
 /** What a direct document grant lets a person do. */
 export type ArtifactAccessLevel = "read_comment" | "edit";
 
-/**
- * Only `read_comment` is served: editing through a grant needs the draft and
- * collaboration routes to honour it. Until then `edit` is refused, so no grant
- * ever promises what it does not do.
- */
-export function assertAccessLevelAvailable(
-  level: ArtifactAccessLevel | undefined,
-): void {
-  if (level === undefined || level === "read_comment") return;
-  throw new StandardError({
-    code: "UNPROCESSABLE",
-    params: {
-      issues: [{
-        path: ["level"],
-        code: "access_level_unavailable",
-        message: "access level unavailable",
-      }],
-    },
-  });
-}
-
 type GrantRow = {
   id: string;
   artifactId: string;
@@ -264,7 +243,6 @@ async function grantAccess(context: ActionContext, input: unknown) {
   const body = input as z.output<
     typeof contractSchemas.ArtifactAccessGrantCreate
   >;
-  assertAccessLevelAvailable(body.level);
   const artifact = await lockArtifactScope(
     transaction,
     organizationId,
