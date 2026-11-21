@@ -478,10 +478,11 @@ Deno.test("two people opening a draft at the same moment both get the one draft"
     const pending = owner.call("POST", draftPath);
     let blocked = false;
     for (let wait = 0; wait < 400 && !blocked; wait += 1) {
+      // pg_locks is readable by every role; the open request runs as the
+      // application role, whose pg_stat_activity query text is hidden from here.
       const waiting = await f.fixture.pgDatabase.query<{ n: number }>(
-        `select count(*)::int as n from pg_stat_activity
-          where wait_event_type = 'Lock'
-            and query like '%insert into bakery.skill_drafts%'
+        `select count(*)::int as n from pg_locks
+          where not granted and locktype = 'transactionid'
             and pid <> pg_backend_pid()`,
       );
       blocked = waiting.rows[0].n > 0;
