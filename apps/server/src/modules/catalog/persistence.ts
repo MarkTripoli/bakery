@@ -17,6 +17,10 @@ import {
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
+import {
+  hiddenArtifactIds,
+  reviewerIsolationOf,
+} from "../knowledge/reviewer-isolation.ts";
 import { assertMayAuthorSkill, SKILL_VISIBLE_TO } from "./skill-scope-guard.ts";
 import { insertLocalSkillIdentity } from "./skill-identity.ts";
 import {
@@ -731,7 +735,7 @@ export function createCatalogHandlers(
       if (!includeArtifacts && input.kind === "artifact") {
         throw new StandardError({ code: "AUTH_FORBIDDEN" });
       }
-      return await searchLibraryPage({
+      const page = await searchLibraryPage({
         transaction,
         organizationId,
         principalId,
@@ -739,6 +743,21 @@ export function createCatalogHandlers(
         secret,
         includeArtifacts,
       });
+      // A reviewer session never finds another step's transcript (O47).
+      const hidden = await hiddenArtifactIds(
+        transaction,
+        await reviewerIsolationOf(transaction, context, organizationId),
+        organizationId,
+        page.items.filter((item) => item.kind === "artifact").map((item) =>
+          item.id
+        ),
+      );
+      return {
+        ...page,
+        items: page.items.filter((item) =>
+          item.kind !== "artifact" || !hidden.has(item.id)
+        ),
+      };
     },
 
     async getSkill(context: ActionContext) {
