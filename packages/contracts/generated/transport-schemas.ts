@@ -33221,7 +33221,7 @@ const transportSchemas = {
         "url": "string",
         "checkedAt": "timestamp"
       },
-      "description": "One open issue a batch could start now: its last stored readiness check says every check passes and no request for it is open. A batch reads GitHub again before it starts an issue, so this is a forecast, not a promise.",
+      "description": "One open issue a batch could start now: its last stored readiness check passes every check except the request label and who applied it, which a batch's manual start does not need, and no request for it is open. A batch reads GitHub again before it starts an issue, so this is a forecast, not a promise.",
       "fieldDescriptions": {
         "externalTicketId": "The ticket (issue) the batch would start.",
         "number": "The issue's number in its tracker.",

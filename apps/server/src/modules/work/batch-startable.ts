@@ -20,8 +20,10 @@ import { requireWorkTransaction } from "./work-transaction.ts";
  * The list is the open issues of the repository's enabled sources whose last stored
  * readiness check passes everything a batch needs, in the order the supervisor takes
  * them: lowest issue number first. A batch starts an issue as an explicit manual request,
- * so the label check (`intent_authorized`) does not count: an issue that only lacks the
- * request label can still be started. No provider is read here; a batch reads GitHub again
+ * so the two checks that decide how an automatic request is authorized do not count: the
+ * request label (`intent_authorized`) and who applied it (`authority_live`). An issue that
+ * only lacks the request label can still be started, and admission re-checks the starter's
+ * authority live. No provider is read here; a batch reads GitHub again
  * before it starts each issue, so the list is a forecast and carries when it was checked.
  */
 
@@ -84,7 +86,7 @@ export function createBatchStartableHandler(
       action: BatchImplementedAction.BatchesStartable,
       organizationId,
       principalId,
-      ordering: "number:asc,id:asc",
+      ordering: "position:asc,iteration:asc,id:asc",
       filters: JSON.stringify({ repositoryId: input.repositoryId }),
       schemaVersion: 1,
     };
@@ -117,7 +119,7 @@ export function createBatchStartableHandler(
           and not exists (
             select 1 from jsonb_array_elements(report.checks) as pass_check
              where pass_check ->> 'status' <> 'pass'
-               and pass_check ->> 'id' <> 'intent_authorized'
+               and pass_check ->> 'id' not in ('intent_authorized', 'authority_live')
           )
           and not exists (
             select 1 from bakery.ticket_requests as open_request
@@ -151,6 +153,7 @@ export function createBatchStartableHandler(
       nextCursor: rows.length > limit && last
         ? await encodeCursor(dependencies.cursorSecret, binding, {
           position: last.number,
+          iteration: 0,
           id: last.id,
         })
         : null,

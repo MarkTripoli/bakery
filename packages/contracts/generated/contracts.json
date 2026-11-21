@@ -254013,7 +254013,7 @@
             "checkedAt"
           ],
           "additionalProperties": false,
-          "description": "One open issue a batch could start now: its last stored readiness check says every check passes and no request for it is open. A batch reads GitHub again before it starts an issue, so this is a forecast, not a promise."
+          "description": "One open issue a batch could start now: its last stored readiness check passes every check except the request label and who applied it, which a batch's manual start does not need, and no request for it is open. A batch reads GitHub again before it starts an issue, so this is a forecast, not a promise."
         },
         "BatchStartable": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -267590,7 +267590,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:8b2674f71e1f5f10f21c12ed411ff527d182bf323d4bb1bd37dfb2e59637678d",
+  "compatibilityDigest": "sha256:fe6b4ead2808bbca4e2826a770600b8601766ef280409b2e4c9e445e5cb0974a",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -473730,7 +473730,7 @@
         "checkedAt"
       ],
       "additionalProperties": false,
-      "description": "One open issue a batch could start now: its last stored readiness check says every check passes and no request for it is open. A batch reads GitHub again before it starts an issue, so this is a forecast, not a promise."
+      "description": "One open issue a batch could start now: its last stored readiness check passes every check except the request label and who applied it, which a batch's manual start does not need, and no request for it is open. A batch reads GitHub again before it starts an issue, so this is a forecast, not a promise."
     },
     "BatchStartable": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
