@@ -80,6 +80,15 @@ pub struct Shell {
     pending_open: Mutex<Option<String>>,
     /// The Bakery menu, kept in step with the view.
     menu: Mutex<Option<BakeryMenu>>,
+    /// What the window shows: the server's pages, or the app's own panels. `tried` is set once a
+    /// handoff has been attempted for this sign-in, so a refusal is not asked again in a loop.
+    window_page: Mutex<WindowPage>,
+}
+
+#[derive(Default)]
+struct WindowPage {
+    on_server: bool,
+    tried: bool,
 }
 
 const SETTINGS_FILE: &str = "settings.json";
@@ -172,6 +181,7 @@ impl Shell {
             retry_after,
             pending_open: Mutex::new(None),
             menu: Mutex::new(None),
+            window_page: Mutex::new(WindowPage::default()),
         })
     }
 
@@ -296,6 +306,7 @@ impl Shell {
                 Standing::Unknown => {}
             }
         }
+        self.sync_window().await;
     }
 
     /// What `fresh` needs from startup, rebuilt from the fields kept for it.
@@ -327,6 +338,60 @@ impl Shell {
                     queue.push_back(follow_up);
                 }
             }
+        }
+        self.sync_window().await;
+    }
+
+    /// Keeps the window on the right page: the server's pages while someone is signed in, the app's
+    /// own panels at every other time. The sign-in's one-use code is asked for here and used at once.
+    pub async fn sync_window(self: &Arc<Self>) {
+        if self.previewing {
+            return;
+        }
+        let (signed_in, credential) = {
+            let st = self.state.lock().unwrap();
+            (st.session.is_signed_in(), st.credential.clone())
+        };
+        let (on_server, tried) = {
+            let page = self.window_page.lock().unwrap();
+            (page.on_server, page.tried)
+        };
+        if signed_in && !on_server && !tried {
+            self.window_page.lock().unwrap().tried = true;
+            let Some(credential) = credential else { return };
+            let path = self.pending_open.lock().unwrap().take().unwrap_or_else(|| "/".into());
+            match self.client.create_handoff(&credential, &path).await {
+                Some(code) => {
+                    let url = format!("{}/api/desktop/handoff?code={code}", self.server.trim_end_matches('/'));
+                    if self.navigate(&url) {
+                        self.window_page.lock().unwrap().on_server = true;
+                        self.report("server_page_opened", json!({ "path": path }));
+                    }
+                }
+                None => {
+                    // The signed-in panel stays; the page is asked for again at the next sign-in.
+                    self.report("handoff_failed", json!({}));
+                }
+            }
+        } else if !signed_in {
+            let was_on_server = {
+                let mut page = self.window_page.lock().unwrap();
+                page.tried = false;
+                std::mem::replace(&mut page.on_server, false)
+            };
+            if was_on_server {
+                let origin = bakery_desktop_core::platform::web_view_origin(std::env::consts::OS);
+                self.navigate(&format!("{origin}/"));
+                self.report("panels_shown", json!({}));
+            }
+        }
+    }
+
+    fn navigate(&self, url: &str) -> bool {
+        let Some(window) = self.app.get_webview_window("main") else { return false };
+        match url.parse() {
+            Ok(parsed) => window.navigate(parsed).is_ok(),
+            Err(_) => false,
         }
     }
 
