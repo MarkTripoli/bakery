@@ -155,15 +155,13 @@ fn handle_link(shell: &Arc<Shell>, raw: &str) {
     }
     match open_link(raw) {
         Ok(link) => match link.server {
-            Some(other) if !shell.is_connected_to(&other) => {
-                match page_url(&other, &link.path) {
-                    Some(address) => shell.show_link_dialog(LinkDialog::OtherServer {
-                        server: other,
-                        link: address,
-                    }),
-                    None => shell.show_link_dialog(LinkDialog::CantOpen { link: raw.into() }),
-                }
-            }
+            Some(other) if !shell.is_connected_to(&other) => match page_url(&other, &link.path) {
+                Some(address) => shell.show_link_dialog(LinkDialog::OtherServer {
+                    server: other,
+                    link: address,
+                }),
+                None => shell.show_link_dialog(LinkDialog::CantOpen { link: raw.into() }),
+            },
             _ => {
                 let shell = Arc::clone(shell);
                 tauri::async_runtime::spawn(async move { shell.open_link(link.path).await });
@@ -225,11 +223,13 @@ fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
                     if let Some(shell) = shell {
                         shell.report("link_refused", json!({ "reason": reason }));
                         let link = url.to_string();
-                        shell.show_link_dialog(if scheme.is_empty() || scheme.starts_with("http") {
-                            LinkDialog::CantOpen { link }
-                        } else {
-                            LinkDialog::NotWeb { scheme, link }
-                        });
+                        shell.show_link_dialog(
+                            if scheme.is_empty() || scheme.starts_with("http") {
+                                LinkDialog::CantOpen { link }
+                            } else {
+                                LinkDialog::NotWeb { scheme, link }
+                            },
+                        );
                     }
                     false
                 }

@@ -25,7 +25,9 @@ fn incoming_dir() -> std::path::PathBuf {
 
 /// The handler for the main window. `server` is the connected server's address: only a file from
 /// that server is saved.
-pub fn handler(server: String) -> impl Fn(Webview<Wry>, DownloadEvent<'_>) -> bool + Send + Sync + 'static {
+pub fn handler(
+    server: String,
+) -> impl Fn(Webview<Wry>, DownloadEvent<'_>) -> bool + Send + Sync + 'static {
     move |webview, event| {
         let shell = webview.try_state::<Arc<Shell>>();
         let report = |name: &str, data: serde_json::Value| {
@@ -43,7 +45,10 @@ pub fn handler(server: String) -> impl Fn(Webview<Wry>, DownloadEvent<'_>) -> bo
                     url.port().map(|p| format!(":{p}")).unwrap_or_default()
                 );
                 if own.as_deref() != Some(from.as_str()) {
-                    report("download_refused", json!({ "reason": "not from the connected server" }));
+                    report(
+                        "download_refused",
+                        json!({ "reason": "not from the connected server" }),
+                    );
                     return false;
                 }
                 let name = destination

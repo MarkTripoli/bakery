@@ -43,7 +43,11 @@ pub fn show_script(toast: &Toast, nonce: &str) -> String {
         Tone::Information => "information",
         Tone::Error => "error",
     };
-    let role = if matches!(toast.tone, Tone::Error) { "alert" } else { "status" };
+    let role = if matches!(toast.tone, Tone::Error) {
+        "alert"
+    } else {
+        "status"
+    };
     let actions: Vec<_> = toast.actions.iter().map(|(l, a)| json!([l, a])).collect();
     format!(
         r#"(() => {{
@@ -125,8 +129,16 @@ pub fn show_script(toast: &Toast, nonce: &str) -> String {
         tone = quoted(tone),
         role = quoted(role),
         text = quoted(&toast.text),
-        detail = toast.detail.as_deref().map(quoted).unwrap_or_else(|| "null".into()),
-        tooltip = toast.tooltip.as_deref().map(quoted).unwrap_or_else(|| "null".into()),
+        detail = toast
+            .detail
+            .as_deref()
+            .map(quoted)
+            .unwrap_or_else(|| "null".into()),
+        tooltip = toast
+            .tooltip
+            .as_deref()
+            .map(quoted)
+            .unwrap_or_else(|| "null".into()),
         actions = serde_json::Value::Array(actions),
         goes_after = toast.goes_after.unwrap_or(0),
         scheme = ACTION_SCHEME,

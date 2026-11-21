@@ -39,9 +39,9 @@ impl LinkDialog {
     /// What Copy puts on the clipboard, and what "Open in your browser" opens: the whole text.
     pub fn full(&self) -> &str {
         match self {
-            Self::CantOpen { link } | Self::NotWeb { link, .. } | Self::OtherServer { link, .. } => {
-                link
-            }
+            Self::CantOpen { link }
+            | Self::NotWeb { link, .. }
+            | Self::OtherServer { link, .. } => link,
             Self::BrowserDidNotOpen { address } => address,
         }
     }
@@ -140,11 +140,19 @@ mod tests {
 
     #[test]
     fn each_dialog_has_the_designs_title_and_buttons() {
-        let cant = view(&LinkDialog::CantOpen { link: "bakery://open".into() }, SERVER);
+        let cant = view(
+            &LinkDialog::CantOpen {
+                link: "bakery://open".into(),
+            },
+            SERVER,
+        );
         assert_eq!(cant.title, "Bakery can't open this link");
         assert_eq!(labels(&cant), ["Copy the link", "Close"]);
         let not_web = view(
-            &LinkDialog::NotWeb { scheme: "file".into(), link: "file:///x".into() },
+            &LinkDialog::NotWeb {
+                scheme: "file".into(),
+                link: "file:///x".into(),
+            },
             SERVER,
         );
         assert_eq!(not_web.title, "Bakery did not open that link");
@@ -153,14 +161,22 @@ mod tests {
             ["Only web links open from Bakery. This one starts with “file:”. The page you had open has not changed."]
         );
         let other = view(
-            &LinkDialog::OtherServer { server: "https://other.example".into(), link: "https://other.example/tasks/7".into() },
+            &LinkDialog::OtherServer {
+                server: "https://other.example".into(),
+                link: "https://other.example/tasks/7".into(),
+            },
             SERVER,
         );
         assert_eq!(other.title, "This link is for another server");
         assert_eq!(other.box_label.as_deref(), Some("The link is for:"));
         assert_eq!(other.shown, "https://other.example");
         assert_eq!(labels(&other), ["Cancel", "Open in your browser"]);
-        let browser = view(&LinkDialog::BrowserDidNotOpen { address: "https://x.example".into() }, SERVER);
+        let browser = view(
+            &LinkDialog::BrowserDidNotOpen {
+                address: "https://x.example".into(),
+            },
+            SERVER,
+        );
         assert_eq!(browser.title, "Bakery could not open your browser");
         assert_eq!(labels(&browser), ["Close", "Copy the address"]);
     }
@@ -169,9 +185,26 @@ mod tests {
     fn exactly_one_button_is_primary_and_it_is_the_designs_bold_one() {
         for (dialog, bold) in [
             (LinkDialog::CantOpen { link: "a".into() }, "Close"),
-            (LinkDialog::NotWeb { scheme: "x".into(), link: "a".into() }, "Close"),
-            (LinkDialog::OtherServer { server: "s".into(), link: "a".into() }, "Open in your browser"),
-            (LinkDialog::BrowserDidNotOpen { address: "a".into() }, "Copy the address"),
+            (
+                LinkDialog::NotWeb {
+                    scheme: "x".into(),
+                    link: "a".into(),
+                },
+                "Close",
+            ),
+            (
+                LinkDialog::OtherServer {
+                    server: "s".into(),
+                    link: "a".into(),
+                },
+                "Open in your browser",
+            ),
+            (
+                LinkDialog::BrowserDidNotOpen {
+                    address: "a".into(),
+                },
+                "Copy the address",
+            ),
         ] {
             let v = view(&dialog, SERVER);
             let primary: Vec<_> = v.buttons.iter().filter(|b| b.primary).collect();
@@ -188,7 +221,12 @@ mod tests {
         assert_eq!(v.shown.chars().count(), 201);
         assert!(v.shown.ends_with('…'));
         assert_eq!(dialog.full(), long);
-        let short = view(&LinkDialog::CantOpen { link: "bakery://open".into() }, SERVER);
+        let short = view(
+            &LinkDialog::CantOpen {
+                link: "bakery://open".into(),
+            },
+            SERVER,
+        );
         assert_eq!(short.shown, "bakery://open");
     }
 
@@ -197,9 +235,17 @@ mod tests {
         let server = "https://bakery.acme.example";
         for dialog in [
             LinkDialog::CantOpen { link: "a".into() },
-            LinkDialog::NotWeb { scheme: "file".into(), link: "a".into() },
-            LinkDialog::OtherServer { server: "s".into(), link: "a".into() },
-            LinkDialog::BrowserDidNotOpen { address: "a".into() },
+            LinkDialog::NotWeb {
+                scheme: "file".into(),
+                link: "a".into(),
+            },
+            LinkDialog::OtherServer {
+                server: "s".into(),
+                link: "a".into(),
+            },
+            LinkDialog::BrowserDidNotOpen {
+                address: "a".into(),
+            },
         ] {
             let v = view(&dialog, server);
             let words = format!(
@@ -207,9 +253,21 @@ mod tests {
                 v.title,
                 v.text.join(" "),
                 v.box_label.unwrap_or_default(),
-                v.buttons.iter().map(|b| b.label.clone()).collect::<Vec<_>>().join(" ")
+                v.buttons
+                    .iter()
+                    .map(|b| b.label.clone())
+                    .collect::<Vec<_>>()
+                    .join(" ")
             );
-            for banned in ["URL", "origin", "host", "deep link", "protocol", "navigation", "endpoint"] {
+            for banned in [
+                "URL",
+                "origin",
+                "host",
+                "deep link",
+                "protocol",
+                "navigation",
+                "endpoint",
+            ] {
                 assert!(!words.contains(banned), "{banned} in {words}");
             }
         }

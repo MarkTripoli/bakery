@@ -21,14 +21,25 @@ pub enum Navigation {
     System,
     /// Not followed at all. The scheme is what the "not a web link" dialog names; it is empty when
     /// the text is not an address at all.
-    Refuse { scheme: String, reason: &'static str },
+    Refuse {
+        scheme: String,
+        reason: &'static str,
+    },
 }
 
 /// Paths the server answers itself or that start or end a sign-in. The web router serves every
 /// other path, and a link may only open a page: never an API call, a health check, a sign-in or a
 /// sign-out.
 const SERVER_OWNED: [&str; 9] = [
-    "/v1", "/api", "/auth", "/health", "/mcp", "/_bakery", "/.well-known", "/desktop", "/oauth",
+    "/v1",
+    "/api",
+    "/auth",
+    "/health",
+    "/mcp",
+    "/_bakery",
+    "/.well-known",
+    "/desktop",
+    "/oauth",
 ];
 const SIGN_IN_OUT: [&str; 2] = ["/sign-in", "/sign-out"];
 
@@ -71,7 +82,10 @@ const MAX_PATH: usize = 2048;
 
 /// Decide a navigation. `server` is the connected server's address as configured.
 pub fn navigation(server: &str, target: &str) -> Navigation {
-    let refuse = |scheme: &str, reason| Navigation::Refuse { scheme: scheme.to_string(), reason };
+    let refuse = |scheme: &str, reason| Navigation::Refuse {
+        scheme: scheme.to_string(),
+        reason,
+    };
     let Ok(url) = Url::parse(target) else {
         return refuse("", "not a url");
     };
@@ -166,7 +180,11 @@ fn page_path(path: &str) -> Result<&str, &'static str> {
         return Err("path holds a forbidden character");
     }
     let before_query = path.split(['?', '#']).next().unwrap_or_default();
-    if SERVER_OWNED.iter().chain(SIGN_IN_OUT.iter()).any(|p| owns(before_query, p)) {
+    if SERVER_OWNED
+        .iter()
+        .chain(SIGN_IN_OUT.iter())
+        .any(|p| owns(before_query, p))
+    {
         return Err("not a page of the web app");
     }
     if before_query
@@ -205,8 +223,14 @@ mod tests {
 
     #[test]
     fn the_apps_own_pages_stay_in_the_window() {
-        assert_eq!(navigation(SERVER, "tauri://localhost/index.html"), Navigation::Stay);
-        assert_eq!(navigation(SERVER, "http://tauri.localhost/"), Navigation::Stay);
+        assert_eq!(
+            navigation(SERVER, "tauri://localhost/index.html"),
+            Navigation::Stay
+        );
+        assert_eq!(
+            navigation(SERVER, "http://tauri.localhost/"),
+            Navigation::Stay
+        );
     }
 
     #[test]
@@ -226,7 +250,10 @@ mod tests {
     fn an_address_with_a_login_is_never_followed() {
         assert_eq!(
             navigation(SERVER, "https://bakery.example.com@evil.test/"),
-            Navigation::Refuse { scheme: "https".into(), reason: "carries a login" }
+            Navigation::Refuse {
+                scheme: "https".into(),
+                reason: "carries a login"
+            }
         );
     }
 
@@ -241,13 +268,19 @@ mod tests {
             "ftp://bakery.example.com/",
             "not a url",
         ] {
-            assert!(matches!(navigation(SERVER, odd), Navigation::Refuse { .. }), "{odd}");
+            assert!(
+                matches!(navigation(SERVER, odd), Navigation::Refuse { .. }),
+                "{odd}"
+            );
         }
     }
 
     #[test]
     fn mail_and_phone_links_go_to_the_system() {
-        assert_eq!(navigation(SERVER, "mailto:ana@example.com"), Navigation::System);
+        assert_eq!(
+            navigation(SERVER, "mailto:ana@example.com"),
+            Navigation::System
+        );
         assert_eq!(navigation(SERVER, "tel:+15550100"), Navigation::System);
     }
 
@@ -255,34 +288,72 @@ mod tests {
     fn a_refusal_names_the_scheme_the_dialog_shows() {
         assert_eq!(
             navigation(SERVER, "javascript:alert(1)"),
-            Navigation::Refuse { scheme: "javascript".into(), reason: "not a web address" }
+            Navigation::Refuse {
+                scheme: "javascript".into(),
+                reason: "not a web address"
+            }
         );
         assert_eq!(
             navigation(SERVER, "file:///etc/passwd"),
-            Navigation::Refuse { scheme: "file".into(), reason: "not a web address" }
+            Navigation::Refuse {
+                scheme: "file".into(),
+                reason: "not a web address"
+            }
         );
         assert_eq!(
             navigation(SERVER, "nonsense"),
-            Navigation::Refuse { scheme: String::new(), reason: "not a url" }
+            Navigation::Refuse {
+                scheme: String::new(),
+                reason: "not a url"
+            }
         );
     }
 
     #[test]
     fn an_open_link_never_reaches_an_api_a_health_check_or_a_sign_in() {
         for path in [
-            "/v1/tasks", "/v1", "/api/x", "/auth/callback", "/health/ready", "/health", "/mcp",
-            "/_bakery/preview/exchange", "/.well-known/x", "/desktop/handoff", "/oauth/authorize",
-            "/sign-in", "/sign-out", "/sign-in/two-factor", "/V1/tasks", "/Sign-Out",
-            "/v1?x=1", "/sign-out#x",
+            "/v1/tasks",
+            "/v1",
+            "/api/x",
+            "/auth/callback",
+            "/health/ready",
+            "/health",
+            "/mcp",
+            "/_bakery/preview/exchange",
+            "/.well-known/x",
+            "/desktop/handoff",
+            "/oauth/authorize",
+            "/sign-in",
+            "/sign-out",
+            "/sign-in/two-factor",
+            "/V1/tasks",
+            "/Sign-Out",
+            "/v1?x=1",
+            "/sign-out#x",
         ] {
-            let raw = format!("bakery://open?path={}", path.replace('/', "%2F").replace('?', "%3F").replace('#', "%23"));
-            assert_eq!(open_target(&raw), Err("not a page of the web app"), "{path}");
+            let raw = format!(
+                "bakery://open?path={}",
+                path.replace('/', "%2F")
+                    .replace('?', "%3F")
+                    .replace('#', "%23")
+            );
+            assert_eq!(
+                open_target(&raw),
+                Err("not a page of the web app"),
+                "{path}"
+            );
         }
     }
 
     #[test]
     fn pages_that_merely_start_like_a_reserved_path_open() {
-        for path in ["/v10/x", "/healthy", "/authors", "/tasks/v1", "/settings/auth"] {
+        for path in [
+            "/v10/x",
+            "/healthy",
+            "/authors",
+            "/tasks/v1",
+            "/settings/auth",
+        ] {
             let raw = format!("bakery://open?path={}", path.replace('/', "%2F"));
             assert_eq!(open_target(&raw), Ok(path.to_string()), "{path}");
         }
@@ -303,14 +374,35 @@ mod tests {
             ("bakery://open", "needs exactly one path"),
             ("bakery://open?path=", "not a path on this server"),
             ("bakery://open?path=tasks", "not a path on this server"),
-            ("bakery://open?path=%2F%2Fevil.test", "not a path on this server"),
-            ("bakery://open?path=https%3A%2F%2Fevil.test", "not a path on this server"),
-            ("bakery://open?path=%2Fa%2F..%2Fb", "path climbs a directory"),
-            ("bakery://open?path=%2F%2e%2e%2Fb", "path climbs a directory"),
+            (
+                "bakery://open?path=%2F%2Fevil.test",
+                "not a path on this server",
+            ),
+            (
+                "bakery://open?path=https%3A%2F%2Fevil.test",
+                "not a path on this server",
+            ),
+            (
+                "bakery://open?path=%2Fa%2F..%2Fb",
+                "path climbs a directory",
+            ),
+            (
+                "bakery://open?path=%2F%2e%2e%2Fb",
+                "path climbs a directory",
+            ),
             ("bakery://open?path=%5Cevil", "not a path on this server"),
-            ("bakery://open?path=%2Fa%5Cb", "path holds a forbidden character"),
-            ("bakery://open?path=%2Fa%0Ab", "path holds a forbidden character"),
-            ("bakery://open?path=%2Fa&path=%2Fb", "needs exactly one path"),
+            (
+                "bakery://open?path=%2Fa%5Cb",
+                "path holds a forbidden character",
+            ),
+            (
+                "bakery://open?path=%2Fa%0Ab",
+                "path holds a forbidden character",
+            ),
+            (
+                "bakery://open?path=%2Fa&path=%2Fb",
+                "needs exactly one path",
+            ),
             ("bakery://open/extra?path=%2Fa", "not an open link"),
             ("bakery://auth/callback?path=%2Fa", "not an open link"),
             ("https://open?path=%2Fa", "not an open link"),
@@ -322,8 +414,9 @@ mod tests {
 
     #[test]
     fn an_open_link_may_name_the_server_it_is_for() {
-        let link = open_link("bakery://open?path=%2Ftasks%2F7&server=HTTPS%3A%2F%2FBakery.Example.com%2F")
-            .unwrap();
+        let link =
+            open_link("bakery://open?path=%2Ftasks%2F7&server=HTTPS%3A%2F%2FBakery.Example.com%2F")
+                .unwrap();
         assert_eq!(link.path, "/tasks/7");
         assert_eq!(link.server.as_deref(), Some("https://bakery.example.com"));
         assert_eq!(open_link("bakery://open?path=%2F").unwrap().server, None);
@@ -339,7 +432,11 @@ mod tests {
             "ftp%3A%2F%2Fa.example",
         ] {
             let raw = format!("bakery://open?path=%2F&server={bad}");
-            assert_eq!(open_link(&raw), Err("server is not an address the app accepts"), "{bad}");
+            assert_eq!(
+                open_link(&raw),
+                Err("server is not an address the app accepts"),
+                "{bad}"
+            );
         }
         assert_eq!(
             open_link("bakery://open?path=%2F&server=https%3A%2F%2Fa.example&server=https%3A%2F%2Fb.example"),
@@ -356,14 +453,24 @@ mod tests {
             ("http%3A%2F%2F127.0.0.1%3A8000", "http://127.0.0.1:8000"),
         ] {
             let raw = format!("bakery://open?path=%2F&server={typed}");
-            assert_eq!(open_link(&raw).unwrap().server.as_deref(), Some(origin), "{typed}");
+            assert_eq!(
+                open_link(&raw).unwrap().server.as_deref(),
+                Some(origin),
+                "{typed}"
+            );
         }
     }
 
     #[test]
     fn a_notice_button_with_this_runs_nonce_asks_for_its_action() {
-        assert_eq!(toast_action("bakery-action://a1b2/show/7", "a1b2"), Some(("show".into(), 7)));
-        assert_eq!(toast_action("bakery-action://a1b2/retry/12", "a1b2"), Some(("retry".into(), 12)));
+        assert_eq!(
+            toast_action("bakery-action://a1b2/show/7", "a1b2"),
+            Some(("show".into(), 7))
+        );
+        assert_eq!(
+            toast_action("bakery-action://a1b2/retry/12", "a1b2"),
+            Some(("retry".into(), 12))
+        );
     }
 
     #[test]

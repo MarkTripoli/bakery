@@ -84,8 +84,14 @@ mod tests {
     #[test]
     fn the_sentences_are_the_designs() {
         assert_eq!(saving("report.pdf"), "Saving report.pdf…");
-        assert_eq!(saved("report.pdf", "Downloads"), "Saved report.pdf to Downloads.");
-        assert_eq!(failure_title("report.pdf"), "report.pdf could not be saved.");
+        assert_eq!(
+            saved("report.pdf", "Downloads"),
+            "Saved report.pdf to Downloads."
+        );
+        assert_eq!(
+            failure_title("report.pdf"),
+            "report.pdf could not be saved."
+        );
         assert_eq!(
             failure_reason(Failure::Stopped),
             "The download stopped before it finished. Nothing was kept. Check your connection and the space on this disk."
@@ -128,7 +134,14 @@ mod tests {
             TRY_AGAIN.into(),
         ];
         for words in all {
-            for banned in ["URL", "origin", "host", "endpoint", "protocol", "navigation"] {
+            for banned in [
+                "URL",
+                "origin",
+                "host",
+                "endpoint",
+                "protocol",
+                "navigation",
+            ] {
                 assert!(!words.contains(banned), "{banned} in {words}");
             }
         }

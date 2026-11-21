@@ -20,7 +20,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::menu::BakeryMenu;
-use crate::toast::{self, Tone, Toast};
+use crate::toast::{self, Toast, Tone};
 use bakery_desktop_core::download as saved_file;
 use bakery_desktop_core::link_dialog::LinkDialog;
 
@@ -116,7 +116,12 @@ struct WindowPage {
 fn random_nonce() -> String {
     use std::hash::{BuildHasher, Hasher};
     let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
-    hasher.write_u64(SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(0));
+    hasher.write_u64(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0),
+    );
     format!("a{:016x}", hasher.finish())
 }
 
@@ -243,7 +248,9 @@ impl Shell {
         message.push_str(&view.shown);
         let primary = view.buttons.iter().find(|b| b.primary).cloned();
         let other = view.buttons.iter().find(|b| !b.primary).cloned();
-        let (Some(primary), Some(other)) = (primary, other) else { return };
+        let (Some(primary), Some(other)) = (primary, other) else {
+            return;
+        };
         // Harness only: an answer chosen in advance in place of a person, because a run cannot press
         // the system's dialog.
         if let Ok(label) = std::env::var("BAKERY_DESKTOP_DIALOG_ANSWER") {
@@ -265,14 +272,21 @@ impl Shell {
             .message(message)
             .title(view.title.clone())
             .kind(MessageDialogKind::Info)
-            .buttons(MessageDialogButtons::OkCancelCustom(primary.label.clone(), other.label.clone()))
+            .buttons(MessageDialogButtons::OkCancelCustom(
+                primary.label.clone(),
+                other.label.clone(),
+            ))
             .show(move |ok| {
                 shell.answer_system_dialog(&dialog, Some(if ok { primary.id } else { other.id }));
             });
     }
 
     /// What a pressed button of a system dialog does. Copy copies the whole text and closes it.
-    fn answer_system_dialog(self: &Arc<Self>, dialog: &LinkDialog, pressed: Option<bakery_desktop_core::copy::ButtonId>) {
+    fn answer_system_dialog(
+        self: &Arc<Self>,
+        dialog: &LinkDialog,
+        pressed: Option<bakery_desktop_core::copy::ButtonId>,
+    ) {
         use bakery_desktop_core::copy::ButtonId;
         self.report("system_dialog_answer", json!({ "button": pressed }));
         match pressed {
@@ -301,7 +315,6 @@ impl Shell {
         st.facts.link_dialog.as_ref().map(|d| d.full().to_string())
     }
 
-
     pub fn action_nonce(&self) -> &str {
         &self.action_nonce
     }
@@ -311,7 +324,8 @@ impl Shell {
     }
 
     fn new_toast_id(&self) -> u64 {
-        self.next_toast.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        self.next_toast
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Draws a notice in the page the window shows.
@@ -337,8 +351,18 @@ impl Shell {
                 actions: vec![],
                 goes_after: None,
             }),
-            "failed" => self.save_failed(id, "quarterly-report.pdf", "/files/quarterly-report.pdf", saved_file::Failure::Stopped),
-            "nopermission" => self.save_failed(id, "quarterly-report.pdf", "/files/quarterly-report.pdf", saved_file::Failure::NoPermission),
+            "failed" => self.save_failed(
+                id,
+                "quarterly-report.pdf",
+                "/files/quarterly-report.pdf",
+                saved_file::Failure::Stopped,
+            ),
+            "nopermission" => self.save_failed(
+                id,
+                "quarterly-report.pdf",
+                "/files/quarterly-report.pdf",
+                saved_file::Failure::NoPermission,
+            ),
             _ => {}
         }
     }
@@ -348,14 +372,24 @@ impl Shell {
         let id = self.new_toast_id();
         self.downloads.lock().unwrap().insert(
             url.to_string(),
-            DownloadState { id, done: false, name: name.to_string(), temp },
+            DownloadState {
+                id,
+                done: false,
+                name: name.to_string(),
+                temp,
+            },
         );
         let shell = Arc::clone(self);
         let (url, name) = (url.to_string(), name.to_string());
         // Only a save that takes more than a second says so.
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_secs(1));
-            let still_going = shell.downloads.lock().unwrap().get(&url).is_some_and(|d| !d.done);
+            let still_going = shell
+                .downloads
+                .lock()
+                .unwrap()
+                .get(&url)
+                .is_some_and(|d| !d.done);
             if still_going {
                 shell.show_toast(Toast {
                     id,
@@ -408,30 +442,46 @@ impl Shell {
         }
         let shell = Arc::clone(self);
         let (url, name) = (url.to_string(), name.clone());
-        dialog.save_file(move |chosen| match chosen.and_then(|c| c.into_path().ok()) {
-            Some(path) => shell.keep_download(id, &name, &url, &temp, path),
-            None => {
-                // Cancelled or closed: nothing is written, nothing is said.
-                let _ = saved_file::discard_partial(&temp);
-                shell.report("download_cancelled", json!({ "name": name }));
-            }
-        });
+        dialog.save_file(
+            move |chosen| match chosen.and_then(|c| c.into_path().ok()) {
+                Some(path) => shell.keep_download(id, &name, &url, &temp, path),
+                None => {
+                    // Cancelled or closed: nothing is written, nothing is said.
+                    let _ = saved_file::discard_partial(&temp);
+                    shell.report("download_cancelled", json!({ "name": name }));
+                }
+            },
+        );
     }
 
     /// Moves a finished file from the app's private folder to where the person chose.
     fn keep_download(&self, id: u64, name: &str, url: &str, temp: &std::path::Path, to: PathBuf) {
         let moved = std::fs::rename(temp, &to).or_else(|_| {
             // Another disk: copy, then remove the original.
-            std::fs::copy(temp, &to).map(|_| ()).and_then(|_| std::fs::remove_file(temp))
+            std::fs::copy(temp, &to)
+                .map(|_| ())
+                .and_then(|_| std::fs::remove_file(temp))
         });
         match moved {
             Ok(()) => {
                 let folder = to.parent().map(|p| p.to_string_lossy().to_string());
-                self.toasts.lock().unwrap().insert(id, ToastTarget { path: Some(to.clone()), retry_url: None });
+                self.toasts.lock().unwrap().insert(
+                    id,
+                    ToastTarget {
+                        path: Some(to.clone()),
+                        retry_url: None,
+                    },
+                );
                 self.show_toast(Toast {
                     id,
                     tone: Tone::Success,
-                    text: saved_file::saved(name, &folder.as_deref().map(saved_file::folder_name).unwrap_or_default()),
+                    text: saved_file::saved(
+                        name,
+                        &folder
+                            .as_deref()
+                            .map(saved_file::folder_name)
+                            .unwrap_or_default(),
+                    ),
                     detail: None,
                     tooltip: folder,
                     actions: vec![(saved_file::SHOW_IN_FOLDER.into(), "show")],
@@ -454,7 +504,13 @@ impl Shell {
 
     /// An error notice that stays until closed, with the reason and a way to ask again.
     pub fn save_failed(&self, id: u64, name: &str, url: &str, failure: saved_file::Failure) {
-        self.toasts.lock().unwrap().insert(id, ToastTarget { path: None, retry_url: Some(url.to_string()) });
+        self.toasts.lock().unwrap().insert(
+            id,
+            ToastTarget {
+                path: None,
+                retry_url: Some(url.to_string()),
+            },
+        );
         self.show_toast(Toast {
             id,
             tone: Tone::Error,
@@ -497,8 +553,7 @@ impl Shell {
 
     /// Whether an address, already a plain origin, is the server the app is connected to.
     pub fn is_connected_to(&self, origin: &str) -> bool {
-        bakery_desktop_core::csp::server_origins(&self.server)
-            .is_some_and(|(own, _)| own == origin)
+        bakery_desktop_core::csp::server_origins(&self.server).is_some_and(|(own, _)| own == origin)
     }
 
     /// A page of the server a `bakery://open` link named, already checked. Signed in with the
@@ -688,10 +743,18 @@ impl Shell {
         if signed_in && !on_server && !tried {
             self.window_page.lock().unwrap().tried = true;
             let Some(credential) = credential else { return };
-            let path = self.pending_open.lock().unwrap().take().unwrap_or_else(|| "/".into());
+            let path = self
+                .pending_open
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| "/".into());
             match self.client.create_handoff(&credential, &path).await {
                 Some(code) => {
-                    let url = format!("{}/api/desktop/handoff?code={code}", self.server.trim_end_matches('/'));
+                    let url = format!(
+                        "{}/api/desktop/handoff?code={code}",
+                        self.server.trim_end_matches('/')
+                    );
                     if self.navigate(&url) {
                         self.window_page.lock().unwrap().on_server = true;
                         self.report("server_page_opened", json!({ "path": path }));
@@ -729,10 +792,13 @@ impl Shell {
             if !self.window_page.lock().unwrap().on_server {
                 return;
             }
-            let Some(window) = self.app.get_webview_window("main") else { return };
+            let Some(window) = self.app.get_webview_window("main") else {
+                return;
+            };
             let Ok(url) = window.url() else { continue };
             let path = url.path();
-            let sign_in_or_out = path == "/sign-in" || path.starts_with("/sign-in/") || path == "/sign-out";
+            let sign_in_or_out =
+                path == "/sign-in" || path.starts_with("/sign-in/") || path == "/sign-out";
             if !sign_in_or_out {
                 shown_a_page = true;
             } else if shown_a_page {
@@ -744,7 +810,9 @@ impl Shell {
     }
 
     fn navigate(&self, url: &str) -> bool {
-        let Some(window) = self.app.get_webview_window("main") else { return false };
+        let Some(window) = self.app.get_webview_window("main") else {
+            return false;
+        };
         match url.parse() {
             Ok(parsed) => window.navigate(parsed).is_ok(),
             Err(_) => false,
