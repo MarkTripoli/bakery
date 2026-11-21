@@ -214,6 +214,8 @@ pub struct Session {
     server: String,
     /// A line over the sign-in panel or the signed-in window until the person's next action.
     notice: Option<Notice>,
+    /// The last address that was not this computer, which the chooser offers again.
+    last_other: String,
 }
 
 impl Session {
@@ -259,6 +261,7 @@ impl Session {
                 resuming: false,
                 server: String::new(),
                 notice: None,
+                last_other: String::new(),
             }
         } else {
             Session {
@@ -267,6 +270,7 @@ impl Session {
                 resuming: false,
                 server: String::new(),
                 notice: None,
+                last_other: String::new(),
             }
         }
     }
@@ -274,6 +278,12 @@ impl Session {
     /// The same session for a named server, which the chooser compares a new choice with.
     pub fn on_server(mut self, server: &str) -> Session {
         self.server = server.to_string();
+        self
+    }
+
+    /// The last other address the person used, offered again in the chooser.
+    pub fn with_last_other(mut self, address: &str) -> Session {
+        self.last_other = address.to_string();
         self
     }
 
@@ -308,6 +318,7 @@ impl Session {
             resuming: self.resuming,
             server: self.server.clone(),
             notice: None,
+            last_other: self.last_other.clone(),
         }
     }
 
@@ -318,6 +329,7 @@ impl Session {
             resuming: self.resuming,
             server: self.server.clone(),
             notice: None,
+            last_other: self.last_other.clone(),
         }
     }
 
@@ -607,6 +619,7 @@ pub fn step(session: Session, event: Event) -> (Session, Vec<Effect>) {
                 resuming: false,
                 server: session.server.clone(),
                 notice: None,
+                last_other: session.last_other.clone(),
             },
             vec![],
         ),
@@ -631,6 +644,7 @@ pub fn step(session: Session, event: Event) -> (Session, Vec<Effect>) {
                 resuming: true,
                 server: session.server.clone(),
                 notice: None,
+                last_other: session.last_other.clone(),
             },
             vec![Effect::ClearCredential],
         ),
@@ -646,6 +660,7 @@ pub fn step(session: Session, event: Event) -> (Session, Vec<Effect>) {
                 resuming: false,
                 server: session.server.clone(),
                 notice: None,
+                last_other: session.last_other.clone(),
             },
             vec![],
         ),
@@ -658,8 +673,9 @@ pub fn step(session: Session, event: Event) -> (Session, Vec<Effect>) {
                 } else {
                     ServerChoice::Another
                 },
+                // On another server the box starts with it; on this computer, with the last other one.
                 typed: if is_this_computer_address(&session.server) {
-                    String::new()
+                    session.last_other.clone()
                 } else {
                     session.server.clone()
                 },
@@ -837,6 +853,7 @@ pub fn step(session: Session, event: Event) -> (Session, Vec<Effect>) {
                     resuming: session.resuming,
                     server: session.server.clone(),
                     notice: None,
+                    last_other: session.last_other.clone(),
                 },
                 vec![Effect::ScheduleRetry],
             )
@@ -1415,6 +1432,10 @@ mod server_tests {
         let here = open_chooser(Session::start(false).on_server(HERE));
         assert_eq!(chooser_of(&here).selected, ServerChoice::ThisComputer);
         assert_eq!(chooser_of(&here).typed, "");
+        // On this computer the box offers the last other address again.
+        let remembered = open_chooser(Session::start(false).on_server(HERE).with_last_other(OTHER));
+        assert_eq!(chooser_of(&remembered).typed, OTHER);
+        assert_eq!(chooser_of(&remembered).selected, ServerChoice::ThisComputer);
         let elsewhere = open_chooser(signed_out());
         assert_eq!(chooser_of(&elsewhere).selected, ServerChoice::Another);
         assert_eq!(chooser_of(&elsewhere).typed, SERVER);
