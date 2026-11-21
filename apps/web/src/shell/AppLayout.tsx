@@ -13,6 +13,7 @@ import {
   effectiveAccessQueryOptions,
   installationSettingsQueryOptions,
   organizationQueryOptions,
+  pluginPagesQueryOptions,
 } from "../api/query.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { OrganizationSwitchGuard } from "./OrganizationSwitchGuard.tsx";
@@ -115,6 +116,32 @@ function usePrimaryDestinations(
   });
   const canReadMetrics = access.data?.capabilities.includes("metric:read") ??
     false;
+  // The pages of the plugins that are on: the first six, then a way to the rest.
+  const pluginPages = useQuery({
+    ...pluginPagesQueryOptions(api, scope),
+    enabled: !fixture && session.status === "authenticated" &&
+      scope.organizationId !== null,
+  });
+  const pluginEntries = pluginPages.data?.items ?? [];
+  const pluginItems: UI.ApplicationRailItem[] = [
+    ...pluginEntries.slice(0, 6).map((entry) => ({
+      group: translate("shell.navigation.pluginsGroup"),
+      id: `plugin-${entry.installId}-${entry.pageId}`,
+      label: entry.title,
+      href: `/plugins/${entry.installId}/${entry.pageId}`,
+      matchPath: `/plugins/${entry.installId}/${entry.pageId}`,
+      icon: <UI.IconGlyph name="integration" />,
+    })),
+    ...(pluginEntries.length > 6
+      ? [{
+        id: "plugins-more",
+        group: translate("shell.navigation.pluginsGroup"),
+        label: translate("shell.navigation.morePluginPages"),
+        href: "/settings/organization/plugins",
+        icon: <UI.IconGlyph name="integration" />,
+      }]
+      : []),
+  ];
   const soon = fixture ? undefined : translate("shell.navigation.comingSoon");
   const unshipped = (
     id: string,
@@ -282,6 +309,7 @@ function usePrimaryDestinations(
       matchPath: "/settings",
       icon: <UI.IconGlyph name="settings-sun" />,
     },
+    ...pluginItems,
   ];
 }
 
