@@ -3275,11 +3275,21 @@ test("a person the writer may not give access to can be chosen: the block names 
   await expect(send).toBeDisabled();
   const reason = page.getByText("Ask Dana Lee or remove the mention to send.");
   await expect(reason).toBeVisible();
-  // The reason is a line of its own, not run into the footnote after it.
-  const shared = await page.getByText(/^Shared conversation\./).boundingBox();
-  const reasonBox = await reason.boundingBox();
-  if (shared === null || reasonBox === null) throw new Error("no boxes");
-  expect(shared.y).toBeGreaterThanOrEqual(reasonBox.y + reasonBox.height - 1);
+  // The reason is a line of its own: the footnote text after it starts below it.
+  const below = await reason.evaluate((element) => {
+    let node: Node | null = element.nextSibling;
+    while (
+      node !== null &&
+      !(node.nodeType === Node.TEXT_NODE &&
+        (node.textContent ?? "").trim() !== "")
+    ) node = node.nextSibling;
+    if (node === null) throw new Error("no footnote text after the reason");
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return range.getClientRects()[0].top -
+      element.getBoundingClientRect().bottom;
+  });
+  expect(below).toBeGreaterThanOrEqual(-1);
   await page.mouse.move(700, 100);
   await still(page, "mentions-cannot-share");
   await page.getByRole("button", { name: "Ask Dana Lee" }).click();
