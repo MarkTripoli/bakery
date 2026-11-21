@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { PATH, stubArtifactPage, version } from "./artifact-page-fixture.ts";
+import {
+  PATH,
+  probed,
+  stubArtifactPage,
+  version,
+} from "./artifact-page-fixture.ts";
 
 const MIB = 1_048_576;
 
@@ -14,13 +19,21 @@ function contentRequests(page: import("@playwright/test").Page): string[] {
 test("a 10 MiB text body is never fetched or rendered inline and downloads verified", async ({ page }) => {
   const body = "A".repeat(10 * MIB);
   const current = version(body);
-  await stubArtifactPage(page, { current, content: body });
+  // The probe measured 10 MiB of text: over the 1 MiB display limit, so no bytes are asked for.
+  await stubArtifactPage(page, {
+    current,
+    content: body,
+    probe: probed("text", "text/plain", 10 * MIB),
+  });
   const requests = contentRequests(page);
   await page.goto(PATH);
   await expect(page.getByText("Too large to preview", { exact: true }))
     .toBeVisible();
-  await expect(page.getByText(/text is over the 1 MiB inline preview limit/))
-    .toBeVisible();
+  await expect(
+    page.getByText(
+      /This file is too large to preview \(.+; the limit is .+\)\./,
+    ),
+  ).toBeVisible();
   await expect(page.locator('[data-ui-component="artifactViewer"] pre'))
     .toHaveCount(0);
   expect(requests).toEqual([]);
@@ -46,7 +59,8 @@ test("a body that outgrows its advertised size is cancelled at the preview bound
   );
   await page.goto(PATH);
   await content;
-  await expect(page.getByText("Too large to preview", { exact: true }))
+  // Only a probe answer says "too large"; a body that outgrows its size fails the read.
+  await expect(page.getByText("The preview did not load."))
     .toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("BBBBBBBB")).toHaveCount(0);
   await expect(page.locator('[data-ui-component="artifactViewer"] pre'))

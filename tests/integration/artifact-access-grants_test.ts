@@ -25,6 +25,8 @@ type Grant = {
   level: string;
   version: number;
   revokedAt: string | null;
+  /** The comment that gave the access; null when it was given by hand. */
+  sourceCommentId: string | null;
 };
 
 Deno.test("a document grant opens that document, comments and nothing else", async (t) => {
@@ -476,6 +478,34 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           item.principalId === cy.principalId
         );
         assert(cyGrant, "the mention gave Cy a grant");
+        // The comment that gave the access is the grant's source.
+        assertEquals(cyGrant.sourceCommentId, posted.id);
+        // Changing the level by hand keeps that source, so Cy stays "added by a
+        // mention" in People added, which lists and counts by it (#870).
+        const regrant = (level: string) =>
+          as(writer, `/v1/artifacts/${artifact}/access`, {
+            method: "POST",
+            body: { principalId: cy.principalId, level },
+          });
+        const raised = await json<Grant>(await regrant("edit"), 200);
+        assertEquals([raised.level, raised.sourceCommentId], [
+          "edit",
+          posted.id,
+        ]);
+        const lowered = await json<Grant>(await regrant("read_comment"), 200);
+        assertEquals([lowered.level, lowered.sourceCommentId], [
+          "read_comment",
+          posted.id,
+        ]);
+        const relisted = await json<{ items: Grant[] }>(
+          await as(writer, `/v1/artifacts/${artifact}/access`),
+          200,
+        );
+        assertEquals(
+          relisted.items.find((item) => item.principalId === cy.principalId)
+            ?.sourceCommentId,
+          posted.id,
+        );
         // The inbox item opens the document at the comment, not the task page.
         const inbox = await json<{
           items: { id: string; kind: string }[];
@@ -515,7 +545,7 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           `/v1/artifacts/${artifact}/access/revoke`,
           {
             method: "POST",
-            ifMatch: cyGrant.version + 1,
+            ifMatch: lowered.version + 1,
             body: { principalId: cy.principalId },
           },
         );
@@ -523,7 +553,7 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
         const revoked = await json<Grant>(
           await as(writer, `/v1/artifacts/${artifact}/access/revoke`, {
             method: "POST",
-            ifMatch: cyGrant.version,
+            ifMatch: lowered.version,
             body: { principalId: cy.principalId },
           }),
           200,
@@ -534,6 +564,22 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           200,
         );
         assertEquals(after.items.map((row) => row.kind), ["comment"]);
+        assertDenied(
+          await status(await as(cy, `/v1/artifacts/${artifact}`)),
+        );
+        // Granting again by hand after the revoke starts fresh: no comment gave
+        // this access, so Cy is not "added by a mention" any more.
+        const again = await json<Grant>(await regrant("read_comment"), 200);
+        assertEquals([again.sourceCommentId, again.revokedAt], [null, null]);
+        const ended = await json<Grant>(
+          await as(writer, `/v1/artifacts/${artifact}/access/revoke`, {
+            method: "POST",
+            ifMatch: again.version,
+            body: { principalId: cy.principalId },
+          }),
+          200,
+        );
+        assert(ended.revokedAt !== null);
         assertDenied(
           await status(await as(cy, `/v1/artifacts/${artifact}`)),
         );
