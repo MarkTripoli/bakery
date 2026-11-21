@@ -18,7 +18,6 @@ import {
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
-  accessNames,
   addMention,
   insertMention,
   MAX_MENTIONS,
@@ -55,6 +54,10 @@ export type MentionField = {
   readonly row: ReactNode;
   /** One or more chosen people were refused: Send stays off until they are removed. */
   readonly refused: boolean;
+  /** What the send button says while an offer is open ("Give access and send"); null with no offer. */
+  readonly sendLabel: string | null;
+  /** How many people the send would give access to. */
+  readonly offered: number;
   /** The "Not sent." sentence for what the server refused; null otherwise. */
   readonly notice: string | null;
   /** Reads a failed send: marks the refused people and returns true when it was a mention refusal. */
@@ -241,10 +244,24 @@ export function useMentionField(
   const refusedIds = new Set(
     refusals.map((entry) => entry.mention.principalId),
   );
-  // A refused person gains nothing, so the access line leaves them out.
-  const names = accessNames(
-    mentions.filter((mention) => !refusedIds.has(mention.principalId)),
-  );
+  // A refused person gains nothing, so the offer leaves them out.
+  const offering = source.kind === "conversation"
+    ? mentions.filter((mention) =>
+      mention.gainsAccess && !refusedIds.has(mention.principalId)
+    )
+    : [];
+  const removeMention = (mention: Mention) => {
+    onValue(withoutMention(value, mention));
+    setMentions((current) =>
+      current.filter((entry) => entry.principalId !== mention.principalId)
+    );
+    setRefusals((current) =>
+      current.filter((entry) =>
+        entry.mention.principalId !== mention.principalId
+      )
+    );
+    ref.current?.focus();
+  };
   const row = mentions.length === 0 && !(wanted && offline) ? null : (
     <>
       {mentions.length > 0
@@ -273,20 +290,8 @@ export function useMentionField(
                   label={translate("mentions.chip.remove", {
                     name: mention.name,
                   })}
-                  onClick={() => {
-                    onValue(withoutMention(value, mention));
-                    setMentions((current) =>
-                      current.filter((entry) =>
-                        entry.principalId !== mention.principalId
-                      )
-                    );
-                    setRefusals((current) =>
-                      current.filter((entry) =>
-                        entry.mention.principalId !== mention.principalId
-                      )
-                    );
-                    ref.current?.focus();
-                  }}
+                  onClick={() =>
+                    removeMention(mention)}
                   variant="compact"
                 >
                   <UI.IconGlyph name="close" size="small" />
@@ -296,13 +301,37 @@ export function useMentionField(
           </UI.Inline>
         )
         : null}
-      {names !== null && source.kind === "conversation"
+      {offering.length > 0
         ? (
-          <UI.Text role="status" variant="caption">
-            {translate("mentions.access.line", {
-              names: translate(names.key, names.values),
+          <UI.AccessOffer
+            decline={offering.length === 1
+              ? {
+                label: translate("mentions.offer.decline", {
+                  name: offering[0].name,
+                }),
+                onDecline: () => removeMention(offering[0]),
+              }
+              : undefined}
+            detail={translate("mentions.offer.detail")}
+            onRemove={(id) => {
+              const found = offering.find((entry) => entry.principalId === id);
+              if (found !== undefined) removeMention(found);
+            }}
+            people={offering.map((mention) => ({
+              id: mention.principalId,
+              name: mention.name,
+              removeLabel: translate("mentions.offer.remove", {
+                name: mention.name,
+              }),
+            }))}
+            question={translate("mentions.offer.question", {
+              count: offering.length,
+              name: offering[0].name,
             })}
-          </UI.Text>
+            showAllLabel={translate("mentions.offer.showAll", {
+              count: offering.length,
+            })}
+          />
         )
         : null}
       {wanted && offline
@@ -377,6 +406,10 @@ export function useMentionField(
     },
     picker,
     row,
+    offered: offering.length,
+    sendLabel: offering.length > 0
+      ? translate("mentions.offer.send", { count: offering.length })
+      : null,
     refused: refusals.length > 0,
     notice,
     refuse: (failure) => {

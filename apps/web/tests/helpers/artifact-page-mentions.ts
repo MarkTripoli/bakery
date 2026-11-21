@@ -77,7 +77,7 @@ test("typing @ in the comment box offers people to mention: a plain row, one mut
     ),
   ).toBeVisible();
   // A comment never gives access, so no row offers it.
-  await expect(page.getByText("Gets access on send")).toHaveCount(0);
+  await expect(page.getByText("No access yet")).toHaveCount(0);
   await page.mouse.move(700, 100);
   await still(page, "comment-mentions-picker");
 });

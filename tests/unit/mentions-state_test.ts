@@ -1,6 +1,5 @@
 import { assertEquals } from "@std/assert";
 import {
-  accessNames,
   addMention,
   insertMention,
   type Mention,
@@ -94,22 +93,6 @@ Deno.test("a row is ordinary, gets access, or cannot be chosen; a comment never 
   assertEquals(rowKind(has, "comment"), "ready");
   assertEquals(rowKind(gains, "comment"), "blocked");
   assertEquals(rowKind(none, "comment"), "blocked");
-});
-
-Deno.test("the access sentence names one, two, or two and a count; nobody gaining says nothing", () => {
-  const lee: Mention = { principalId: "p3", name: "Lee Wu", gainsAccess: true };
-  const kim: Mention = { principalId: "p4", name: "Kim Oh", gainsAccess: true };
-  assertEquals(accessNames([ana]), null);
-  assertEquals(accessNames([sam, ana])?.key, "mentions.access.names.one");
-  assertEquals(accessNames([sam, lee])?.values, {
-    first: "Sam Patel",
-    second: "Lee Wu",
-  });
-  assertEquals(accessNames([sam, lee, kim])?.values, {
-    first: "Sam Patel",
-    second: "Lee Wu",
-    count: 1,
-  });
 });
 
 Deno.test("a refusal names the mentions by place and code, and other failures name none", () => {
