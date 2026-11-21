@@ -1,4 +1,5 @@
 import type { PgTransactionClient } from "@bakery/persistence";
+import { assignedAgentSessionSql } from "@bakery/persistence/claims";
 
 /**
  * What a stored file version records about the agent step that produced it
@@ -20,13 +21,15 @@ export type VersionProvenance = Readonly<{
  * The provenance of a version an attempt is writing now, or null when the
  * attempt is not in this organization (nothing is recorded then).
  *
- * The session is the step's newest at this moment, which is the session of
- * the attempt making the call: a retried attempt opens a new one. A caller
- * that already knows the session (the storage write names it in its audit
- * row) passes it, and so the version and its audit row cannot disagree. The
- * person the run acts for is the principal of the attempt's session
- * credential, else the run's requester; a caller writing with a person's
- * access passes that person.
+ * The session is the one the attempt's claim handed it (the assignment's
+ * `agentSessionId`, see `assignedAgentSessionSql`): the step's admission
+ * session, never a later session opened on the same step. A step with no
+ * session records none (null), with its attempt still named. A caller that
+ * already knows the session (the storage write names it in its audit row)
+ * passes it, and so the version and its audit row cannot disagree. The person
+ * the run acts for is the principal of the attempt's session credential, else
+ * the run's requester; a caller writing with a person's access passes that
+ * person.
  */
 export async function attemptVersionProvenance(
   tx: Pick<PgTransactionClient, "query">,
@@ -44,11 +47,7 @@ export async function attemptVersionProvenance(
     acting_for_principal_id: string | null;
   }>(
     `select step.run_id, job.run_step_id,
-            (select session.id from bakery.agent_sessions session
-              where session.organization_id = job.organization_id
-                and session.run_step_id = job.run_step_id
-              order by session.created_at desc, session.id desc
-              limit 1) as agent_session_id,
+            ${assignedAgentSessionSql("job")} as agent_session_id,
             coalesce((select credential.acts_for_principal_id
                         from bakery.session_operation_credentials credential
                        where credential.organization_id = attempt.organization_id
