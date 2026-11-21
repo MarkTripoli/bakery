@@ -56,6 +56,10 @@ import {
   type SkillDraftPublishPreparation,
 } from "./skill-drafts.ts";
 import { CatalogImplementedAction } from "@bakery/contracts/implemented-actions";
+import {
+  createGlobalSkillAuthority,
+  withGlobalSkillInstall,
+} from "./global-skills.ts";
 
 const publicationExecutionStage = Symbol("publicationExecutionStage");
 
@@ -145,11 +149,14 @@ export function createCatalogRoutes(options: {
     (options.skillFileRoot
       ? new SkillFileStore(options.skillFileRoot)
       : undefined);
-  const handlers = createCatalogHandlers(options.cursorSecret, {
-    normalizeSourceLocator: options.normalizeSourceLocator,
-    skillFileStore: store,
-  });
+  const handlers = withGlobalSkillInstall(
+    createCatalogHandlers(options.cursorSecret, {
+      normalizeSourceLocator: options.normalizeSourceLocator,
+      skillFileStore: store,
+    }),
+  );
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
+  const catalogAuthority = createGlobalSkillAuthority(postgresAuthority, store);
   const postgresCommandRunner = createPostgresCommandRunner();
   const publicationCommandRunner: CommandRunner = {
     async run(request) {
@@ -296,7 +303,7 @@ export function createCatalogRoutes(options: {
     createApiRouter({
       registry: options.registry ??
         createCatalogActionRegistry(handlers, {
-          authorityRunner: postgresAuthority,
+          authorityRunner: catalogAuthority,
           commandRunner: postgresCommandRunner,
           includeSkillVersionPublication: false,
         }),
