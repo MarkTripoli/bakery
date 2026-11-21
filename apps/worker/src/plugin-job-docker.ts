@@ -178,7 +178,9 @@ export function createDockerRuntime(
       // The name a caller gives is a label for people. The container gets a
       // name nobody else holds, so this attempt can neither remove another's
       // container nor be removed by one, and `docker run` cannot collide.
-      const name = `${
+      // A fixed prefix, because Docker refuses a name that starts with `-` or `.`
+      // and an empty or odd label would otherwise end the job as a bare crash.
+      const name = `bakery-plugin-${
         spec.name.replace(/[^A-Za-z0-9_.-]/g, "-").slice(0, 60)
       }-${crypto.randomUUID().slice(0, 8)}`;
       const child = new Deno.Command(bin, {

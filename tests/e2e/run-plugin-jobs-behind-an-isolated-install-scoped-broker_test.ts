@@ -176,10 +176,15 @@ dockerTest(
       denial: "not_granted",
     });
     assertEquals(sink.recorded.size, 1);
+    assertEquals((end as { recorded: boolean }).recorded, true);
     assertEquals(await containerExists(name), false);
-    // The same scheduled work run again records nothing new.
-    await go();
+    // The same scheduled work run again records nothing new, and says so.
+    const kept = [...sink.recorded.values()][0];
+    const again = await go();
+    assertEquals(again.kind, "result");
+    assertEquals((again as { recorded: boolean }).recorded, false);
     assertEquals(sink.recorded.size, 1);
+    assertEquals([...sink.recorded.values()][0], kept);
   },
 );
 
@@ -387,8 +392,6 @@ dockerTest(
     assertEquals(started.code, 0);
     try {
       const dir = await job(`sleep 2; echo '{"result":1}'`);
-      const one = run(dir);
-      const two = run(dir);
       // Both runs carry the decoy's exact name as their label.
       const spec = (name: string) => ({
         runtime: createDockerRuntime({ env: ENV, image: IMAGE }),
@@ -408,8 +411,6 @@ dockerTest(
       assertEquals(a.kind, "result");
       assertEquals(b.kind, "result");
       assertEquals(await containerExists(decoy), true);
-      void one;
-      void two;
     } finally {
       await new Deno.Command("docker", {
         args: ["rm", "-fv", decoy],
@@ -483,6 +484,61 @@ dockerTest(
     );
     const { go } = run(dir, { lineBytes: 8 * 1024 });
     assertEquals((await go()).kind, "output_limit");
+  },
+);
+
+dockerTest(
+  "a relay that rejects is answered as relay_failed and the job carries on to a result",
+  async () => {
+    const dir = await job(
+      [
+        `echo '{"call":{"requestId":"r1","sequence":1,"operation":"a.b","args":{}}}'`,
+        `read reply`,
+        `echo "{\\"result\\":$reply}"`,
+      ].join("\n"),
+    );
+    const name = `bakery-plugin-test-${crypto.randomUUID()}`;
+    const end = await runPluginJob({
+      runtime: createDockerRuntime({ env: ENV, image: IMAGE }),
+      spec: {
+        name,
+        codeDir: dir,
+        command: ["sh", "/code/main.sh"],
+        limits: LIMITS,
+      },
+      relay: () => Promise.reject(new Error("the broker is down")),
+      identity: "i:j:1",
+      sink: memoryResultSink(),
+    });
+    assertEquals(end.kind, "result");
+    assertEquals((end as { value: unknown }).value, {
+      requestId: "r1",
+      ok: false,
+      denial: "relay_failed",
+    });
+    assertEquals(await containerExists(name), false);
+  },
+);
+
+dockerTest(
+  "any job name, even one Docker would refuse as a container name, still runs",
+  async () => {
+    for (const odd of ["", "-x", ".hidden", "a/b", "é", "x".repeat(300)]) {
+      const dir = await job(`echo '{"result":1}'`);
+      const end = await runPluginJob({
+        runtime: createDockerRuntime({ env: ENV, image: IMAGE }),
+        spec: {
+          name: odd,
+          codeDir: dir,
+          command: ["sh", "/code/main.sh"],
+          limits: LIMITS,
+        },
+        relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
+        identity: `i:j:${odd.length}`,
+        sink: memoryResultSink(),
+      });
+      assertEquals(end.kind, "result", `name ${JSON.stringify(odd)}`);
+    }
   },
 );
 
