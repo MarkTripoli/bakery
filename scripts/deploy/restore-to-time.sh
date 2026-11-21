@@ -155,7 +155,8 @@ for file in "$wal_dir"/*.age; do
   age --decrypt --identity "$identity" -o "$restore_wal/$name" "$file"
 done
 for file in "$state"/wal-spool/*; do
-  [[ -f "$file" ]] || continue
+  # Only finished segments: a <segment>.tmp is still being copied by Postgres.
+  [[ -f "$file" && "$file" != *.tmp ]] || continue
   name=$(basename "$file")
   [[ -e "$restore_wal/$name" ]] || cp "$file" "$restore_wal/$name"
 done

@@ -82,7 +82,7 @@ Deno.test("a prepared data directory replays archived WAL to the target minute a
       "-c",
       "archive_timeout=60",
       "-c",
-      "archive_command=test ! -f /wal/%f && cp %p /wal/%f",
+      "archive_command=test ! -f /wal/%f && cp %p /wal/%f.tmp && mv /wal/%f.tmp /wal/%f",
     ]);
     await must([
       "docker",

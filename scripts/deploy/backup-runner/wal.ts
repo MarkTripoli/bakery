@@ -41,6 +41,8 @@ export type WalShipDeps = {
   /** Start of the oldest kept base backup, or null when there is none. */
   readonly earliestBaseBackupAt: Date | null;
   readonly signal?: AbortSignal;
+  /** The clock, for tests. */
+  readonly now?: () => Date;
 };
 
 export type WalShipOutcome = {
@@ -73,6 +75,12 @@ export function walKey(prefix: string, name: string): string {
 export async function shipWal(deps: WalShipDeps): Promise<WalShipOutcome> {
   const files = await listSpool(deps.spool);
   if (!deps.enabled || deps.connection === null) {
+    // Pruned WAL breaks the chain: no base backup taken before now can be
+    // replayed forward any more. The break is recorded before anything is
+    // removed, so a crash in between can only over-record it.
+    if (files.length > 0) {
+      await markWalBroken(deps.spool, deps.now?.() ?? new Date());
+    }
     for (const file of files) await Deno.remove(join(deps.spool, file.name));
     return { shipped: 0, pruned: files.length, reported: false };
   }
@@ -106,20 +114,53 @@ export async function shipWal(deps: WalShipDeps): Promise<WalShipOutcome> {
   return { shipped, pruned: 0, reported: true };
 }
 
+/**
+ * Written to the spool (a dot file, so never listed or shipped) each time WAL
+ * is pruned without being shipped: the WAL off-site is unbroken only since
+ * then.
+ */
+export const WAL_UNBROKEN_SINCE_FILE = ".wal-unbroken-since";
+
+async function markWalBroken(spool: string, at: Date): Promise<void> {
+  await Deno.writeTextFile(
+    join(spool, WAL_UNBROKEN_SINCE_FILE),
+    at.toISOString() + "\n",
+  );
+}
+
+/** When the shipped WAL became unbroken, or null when it never broke. */
+export async function walUnbrokenSince(spool: string): Promise<Date | null> {
+  try {
+    const at = new Date(
+      (await Deno.readTextFile(join(spool, WAL_UNBROKEN_SINCE_FILE))).trim(),
+    );
+    // An unreadable marker cannot prove anything: treat the chain as broken now.
+    return Number.isNaN(at.getTime()) ? new Date() : at;
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return null;
+    throw error;
+  }
+}
+
 /** The base backup file a set holds when Restore to any minute was on. */
 export const BASE_BACKUP_FILE = "base.tar.age";
 
 /**
- * Start of the oldest local backup set that holds a base backup: the earliest
+ * Start of the oldest local backup set that holds a base backup taken while
+ * the shipped WAL was unbroken (at or after `unbrokenSince`): the earliest
  * minute a restore can go back to. Set names carry their start time.
  */
-export async function earliestBaseBackup(root: string): Promise<Date | null> {
+export async function earliestBaseBackup(
+  root: string,
+  unbrokenSince: Date | null = null,
+): Promise<Date | null> {
   let earliest: Date | null = null;
   try {
     for await (const entry of Deno.readDir(root)) {
       if (!entry.isDirectory) continue;
       const at = backupTimestamp(entry.name);
       if (at === null) continue;
+      if (unbrokenSince !== null && at < unbrokenSince) continue;
       try {
         await Deno.stat(join(root, entry.name, BASE_BACKUP_FILE));
       } catch {

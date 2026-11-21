@@ -4,8 +4,10 @@ import {
   BASE_BACKUP_FILE,
   earliestBaseBackup,
   shipWal,
+  WAL_UNBROKEN_SINCE_FILE,
   walKey,
   type WalShipDeps,
+  walUnbrokenSince,
 } from "../../scripts/deploy/backup-runner/wal.ts";
 import type { Connection } from "../../scripts/deploy/backup-runner/offsite.ts";
 
@@ -96,7 +98,10 @@ Deno.test("off, or with no destination, the spool is only pruned and nothing is 
       },
     }, spool));
     assertEquals([outcome.pruned, outcome.shipped, reported], [2, 0, false]);
-    assertEquals([...Deno.readDirSync(spool)].length, 0);
+    // Only the marker that the chain broke here is left.
+    assertEquals([...Deno.readDirSync(spool)].map((e) => e.name), [
+      WAL_UNBROKEN_SINCE_FILE,
+    ]);
   }
 });
 
@@ -128,4 +133,162 @@ Deno.test("the earliest base backup is the oldest set that holds one", async () 
     "2026-11-20T03:00:00.000Z",
   );
   assertEquals(await earliestBaseBackup(join(root, "missing")), null);
+});
+
+Deno.test("a segment still being copied (<segment>.tmp) is never shipped or removed, on or off", async () => {
+  for (const enabled of [true, false]) {
+    const spool = await spoolWith([SEG1, SEG2 + ".tmp"]);
+    try {
+      const { connection, puts } = fakeConnection();
+      const outcome = await shipWal({
+        spool,
+        enabled,
+        connection,
+        encrypt: (path) => Deno.readFile(path),
+        report: () => Promise.resolve(),
+        earliestBaseBackupAt: new Date("2026-11-20T03:00:00Z"),
+      });
+      assertEquals(puts, enabled ? [walKey("prod/", SEG1)] : []);
+      assertEquals(outcome.shipped + outcome.pruned, 1);
+      assertEquals(
+        [...Deno.readDirSync(spool)].map((e) => e.name)
+          .filter((name) => name !== WAL_UNBROKEN_SINCE_FILE),
+        [SEG2 + ".tmp"],
+      );
+    } finally {
+      await Deno.remove(spool, { recursive: true });
+    }
+  }
+});
+
+Deno.test("pruning WAL unshipped marks the chain broken; a base backup from before it no longer opens the window", async () => {
+  const spool = await spoolWith([SEG1]);
+  const root = await Deno.makeTempDir({ prefix: "bakery-wal-root-" });
+  try {
+    // Switch off: nothing shipped, so the chain breaks at this pass.
+    assertEquals(await walUnbrokenSince(spool), null);
+    const brokenAt = new Date("2026-11-21T12:00:00.000Z");
+    await shipWal({
+      spool,
+      enabled: false,
+      connection: null,
+      encrypt: (path) => Deno.readFile(path),
+      report: () => Promise.resolve(),
+      earliestBaseBackupAt: null,
+      now: () => brokenAt,
+    });
+    assertEquals(
+      (await walUnbrokenSince(spool))?.toISOString(),
+      brokenAt.toISOString(),
+    );
+    // A set from before the break and one from after it.
+    for (
+      const name of [
+        "20261121T030000Z-00000000-0000-4000-8000-000000000001",
+        "20261121T130000Z-00000000-0000-4000-8000-000000000002",
+      ]
+    ) {
+      await Deno.mkdir(join(root, name));
+      await Deno.writeTextFile(join(root, name, BASE_BACKUP_FILE), "base");
+    }
+    assertEquals(
+      (await earliestBaseBackup(root))?.toISOString(),
+      "2026-11-21T03:00:00.000Z",
+    );
+    assertEquals(
+      (await earliestBaseBackup(root, await walUnbrokenSince(spool)))
+        ?.toISOString(),
+      "2026-11-21T13:00:00.000Z",
+    );
+    // An empty off pass does not move the mark.
+    await shipWal({
+      spool,
+      enabled: false,
+      connection: null,
+      encrypt: (path) => Deno.readFile(path),
+      report: () => Promise.resolve(),
+      earliestBaseBackupAt: null,
+      now: () => new Date("2026-11-21T14:00:00.000Z"),
+    });
+    assertEquals(
+      (await walUnbrokenSince(spool))?.toISOString(),
+      brokenAt.toISOString(),
+    );
+  } finally {
+    await Deno.remove(spool, { recursive: true });
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("switch on with no destination also breaks the chain", async () => {
+  const spool = await spoolWith([SEG1]);
+  try {
+    await shipWal({
+      spool,
+      enabled: true,
+      connection: null,
+      encrypt: (path) => Deno.readFile(path),
+      report: () => Promise.resolve(),
+      earliestBaseBackupAt: new Date("2026-11-20T03:00:00Z"),
+      now: () => new Date("2026-11-21T12:00:00.000Z"),
+    });
+    assertEquals(
+      (await walUnbrokenSince(spool))?.toISOString(),
+      "2026-11-21T12:00:00.000Z",
+    );
+  } finally {
+    await Deno.remove(spool, { recursive: true });
+  }
+});
+
+Deno.test("the break is recorded before any WAL is removed: a crash in between never leaves the window at an older base backup", async () => {
+  const spool = await spoolWith([SEG1]);
+  const root = await Deno.makeTempDir({ prefix: "bakery-wal-root-" });
+  try {
+    const set = "20261121T030000Z-00000000-0000-4000-8000-00000000000a";
+    await Deno.mkdir(join(root, set));
+    await Deno.writeTextFile(join(root, set, BASE_BACKUP_FILE), "base");
+    const off = (now: () => Date): WalShipDeps => ({
+      spool,
+      enabled: false,
+      connection: null,
+      encrypt: (path) => Deno.readFile(path),
+      report: () => Promise.resolve(),
+      earliestBaseBackupAt: null,
+      now,
+    });
+    // The pass dies at the moment it records the break.
+    await assertRejects(() =>
+      shipWal(off(() => {
+        throw new Error("crash while recording the break");
+      }))
+    );
+    // Nothing was pruned unrecorded: the segment is still there, and the
+    // next pass records the break before pruning it.
+    assertEquals([...Deno.readDirSync(spool)].map((e) => e.name), [SEG1]);
+    await shipWal(off(() => new Date("2026-11-21T12:01:00.000Z")));
+    const window = await earliestBaseBackup(
+      root,
+      await walUnbrokenSince(spool),
+    );
+    assertEquals(window, null);
+  } finally {
+    await Deno.remove(spool, { recursive: true });
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("an unreadable marker counts as a break now, never as unbroken", async () => {
+  const spool = await spoolWith([]);
+  try {
+    await Deno.writeTextFile(join(spool, WAL_UNBROKEN_SINCE_FILE), "garbage\n");
+    const before = Date.now();
+    const since = await walUnbrokenSince(spool);
+    if (since === null) {
+      throw new Error("an unreadable marker read as unbroken");
+    }
+    assertEquals(since.getTime() >= before, true);
+  } finally {
+    await Deno.remove(spool, { recursive: true });
+  }
 });
