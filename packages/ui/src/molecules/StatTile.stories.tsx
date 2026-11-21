@@ -9,7 +9,9 @@ export default meta;
 
 export const Contract: StoryObj = {
   render: () => (
-    <div style={{ display: "flex", gap: 32, maxInlineSize: 720 }}>
+    <div
+      style={{ display: "flex", flexWrap: "wrap", gap: 32, maxInlineSize: 720 }}
+    >
       <StatTile
         detail="Backed by the provider's own receipt."
         help={{

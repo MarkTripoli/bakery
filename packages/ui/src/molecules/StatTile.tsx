@@ -44,7 +44,9 @@ export function StatTile(
       className="ui-stat-tile"
       {...props}
       data-selected={action?.selected ? "true" : undefined}
+      data-state="default"
       data-ui-component="statTile"
+      data-variant="default"
     >
       <div className="ui-stat-tile__label">
         <span>{label}</span>

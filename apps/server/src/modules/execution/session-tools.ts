@@ -95,6 +95,21 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     "storageRoots.list": "files.read",
     "storageFolderEntries.list": "files.read",
     "storageFiles.content": "files.read",
+    // Comments and work-item edits (#448 S9a, chapter 25 section 18.2: "the
+    // same operations as people"). Draft comments are not offered: they run
+    // through the draft routes' own staged execution, which a session call does
+    // not enter. Off by default like every other write: the
+    // scope is minted where a person granted the workflow the comment or
+    // edit_work power, and the gateway checks that grant again on every call.
+    // The operation still authorizes the call as the person the run is for.
+    "artifactComments.create": "comments.write",
+    "artifactComments.update": "comments.write",
+    "tasks.update": "work.write",
+    // Connection drafts (#448 S9b): an agent prepares a connection and a person
+    // completes it. The operations refuse a secret, an organization-wide
+    // connection and switching one on whenever an agent is the caller.
+    "mcpConnections.create": "connections.draft",
+    "mcpConnections.update": "connections.draft",
   });
 
 /**
@@ -111,7 +126,24 @@ export const POWER_SESSION_SCOPES: Readonly<
   steer: Object.freeze(["runs.steer"]),
   // Reviewer steering rides on the steer scope; it only widens the target.
   steer_reviewer: Object.freeze([]),
+  comment: Object.freeze(["comments.write"]),
+  edit_work: Object.freeze(["work.write"]),
+  draft_connection: Object.freeze(["connections.draft"]),
 });
+
+/**
+ * The power whose grant a session scope stands for, or null for a scope that
+ * is not a granted power (a read, or a files scope with its own grant).
+ *
+ * The gateway calls this to check the grant again at every call: holding the
+ * scope proves the grant was live at claim, not that it still is.
+ */
+export function powerForSessionScope(scope: OperationScope): AgentPower | null {
+  for (const [power, scopes] of Object.entries(POWER_SESSION_SCOPES)) {
+    if (scopes.includes(scope)) return power as AgentPower;
+  }
+  return null;
+}
 
 export type SessionTool = Readonly<{
   /** The operation's own name; a tool is never an alias for something else. */

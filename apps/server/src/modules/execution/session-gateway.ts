@@ -43,9 +43,14 @@ import {
 import {
   assertSessionToolAllowed,
   listSessionTools,
+  powerForSessionScope,
   type SessionTool,
   SessionToolError,
 } from "./session-tools.ts";
+import {
+  agentHoldsPower,
+  attemptOrigin,
+} from "../auth/application/agent-power-grants.ts";
 import type { WorkerIdentity } from "./shared.ts";
 import { sha256Hex } from "../../platform/canonical-json.ts";
 
@@ -263,6 +268,44 @@ export async function callSessionTool(
       outcome: "unknown",
     });
     throw error;
+  }
+
+  // Holding a granted power's scope proves the grant was live at claim, not that
+  // it still is: a revoked grant stops the next call, as it does for a decision.
+  const power = powerForSessionScope(scope);
+  if (power !== null) {
+    const origin = await attemptOrigin(
+      input.transaction,
+      open.claim.organizationId,
+      input.attemptId,
+    );
+    const stillGranted = origin !== null && await agentHoldsPower(
+      input.transaction,
+      {
+        organizationId: open.claim.organizationId,
+        power,
+        workflowId: origin.workflowId,
+        accessTokenId: null,
+      },
+    );
+    if (!stillGranted) {
+      const error = new SessionToolError(
+        "SESSION_TOOL_DENIED",
+        tool.name,
+        scope,
+      );
+      await recordSessionOperationAudit(input.transaction, {
+        organizationId: open.claim.organizationId,
+        credentialId: open.credentialId,
+        attemptId: input.attemptId,
+        actsForPrincipalId: open.claim.actsForPrincipalId,
+        workerSessionId: open.claim.workerSessionId,
+        operation: tool.name,
+        scope,
+        outcome: outcomeOf(error),
+      });
+      throw error;
+    }
   }
 
   try {

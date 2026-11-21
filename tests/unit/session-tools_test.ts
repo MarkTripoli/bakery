@@ -4,6 +4,8 @@ import { implementedActions } from "../../packages/contracts/src/implemented-act
 import {
   assertSessionToolAllowed,
   listSessionTools,
+  POWER_SESSION_SCOPES,
+  powerForSessionScope,
   sessionOperationScopes,
   type SessionTool,
   SessionToolError,
@@ -182,4 +184,37 @@ Deno.test("a registered operation no scope names is a person's, refused by name"
     ),
     "SESSION_TOOL_PEOPLE_ONLY",
   );
+});
+
+Deno.test("the comment and edit_work powers offer exactly their own tools", () => {
+  const registry = [
+    action("artifactComments.create", ActionKind.Command),
+    action("artifactComments.update", ActionKind.Command),
+    action("tasks.update", ActionKind.Command),
+    action("tasks.list"),
+  ];
+  assertEquals(
+    names(listSessionTools(POWER_SESSION_SCOPES.comment, registry)),
+    [
+      "artifactComments.create",
+      "artifactComments.update",
+    ],
+  );
+  assertEquals(
+    names(listSessionTools(POWER_SESSION_SCOPES.edit_work, registry)),
+    ["tasks.update"],
+  );
+  // Reading work does not offer editing it, and neither power offers the other.
+  assertEquals(names(listSessionTools(["work.read"], registry)), [
+    "tasks.list",
+  ]);
+});
+
+Deno.test("only a granted power's scope is rechecked as a power", () => {
+  assertEquals(powerForSessionScope("comments.write"), "comment");
+  assertEquals(powerForSessionScope("work.write"), "edit_work");
+  assertEquals(powerForSessionScope("runs.start"), "run_start");
+  // Reads and the files scopes have no power behind them.
+  assertEquals(powerForSessionScope("work.read"), null);
+  assertEquals(powerForSessionScope("files.write"), null);
 });
