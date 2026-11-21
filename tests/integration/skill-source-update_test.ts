@@ -46,7 +46,7 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   ).join("");
 }
 
-async function upload(files: Record<string, string>) {
+async function upload(files: Record<string, string>, revision = 1) {
   const listed = [];
   for (const [path, text] of Object.entries(files)) {
     const bytes = encoder.encode(text);
@@ -65,7 +65,7 @@ async function upload(files: Record<string, string>) {
     files: listed,
   };
   return {
-    revision: 1,
+    revision,
     digest: await sha256(encoder.encode(canonicalJson(manifest))),
     entryPath: "SKILL.md",
     manifest,
@@ -93,10 +93,13 @@ function fakeSource() {
   /** How many other sessions held an open transaction at each fetch. */
   const openTransactions: number[] = [];
   const probe: { read: (() => Promise<number>) | null } = { read: null };
+  /** Runs while the source is being read, after the skill was read and before the answer is written. */
+  const during: { run: (() => Promise<void>) | null } = { run: null };
   const adapter: SkillSourceAdapter = {
     async fetchPinnedSource(request) {
       calls.push(request);
       if (probe.read !== null) openTransactions.push(await probe.read());
+      if (during.run !== null) await during.run();
       if (state.down) throw new SkillSourceAdapterError("SOURCE_UNAVAILABLE");
       return await Promise.resolve({
         sourceType: request.sourceType,
@@ -117,7 +120,7 @@ function fakeSource() {
       });
     },
   };
-  return { state, calls, adapter, openTransactions, probe };
+  return { state, calls, adapter, openTransactions, probe, during };
 }
 
 function api(f: Fx, cookie: string) {
@@ -358,6 +361,43 @@ Deno.test("a skill from a source is checked against it file by file, and nothing
       [f.organizationId, skill.id],
     );
     assertEquals(active.rows[0].id, version.id);
+
+    // The skill changes while the source is being read: nothing is written and
+    // the caller is told, so an answer about an old version is never recorded.
+    const checkedAt = async () =>
+      (await db.query<{ at: string | null }>(
+        `select last_checked_at::text as at from bakery.skill_sources
+          where organization_id = $1 and id = $2`,
+        [f.organizationId, registered.id],
+      )).rows[0].at;
+    const auditCount = async () =>
+      (await db.query<{ n: string }>(
+        `select count(*)::text as n from bakery.audit_events
+          where operation = 'skills.sourceUpdate' and resource_id = $1`,
+        [skill.id],
+      )).rows[0].n;
+    const auditsBefore = await auditCount();
+    const checkedBefore = await checkedAt();
+    source.state.files = { ...SKILL_V1 };
+    source.during.run = async () => {
+      const next = await f.post(
+        f.ownerCookie,
+        `/v1/skills/${skill.id}/versions`,
+        await upload({ "SKILL.md": "# Guide, second version\n" }, 2),
+        "publish-guide-2",
+      );
+      assertEquals(next.status, 201, await next.clone().text());
+    };
+    const raced = await owner("POST", path);
+    source.during.run = null;
+    const racedText = await raced.text();
+    assertEquals(raced.status, 409, racedText);
+    assertEquals(
+      (JSON.parse(racedText) as { reason?: string }).reason,
+      "skill_changed_during_source_check",
+    );
+    assertEquals(await checkedAt(), checkedBefore);
+    assertEquals(await auditCount(), auditsBefore);
 
     // An unknown skill is not found; so is another person's private skill.
     const missing = await owner(
