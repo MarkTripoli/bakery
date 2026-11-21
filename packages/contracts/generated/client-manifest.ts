@@ -18235,9 +18235,10 @@ export const clientManifest = {
             "prs.mergeRate",
             "prs.turnaroundHours",
             "prs.changedLines",
+            "loc.changedLines",
             "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -31029,9 +31030,10 @@ export const clientManifest = {
             "prs.mergeRate",
             "prs.turnaroundHours",
             "prs.changedLines",
+            "loc.changedLines",
             "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -69074,9 +69076,12 @@ export const clientManifest = {
                   "no_merged_time",
                   "no_closed_time",
                   "no_diff_totals",
+                  "no_line_count",
+                  "line_count_binary",
+                  "line_count_truncated",
                   "still_open"
                 ],
-                "description": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet."
+                "description": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; no_line_count: the merged head has not been counted yet; line_count_binary: the diff holds a binary file whose lines are unknown; line_count_truncated: the provider's file list stopped before every changed file; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet."
               },
               "count": {
                 "type": "integer",
@@ -107760,6 +107765,9 @@ export const clientManifest = {
                       "no_merged_time",
                       "no_closed_time",
                       "no_diff_totals",
+                      "no_line_count",
+                      "line_count_binary",
+                      "line_count_truncated",
                       "still_open"
                     ],
                     "description": "Why this record's value is unknown and it was left out of the number; null when it counted."
@@ -107897,6 +107905,121 @@ export const clientManifest = {
                   }
                 ],
                 "description": "MetricSource.waits may be null in this transport value."
+              },
+              "lineCount": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "counterVersion": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Version of the counting rules; counts under different versions are never compared."
+                      },
+                      "coverage": {
+                        "type": "string",
+                        "enum": [
+                          "complete",
+                          "binary",
+                          "truncated"
+                        ],
+                        "description": "complete: every changed file was listed and had line totals; binary: a binary file's lines are unknown; truncated: the provider's list stopped before every changed file. Only a complete count is a known number of lines."
+                      },
+                      "added": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Added lines over the counted files."
+                      },
+                      "deleted": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Deleted lines over the counted files."
+                      },
+                      "countedFiles": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Files whose lines were counted."
+                      },
+                      "excludedFiles": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Lock, vendored, generated, minified and source-map files, never counted as lines."
+                      },
+                      "binaryFiles": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Files listed with no patch and no line totals; their lines are unknown."
+                      },
+                      "categories": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "category": {
+                              "type": "string",
+                              "enum": [
+                                "source",
+                                "test",
+                                "docs",
+                                "config"
+                              ],
+                              "description": "source: code; test: test files and directories; docs: documentation and prose; config: configuration and data files."
+                            },
+                            "added": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "Added lines in this category."
+                            },
+                            "deleted": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "Deleted lines in this category."
+                            },
+                            "files": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "Counted files in this category."
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "added",
+                            "deleted",
+                            "files"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Counted lines by category, one entry per category with a file. Each array item follows this format."
+                        },
+                        "description": "Counted lines by category, one entry per category with a file."
+                      }
+                    },
+                    "required": [
+                      "counterVersion",
+                      "coverage",
+                      "added",
+                      "deleted",
+                      "countedFiles",
+                      "excludedFiles",
+                      "binaryFiles",
+                      "categories"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The line count of the pull request's merged head under the current counter version, the evidence behind loc.changedLines; null for a task or a pull request not counted yet."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.lineCount may be null in this transport value."
               }
             },
             "required": [
@@ -107917,7 +108040,8 @@ export const clientManifest = {
               "requestedAt",
               "deliveredAt",
               "deliveryPoint",
-              "waits"
+              "waits",
+              "lineCount"
             ],
             "additionalProperties": false,
             "description": "One record behind a metric: a pull request with its lifecycle times, or a delivered task with its lead time and where it went. Its value is its own contribution; a null value is unknown and was left out of the number."

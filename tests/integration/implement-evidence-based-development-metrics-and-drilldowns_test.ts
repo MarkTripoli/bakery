@@ -526,3 +526,109 @@ Deno.test("a closed read without a close time keeps the stored one; a reopen cle
     await f.finish();
   }
 });
+
+Deno.test("loc.changedLines reads the current count of the merged head only, and the drilldown carries the count as evidence", async () => {
+  const f = await openGitHubAppFixture();
+  try {
+    const { connectionId, selected } = await enabledConnection(f, {
+      repositories: fakeRepositories(1, ["admin"]),
+      selected: 1,
+    });
+    const repo = await seedRepository(
+      f,
+      f.organizationId,
+      connectionId,
+      selected[0].external_id,
+    );
+    const merged = (over: Partial<Parameters<typeof observePullRequest>[2]>) =>
+      read(f.organizationId, 0, {
+        state: "closed",
+        merged: true,
+        mergedSha: SHA,
+        providerUpdatedAt: new Date("2026-06-03T12:00:00Z"),
+        closedAt: new Date("2026-06-03T12:00:00Z"),
+        mergedAt: new Date("2026-06-03T12:00:00Z"),
+        additions: 9000,
+        deletions: 1,
+        changedFiles: 3,
+        ...over,
+      });
+    const ids: string[] = [];
+    for (const number of [1, 2, 3]) {
+      ids.push(await seedPullRequest(f, f.organizationId, repo, number));
+      await observe(f, repo.repositoryId, merged({ number }));
+    }
+    const insert = (
+      id: string,
+      head: string,
+      version: string,
+      coverage: string,
+      added: number,
+    ) =>
+      f.pgDatabase.query(
+        `insert into bakery.pull_request_line_counts
+           (organization_id, pull_request_id, head_sha, counter_version,
+            coverage, added, deleted, counted_files, excluded_files,
+            binary_files, categories)
+         values ($1,$2,$3,$4,$5,$6,0,1,1,0,$7::jsonb)`,
+        [
+          f.organizationId,
+          id,
+          head,
+          version,
+          coverage,
+          added,
+          JSON.stringify([{ category: "source", added, deleted: 0, files: 1 }]),
+        ],
+      );
+    // #1: a complete count of its head, plus an older version and an old head
+    // that must never be read. #2: a binary count. #3: no count.
+    await insert(ids[0], SHA, "loc-1", "complete", 12);
+    await insert(ids[0], SHA, "loc-0", "complete", 999);
+    await insert(ids[0], "f".repeat(40), "loc-1", "complete", 555);
+    await insert(ids[1], SHA, "loc-1", "binary", 7);
+
+    const lines = await ok(
+      await get(f, "/v1/metrics?metric=loc.changedLines&" + june),
+    );
+    assertEquals(sum(lines), 12);
+    assertEquals(lines.unit, "lines");
+    assertEquals(lines.sampleCount, 1);
+    assertEquals(lines.missingReasons, [
+      { reason: "line_count_binary", count: 1 },
+      { reason: "no_line_count", count: 1 },
+    ]);
+
+    const sources = await ok(
+      await get(
+        f,
+        "/v1/metrics/sources?metric=loc.changedLines&" +
+          june.replace("&resolution=day", ""),
+      ),
+    );
+    const byId = new Map(
+      (sources.items as Json[]).map((item) => [item.id as string, item]),
+    );
+    assertEquals(byId.get(ids[0])!.value, 12);
+    assertEquals(byId.get(ids[0])!.lineCount, {
+      counterVersion: "loc-1",
+      coverage: "complete",
+      added: 12,
+      deleted: 0,
+      countedFiles: 1,
+      excludedFiles: 1,
+      binaryFiles: 0,
+      categories: [{ category: "source", added: 12, deleted: 0, files: 1 }],
+    });
+    assertEquals(
+      [byId.get(ids[1])!.value, byId.get(ids[1])!.missingReason],
+      [null, "line_count_binary"],
+    );
+    assertEquals(
+      [byId.get(ids[2])!.lineCount, byId.get(ids[2])!.missingReason],
+      [null, "no_line_count"],
+    );
+  } finally {
+    await f.finish();
+  }
+});

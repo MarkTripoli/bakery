@@ -1218,6 +1218,45 @@ const GitHubCommitPullRequestPageSchema = z.array(
   "One page of GET /repos/{owner}/{repo}/commits/{sha}/pulls.",
 );
 
+/** One file of GET /repos/{owner}/{repo}/pulls/{number}/files; the patch text is dropped. */
+const GitHubPullRequestFileSchema = z.object({
+  filename: z.string().min(1).max(4096).describe(
+    "Path of the file in the head commit, relative to the repository root.",
+  ),
+  status: z.string().min(1).max(32).describe(
+    "GitHub's change status: added, removed, modified, renamed, copied, changed or unchanged.",
+  ),
+  additions: z.number().int().min(0).describe("Lines the change adds."),
+  deletions: z.number().int().min(0).describe("Lines the change deletes."),
+  changes: z.number().int().min(0).describe(
+    "Additions plus deletions as GitHub reports them.",
+  ),
+  patch: z.string().optional().describe(
+    "Unified diff of the file; GitHub leaves it out for a binary file and for a very large diff. Only its presence is kept.",
+  ),
+}).describe(
+  "Selected fields of one file of a pull request's diff; the patch text itself is never kept.",
+).transform((wire) => ({
+  filename: wire.filename,
+  status: wire.status,
+  additions: wire.additions,
+  deletions: wire.deletions,
+  changes: wire.changes,
+  hasPatch: wire.patch !== undefined,
+})).describe(
+  "A changed file's path, status, line totals and whether a patch was sent.",
+);
+/** One file of a pull request's diff, without its patch text. */
+export type GitHubPullRequestFile = z.output<
+  typeof GitHubPullRequestFileSchema
+>;
+
+const GitHubPullRequestFilePageSchema = z.array(
+  GitHubPullRequestFileSchema,
+).max(GITHUB_LIST_PAGE_SIZE).describe(
+  "One page of GET /repos/{owner}/{repo}/pulls/{number}/files.",
+);
+
 /** One label of GET /repos/{owner}/{repo}/labels; every other field is dropped. */
 const GitHubRepositoryLabelSchema = z.object({
   id: PositiveIdSchema.describe(
@@ -1593,6 +1632,19 @@ export type GitHubAppClient = {
     request: { token: string; fullName: string; sha: string; page: number },
     signal: AbortSignal,
   ): Promise<{ items: GitHubCommitPullRequest[]; hasNext: boolean }>;
+  /**
+   * One page of 100 files of a pull request's diff
+   * (`GET /repos/{owner}/{repo}/pulls/{number}/files`), with line totals and
+   * whether GitHub sent a patch; the patch text is dropped. GitHub lists at
+   * most 3,000 files across pages. 301 or 308 is `moved`, 404 or 410 is
+   * `gone`, with the same meaning as `readPullRequest`.
+   */
+  listPullRequestFiles(
+    request: { token: string; fullName: string; number: number; page: number },
+    signal: AbortSignal,
+  ): Promise<
+    { items: GitHubPullRequestFile[]; hasNext: boolean } | GitHubReadAbsent
+  >;
   /**
    * A user's calculated permission on a repository
    * (`GET /repos/{owner}/{repo}/collaborators/{login}/permission`). `login`
@@ -2406,6 +2458,33 @@ export function createFetchGitHubAppClient(
       );
       return {
         items: parsed(GitHubCommitPullRequestPageSchema, body),
+        hasNext: hasNextPage(link),
+      };
+    },
+    async listPullRequestFiles(request, signal) {
+      const authorization = bearer(request.token);
+      const path = repositoryPath(request.fullName);
+      const number = positiveInteger(request.number);
+      const page = positiveInteger(request.page);
+      const url = new URL(`${GITHUB_API_ORIGIN}${path}/pulls/${number}/files`);
+      url.searchParams.set("per_page", String(GITHUB_LIST_PAGE_SIZE));
+      url.searchParams.set("page", String(page));
+      const { body, link, status } = await readJson(
+        transport,
+        url.href,
+        {
+          method: "GET",
+          expectedStatus: 200,
+          absentStatuses: ABSENT_STATUSES,
+          classify: "token",
+          authorization,
+          maxBytes: MAX_READ_PAGE_BYTES,
+        },
+        signal,
+      );
+      if (status !== 200) return absent(status);
+      return {
+        items: parsed(GitHubPullRequestFilePageSchema, body),
         hasNext: hasNextPage(link),
       };
     },
