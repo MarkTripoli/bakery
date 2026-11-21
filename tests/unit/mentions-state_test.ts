@@ -3,6 +3,7 @@ import {
   addMention,
   appendLine,
   insertMention,
+  markGainsAccess,
   markNeedsSharer,
   type Mention,
   nameParts,
@@ -205,4 +206,10 @@ Deno.test("not mentioning someone keeps the name as words and drops only the @",
   assertEquals(withoutAtSign("Hi @Sam ok", sam), "Hi Sam ok");
   assertEquals(withoutAtSign("Hi @Samir and @Sam", sam), "Hi @Samir and Sam");
   assertEquals(withoutAtSign("no mention", sam), "no mention");
+});
+
+Deno.test("a refusal that says a person has no access after all makes the offer come back for them only", () => {
+  const marked = markGainsAccess([sam, ana], new Set(["p2"]));
+  assertEquals(marked[0], sam);
+  assertEquals(marked[1], { ...ana, gainsAccess: true, needsSharer: false });
 });

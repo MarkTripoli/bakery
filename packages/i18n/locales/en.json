@@ -3046,6 +3046,7 @@
   "mentions.chip.gains": "{name} · no access yet",
   "mentions.chip.remove": "Remove mention of {name}",
   "mentions.offer.question": "{count, plural, one {{name} can't see this conversation. Give them access?} other {# people can't see this conversation. Give them access?}}",
+  "mentions.offer.questionNotSent": "{count, plural, one {Not sent. {name} can't see this conversation. Give them access?} other {Not sent. # people can't see this conversation. Give them access?}}",
   "mentions.offer.detail": "They will be able to read and reply in this conversation. Nothing else in the task is shared. This is the only access a mention can give here.",
   "mentions.offer.decline": "Don't mention {name}",
   "mentions.offer.leaveOut": "To leave someone out, remove their name above.",

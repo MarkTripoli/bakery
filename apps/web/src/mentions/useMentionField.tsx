@@ -31,6 +31,7 @@ import {
   addMention,
   appendLine,
   insertMention,
+  markGainsAccess,
   markNeedsSharer,
   MAX_MENTIONS,
   type Mention,
@@ -120,6 +121,8 @@ export function useMentionField(
   >([]);
   // The server said the writer may not share after all: the block says "Not sent.".
   const [notSent, setNotSent] = useState(false);
+  // The server said a person has no access after all: the offer says "Not sent.".
+  const [offerNotSent, setOfferNotSent] = useState(false);
   // What a send that gave access left behind: the line with its Undo, then its result.
   const [sent, setSent] = useState<
     {
@@ -323,6 +326,7 @@ export function useMentionField(
     );
     setRefusals([]);
     setNotSent(false);
+    setOfferNotSent(false);
     onValue(appended.text);
     setCaret(appended.end);
     requestAnimationFrame(() => {
@@ -439,10 +443,12 @@ export function useMentionField(
                 }
                 : undefined}
               detail={translate("mentions.offer.detail")}
-              question={translate("mentions.offer.question", {
-                count: offering.length,
-                name: offering[0].name,
-              })}
+              question={translate(
+                offerNotSent
+                  ? "mentions.offer.questionNotSent"
+                  : "mentions.offer.question",
+                { count: offering.length, name: offering[0].name },
+              )}
               // While the send that gives the access is under way, the offer is read-only.
               state={disabled ? "busy" : "default"}
             />
@@ -631,7 +637,25 @@ export function useMentionField(
         );
         setNotSent(true);
       }
-      setRefusals(found.filter((entry) => entry.code !== "share_forbidden"));
+      // A person has no access after all, in a conversation: the offer comes back,
+      // starting "Not sent.", and the same Send gives the access. A comment never gives it.
+      const lost = source.kind === "conversation"
+        ? found.filter((entry) => entry.code === "no_thread_access")
+        : [];
+      if (lost.length > 0) {
+        setMentions((current) =>
+          markGainsAccess(
+            current,
+            new Set(lost.map((entry) => entry.mention.principalId)),
+          )
+        );
+        setOfferNotSent(true);
+      }
+      setRefusals(
+        found.filter((entry) =>
+          entry.code !== "share_forbidden" && !lost.includes(entry)
+        ),
+      );
       return true;
     },
     clear: () => {
@@ -647,6 +671,7 @@ export function useMentionField(
       setMentions([]);
       setRefusals([]);
       setNotSent(false);
+      setOfferNotSent(false);
     },
   };
 }

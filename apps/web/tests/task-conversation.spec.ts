@@ -1652,9 +1652,23 @@ test(
       approve(page, 3),
       page.getByRole("button", { name: "Request changes", exact: true }),
       page.getByRole("button", { name: "Reject", exact: true }),
-      page.getByRole("switch", { name: "Planning only" }),
       page.getByRole("button", { name: "Send answer" }),
     ]);
+    // The switch's touch target is its label (Switch.tsx makes the label the
+    // frame), not the 16px input inside it: measure the label, and prove it by
+    // tapping its edge.
+    const planning = page.getByRole("switch", { name: "Planning only" });
+    const frame = planning.locator("xpath=ancestor::label[1]");
+    await frame.scrollIntoViewIfNeeded();
+    const frameBox = await frame.boundingBox();
+    expect(frameBox, "the switch's label has a box").not.toBeNull();
+    expect(frameBox!.height).toBeGreaterThanOrEqual(44);
+    expect(frameBox!.width).toBeGreaterThanOrEqual(44);
+    const before = await planning.isChecked();
+    await frame.click({
+      position: { x: frameBox!.width - 2, y: frameBox!.height / 2 },
+    });
+    await expect(planning).toBeChecked({ checked: !before });
   },
 );
 
@@ -3045,6 +3059,41 @@ test("when the server says the writer may not share after all, nothing is sent a
     .click();
   await expect(page.getByRole("button", { name: "Send", exact: true }))
     .toBeEnabled();
+});
+
+test("a refusal that says the person has no access after all brings the offer back, starting Not sent", async ({ page }) => {
+  const state = world();
+  state.sendReply = (route, attempt) =>
+    attempt === 1
+      ? route.fulfill({
+        status: 422,
+        contentType: "application/problem+json",
+        json: refusal([{ index: 0, code: "mention_no_thread_access" }]),
+      })
+      : route.fulfill({ status: 201, json: message(41, "user", "Hi") });
+  await open(page, state);
+  const box = messageBox(page);
+  await box.fill("Hi @an");
+  await page.getByRole("option", { name: "Ana Ruiz", exact: true }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(
+    page.getByText(
+      "Not sent. Ana Ruiz can't see this conversation. Give them access?",
+    ),
+  ).toBeVisible();
+  // Not the document's sentence, and not a red refusal with no way forward.
+  await expect(page.getByText(/can't see this document/)).toHaveCount(0);
+  await expect(page.getByRole("alert").filter({ hasText: "Not sent." }))
+    .toHaveCount(0);
+  await expect(page.getByText("Ana Ruiz · no access yet")).toBeVisible();
+  await expect(box).toHaveValue("Hi @Ana Ruiz ");
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-not-sent-offer");
+  // The same button gives the access and sends.
+  await page.getByRole("button", { name: "Give access and send", exact: true })
+    .click();
+  await expect.poll(() => state.sent.length).toBe(2);
+  expect(state.sent[1].body).toMatchObject({ mentions: [ANA] });
 });
 
 test("the other refusals use their own sentence, and several are counted", async ({ page }) => {

@@ -5914,5 +5914,6 @@
   "mentions.failed.detail": "⟦Ÿôûŕ ɱëššàĝë ïš šŧïļļ ĥëŕë. {names} šŧïļļ çàñ'ŧ šëë ŧĥïš çôñṽëŕšàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "mentions.failed.retry": "⟦Ŧŕÿ àĝàïñ: ĝïṽë àççëšš àñð šëñð ŧëšŧ çôþ⟧",
   "mentions.share.failed": "⟦Ŵë çôûļð ñôŧ ƒïñð ŵĥô çàñ ĝïṽë àççëšš. Ŧŕÿ àĝàïñ, ôŕ ŕëɱôṽë ŧĥë ɱëñŧïôñ ŧô šëñð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "mentions.share.reason": "⟦{count, plural, one {Ask {first} or remove the mention to send.} other {Ask {first} or {second}, or remove the mention to send.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
+  "mentions.share.reason": "⟦{count, plural, one {Ask {first} or remove the mention to send.} other {Ask {first} or {second}, or remove the mention to send.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "mentions.offer.questionNotSent": "⟦{count, plural, one {Not sent. {name} can't see this conversation. Give them access?} other {Not sent. # people can't see this conversation. Give them access?}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
 }

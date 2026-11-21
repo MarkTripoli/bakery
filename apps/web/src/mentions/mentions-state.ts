@@ -155,6 +155,22 @@ export function markNeedsSharer(
 }
 
 /**
+ * The mentions with these people marked as gaining access on send, when the
+ * server says they cannot see the conversation after all: the offer comes back
+ * and the same Send gives the access.
+ */
+export function markGainsAccess(
+  mentions: readonly Mention[],
+  principalIds: ReadonlySet<string>,
+): Mention[] {
+  return mentions.map((mention) =>
+    principalIds.has(mention.principalId)
+      ? { ...mention, gainsAccess: true, needsSharer: false }
+      : mention
+  );
+}
+
+/**
  * The text with one more line at the end, and where that line stands, so the
  * field can select it and typing replaces it (an "Ask {name}" line).
  */
