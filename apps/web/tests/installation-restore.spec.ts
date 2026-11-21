@@ -11,6 +11,13 @@ import { still } from "./helpers/stills.ts";
 const expect = baseExpect.configure({ timeout: 15_000 });
 test.describe.configure({ timeout: laneBudgetMs(60_000) });
 
+// Desktop stills are taken at 1440x900, the size the evidence rule names.
+test.beforeEach(async ({ page }, info) => {
+  if (info.project.name === "desktop") {
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
+});
+
 // #64 E4 (design-ux E3): the Finish the restore page takes the three steps of
 // the ordered re-enable of a restored installation, in order.
 
@@ -142,7 +149,8 @@ test("held: the record says what the restore did and only the first step can be 
   await expect(stepCard(page, "dispatch")).toContainText(
     "Waits for step 1.",
   );
-  await expect(stepCard(page, "workers")).toContainText("Waits for step 1.");
+  // A step waits for the one before it.
+  await expect(stepCard(page, "workers")).toContainText("Waits for step 2.");
   // Only the next step has controls.
   await expect(confirmField(page, "dispatch")).toHaveCount(0);
   await expect(confirmField(page, "workers")).toHaveCount(0);
@@ -187,6 +195,11 @@ test("steps 2 and 3 say what to run on the server first, and the name waits for 
     ),
   )
     .toBeVisible();
+  // Each command is its own block, so it can be read and copied on its own.
+  await expect(card.locator('[data-ui-component="codeBlock"]')).toHaveText([
+    "runtime.sh background <sha>",
+    "docker compose up -d inngest",
+  ]);
   await expect(card.getByRole("link", { name: "Open the runbook" }))
     .toHaveAttribute("href", /runbooks\/backups\.md#after-a-restore$/);
   const field = confirmField(page, "dispatch");
@@ -292,8 +305,62 @@ test("after the last step the hold has ended and the page says what to do next",
     "data-restore-state",
     "done",
   );
+  // What to do next names the held actions and offers both places to look.
+  await expect(page.getByText("What to do next")).toBeVisible();
+  await expect(page.getByText(/then look at the 12 held outside actions\./))
+    .toBeVisible();
+  // The two places to look are the buttons that end the page.
+  await expect(page.getByRole("button", { name: "Open Machines" }))
+    .toBeEnabled();
+  await expect(page.getByRole("button", { name: "Open Audit" })).toBeEnabled();
   await page.mouse.move(700, 100);
   await still(page, "restore-finished");
+});
+
+test("one confirmation covers one step: each next step starts unticked, empty and off", async ({ page }) => {
+  const state = await restoreWorld(page);
+  await open(page);
+  // Step 1: type the name and take it.
+  await confirmField(page, "intake").fill(BACKUP);
+  await page.getByRole("button", { name: "Turn on new work" }).click();
+  await expect(stepCard(page, "dispatch")).toHaveAttribute(
+    "data-restore-state",
+    "next",
+  );
+  // Step 2 begins blank: nothing carried over from step 1.
+  const tick2 = stepCard(page, "dispatch").getByRole("checkbox", {
+    name: "I have done this on the server.",
+  });
+  await expect(tick2).not.toBeChecked();
+  await expect(confirmField(page, "dispatch")).toHaveValue("");
+  await expect(confirmField(page, "dispatch")).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Start background work" }))
+    .toBeDisabled();
+  // Tick and type, then take it.
+  await tick2.check();
+  await expect(confirmField(page, "dispatch")).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Start background work" }))
+    .toBeDisabled();
+  await confirmField(page, "dispatch").fill(BACKUP);
+  await page.getByRole("button", { name: "Start background work" }).click();
+  await expect(stepCard(page, "workers")).toHaveAttribute(
+    "data-restore-state",
+    "next",
+  );
+  // Step 3 begins blank too: the tick and the name of step 2 do not carry on.
+  const tick3 = stepCard(page, "workers").getByRole("checkbox", {
+    name: "I have done this on the server.",
+  });
+  await expect(tick3).not.toBeChecked();
+  await expect(confirmField(page, "workers")).toHaveValue("");
+  await expect(confirmField(page, "workers")).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Let machines take work" }))
+    .toBeDisabled();
+  // Each step was sent once, with its own name.
+  expect(state.steps.map((step) => step.body.step)).toEqual([
+    "intake",
+    "dispatch",
+  ]);
 });
 
 test("opened when nothing is held: no restore is waiting, with a way to the audit trail", async ({ page }) => {
@@ -366,8 +433,11 @@ test("every page carries the held banner, with the way to finish the restore for
   ).toBeVisible();
   await page.mouse.move(700, 100);
   await still(page, "restore-banner-admin");
-  await banner(page).getByRole("button", { name: "Finish the restore" })
-    .click();
+  // The way out is a link to the page, not a button that happens to navigate.
+  const finish = banner(page).getByRole("link", { name: "Finish the restore" });
+  await expect(finish).toHaveAttribute("href", "/installation/restore");
+  await expect(banner(page).getByRole("button")).toHaveCount(0);
+  await finish.click();
   await expect(page).toHaveURL(/\/installation\/restore$/);
   // The page that finishes the restore says it in full: no second banner.
   await expect(banner(page)).toHaveCount(0);
@@ -382,6 +452,7 @@ test("everyone else sees the banner without a button, and who can finish the res
     ),
   ).toBeVisible();
   await expect(banner(page).getByRole("button")).toHaveCount(0);
+  await expect(banner(page).getByRole("link")).toHaveCount(0);
   await page.mouse.move(700, 100);
   await still(page, "restore-banner-member");
 });
@@ -407,3 +478,40 @@ test("no banner when no restore holds Bakery, or once the last step is taken", a
   await again;
   await expect(banner(page)).toHaveCount(0);
 });
+
+test(
+  "the record sits beside the steps from 1280, and nothing clips at 1280 or 1440",
+  async ({ page }, info) => {
+    test.skip(
+      info.project.name !== "desktop",
+      "the two columns are a desktop layout",
+    );
+    await restoreWorld(page, { taken: 1 });
+    for (const width of [1280, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await open(page);
+      const steps = page.getByTestId("restore-steps");
+      const record = page.getByTestId("restore-record");
+      await expect(record.getByText(BACKUP)).toBeVisible();
+      const left = await steps.boundingBox();
+      const right = await record.boundingBox();
+      if (left === null || right === null) throw new Error("no boxes");
+      // Beside, not below: the record starts to the right of the steps and near their top.
+      expect(right.x).toBeGreaterThanOrEqual(left.x + left.width - 1);
+      expect(Math.abs(right.y - left.y)).toBeLessThan(120);
+      // Nothing runs past the window: the page does not scroll sideways and the
+      // record's column and the long backup name stay inside it.
+      const overflow = await page.evaluate(() => ({
+        scroll: document.documentElement.scrollWidth,
+        client: document.documentElement.clientWidth,
+      }));
+      expect(overflow.scroll).toBeLessThanOrEqual(overflow.client);
+      expect(right.x + right.width).toBeLessThanOrEqual(width);
+      const name = await record.getByText(BACKUP).boundingBox();
+      if (name === null) throw new Error("no name box");
+      expect(name.x + name.width).toBeLessThanOrEqual(
+        right.x + right.width + 1,
+      );
+    }
+  },
+);

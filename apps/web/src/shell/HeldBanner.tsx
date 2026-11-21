@@ -36,12 +36,15 @@ export function HeldBanner({ pathname }: { readonly pathname: string }) {
       <UI.InlineNotice
         action={administrator
           ? (
-            <UI.Button
-              onClick={() => void navigate({ to: RESTORE_PATH })}
-              variant="secondary"
+            <UI.Link
+              href={RESTORE_PATH}
+              onClick={(event) => {
+                event.preventDefault();
+                void navigate({ to: RESTORE_PATH });
+              }}
             >
               {translate("shell.states.heldAction")}
-            </UI.Button>
+            </UI.Link>
           )
           : undefined}
         data-ui-region="restore-held"

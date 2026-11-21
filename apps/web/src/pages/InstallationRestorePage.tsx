@@ -90,6 +90,7 @@ export function InstallationRestorePage() {
     <InstallationRestoreScreen
       busyStep={busyStep}
       onOpenAudit={() => void navigate({ to: "/installation/audit" })}
+      onOpenMachines={() => void navigate({ to: "/machines" })}
       onRetry={() => void read.refetch()}
       onTakeStep={(step, confirmation) => void take(step, confirmation)}
       problem={problem}
