@@ -146,7 +146,7 @@ export function createEvaluationActionRegistry(
       name: A.EvaluationBatchesList,
       method: HttpMethod.Get,
       path: "/v1/evaluation-batches",
-      input: S.CursorQuery,
+      input: S.EvaluationBatchListQuery,
       output: S["Page<EvaluationBatch>"],
       policy: query,
       transactionIsolation: read,

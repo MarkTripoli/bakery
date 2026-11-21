@@ -59,8 +59,10 @@ const batch = {
   budget: {
     limitUsd: "0.100000",
     settledUsd: "0.030000",
+    estimatedUsd: "0.010000",
     unknownCount: 1,
     status: "unsettled",
+    blocksNewAttempts: true,
   },
   gate: {
     decision: "cannot_be_judged",
@@ -122,8 +124,10 @@ Deno.test("the budget status is one of four, and no limit is a null limit", () =
     const budget = {
       limitUsd: status === "none" ? null : "1.000000",
       settledUsd: "0.000000",
+      estimatedUsd: "0.000000",
       unknownCount: 0,
       status,
+      blocksNewAttempts: status === "exhausted" || status === "unsettled",
     };
     assertEquals(
       contractSchemas.EvaluationBatch.safeParse({ ...batch, budget }).success,
@@ -186,5 +190,60 @@ Deno.test("an admission may name its optional scorers", () => {
       ...create,
       optionalScorerIds: ["not-a-uuid"],
     }).success,
+  );
+});
+
+Deno.test("a run says how much of its spend is estimated and whether new model attempts are held", () => {
+  const parsed = contractSchemas.EvaluationBatch.parse(batch);
+  assertEquals(parsed.budget.estimatedUsd, "0.010000");
+  assertEquals(parsed.budget.blocksNewAttempts, true);
+  assertFalse(
+    contractSchemas.EvaluationBatch.safeParse({
+      ...batch,
+      budget: { ...batch.budget, blocksNewAttempts: undefined },
+    }).success,
+    "the page must be told, not left to infer it",
+  );
+});
+
+Deno.test("runs can be listed by the digest of what they measured, and a result tells a sampled scorer apart by required", () => {
+  assertEquals(
+    contractSchemas.EvaluationBatchListQuery.safeParse({
+      pinDigest: "a".repeat(64),
+      limit: 10,
+    }).success,
+    true,
+  );
+  assertEquals(
+    contractSchemas.EvaluationBatchListQuery.safeParse({}).success,
+    true,
+  );
+  assertFalse(
+    contractSchemas.EvaluationBatchListQuery.safeParse({
+      pinDigest: "a".repeat(65),
+    })
+      .success,
+  );
+  const result = {
+    id: ID,
+    batchId: ID,
+    role: "candidate",
+    caseId: ID,
+    caseName: "first",
+    caseRevision: 1,
+    scorerId: ID,
+    scorerRevision: 1,
+    repetition: 1,
+    required: false,
+    state: "missing",
+    reason: "Not run yet.",
+    score: null,
+    outputArtifactVersionId: null,
+    attemptCount: 0,
+    updatedAt: AT,
+  };
+  assertEquals(
+    contractSchemas.EvaluationBatchResult.parse(result).required,
+    false,
   );
 });

@@ -7295,7 +7295,7 @@ export const clientManifest = {
       "action": "evaluationBatches.list",
       "access": "Developer",
       "permission": "evaluationRun:read",
-      "input": "CursorQuery",
+      "input": "EvaluationBatchListQuery",
       "output": "Page<EvaluationBatch>",
       "event": "",
       "mcp": "",
@@ -32083,6 +32083,32 @@ export const clientManifest = {
           ]
         }
       }
+    },
+    "EvaluationBatchListQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pinDigest": {
+          "description": "Only batches that measured the same thing: this pinDigest, 64 lowercase hexadecimal characters, as read from another batch. Batches admitted before the digest was stored are not listed by it. EvaluationBatchListQuery.pinDigest must contain at most 64 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 64
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationBatchListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. EvaluationBatchListQuery.limit must be at least 1. EvaluationBatchListQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Cursor page of batches, newest first, optionally only those with one pinDigest."
     },
     "EvaluationBatchRun": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -110212,6 +110238,11 @@ export const clientManifest = {
               "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
               "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
             },
+            "estimatedUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+            },
             "unknownCount": {
               "type": "integer",
               "minimum": -9007199254740991,
@@ -110227,13 +110258,19 @@ export const clientManifest = {
                 "unsettled"
               ],
               "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+            },
+            "blocksNewAttempts": {
+              "type": "boolean",
+              "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
             }
           },
           "required": [
             "limitUsd",
             "settledUsd",
+            "estimatedUsd",
             "unknownCount",
-            "status"
+            "status",
+            "blocksNewAttempts"
           ],
           "additionalProperties": false,
           "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
@@ -111207,6 +111244,11 @@ export const clientManifest = {
                     "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
                     "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
                   },
+                  "estimatedUsd": {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+                  },
                   "unknownCount": {
                     "type": "integer",
                     "minimum": -9007199254740991,
@@ -111222,13 +111264,19 @@ export const clientManifest = {
                       "unsettled"
                     ],
                     "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+                  },
+                  "blocksNewAttempts": {
+                    "type": "boolean",
+                    "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
                   }
                 },
                 "required": [
                   "limitUsd",
                   "settledUsd",
+                  "estimatedUsd",
                   "unknownCount",
-                  "status"
+                  "status",
+                  "blocksNewAttempts"
                 ],
                 "additionalProperties": false,
                 "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
@@ -111745,7 +111793,7 @@ export const clientManifest = {
               },
               "required": {
                 "type": "boolean",
-                "description": "Whether the gate needs it."
+                "description": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate."
               },
               "state": {
                 "type": "string",

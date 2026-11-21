@@ -430,6 +430,8 @@ type BatchRow = {
   scorers: ScorerPin[];
   gate_rule: GateRule;
   limits: unknown;
+  /** Stored at admission; null for a batch admitted before the column existed. */
+  pin_digest: string | null;
   state: string;
   canceled_at: Date | null;
   canceled_by: string | null;
@@ -555,11 +557,22 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
     requireAllPassed: input.requireAllPassed ?? true,
     minPassRate: input.minPassRate ?? null,
   };
+  const pinDigest = await sha256(canonical(pinSpec({
+    datasetDigest: dataset.rows[0].digest,
+    candidate: input.candidate,
+    baseline: roles.length === 2 ? input.baseline : null,
+    scorers: scorers.map((s) => ({
+      scorerId: s.scorerId,
+      scorerRevision: s.scorerRevision,
+      required: s.required ?? true,
+    })),
+    repetitions,
+  })));
   const batch = await tx.query<BatchRow>(
     `insert into bakery.evaluation_batches (organization_id, dataset_id,
        dataset_digest, candidate, baseline, scorers, gate_rule, limits, state,
-       created_by)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', $9) returning *`,
+       created_by, pin_digest)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', $9, $10) returning *`,
     [
       organizationId,
       input.datasetId,
@@ -575,6 +588,7 @@ export async function createBatch(context: ActionContext, input: BatchCreate) {
           : String(input.budgetLimitUsd),
       }),
       principalId,
+      pinDigest,
     ],
   );
   const id = batch.rows[0].id;
@@ -738,7 +752,8 @@ async function viewOf(
   const repetitions = Number(
     (row.limits as { repetitions?: unknown } | null)?.repetitions ?? 1,
   );
-  const pinDigest = await sha256(canonical(pinSpec({
+  // Stored at admission; read from the pins for a batch admitted before that.
+  const pinDigest = row.pin_digest ?? await sha256(canonical(pinSpec({
     datasetDigest: row.dataset_digest,
     candidate: row.candidate,
     baseline: row.baseline,
@@ -795,17 +810,20 @@ export async function getBatch(context: ActionContext) {
 export function createBatchLister(secret: string) {
   return async (
     context: ActionContext,
-    input: { cursor?: string; limit?: number },
+    input: { cursor?: string; limit?: number; pinDigest?: string },
   ) => {
     const { transaction: tx, organizationId, principalId } =
       requireWorkTransaction(context);
     const limit = pageLimit(input.limit);
+    if (
+      input.pinDigest !== undefined && !/^[0-9a-f]{64}$/.test(input.pinDigest)
+    ) unprocessable("pinDigest", "pin_digest_invalid");
     const binding: CursorBinding = {
       action: "evaluationBatches.list",
       principalId,
       organizationId,
       ordering: "createdAt:desc,id:desc",
-      filters: "{}",
+      filters: JSON.stringify({ pinDigest: input.pinDigest ?? null }),
       schemaVersion: 1,
     };
     const position = await decodeCursor(secret, input.cursor, binding);
@@ -814,12 +832,14 @@ export function createBatchLister(secret: string) {
          from bakery.evaluation_batches
         where organization_id = $1
           and ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
+          and ($5::text is null or pin_digest = $5)
         order by created_at desc, id desc limit $4`,
       [
         organizationId,
         position?.createdAt ?? null,
         position?.id ?? null,
         limit + 1,
+        input.pinDigest ?? null,
       ],
     );
     const visible = found.rows.slice(0, limit);

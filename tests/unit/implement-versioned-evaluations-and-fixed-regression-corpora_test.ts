@@ -251,8 +251,10 @@ Deno.test("AC3: unknown cost is not zero: it counts on its own and keeps the bat
   assertEquals(none, {
     limitUsd: null,
     settledUsd: "0.300000",
+    estimatedUsd: "0.000000",
     unknownCount: 0,
     status: "none",
+    blocksNewAttempts: false,
   });
   const within = budgetReport("1", [
     { measurement: "reported", count: 2, costUsd: "0.300000" },
@@ -368,5 +370,41 @@ Deno.test("AC2: a local run checks the candidate's deterministic results and ski
   assertEquals(
     localRunStep({ role: "baseline", evaluatorType: "model" }).action,
     "skip",
+  );
+});
+
+Deno.test("an estimate is shown apart from a bill, and the report says whether new model attempts are held", () => {
+  const mixed = budgetReport("1", [
+    { measurement: "reported", count: 2, costUsd: "0.300000" },
+    { measurement: "estimated", count: 1, costUsd: "0.100000" },
+    { measurement: "estimated", count: 1, costUsd: "0.050000" },
+  ]);
+  assertEquals(
+    [mixed.settledUsd, mixed.estimatedUsd, mixed.blocksNewAttempts],
+    [
+      "0.450000",
+      "0.150000",
+      false,
+    ],
+  );
+  assertEquals(budgetReport("1", []).estimatedUsd, "0.000000");
+  // Exhausted and unsettled hold new attempts; none and within do not.
+  const held = (
+    limit: string | null,
+    groups: Parameters<typeof budgetReport>[1],
+  ) => budgetReport(limit, groups).blocksNewAttempts;
+  assertEquals(held(null, []), false);
+  assertEquals(held("1", []), false);
+  assertEquals(
+    held("1", [{ measurement: "estimated", count: 1, costUsd: "1" }]),
+    true,
+  );
+  assertEquals(
+    held("1", [{ measurement: "unknown", count: 1, costUsd: null }]),
+    true,
+  );
+  assertEquals(
+    held(null, [{ measurement: "unknown", count: 1, costUsd: null }]),
+    false,
   );
 });

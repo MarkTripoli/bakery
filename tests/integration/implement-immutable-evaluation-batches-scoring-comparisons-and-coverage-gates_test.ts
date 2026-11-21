@@ -621,8 +621,10 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
     assertEquals(batch.budget, {
       limitUsd: "0.100000",
       settledUsd: "0.000000",
+      estimatedUsd: "0.000000",
       unknownCount: 0,
       status: "within",
+      blocksNewAttempts: false,
     });
     const batchBudget = async () =>
       (await ok(
@@ -776,8 +778,10 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
     assertEquals(await batchBudget(), {
       limitUsd: "0.100000",
       settledUsd: "0.030000",
+      estimatedUsd: "0.000000",
       unknownCount: 0,
       status: "within",
+      blocksNewAttempts: false,
     });
 
     // (b) A timed-out call: unknown usage under the attempt-named call id,
@@ -824,7 +828,9 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
     assertEquals(await batchBudget(), {
       limitUsd: "0.100000",
       settledUsd: "0.030000",
+      estimatedUsd: "0.000000",
       unknownCount: 1,
       status: "unsettled",
+      blocksNewAttempts: true,
     });
   }));

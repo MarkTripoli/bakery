@@ -981,6 +981,7 @@ export type ContractInputName =
   | "EmptyInput"
   | "EvaluationBatchCancel"
   | "EvaluationBatchCreate"
+  | "EvaluationBatchListQuery"
   | "EvaluationBatchRun"
   | "EvaluationCaseCreate"
   | "EvaluationCheckInput"

@@ -562,9 +562,13 @@ export type BudgetReport = Readonly<{
   limitUsd: string | null;
   /** Reported and estimated cost so far. Unknown costs are not in it. */
   settledUsd: string;
+  /** The part of settledUsd that was estimated, not reported: not a bill. */
+  estimatedUsd: string;
   /** Model attempts whose cost is not known: provider failure, timeout or no receipt. */
   unknownCount: number;
   status: BudgetStatus;
+  /** True when no new model attempt will start: exhausted or unsettled. */
+  blocksNewAttempts: boolean;
 }>;
 
 const MICRO = 1_000_000;
@@ -599,13 +603,16 @@ export function budgetReport(
   groups: readonly UsageGroup[],
 ): BudgetReport {
   let settled = 0;
+  let estimated = 0;
   let unknown = 0;
   for (const g of groups) {
     if (g.measurement === "unknown") {
       unknown += g.count;
       continue;
     }
-    settled += toMicroUsd(g.costUsd) ?? 0;
+    const cost = toMicroUsd(g.costUsd) ?? 0;
+    settled += cost;
+    if (g.measurement === "estimated") estimated += cost;
   }
   const limit = toMicroUsd(limitUsd);
   const status: BudgetStatus = limit === null
@@ -618,8 +625,10 @@ export function budgetReport(
   return {
     limitUsd: limit === null ? null : formatMicroUsd(limit),
     settledUsd: formatMicroUsd(settled),
+    estimatedUsd: formatMicroUsd(estimated),
     unknownCount: unknown,
     status,
+    blocksNewAttempts: status === "exhausted" || status === "unsettled",
   };
 }
 
@@ -629,7 +638,7 @@ export function budgetReport(
  * A batch with no limit is not stopped by the budget.
  */
 export function modelAttemptAllowed(report: BudgetReport): boolean {
-  return report.status === "none" || report.status === "within";
+  return !report.blocksNewAttempts;
 }
 
 /**

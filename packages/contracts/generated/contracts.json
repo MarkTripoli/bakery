@@ -8076,7 +8076,7 @@
       "action": "evaluationBatches.list",
       "access": "Developer",
       "permission": "evaluationRun:read",
-      "input": "CursorQuery",
+      "input": "EvaluationBatchListQuery",
       "output": "Page<EvaluationBatch>",
       "event": "",
       "mcp": "",
@@ -35184,11 +35184,22 @@
           "operationId": "evaluationBatches.list",
           "parameters": [
             {
+              "name": "pinDigest",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Only batches that measured the same thing: this pinDigest, 64 lowercase hexadecimal characters, as read from another batch. Batches admitted before the digest was stored are not listed by it. EvaluationBatchListQuery.pinDigest must contain at most 64 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 64
+              }
+            },
+            {
               "name": "cursor",
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. CursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationBatchListQuery.cursor must contain at most 512 UTF-8 bytes.",
                 "type": "string",
                 "maxLength": 65536,
                 "x-utf8-max-bytes": 512
@@ -35199,7 +35210,7 @@
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. CursorQuery.limit must be at least 1. CursorQuery.limit must be at most 100.",
+                "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. EvaluationBatchListQuery.limit must be at least 1. EvaluationBatchListQuery.limit must be at most 100.",
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
@@ -80886,6 +80897,32 @@
               "description": "JSON object value."
             }
           ]
+        },
+        "EvaluationBatchListQuery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "pinDigest": {
+              "description": "Only batches that measured the same thing: this pinDigest, 64 lowercase hexadecimal characters, as read from another batch. Batches admitted before the digest was stored are not listed by it. EvaluationBatchListQuery.pinDigest must contain at most 64 UTF-8 bytes.",
+              "type": "string",
+              "maxLength": 65536,
+              "x-utf8-max-bytes": 64
+            },
+            "cursor": {
+              "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationBatchListQuery.cursor must contain at most 512 UTF-8 bytes.",
+              "type": "string",
+              "maxLength": 65536,
+              "x-utf8-max-bytes": 512
+            },
+            "limit": {
+              "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. EvaluationBatchListQuery.limit must be at least 1. EvaluationBatchListQuery.limit must be at most 100.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "additionalProperties": false,
+          "description": "Cursor page of batches, newest first, optionally only those with one pinDigest."
         },
         "EvaluationBatchRun": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -264259,6 +264296,11 @@
               "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
               "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
             },
+            "estimatedUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+            },
             "unknownCount": {
               "type": "integer",
               "minimum": -9007199254740991,
@@ -264274,13 +264316,19 @@
                 "unsettled"
               ],
               "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+            },
+            "blocksNewAttempts": {
+              "type": "boolean",
+              "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
             }
           },
           "required": [
             "limitUsd",
             "settledUsd",
+            "estimatedUsd",
             "unknownCount",
-            "status"
+            "status",
+            "blocksNewAttempts"
           ],
           "additionalProperties": false,
           "description": "The model-evaluation budget of a batch, kept apart from any run's budget: its limit, what was settled and how many model attempts cost an unknown amount."
@@ -264426,7 +264474,7 @@
             "recoveredOfInterrupted"
           ],
           "additionalProperties": false,
-          "description": "The offline corpus report over a set of candidate results. Unknown and unrun stay apart from failed, and a share with nothing to divide is null, never zero."
+          "description": "The offline corpus report over a set of candidate results. Unknown and unrun stay apart from failed, and a share with nothing to divide is null, never zero. passed + failed + unknown + unrun is total, which for the report is the batch's requiredCount. Against the six state counts: passed and failed are the same; unknown is error plus unscored (each comes from an attempt); unrun is missing plus canceled plus skipped (none of them has an attempt)."
         },
         "EvaluationStateCounts": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -265197,6 +265245,11 @@
                   "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
                   "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
                 },
+                "estimatedUsd": {
+                  "type": "string",
+                  "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                  "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+                },
                 "unknownCount": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -265212,13 +265265,19 @@
                     "unsettled"
                   ],
                   "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+                },
+                "blocksNewAttempts": {
+                  "type": "boolean",
+                  "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
                 }
               },
               "required": [
                 "limitUsd",
                 "settledUsd",
+                "estimatedUsd",
                 "unknownCount",
-                "status"
+                "status",
+                "blocksNewAttempts"
               ],
               "additionalProperties": false,
               "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
@@ -266190,6 +266249,11 @@
                         "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
                         "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
                       },
+                      "estimatedUsd": {
+                        "type": "string",
+                        "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                        "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+                      },
                       "unknownCount": {
                         "type": "integer",
                         "minimum": -9007199254740991,
@@ -266205,13 +266269,19 @@
                           "unsettled"
                         ],
                         "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+                      },
+                      "blocksNewAttempts": {
+                        "type": "boolean",
+                        "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
                       }
                     },
                     "required": [
                       "limitUsd",
                       "settledUsd",
+                      "estimatedUsd",
                       "unknownCount",
-                      "status"
+                      "status",
+                      "blocksNewAttempts"
                     ],
                     "additionalProperties": false,
                     "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
@@ -266720,7 +266790,7 @@
             },
             "required": {
               "type": "boolean",
-              "description": "Whether the gate needs it."
+              "description": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate."
             },
             "state": {
               "type": "string",
@@ -266878,7 +266948,7 @@
                   },
                   "required": {
                     "type": "boolean",
-                    "description": "Whether the gate needs it."
+                    "description": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate."
                   },
                   "state": {
                     "type": "string",
@@ -272029,7 +272099,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:dd086db5274ede831b29edcf8fbc47978fa43e9d5f53bce101af03b69f082555",
+  "compatibilityDigest": "sha256:6fa6766c7e6f6159fa40520a9b6182ea7b5c5d100e8a57d36499f2cb54d56580",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -303406,6 +303476,32 @@
           ]
         }
       }
+    },
+    "EvaluationBatchListQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pinDigest": {
+          "description": "Only batches that measured the same thing: this pinDigest, 64 lowercase hexadecimal characters, as read from another batch. Batches admitted before the digest was stored are not listed by it. EvaluationBatchListQuery.pinDigest must contain at most 64 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 64
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. EvaluationBatchListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. EvaluationBatchListQuery.limit must be at least 1. EvaluationBatchListQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Cursor page of batches, newest first, optionally only those with one pinDigest."
     },
     "EvaluationBatchRun": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -487167,6 +487263,11 @@
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
           "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
         },
+        "estimatedUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+        },
         "unknownCount": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -487182,13 +487283,19 @@
             "unsettled"
           ],
           "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+        },
+        "blocksNewAttempts": {
+          "type": "boolean",
+          "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
         }
       },
       "required": [
         "limitUsd",
         "settledUsd",
+        "estimatedUsd",
         "unknownCount",
-        "status"
+        "status",
+        "blocksNewAttempts"
       ],
       "additionalProperties": false,
       "description": "The model-evaluation budget of a batch, kept apart from any run's budget: its limit, what was settled and how many model attempts cost an unknown amount."
@@ -487334,7 +487441,7 @@
         "recoveredOfInterrupted"
       ],
       "additionalProperties": false,
-      "description": "The offline corpus report over a set of candidate results. Unknown and unrun stay apart from failed, and a share with nothing to divide is null, never zero."
+      "description": "The offline corpus report over a set of candidate results. Unknown and unrun stay apart from failed, and a share with nothing to divide is null, never zero. passed + failed + unknown + unrun is total, which for the report is the batch's requiredCount. Against the six state counts: passed and failed are the same; unknown is error plus unscored (each comes from an attempt); unrun is missing plus canceled plus skipped (none of them has an attempt)."
     },
     "EvaluationStateCounts": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -488105,6 +488212,11 @@
               "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
               "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
             },
+            "estimatedUsd": {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+            },
             "unknownCount": {
               "type": "integer",
               "minimum": -9007199254740991,
@@ -488120,13 +488232,19 @@
                 "unsettled"
               ],
               "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+            },
+            "blocksNewAttempts": {
+              "type": "boolean",
+              "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
             }
           },
           "required": [
             "limitUsd",
             "settledUsd",
+            "estimatedUsd",
             "unknownCount",
-            "status"
+            "status",
+            "blocksNewAttempts"
           ],
           "additionalProperties": false,
           "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
@@ -489100,6 +489218,11 @@
                     "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
                     "description": "Reported and estimated cost so far, in USD. Unknown costs are not in it and are not counted as zero."
                   },
+                  "estimatedUsd": {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill."
+                  },
                   "unknownCount": {
                     "type": "integer",
                     "minimum": -9007199254740991,
@@ -489115,13 +489238,19 @@
                       "unsettled"
                     ],
                     "description": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within."
+                  },
+                  "blocksNewAttempts": {
+                    "type": "boolean",
+                    "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
                   }
                 },
                 "required": [
                   "limitUsd",
                   "settledUsd",
+                  "estimatedUsd",
                   "unknownCount",
-                  "status"
+                  "status",
+                  "blocksNewAttempts"
                 ],
                 "additionalProperties": false,
                 "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
@@ -489632,7 +489761,7 @@
         },
         "required": {
           "type": "boolean",
-          "description": "Whether the gate needs it."
+          "description": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate."
         },
         "state": {
           "type": "string",
@@ -489790,7 +489919,7 @@
               },
               "required": {
                 "type": "boolean",
-                "description": "Whether the gate needs it."
+                "description": "Whether the gate needs it. False for a result of an optional (sampled) model scorer: it is listed here with the rest and counts only in the batch's optionalReport, never toward the gate."
               },
               "state": {
                 "type": "string",

@@ -248,6 +248,11 @@ Deno.test("AC2: an optional model scorer that never ran neither blocks the gate 
     assertEquals((batch.optionalReport as Json).unrun, 2);
     const rows = await results(fixture, batch.id);
     assertEquals(rows.length, 4);
+    // The list returns the optional (sampled) results too, told apart by required.
+    assertEquals(
+      rows.map((r) => [r.scorerId === w.rubric.id, r.required]).sort(),
+      [[false, true], [false, true], [true, false], [true, false]],
+    );
     // The model scorer is unavailable: its results stay unscored with a reason.
     for (const row of rows) {
       if (row.scorerId === w.rubric.id) {
@@ -378,8 +383,10 @@ Deno.test("AC3: a model attempt that ends with no ledger receipt is an unknown c
     assertEquals(batch.budget, {
       limitUsd: "0.100000",
       settledUsd: "0.000000",
+      estimatedUsd: "0.000000",
       unknownCount: 0,
       status: "within",
+      blocksNewAttempts: false,
     });
     const rows = await results(fixture, batch.id);
     const model = rows.filter((r) => r.scorerId === w.rubric.id);
@@ -408,8 +415,10 @@ Deno.test("AC3: a model attempt that ends with no ledger receipt is an unknown c
     assertEquals(read.budget, {
       limitUsd: "0.100000",
       settledUsd: "0.000000",
+      estimatedUsd: "0.000000",
       unknownCount: 1,
       status: "unsettled",
+      blocksNewAttempts: true,
     });
     const attempts = await ok(
       await call(
@@ -454,8 +463,10 @@ const runBatch = async (fixture: Fixture, batchId: unknown, status = 200) =>
     status,
   );
 
+/** Each case x scorer with its verdict, in a fixed order: result ids are random, so listing order is not. */
 const outcome = (rows: Json[]) =>
-  rows.map((r) => [r.caseName, r.scorerId, r.state, r.reason, r.score]);
+  rows.map((r) => [r.caseName, r.scorerId, r.state, r.reason, r.score])
+    .sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : 1);
 
 Deno.test("AC1: a fixed corpus on the same pins gives the same outcomes and keeps the recorded output as its evidence", () =>
   withWorkerFixture(async (fixture) => {
@@ -688,4 +699,78 @@ Deno.test("AC3: a canceled batch is not run, and two runs at once settle each re
       { body: {} },
     );
     assertEquals(unknown.status, 404, await unknown.text());
+  }));
+
+Deno.test("AC1: runs are listed by the digest of what they measured, and the report adds up to the required results", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const check = await definition(fixture, "has-hi-4", "deterministic", {
+      kind: "contains",
+      config: { substring: "hi" },
+    });
+    const scorerIds = [check.id];
+    const a = await ok(await admitWith(fixture, w, { scorerIds }), 201);
+    const b = await ok(await admitWith(fixture, w, { scorerIds }), 201);
+    const other = await ok(
+      await admitWith(fixture, w, {
+        scorerIds,
+        candidate: { ...PIN, version: 9 },
+      }),
+      201,
+    );
+    const listed = async (digest: unknown) =>
+      (await ok(
+        await call(
+          fixture,
+          "GET",
+          "/v1/evaluation-batches?pinDigest=" + digest,
+        ),
+      )).items as Json[];
+    assertEquals(
+      (await listed(a.pinDigest)).map((x) => x.id).sort(),
+      [a.id, b.id].sort(),
+      "the two runs of the same pins, and no other",
+    );
+    assertEquals((await listed(other.pinDigest)).map((x) => x.id), [other.id]);
+    assertEquals((await listed("f".repeat(64))).length, 0);
+    const refused = await call(
+      fixture,
+      "GET",
+      "/v1/evaluation-batches?pinDigest=nope",
+    );
+    assertEquals(refused.status, 422, await refused.text());
+    // The digest is stored: the same value comes back on a plain read.
+    assertEquals(
+      (await ok(await call(fixture, "GET", "/v1/evaluation-batches/" + a.id)))
+        .pinDigest,
+      a.pinDigest,
+    );
+
+    // The report adds up to the required results and maps onto the six counts.
+    await runBatch(fixture, a.id);
+    await record(fixture, (await results(fixture, b.id))[0].id, "error", null);
+    for (const id of [a.id, b.id]) {
+      const read = await ok(
+        await call(fixture, "GET", "/v1/evaluation-batches/" + id),
+      );
+      const report = read.report as Json;
+      const counts = read.counts as Json;
+      assertEquals(
+        Number(report.passed) + Number(report.failed) + Number(report.unknown) +
+          Number(report.unrun),
+        read.requiredCount,
+      );
+      assertEquals(report.total, read.requiredCount);
+      assertEquals(report.passed, counts.passed);
+      assertEquals(report.failed, counts.failed);
+      assertEquals(
+        report.unknown,
+        Number(counts.error) + Number(counts.unscored),
+      );
+      assertEquals(
+        report.unrun,
+        Number(counts.missing) + Number(counts.canceled) +
+          Number(counts.skipped),
+      );
+    }
   }));

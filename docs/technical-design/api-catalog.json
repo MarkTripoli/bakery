@@ -7770,7 +7770,7 @@
       "action": "evaluationBatches.list",
       "access": "Developer",
       "permission": "evaluationRun:read",
-      "input": "CursorQuery",
+      "input": "EvaluationBatchListQuery",
       "output": "Page<EvaluationBatch>",
       "idempotency": "Read; opaque cursor pagination"
     },
