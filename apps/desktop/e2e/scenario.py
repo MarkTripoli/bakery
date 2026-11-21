@@ -638,6 +638,9 @@ def phase_open_links():
     shown = [e["data"].get("link_dialog") for e in reports(p) if e["event"] == "view"]
     check("[links] a refused address asks for no page and shows the can't-open dialog over the window",
           sum(1 for e in reports(p) if e["event"] == "link_open_requested") == 1 and "cant_open" in shown, str(shown))
+    notices = [e["data"].get("notice") for e in reports(p) if e["event"] == "view"]
+    check("[links] signed out, a page link asks for a sign-in on the sign-in panel",
+          "Sign in to open the page from your link." in notices, str(notices))
     check("[links] a link that is not a sign-in answer leaves the window as it was",
           stored() == "" and views(p)[-1][0] == "sign_in", str(views(p)))
     stop_app()
@@ -666,11 +669,19 @@ def phase_web_pages():
     p = os.path.join(OUT, "m-web")
     clear_store()
     start_app(p, server=web)
+    assert wait_window(p, "sign_in") is not None
+    # A page link that arrives while nobody is signed in is kept, and opens after the sign-in.
+    deliver("bakery://open?path=%2Fissues")
+    check("[web] a page link while signed out is kept and the panel says why",
+          wait_report(p, "link_open_requested", 1)
+          and "Sign in to open the page from your link." in [e["data"].get("notice") for e in reports(p) if e["event"] == "view"])
     url = sign_in_to_waiting(p, "[web]")
     if not url:
         return
     deliver(confirm(request_id_of(url), session_cookie()))
     check("[web] the app finishes and opens the server's page", wait_report(p, "server_page_opened", 1, timeout=40))
+    check("[web] it opens the page the link named, not the start page",
+          [e["data"]["path"] for e in reports(p) if e["event"] == "server_page_opened"][:1] == ["/issues"])
     end = time.time() + 40
     while time.time() < end and not any(h == host and not (pth or "").startswith("/sign-in") for h, pth in page_loads(p)):
         time.sleep(1)

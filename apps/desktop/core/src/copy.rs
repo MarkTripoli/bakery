@@ -180,6 +180,7 @@ fn different_server_button() -> Button {
 fn notice_text(ctx: &Context) -> Option<String> {
     ctx.notice.map(|notice| match notice {
         Notice::Switched { address } => format!("Bakery now uses {address}."),
+        Notice::SignInForLink => "Sign in to open the page from your link.".into(),
     })
 }
 

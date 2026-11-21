@@ -210,9 +210,43 @@ impl Shell {
             .is_some_and(|(own, _)| own == origin)
     }
 
-    pub fn request_open(&self, path: String) {
+    /// A page of the server a `bakery://open` link named, already checked. Signed in with the
+    /// server's pages showing, it opens at once; otherwise it is kept, the newest replacing an older
+    /// one, until a sign-in shows the server's pages. Signed out, the sign-in panel says why it waits.
+    pub async fn open_link(self: &Arc<Self>, path: String) {
         self.report("link_open_requested", json!({ "path": path }));
+        let (signed_in, credential) = {
+            let st = self.state.lock().unwrap();
+            (st.session.is_signed_in(), st.credential.clone())
+        };
+        let on_server = self.window_page.lock().unwrap().on_server;
+        if signed_in && on_server {
+            if let Some(credential) = credential {
+                if let Some(code) = self.client.create_handoff(&credential, &path).await {
+                    let url = format!(
+                        "{}/api/desktop/handoff?code={code}",
+                        self.server.trim_end_matches('/')
+                    );
+                    if self.navigate(&url) {
+                        self.report("server_page_opened", json!({ "path": path }));
+                        return;
+                    }
+                }
+                self.report("handoff_failed", json!({}));
+            }
+            return;
+        }
         *self.pending_open.lock().unwrap() = Some(path);
+        self.dispatch(Event::OpenLinkArrived).await;
+    }
+
+    /// Brings the window forward: every link that reaches the app does, as the design says.
+    pub fn bring_to_front(&self) {
+        if let Some(window) = self.app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
     }
 
     /// A line in the report file, if one is set. Names and states only: never a secret.
@@ -326,6 +360,10 @@ impl Shell {
         }
         let mut queue = VecDeque::from([event]);
         while let Some(event) = queue.pop_front() {
+            // A link kept for after sign-in is dropped when the person signs out on purpose.
+            if matches!(event, Event::SignOutPressed) {
+                *self.pending_open.lock().unwrap() = None;
+            }
             let effects = {
                 let mut st = self.state.lock().unwrap();
                 let (next, effects) = step(st.session.clone(), event);

@@ -143,6 +143,7 @@ fn test_hooks(app: &tauri::App, shell: &Arc<Shell>, server: &str) {
 /// A `bakery://` address the operating system handed over: a sign-in answer, or a page to open.
 fn handle_link(shell: &Arc<Shell>, raw: &str) {
     shell.report("link", json!({ "received": true }));
+    shell.bring_to_front();
     if let Ok(code) = accept_callback(raw) {
         let shell = Arc::clone(shell);
         tauri::async_runtime::spawn(async move {
@@ -161,7 +162,10 @@ fn handle_link(shell: &Arc<Shell>, raw: &str) {
                     None => shell.show_link_dialog(LinkDialog::CantOpen { link: raw.into() }),
                 }
             }
-            _ => shell.request_open(link.path),
+            _ => {
+                let shell = Arc::clone(shell);
+                tauri::async_runtime::spawn(async move { shell.open_link(link.path).await });
+            }
         },
         Err(reason) => {
             shell.report("link_refused", json!({ "reason": reason }));
