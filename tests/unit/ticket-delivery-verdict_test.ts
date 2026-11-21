@@ -45,11 +45,40 @@ Deno.test("merged: a pull request closed unmerged is named, never delivery", () 
   );
 });
 
-Deno.test("merged: no pull request at all is not delivery", () => {
+Deno.test("merged: finished work that registered no pull request is delivered, there was nothing to merge", () => {
+  assertEquals(ticketDeliveryVerdict("merged", evidence()), {
+    delivered: true,
+  });
+  // Work still running is not delivered, pull request or not.
   assertEquals(
-    ticketDeliveryVerdict("merged", evidence()),
-    { delivered: false, waitingFor: "merge", closedUnmerged: false },
+    ticketDeliveryVerdict("merged", evidence({ workFinished: false })),
+    { delivered: false, waitingFor: "work", closedUnmerged: false },
   );
+});
+
+Deno.test("merged: any pull request that is not merged still holds the work", () => {
+  for (
+    const pullRequests of [[{ status: "open" as const }], [{
+      status: "closed" as const,
+    }]]
+  ) {
+    assertEquals(
+      ticketDeliveryVerdict("merged", evidence({ pullRequests })),
+      {
+        delivered: false,
+        waitingFor: "merge",
+        closedUnmerged: pullRequests[0].status === "closed",
+      },
+    );
+  }
+});
+
+Deno.test("deployed_healthy: no pull request is still not delivery until a release is healthy", () => {
+  assertEquals(ticketDeliveryVerdict("deployed_healthy", evidence()), {
+    delivered: false,
+    waitingFor: "merge",
+    closedUnmerged: false,
+  });
 });
 
 Deno.test("merged: a replacement merged after one closed unmerged is delivered", () => {

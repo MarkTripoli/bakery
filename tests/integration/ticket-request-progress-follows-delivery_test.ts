@@ -103,7 +103,9 @@ Deno.test("the request view shows active until the completion policy is met", ()
           // Pull requests do not matter to a task policy: finished is done.
           ? ["completed", "completed", "completed", "completed", "failed"]
           : completion === "merged"
-          ? ["active", "active", "active", "completed", "failed"]
+          // No pull request yet is delivered (nothing to merge); once one is
+          // registered, an unmerged one holds the work until it merges.
+          ? ["completed", "active", "active", "completed", "failed"]
           : ["active", "active", "active", "active", "failed"],
         completion,
       );

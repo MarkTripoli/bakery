@@ -70,6 +70,13 @@ export function ticketDeliveryVerdict(
   // Work that opens no pull request (a plan, an analysis) is delivered when it
   // is finished.
   if (policy === "task") return { delivered: true };
+  // Under `merged`, a run that registered no pull request at all had no code
+  // to merge (a docs or ops task, or a run that found nothing to change), so
+  // finished is delivered. An open pull request, or one closed unmerged, still
+  // holds it: that is code that was proposed and not taken.
+  if (policy === "merged" && evidence.pullRequests.length === 0) {
+    return { delivered: true };
+  }
   const merge = mergeState(evidence.pullRequests);
   if (!merge.merged) return waiting("merge", merge.closedUnmerged);
   if (policy === "merged") return { delivered: true };

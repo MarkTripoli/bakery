@@ -681,15 +681,13 @@ Deno.test("issue 82 recheck: a finished run ends the request once its work is me
         where organization_id = $1 and id = $2`,
       [fx.organizationId, admitted.request!.workflowRunId],
     );
-    // Issue 32: a completed run is not delivery, and neither is a pull request
-    // closed without a merge.
+    // Issue 32: a pull request closed without a merge does not deliver the work.
     const open = () =>
       fx.owner.query<{ disposition: string }>(
         "select disposition from bakery.ticket_requests where id = $1",
         [admitted.request!.id],
       ).then((result) => result.rows[0].disposition);
     const before = await open();
-    assertEquals((await fx.recheck(admitted.ticketId!)).applied, []);
     await fx.registerPullRequest({
       sourceId,
       taskId: admitted.request!.taskId,
@@ -716,6 +714,41 @@ Deno.test("issue 82 recheck: a finished run ends the request once its work is me
     assertEquals(none.applied, []);
     assertEquals(none.request, null);
     assertEquals((await fx.counts(sourceId)).reports, reports);
+  }));
+
+Deno.test("issue 32 recheck: under the default merged policy a start request whose run finishes with no pull request is completed", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: fx.policy() });
+    setIssue(fx, 831);
+    const admitted = await fx.admit(sourceId, { number: 831, intent: "start" });
+    assertEquals(admitted.request!.intent, "start");
+    await fx.owner.query(
+      `update bakery.workflow_runs set status = 'completed', finished_at = now()
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, admitted.request!.workflowRunId],
+    );
+    // A docs or ops task, or a run that found nothing to change, registers no
+    // pull request: there is nothing to merge, so finished is delivered.
+    const ended = await fx.recheck(admitted.ticketId!);
+    assertEquals(ended.applied, ["terminal"]);
+    assertEquals(ended.request?.disposition, "completed");
+    assertEquals(ended.request?.dispositionReason, "run_completed");
+
+    // A pull request that is open holds the work: it is code not yet taken.
+    setIssue(fx, 832);
+    const held = await fx.admit(sourceId, { number: 832, intent: "start" });
+    await fx.registerPullRequest({
+      sourceId,
+      taskId: held.request!.taskId,
+      number: 93,
+      status: "open",
+    });
+    await fx.owner.query(
+      `update bakery.workflow_runs set status = 'completed', finished_at = now()
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, held.request!.workflowRunId],
+    );
+    assertEquals((await fx.recheck(held.ticketId!)).applied, []);
   }));
 
 Deno.test("issue 32 recheck: under deployed_healthy a merge is not delivery, and a closed issue or an unmerged pull request never is", () =>
