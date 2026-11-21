@@ -207,6 +207,8 @@ export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
 export type BatchResponse = ClientOutputMap["Batch"];
 export type BatchListResponse = ClientOutputMap["Page<Batch>"];
 export type BatchIssueResponse = BatchResponse["issues"][number];
+export type BatchStartableResponse = ClientOutputMap["BatchStartable"];
+export type BatchStartableIssue = BatchStartableResponse["items"][number];
 export type BatchCreateInput = ClientInputMap["BatchCreate"];
 export type PluginPackageListResponse = ClientOutputMap["Page<PluginPackage>"];
 export type PluginVersionListResponse = ClientOutputMap["Page<PluginVersion>"];
@@ -1017,6 +1019,14 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<BatchListResponse>>;
+    /** `GET /v1/batches/startable`: the issues a batch in one repository would take now, and the smallest spend that can start one. */
+    readonly startable: (options: {
+      readonly organizationId: string;
+      readonly repositoryId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BatchStartableResponse>>;
     /** `GET /v1/batches/{id}`: one batch with the issues it considered. */
     readonly get: (options: {
       readonly organizationId: string;
@@ -2930,6 +2940,17 @@ export function createBakeryApiClient({
           options.organizationId,
           (scoped) =>
             scoped.actions["batches.list"]({
+              repositoryId: options.repositoryId,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      startable(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["batches.startable"]({
               repositoryId: options.repositoryId,
               cursor: options.cursor,
               limit: options.limit,

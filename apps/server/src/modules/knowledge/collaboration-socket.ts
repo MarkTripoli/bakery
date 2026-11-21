@@ -17,7 +17,7 @@ import {
   requireOrganizationIdValue,
   resolveOrganizationActor,
 } from "../auth/adapters/authority-postgres.ts";
-import { authorize } from "../auth/application/authorize.ts";
+import { authorizeDraftAccess } from "../auth/adapters/artifact-grants-postgres.ts";
 import {
   type AuthenticatedSubject,
   IdentityResolutionError,
@@ -491,7 +491,13 @@ export function createCollaborationSocketHandler(
           principalId(connection.principal.principalId),
           connection.organizationId,
         );
-        authorize(actor, "draft:read", { action: "collaboration.connect" });
+        await authorizeDraftAccess(
+          transaction,
+          actor,
+          "draft:read",
+          { action: "collaboration.connect" },
+          room.id,
+        );
         await readDraft(transaction, connection.organizationId, room.id);
       },
       undefined,
@@ -749,7 +755,10 @@ export function createCollaborationSocketHandler(
   }
 
   /** Draft write access in a fresh transaction (operate permission, live membership). */
-  async function assertWriteAccess(connection: Connection): Promise<void> {
+  async function assertWriteAccess(
+    connection: Connection,
+    room: Room,
+  ): Promise<void> {
     await withPgTransaction(
       options.database,
       async (transaction) => {
@@ -758,7 +767,13 @@ export function createCollaborationSocketHandler(
           principalId(connection.principal.principalId),
           connection.organizationId,
         );
-        authorize(actor, "draft:write", { action: "drafts.edit" });
+        await authorizeDraftAccess(
+          transaction,
+          actor,
+          "draft:write",
+          { action: "drafts.edit" },
+          room.id,
+        );
       },
       undefined,
       "read committed",
@@ -972,9 +987,9 @@ export function createCollaborationSocketHandler(
                   principalId(peer.connection.principal.principalId),
                   peer.connection.organizationId,
                 );
-                authorize(actor, "draft:read", {
+                await authorizeDraftAccess(transaction, actor, "draft:read", {
                   action: "collaboration.connect",
-                });
+                }, room.id);
                 organizations.add(peer.connection.organizationId);
               } catch (error) {
                 accessError.set(key, error);
@@ -1105,7 +1120,7 @@ export function createCollaborationSocketHandler(
     const principal = connection.principal.principalId;
     try {
       await assertSession(connection.token);
-      await assertWriteAccess(connection);
+      await assertWriteAccess(connection, room);
     } catch (error) {
       problem(connection, null, error);
       return;
@@ -1200,7 +1215,13 @@ export function createCollaborationSocketHandler(
               principalId(principal),
               connection.organizationId,
             );
-            authorize(actor, "draft:write", { action: "drafts.edit" });
+            await authorizeDraftAccess(
+              transaction,
+              actor,
+              "draft:write",
+              { action: "drafts.edit" },
+              room.id,
+            );
             return await commitDraftUpdate(
               transaction,
               connection.organizationId,
@@ -1428,7 +1449,13 @@ export function createCollaborationSocketHandler(
             principalId(principal.principalId) as PrincipalId,
             organization,
           );
-          authorize(actor, "draft:read", { action: "collaboration.connect" });
+          await authorizeDraftAccess(
+            transaction,
+            actor,
+            "draft:read",
+            { action: "collaboration.connect" },
+            null,
+          );
         },
         undefined,
         "read committed",

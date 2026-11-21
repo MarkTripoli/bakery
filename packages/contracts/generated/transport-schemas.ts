@@ -1092,7 +1092,7 @@ const transportSchemas = {
           "name": "accessLevel",
           "type": "enum(read_comment|edit)",
           "required": false,
-          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written."
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written."
         }
       ],
       "rules": [
@@ -12494,7 +12494,7 @@ const transportSchemas = {
           "name": "level",
           "type": "enum(read_comment|edit)",
           "required": false,
-          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do."
+          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it)."
         }
       ],
       "rules": [
@@ -33340,7 +33340,7 @@ const transportSchemas = {
         "artifactId": "The one document this grant opens; it never reaches the task, its other documents or its conversation.",
         "principalId": "The person who holds the grant.",
         "displayName": "The holder's current display name; never an email address.",
-        "level": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet.",
+        "level": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it.",
         "grantedById": "Who gave the access most recently.",
         "grantedByName": "The granting person's current display name.",
         "sourceCommentId": "The comment whose mention created or renewed the grant, or null when it was given directly or that comment is gone.",

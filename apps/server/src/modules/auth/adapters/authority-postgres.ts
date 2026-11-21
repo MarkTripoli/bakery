@@ -532,7 +532,10 @@ async function authorizeWithConversationGrant(
  */
 const ARTIFACT_GRANT_ACTIONS: ReadonlyMap<
   string,
-  { target: "artifact" | "version" | "comment"; level: "read_comment" | "edit" }
+  {
+    target: "artifact" | "version" | "comment" | "draft" | "draftReference";
+    level: "read_comment" | "edit";
+  }
 > = new Map([
   ["artifacts.get", { target: "artifact", level: "read_comment" }],
   ["artifactVersions.list", { target: "artifact", level: "read_comment" }],
@@ -552,6 +555,25 @@ const ARTIFACT_GRANT_ACTIONS: ReadonlyMap<
     { target: "version", level: "read_comment" },
   ],
   ["artifactComments.update", { target: "comment", level: "read_comment" }],
+  // The editor: its draft, checkpoints, suggestions, comments and publication,
+  // at level edit only.
+  ["drafts.open", { target: "artifact", level: "edit" }],
+  ["drafts.get", { target: "draft", level: "edit" }],
+  ["drafts.edit", { target: "draft", level: "edit" }],
+  ["drafts.rollover", { target: "draft", level: "edit" }],
+  ["draftCheckpoints.get", { target: "draft", level: "edit" }],
+  ["draftSlices.get", { target: "draft", level: "edit" }],
+  ["draftPublications.create", { target: "draft", level: "edit" }],
+  ["draftPublications.get", { target: "draft", level: "edit" }],
+  ["draftSuggestions.create", { target: "draft", level: "edit" }],
+  ["draftSuggestions.list", { target: "draft", level: "edit" }],
+  ["draftSuggestions.accept", { target: "draft", level: "edit" }],
+  ["draftSuggestions.reject", { target: "draft", level: "edit" }],
+  ["draftComments.create", { target: "draft", level: "edit" }],
+  ["draftComments.list", { target: "draft", level: "edit" }],
+  ["draftComments.update", { target: "draft", level: "edit" }],
+  ["draftReferences.create", { target: "draft", level: "edit" }],
+  ["draftReferences.get", { target: "draftReference", level: "edit" }],
 ]);
 
 /**
@@ -581,6 +603,27 @@ async function authorizeWithArtifactGrant(
       ? `select grant_row.artifact_id as "artifactId", grant_row.level
            from bakery.artifact_access_grants as grant_row
           where grant_row.organization_id = $1 and grant_row.artifact_id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`
+      : rule.target === "draft"
+      ? `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_drafts as draft
+           join bakery.artifact_access_grants as grant_row
+             on grant_row.organization_id = draft.organization_id
+            and grant_row.artifact_id = draft.artifact_id
+          where draft.organization_id = $1 and draft.id = $2
+            and grant_row.principal_id = $3 and grant_row.revoked_at is null
+            for share of grant_row`
+      : rule.target === "draftReference"
+      ? `select grant_row.artifact_id as "artifactId", grant_row.level
+           from bakery.artifact_draft_references as reference
+           join bakery.artifact_drafts as draft
+             on draft.organization_id = reference.organization_id
+            and draft.id = reference.draft_id
+           join bakery.artifact_access_grants as grant_row
+             on grant_row.organization_id = draft.organization_id
+            and grant_row.artifact_id = draft.artifact_id
+          where reference.organization_id = $1 and reference.id = $2
             and grant_row.principal_id = $3 and grant_row.revoked_at is null
             for share of grant_row`
       : rule.target === "version"

@@ -52187,7 +52187,7 @@
               }
             },
             "accessLevel": {
-              "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
+              "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
               "type": "string",
               "enum": [
                 "read_comment",
@@ -78665,7 +78665,7 @@
               "description": "The person to give access to: an active human member of this organization."
             },
             "level": {
-              "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do.",
+              "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it).",
               "type": "string",
               "enum": [
                 "read_comment",
@@ -253418,7 +253418,7 @@
                 "read_comment",
                 "edit"
               ],
-              "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+              "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
             },
             "grantedById": {
               "type": "string",
@@ -253529,7 +253529,7 @@
                       "read_comment",
                       "edit"
                     ],
-                    "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+                    "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
                   },
                   "grantedById": {
                     "type": "string",
@@ -271041,7 +271041,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:512ee3f1b960b1871b2f3dad5ce2e26e387d318f82e0553bc8da73b9731a6914",
+  "compatibilityDigest": "sha256:342031789a41b0d6954e7d86e02bf0427dfe01e81fe8b20108e71c4f5e36f370",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -273703,7 +273703,7 @@
           }
         },
         "accessLevel": {
-          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment). edit is not served yet and is refused with UNPROCESSABLE access_level_unavailable. Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also edit and publish it). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written.",
           "type": "string",
           "enum": [
             "read_comment",
@@ -300279,7 +300279,7 @@
           "description": "The person to give access to: an active human member of this organization."
         },
         "level": {
-          "description": "What the person may do: read_comment (read the document and comment on it, the default). edit is part of the vocabulary but not served yet: it is refused with UNPROCESSABLE access_level_unavailable until editing through a grant is built, so no grant ever promises what it does not do.",
+          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also work on its draft in the editor and publish new versions of it).",
           "type": "string",
           "enum": [
             "read_comment",
@@ -475422,7 +475422,7 @@
             "read_comment",
             "edit"
           ],
-          "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+          "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
         },
         "grantedById": {
           "type": "string",
@@ -475533,7 +475533,7 @@
                   "read_comment",
                   "edit"
                 ],
-                "description": "read_comment: read the document and comment on it. edit is reserved: no grant is created at that level yet."
+                "description": "read_comment: read the document and comment on it. edit: also work on its draft in the editor and publish new versions of it."
               },
               "grantedById": {
                 "type": "string",
