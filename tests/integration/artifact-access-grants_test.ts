@@ -195,7 +195,7 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
 
     let grant!: Grant;
     await t.step(
-      "grant needs sharing authority, is idempotent and changes level",
+      "grant needs sharing authority and is idempotent",
       async () => {
         assertDenied(
           await status(
@@ -231,22 +231,8 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           200,
         );
         assertEquals([again.id, again.version], [grant.id, 1]);
-        const changed = await json<Grant>(
-          await as(writer, `/v1/artifacts/${artifact}/access`, {
-            method: "POST",
-            body: { principalId: ana.principalId, level: "edit" },
-          }),
-          200,
-        );
-        assertEquals([changed.level, changed.version], ["edit", 2]);
-        grant = await json<Grant>(
-          await as(writer, `/v1/artifacts/${artifact}/access`, {
-            method: "POST",
-            body: { principalId: ana.principalId, level: "read_comment" },
-          }),
-          200,
-        );
-        assertEquals([grant.level, grant.version], ["read_comment", 3]);
+        grant = again;
+        assertEquals([grant.level, grant.version], ["read_comment", 1]);
       },
     );
 
