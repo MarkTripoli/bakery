@@ -17,9 +17,13 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { SetupInstructions } from "./SetupInstructions.tsx";
+import {
+  isUnprovenWithSteps,
+  UnprovenSystemNotice,
+} from "./UnprovenSystemNotice.tsx";
 import type { CodingAgent } from "./machine-state.ts";
 import {
-  isSupportedSystem,
+  hasSetupSteps,
   SYSTEM_ROWS,
   type SystemRow,
   systemRow,
@@ -49,8 +53,8 @@ type IssuedCode = Readonly<{
 /** The words of a row's processor: `arm64`, or `arm64 (Apple silicon)`. */
 function processorText(row: SystemRow, translate: Translator): string {
   return row.processorNote === null
-    ? row.architecture
-    : `${row.architecture} (${
+    ? row.processor
+    : `${row.processor} (${
       translate(`machines.wizard.processor.${row.processorNote}` as never)
     })`;
 }
@@ -131,10 +135,7 @@ function SystemChoice(
               ? `${installedAsText(row, translate)} · ${
                 agentsText(row, translate)
               }`
-              : translate("machines.wizard.noInstaller" as never)}
-            unavailable={row.supported ? undefined : translate(
-              "machines.wizard.support.notYet" as never,
-            )}
+              : translate("machines.wizard.support.notYet" as never)}
           />
         ))}
       </UI.Stack>
@@ -388,7 +389,7 @@ function InstallStep(
 
   // A setup for a system without an installer can only have come from before
   // the wizard stopped offering it: say so, and offer nothing it cannot do.
-  if (!isSupportedSystem(input.os, input.architecture)) {
+  if (!hasSetupSteps(input.os)) {
     return (
       <UI.AlertBanner tone="information" role="status">
         {translate("machines.wizard.unsupported" as never)}
@@ -467,6 +468,15 @@ function InstallStep(
   }
   return (
     <UI.Stack gap="standard">
+      {isUnprovenWithSteps(input.os, input.architecture)
+        ? (
+          <UnprovenSystemNotice
+            os={input.os}
+            architecture={input.architecture}
+            translate={translate}
+          />
+        )
+        : null}
       <SetupInstructions
         input={input}
         agent={agent}

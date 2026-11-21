@@ -57,7 +57,11 @@ import {
   requestedMode,
 } from "./machine-state.ts";
 import { type EnrollmentInput, installState } from "./machine-wizard.ts";
-import { isSupportedSystem, type MachineSystem } from "./machine-systems.ts";
+import { hasSetupSteps, type MachineSystem } from "./machine-systems.ts";
+import {
+  isUnprovenWithSteps,
+  UnprovenSystemNotice,
+} from "./UnprovenSystemNotice.tsx";
 
 function message(
   translate: Translator,
@@ -621,10 +625,7 @@ export function MachineDetailPage(
                           </UI.Inline>
                         </UI.Stack>
                       )
-                      : !isSupportedSystem(
-                          workerData.os,
-                          workerData.architecture,
-                        )
+                      : !hasSetupSteps(workerData.os)
                       ? (
                         <UI.AlertBanner tone="information" role="status">
                           {message(translate, "machines.wizard.unsupported")}
@@ -632,6 +633,18 @@ export function MachineDetailPage(
                       )
                       : (
                         <UI.Stack gap="standard">
+                          {isUnprovenWithSteps(
+                              workerData.os,
+                              workerData.architecture,
+                            )
+                            ? (
+                              <UnprovenSystemNotice
+                                os={workerData.os}
+                                architecture={workerData.architecture}
+                                translate={translate}
+                              />
+                            )
+                            : null}
                           <SetupInstructions
                             input={repairInput(workerData)}
                             agent={codingAgents(workerData.capabilities)[0] ??

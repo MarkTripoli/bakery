@@ -5923,6 +5923,6 @@
   "machines.wizard.installedAs.systemd": "⟪A system service (systemd)⟫",
   "machines.wizard.support.supported": "⟪Supported⟫",
   "machines.wizard.support.notYet": "⟪Not supported yet⟫",
-  "machines.wizard.noInstaller": "⟪No installer yet⟫",
-  "machines.wizard.unsupported": "⟪Bakery has no installer for this system yet. Nothing can be set up on it today.⟫"
+  "machines.wizard.unsupported": "⟪Bakery has no installer for this system yet. Nothing can be set up on it today.⟫",
+  "machines.wizard.unproven": "⟪{system} {processor} is not a supported system yet. These are the same steps this machine was set up with.⟫"
 }

@@ -156,6 +156,7 @@ test.describe("add a machine wizard", () => {
       const cards = page.getByRole("radiogroup", { name: "System" });
       await expect(cards.getByRole("radio")).toHaveCount(4);
       await expect(cards.getByText("Not supported yet")).toHaveCount(3);
+      await expect(cards.getByText("No installer yet")).toHaveCount(0);
       await expect(cards.getByText("Supported", { exact: true }))
         .toHaveCount(0);
       await expect(cards).toContainText("A system service (systemd)");
@@ -549,6 +550,43 @@ test.describe("add a machine wizard", () => {
     await expect(settings).toContainText("BAKERY_WORKER_SLOTS=3");
     await expect(settings).toContainText("BAKERY_CLAUDE_HARNESS=1");
     expect(setup.creates).toHaveLength(0);
+  });
+
+  test("a Linux x86_64 setup left from before keeps its steps, with a warning", async ({ page }) => {
+    const setup = newSetup({
+      list: [{
+        enrollmentId: ENROLLMENT_ID,
+        state: "pending",
+        name: "old-x86-box",
+        os: "linux",
+        architecture: "x64",
+        capabilities: ["git", "shell", "web", "model", "claude"],
+        slots: 2,
+        expiresAt: inMinutes(5),
+        consumedAt: null,
+        canceledAt: null,
+        workerHostId: null,
+        replacementOfId: null,
+        targetWorkerHostId: null,
+        version: 2,
+      }],
+    });
+    await open(page, setup, {
+      path: `/machines/new?finish=${ENROLLMENT_ID}`,
+    });
+    await page.getByRole("button", { name: "Get new settings" }).click();
+    await expect(page.getByText(NEW_SETUP_CODE)).toBeVisible();
+    await expect(
+      page.getByText(
+        "Linux x86_64 is not a supported system yet. These are the same steps this machine was set up with.",
+      ),
+    ).toBeVisible();
+    await expect(settingsOf(page)).toContainText(
+      "BAKERY_WORKER_NAME=old-x86-box",
+    );
+    await expect(page.getByText("Bakery has no installer for this system yet."))
+      .toHaveCount(0);
+    await shot(page, "machines-wizard-x86-steps");
   });
 
   test("only an administrator can add a machine", async ({ page }) => {

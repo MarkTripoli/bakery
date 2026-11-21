@@ -42,6 +42,8 @@ type Fixture = {
   repairState: "pending" | "consumed" | "expired";
   /** The next update is refused with this status. */
   refuseWith: number | null;
+  /** The machine's system and processor. */
+  system: { os: string; architecture: string };
 };
 
 function fixture(
@@ -67,6 +69,8 @@ function fixture(
     repairs: [],
     repairState: "pending",
     refuseWith: null,
+    // The server stores x86_64 as x64: that is what a real machine carries.
+    system: { os: "linux", architecture: "x64" },
     ...more,
   };
 }
@@ -198,8 +202,8 @@ function worker(f: Fixture) {
     id: MACHINE_ID,
     principalId: "00000000-0000-4000-8000-0000000000a2",
     name: "fixture-host",
-    os: "linux",
-    architecture: "x86_64",
+    os: f.system.os,
+    architecture: f.system.architecture,
     capabilities: ["git", "shell", "web", "model", "claude"],
     toolchainVersions: {},
     slots: 2,
@@ -307,7 +311,7 @@ test.describe("machine page: the one banner", () => {
     await expect(about).toContainText("System");
     await expect(about).toContainText("Linux");
     await expect(about).toContainText("Processor");
-    await expect(about).toContainText("x86_64");
+    await expect(about).toContainText("x64");
     await expect(about).toContainText("Tasks at once");
     await expect(about).toContainText("Software");
     await expect(about).toContainText("No software has been reported.");
@@ -510,6 +514,14 @@ test.describe("machine page: mode and Retire", () => {
     )
       .toBeVisible();
     await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
+    // Linux on x86_64 has no recorded run yet, but the machine keeps its steps:
+    // a warning says why, and the steps are the ones it was set up with.
+    await expect(
+      setup.getByRole("status").filter({
+        hasText:
+          "Linux x86_64 is not a supported system yet. These are the same steps this machine was set up with.",
+      }),
+    ).toBeVisible();
     await expect(
       setup.getByText(
         "The Bakery worker is the program that runs agents on this machine.",
@@ -540,6 +552,53 @@ test.describe("machine page: mode and Retire", () => {
         timeout: 2_000,
       });
     }).toPass();
+  });
+
+  test("a retired machine on a supported system sets up again with no warning", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      system: { os: "linux", architecture: "arm64" },
+    });
+    await page.clock.install();
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    const setup = page.getByTestId("machine-repair");
+    await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
+    await expect(setup).toContainText("BAKERY_WORKER_NAME=fixture-host");
+    await expect(setup.getByText("is not a supported system yet"))
+      .toHaveCount(0);
+  });
+
+  test("a retired Linux machine on any processor keeps its steps, with a warning", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      system: { os: "linux", architecture: "riscv64" },
+    });
+    await page.clock.install();
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    const setup = page.getByTestId("machine-repair");
+    await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
+    await expect(setup).toContainText("BAKERY_WORKER_NAME=fixture-host");
+    await expect(
+      setup.getByText(
+        "Linux riscv64 is not a supported system yet. These are the same steps this machine was set up with.",
+      ),
+    ).toBeVisible();
+  });
+
+  test("a retired Mac is told there is no installer and is shown no steps", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      system: { os: "macos", architecture: "arm64" },
+    });
+    await page.clock.install();
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    const setup = page.getByTestId("machine-repair");
+    await expect(
+      setup.getByText("Bakery has no installer for this system yet."),
+    ).toBeVisible();
+    await expect(setup.getByText(REPAIR_CODE)).toHaveCount(0);
+    await expect(setup.getByText("is not a supported system yet"))
+      .toHaveCount(0);
   });
 
   test("anyone but an administrator sees the page without the controls", async ({ page }) => {

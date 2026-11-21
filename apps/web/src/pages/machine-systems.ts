@@ -7,8 +7,12 @@ import type { CodingAgent } from "./machine-state.ts";
  *
  * A row is `supported` only with a recorded real run of the installer on that
  * system. Today that is Linux on arm64 alone (`scripts/deploy/bootstrap-host.sh`,
- * `scripts/deploy/release.mjs`); there is no installer for the rest, so they are
- * listed, muted, and can never be chosen.
+ * `scripts/deploy/release.mjs`); the rest are listed, muted, and can never be
+ * chosen for a new machine.
+ *
+ * Having `steps` is a separate fact: a Linux machine on any processor is set up
+ * the same way, so a machine that is already enrolled keeps its set-up-again
+ * steps even where the row is not yet supported.
  */
 
 export type MachineSystem = "linux" | "macos";
@@ -19,12 +23,16 @@ export type SystemRow = Readonly<{
   /** A stable name for the row, used for its form value and test hooks. */
   id: string;
   os: MachineSystem;
-  /** The value Bakery stores and compares: `arm64` or `x86_64`. */
+  /** The value the server stores and compares: `arm64` or `x64` (see `normalizeArchitecture`). */
   architecture: string;
+  /** The processor as a person reads it: `arm64`, or `x86_64` for the stored `x64`. */
+  processor: string;
   /** The words after the processor on screen, when the table says more than the value does. */
   processorNote: "appleSilicon" | "intel" | null;
   /** How Bakery runs on it; null while there is no installer. */
   installedAs: "systemd" | null;
+  /** The steps an enrolled machine follows to be set up again; null where there are none. */
+  steps: "systemd" | null;
   /** The coding agents it can run; none while there is no installer. */
   agents: readonly CodingAgent[];
   supported: boolean;
@@ -35,17 +43,21 @@ export const SYSTEM_ROWS: readonly SystemRow[] = [
     id: "linux-arm64",
     os: "linux",
     architecture: "arm64",
+    processor: "arm64",
     processorNote: null,
     installedAs: "systemd",
+    steps: "systemd",
     agents: CODING_AGENTS,
     supported: true,
   },
   {
     id: "linux-x86_64",
     os: "linux",
-    architecture: "x86_64",
+    architecture: "x64",
+    processor: "x86_64",
     processorNote: null,
     installedAs: null,
+    steps: "systemd",
     agents: [],
     supported: false,
   },
@@ -53,35 +65,67 @@ export const SYSTEM_ROWS: readonly SystemRow[] = [
     id: "macos-arm64",
     os: "macos",
     architecture: "arm64",
+    processor: "arm64",
     processorNote: "appleSilicon",
     installedAs: null,
+    steps: null,
     agents: [],
     supported: false,
   },
   {
     id: "macos-x86_64",
     os: "macos",
-    architecture: "x86_64",
+    architecture: "x64",
+    processor: "x86_64",
     processorNote: "intel",
     installedAs: null,
+    steps: null,
     agents: [],
     supported: false,
   },
 ];
+
+/**
+ * The processor as the server stores it. It mirrors the server's own
+ * normalisation (`apps/server/src/modules/execution/shared.ts`): `x86_64`,
+ * `amd64` and `x64` are one processor, stored as `x64`; `aarch64` is `arm64`.
+ * Anything else is kept as it is, lower-cased.
+ */
+export function normalizeArchitecture(value: string): string {
+  const normalized = value.trim().toLowerCase().replaceAll("-", "_");
+  switch (normalized) {
+    case "x64":
+    case "x86_64":
+    case "amd64":
+    case "x8664":
+      return "x64";
+    case "arm64":
+    case "aarch64":
+      return "arm64";
+    default:
+      return normalized;
+  }
+}
 
 /** The row for a system and processor, or null for one the table does not list. */
 export function systemRow(
   os: string,
   architecture: string,
 ): SystemRow | null {
+  const processor = normalizeArchitecture(architecture);
   return SYSTEM_ROWS.find((row) =>
-    row.os === os && row.architecture === architecture
+    row.os === os.trim().toLowerCase() && row.architecture === processor
   ) ?? null;
 }
 
 /** Whether Bakery can set a machine up on this system and processor. */
 export function isSupportedSystem(os: string, architecture: string): boolean {
   return systemRow(os, architecture)?.supported === true;
+}
+
+/** Whether a machine on this system has set-up steps to follow, on any processor. */
+export function hasSetupSteps(os: string): boolean {
+  return SYSTEM_ROWS.some((row) => row.os === os && row.steps !== null);
 }
 
 /** The supported rows, in table order. */

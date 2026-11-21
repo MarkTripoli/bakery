@@ -5923,6 +5923,6 @@
   "machines.wizard.installedAs.systemd": "⟦À šÿšŧëɱ šëŕṽïçë (šÿšŧëɱð) ŧëšŧ çô⟧",
   "machines.wizard.support.supported": "⟦Šûþþôŕŧëð ŧ⟧",
   "machines.wizard.support.notYet": "⟦Ñôŧ šûþþôŕŧëð ÿëŧ ŧëš⟧",
-  "machines.wizard.noInstaller": "⟦Ñô ïñšŧàļļëŕ ÿëŧ ŧëš⟧",
-  "machines.wizard.unsupported": "⟦Ɓàķëŕÿ ĥàš ñô ïñšŧàļļëŕ ƒôŕ ŧĥïš šÿšŧëɱ ÿëŧ. Ñôŧĥïñĝ çàñ ƀë šëŧ ûþ ôñ ïŧ ŧôðàÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "machines.wizard.unsupported": "⟦Ɓàķëŕÿ ĥàš ñô ïñšŧàļļëŕ ƒôŕ ŧĥïš šÿšŧëɱ ÿëŧ. Ñôŧĥïñĝ çàñ ƀë šëŧ ûþ ôñ ïŧ ŧôðàÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "machines.wizard.unproven": "⟦{system} {processor} ïš ñôŧ à šûþþôŕŧëð šÿšŧëɱ ÿëŧ. Ŧĥëšë àŕë ŧĥë šàɱë šŧëþš ŧĥïš ɱàçĥïñë ŵàš šëŧ ûþ ŵïŧĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

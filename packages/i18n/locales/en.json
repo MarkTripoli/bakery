@@ -3885,7 +3885,7 @@
   "machines.wizard.installedAs.systemd": "A system service (systemd)",
   "machines.wizard.support.supported": "Supported",
   "machines.wizard.support.notYet": "Not supported yet",
-  "machines.wizard.noInstaller": "No installer yet",
+  "machines.wizard.unproven": "{system} {processor} is not a supported system yet. These are the same steps this machine was set up with.",
   "machines.wizard.slots": "How many tasks at once",
   "machines.wizard.slotsHint": "Each task uses one slot. Start with 1 and raise it if the machine has room.",
   "machines.wizard.slotsInvalid": "Enter a whole number from 1 to 100.",
