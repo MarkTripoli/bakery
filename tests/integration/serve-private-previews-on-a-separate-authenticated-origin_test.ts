@@ -1449,3 +1449,350 @@ Deno.test("the grantor is re-authorized on every use: a demoted grantor cannot e
       await app.close();
     }
   }, options));
+
+// ---- WebSocket through the preview's own origin ----------------------------
+
+/** A free port, so the preview origin can name the port a real listener has. */
+function freePort(): number {
+  const probe = Deno.listen({ hostname: "127.0.0.1", port: 0 });
+  const port = (probe.addr as Deno.NetAddr).port;
+  probe.close();
+  return port;
+}
+
+type SocketApp = {
+  readonly port: number;
+  readonly seen: { path: string; headers: Headers }[];
+  readonly sockets: WebSocket[];
+  close(): Promise<void>;
+};
+
+/** A stand-in app whose sockets echo, and say what they were asked with. */
+function startSocketApp(protocol?: string): SocketApp {
+  const seen: SocketApp["seen"] = [];
+  const sockets: WebSocket[] = [];
+  const server = Deno.serve({ hostname: "127.0.0.1", port: 0, onListen() {} }, (
+    request,
+  ) => {
+    const url = new URL(request.url);
+    // Read before the upgrade: the request is closed once it is answered.
+    seen.push({
+      path: `${url.pathname}${url.search}`,
+      headers: new Headers(request.headers),
+    });
+    const { socket, response } = Deno.upgradeWebSocket(request, { protocol });
+    sockets.push(socket);
+    socket.onmessage = (event) => socket.send(event.data);
+    return response;
+  });
+  return {
+    port: (server.addr as Deno.NetAddr).port,
+    seen,
+    sockets,
+    close: () => server.shutdown(),
+  };
+}
+
+/** The open socket, or null when the handshake was refused or failed. */
+function connect(
+  url: string,
+  headers: Record<string, string>,
+  protocols: string[] = [],
+): Promise<WebSocket | null> {
+  return new Promise((resolve) => {
+    const socket = new WebSocket(
+      url,
+      { protocols, headers } as unknown as string[],
+    );
+    socket.onopen = () => resolve(socket);
+    socket.onerror = () => resolve(null);
+    socket.onclose = () => resolve(null);
+  });
+}
+
+function nextMessage(socket: WebSocket): Promise<string | ArrayBuffer> {
+  socket.binaryType = "arraybuffer";
+  return new Promise((resolve) => {
+    socket.onmessage = (event) => resolve(event.data);
+  });
+}
+
+function closedWith(socket: WebSocket, ms: number): Promise<number | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+    socket.onclose = (event) => {
+      clearTimeout(timer);
+      resolve(event.code);
+    };
+  });
+}
+
+/** Runs a fixture whose preview origin is a real, listening port. */
+function withSocketFixture(
+  run: (
+    fixture: WorkerFixture,
+    wsUrl: (path?: string) => string,
+    origin: string,
+  ) => Promise<void>,
+) {
+  const port = freePort();
+  const previewOriginHere = `http://localhost:${port}`;
+  return withWorkerFixture(async (fixture) => {
+    const front = Deno.serve({
+      hostname: "127.0.0.1",
+      port,
+      onListen() {},
+    }, (request) => fixture.app.fetch(request));
+    try {
+      await run(
+        fixture,
+        (path = "/") => `ws://${ROUTE}.localhost:${port}${path}`,
+        `http://${ROUTE}.localhost:${port}`,
+      );
+    } finally {
+      await front.shutdown();
+    }
+  }, { env: { BAKERY_ARTIFACT_PREVIEW_ORIGIN: previewOriginHere } });
+}
+
+Deno.test("a socket opens on the preview's own origin, reaches the registered app and carries messages both ways", () =>
+  withSocketFixture(async (fixture, wsUrl, origin) => {
+    const app = startSocketApp("vite-hmr");
+    try {
+      const { preview } = await registerAt(fixture, "sock-open", app.port);
+      const opened = await openOrigin(fixture, preview.id);
+      const socket = await connect(
+        wsUrl("/hmr?token=1"),
+        { cookie: `${opened.cookie}; theme=dark`, origin },
+        ["other", "vite-hmr"],
+      );
+      assert(socket !== null, "the socket did not open");
+      // The browser is told the protocol the app chose.
+      assertEquals(socket.protocol, "vite-hmr");
+      assertEquals(app.seen.length, 1);
+      assertEquals(app.seen[0].path, "/hmr?token=1");
+      // The app sees its own cookie only, and the port it is registered on.
+      assertEquals(app.seen[0].headers.get("cookie"), "theme=dark");
+      assertEquals(
+        app.seen[0].headers.get("host"),
+        `127.0.0.1:${app.port}`,
+      );
+      const text = nextMessage(socket);
+      socket.send("ping");
+      assertEquals(await text, "ping");
+      const binary = nextMessage(socket);
+      socket.send(new Uint8Array([1, 2, 3]));
+      assertEquals(
+        [...new Uint8Array(await binary as ArrayBuffer)],
+        [1, 2, 3],
+      );
+      // Either side closing ends the other, with the same code.
+      const closed = closedWith(socket, 3000);
+      app.sockets[0].close(4001, "bye");
+      assertEquals(await closed, 4001);
+    } finally {
+      await app.close();
+    }
+  }));
+
+Deno.test("an app that greets on open reaches the browser, in order", () =>
+  withSocketFixture(async (fixture, wsUrl, origin) => {
+    const greetings = ["hello-1", "hello-2"];
+    const server = Deno.serve(
+      { hostname: "127.0.0.1", port: 0, onListen() {} },
+      (request) => {
+        const { socket, response } = Deno.upgradeWebSocket(request);
+        socket.onopen = () => {
+          for (const frame of greetings) socket.send(frame);
+        };
+        socket.onmessage = (event) => socket.send(event.data);
+        return response;
+      },
+    );
+    try {
+      const { preview } = await registerAt(
+        fixture,
+        "sock-greet",
+        (server.addr as Deno.NetAddr).port,
+      );
+      const opened = await openOrigin(fixture, preview.id);
+      const socket = new WebSocket(
+        wsUrl(),
+        { headers: { cookie: opened.cookie, origin } } as unknown as string[],
+      );
+      const got: string[] = [];
+      const done = new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 4000);
+        socket.onmessage = (event) => {
+          got.push(event.data);
+          if (got.length === 3) {
+            clearTimeout(timer);
+            resolve();
+          }
+        };
+      });
+      await new Promise((resolve) => {
+        socket.onopen = resolve;
+      });
+      socket.send("client-1");
+      await done;
+      assertEquals(got, ["hello-1", "hello-2", "client-1"]);
+      socket.close();
+    } finally {
+      await server.shutdown();
+    }
+  }));
+
+Deno.test("a socket is refused without the session, from another origin, or when it is not a plain upgrade", () =>
+  withSocketFixture(async (fixture, wsUrl, origin) => {
+    const app = startSocketApp();
+    try {
+      const { preview } = await registerAt(fixture, "sock-refuse", app.port);
+      const opened = await openOrigin(fixture, preview.id);
+      const refuse = async (
+        label: string,
+        headers: Record<string, string>,
+        url = wsUrl(),
+      ) => assertEquals(await connect(url, headers), null, label);
+      await refuse("no session", { origin });
+      await refuse("a wrong session", {
+        cookie: "bakery_running_preview=" + "z".repeat(43),
+        origin,
+      });
+      await refuse("no origin", { cookie: opened.cookie });
+      await refuse("the application's origin", {
+        cookie: opened.cookie,
+        origin: fixture.config.publicBaseUrl,
+      });
+      await refuse("a stranger's origin", {
+        cookie: opened.cookie,
+        origin: "https://evil.example",
+      });
+      await refuse(
+        "the reserved path",
+        { cookie: opened.cookie, origin },
+        wsUrl("/_bakery/preview/x"),
+      );
+      await refuse("another preview's name", {
+        cookie: opened.cookie,
+        origin: origin.replace(ROUTE, "preview-9999999999"),
+      }, wsUrl().replace(ROUTE, "preview-9999999999"));
+      // Nothing reached the app for any of them.
+      assertEquals(app.seen.length, 0);
+    } finally {
+      await app.close();
+    }
+  }));
+
+Deno.test("a silent app reads as not answering and opens no socket", () =>
+  withSocketFixture(async (fixture, wsUrl, origin) => {
+    const gone = startSocketApp();
+    const port = gone.port;
+    await gone.close();
+    const { preview } = await registerAt(fixture, "sock-silent", port);
+    const opened = await openOrigin(fixture, preview.id);
+    assertEquals(
+      await connect(wsUrl(), { cookie: opened.cookie, origin }),
+      null,
+    );
+  }));
+
+Deno.test("a stopped preview closes its open sockets", () =>
+  withSocketFixture(async (fixture, wsUrl, origin) => {
+    const app = startSocketApp();
+    try {
+      const { preview } = await registerAt(fixture, "sock-stop", app.port);
+      const opened = await openOrigin(fixture, preview.id);
+      const socket = await connect(wsUrl(), { cookie: opened.cookie, origin });
+      assert(socket !== null);
+      const closed = closedWith(socket, 15_000);
+      const stopped = await person(fixture, `/v1/previews/${preview.id}/stop`, {
+        method: "POST",
+        headers: { "idempotency-key": crypto.randomUUID() },
+      });
+      assertEquals(stopped.status, 201, await stopped.clone().text());
+      // Closed for a rule (policy), within a few seconds.
+      assertEquals(await closed, 1008);
+      // The app's side of the pair is closed too.
+      for (
+        let waited = 0;
+        app.sockets[0].readyState < WebSocket.CLOSING && waited < 2000;
+        waited += 50
+      ) await new Promise((resolve) => setTimeout(resolve, 50));
+      assertEquals(app.sockets[0].readyState >= WebSocket.CLOSING, true);
+    } finally {
+      await app.close();
+    }
+  }));
+
+Deno.test("a grantor who loses the role ends their open sockets", () =>
+  withSocketFixture(async (fixture, wsUrl, origin) => {
+    const app = startSocketApp();
+    const colleague = await addDeveloper(fixture);
+    try {
+      const { preview } = await registerAt(fixture, "sock-role", app.port);
+      const granted = await person(
+        fixture,
+        `/v1/previews/${preview.id}/access`,
+        { method: "POST", body: "{}" },
+        colleague,
+      );
+      const grant = await granted.json();
+      const exchanged = await fixture.app.fetch(
+        new Request(grant.exchangeUrl, {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            origin: fixture.config.publicBaseUrl,
+          },
+          body: new URLSearchParams({ grant: grant.grant }).toString(),
+        }),
+      );
+      const cookie =
+        (exchanged.headers.get("set-cookie") ?? "").split(";", 1)[0];
+      const socket = await connect(wsUrl(), { cookie, origin });
+      assert(socket !== null);
+      const closed = closedWith(socket, 15_000);
+      await fixture.pgDatabase.query(
+        "update bakery.organization_memberships set status = 'inactive' where principal_id = $1",
+        [colleague.principalId],
+      );
+      assertEquals(await closed, 1008);
+    } finally {
+      await colleague.remove();
+      await app.close();
+    }
+  }));
+
+Deno.test("one preview holds a bounded number of sockets", () =>
+  withSocketFixture(async (fixture, wsUrl, origin) => {
+    const app = startSocketApp();
+    const open: WebSocket[] = [];
+    try {
+      const { preview } = await registerAt(fixture, "sock-cap", app.port);
+      const opened = await openOrigin(fixture, preview.id);
+      for (let count = 0; count < 32; count++) {
+        const socket = await connect(wsUrl(), {
+          cookie: opened.cookie,
+          origin,
+        });
+        assert(socket !== null, `socket ${count + 1} should open`);
+        open.push(socket);
+      }
+      assertEquals(
+        await connect(wsUrl(), { cookie: opened.cookie, origin }),
+        null,
+      );
+      // Closing one frees a place.
+      const closed = closedWith(open[0], 3000);
+      open[0].close();
+      await closed;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const again = await connect(wsUrl(), { cookie: opened.cookie, origin });
+      assert(again !== null);
+      open.push(again);
+    } finally {
+      for (const socket of open) socket.close();
+      await app.close();
+    }
+  }));
