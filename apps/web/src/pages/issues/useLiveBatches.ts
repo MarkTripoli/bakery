@@ -4,7 +4,7 @@ import type { BatchListResponse } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
 import { batchesListQueryOptions } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
-import { runningBatches } from "./batch-notice-model.ts";
+import { liveBatches } from "./batch-notice-model.ts";
 
 /** Batches are read 25 at a time, newest first. */
 const PAGE_SIZE = 25;
@@ -14,7 +14,7 @@ const PAGE_SIZE = 25;
  * them. A chosen repository is read exactly: one batch runs there at a time.
  */
 const MAX_PAGES = 4;
-/** A running batch moves on its own; the notice follows it. */
+/** A live batch moves on its own; the notice follows it. */
 const REFRESH_MS = 15_000;
 
 /**
@@ -22,7 +22,7 @@ const REFRESH_MS = 15_000;
  * Only read for a person who may read batches. A failed read says nothing:
  * the notice is an aid, not the page's content.
  */
-export function useRunningBatches(
+export function useLiveBatches(
   options: { readonly repositoryId: string | null; readonly enabled: boolean },
 ) {
   const api = useBakeryApi();
@@ -34,7 +34,7 @@ export function useRunningBatches(
     }),
     enabled: options.enabled && Boolean(scope.organizationId),
     refetchInterval: (state) =>
-      runningBatches(state.state.data?.pages.flatMap(itemsOf) ?? []).length > 0
+      liveBatches(state.state.data?.pages.flatMap(itemsOf) ?? []).length > 0
         ? REFRESH_MS
         : false,
     refetchIntervalInBackground: false,

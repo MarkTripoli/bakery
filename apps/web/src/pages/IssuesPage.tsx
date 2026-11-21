@@ -26,7 +26,7 @@ import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { IssuesList } from "./IssuesList.tsx";
 import { IssuesBatchNotice } from "./issues/IssuesBatchNotice.tsx";
 import { issuesInBatch, noticesFor } from "./issues/batch-notice-model.ts";
-import { useRunningBatches } from "./issues/useRunningBatches.ts";
+import { useLiveBatches } from "./issues/useLiveBatches.ts";
 import { ChooseRepositoriesSheet } from "./ChooseRepositoriesSheet.tsx";
 import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
 import { type StartRefusal, StartWorkDialog } from "./StartWorkDialog.tsx";
@@ -100,7 +100,7 @@ export function IssuesPage() {
   const sources = useQuery(ticketSourcesListQueryOptions(api, scope));
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const isAdmin = access.data?.role === "admin";
-  // Batches (#58): a running batch in the repository in view is said under the
+  // Batches (#58): a live batch in the repository in view is said under the
   // header, and the issues it has taken wear "In the batch".
   const chosenRepositoryId = sourceId === ""
     ? null
@@ -108,7 +108,7 @@ export function IssuesPage() {
       ?.repositoryId ?? null;
   // A chosen repository with no Bakery repository behind it has no batches.
   const batchesInView = sourceId === "" || chosenRepositoryId !== null;
-  const batches = useRunningBatches({
+  const batches = useLiveBatches({
     repositoryId: chosenRepositoryId,
     enabled: access.data?.capabilities.includes("batch:read") === true &&
       batchesInView,

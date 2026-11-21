@@ -195,6 +195,8 @@ export type Options = {
    * giving any also gives the person `batch:read`, which the notice needs.
    */
   batches?: readonly { repositoryId: string }[];
+  /** A second repository that is taking issues (acme/api, repository uuid(913)), with no issues of its own. */
+  secondSource?: boolean;
   work?: WorkSeed;
   /** The work that exists once somebody else's start has been refused (start: "alreadyRunning"). */
   workWhenRunning?: WorkSeed;
@@ -279,30 +281,52 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          items: sourcesMode === "none" ? [] : [{
-            id: SOURCE_ID,
-            organizationId: MOCK_ORGANIZATION_ID,
-            integrationConnectionId: uuid(901),
-            integrationResourceId: uuid(902),
-            applicationId: uuid(904),
-            repositoryId: uuid(903),
-            externalContainerId: "acme/web",
-            enabled: true,
-            policy: {},
-            policyRevision: 1,
-            syncHealth: sourcesMode === "degraded"
-              ? "degraded"
-              : sourcesMode === "authRequired"
-              ? "auth_required"
-              : sourcesMode === "unknown"
-              ? "unknown"
-              : "healthy",
-            lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
-            lastProblemCode: null,
-            createdAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:00.000Z",
-            version: 1,
-          }],
+          items: sourcesMode === "none" ? [] : [
+            ...(options.secondSource
+              ? [{
+                id: uuid(910),
+                organizationId: MOCK_ORGANIZATION_ID,
+                integrationConnectionId: uuid(901),
+                integrationResourceId: uuid(911),
+                applicationId: uuid(904),
+                repositoryId: uuid(913),
+                externalContainerId: "acme/api",
+                enabled: true,
+                policy: {},
+                policyRevision: 1,
+                syncHealth: "healthy",
+                lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+                lastProblemCode: null,
+                createdAt: "2026-01-01T00:00:00.000Z",
+                updatedAt: "2026-01-01T00:00:00.000Z",
+                version: 1,
+              }]
+              : []),
+            {
+              id: SOURCE_ID,
+              organizationId: MOCK_ORGANIZATION_ID,
+              integrationConnectionId: uuid(901),
+              integrationResourceId: uuid(902),
+              applicationId: uuid(904),
+              repositoryId: uuid(903),
+              externalContainerId: "acme/web",
+              enabled: true,
+              policy: {},
+              policyRevision: 1,
+              syncHealth: sourcesMode === "degraded"
+                ? "degraded"
+                : sourcesMode === "authRequired"
+                ? "auth_required"
+                : sourcesMode === "unknown"
+                ? "unknown"
+                : "healthy",
+              lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+              lastProblemCode: null,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+              version: 1,
+            },
+          ],
           nextCursor: null,
         }),
       }),
