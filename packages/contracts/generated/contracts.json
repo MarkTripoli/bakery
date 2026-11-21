@@ -4670,6 +4670,28 @@
     },
     {
       "group": "Access",
+      "method": "POST",
+      "path": "/v1/me/sessions/revoke-current",
+      "action": "browserSessions.revokeCurrent",
+      "access": "Authenticated",
+      "permission": "browserSession:write",
+      "input": "Empty",
+      "output": "BrowserSessionRevocation",
+      "event": "",
+      "mcp": "",
+      "idempotency": "none; the caller's own sign-in ends, so a repeat is refused as unauthenticated and the caller treats that as ended",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN"
+      ],
+      "organizationContext": "authenticated_principal_scope",
+      "implemented": true
+    },
+    {
+      "group": "Access",
       "method": "GET",
       "path": "/v1/me/connected-clients",
       "action": "connectedClients.list",
@@ -13874,6 +13896,7 @@
     "browserSessions.list",
     "browserSessions.revoke",
     "browserSessions.revokeOthers",
+    "browserSessions.revokeCurrent",
     "connectedClients.list",
     "connectedClients.revoke",
     "profile.get",
@@ -25931,6 +25954,46 @@
                 "application/json": {
                   "schema": {
                     "$ref": "#/components/schemas/BrowserSessionRevocationCount"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Empty"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/me/sessions/revoke-current": {
+        "post": {
+          "operationId": "browserSessions.revokeCurrent",
+          "parameters": [],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/BrowserSessionRevocation"
                   }
                 }
               }
@@ -56270,6 +56333,7 @@
                 "browserSessions.list",
                 "browserSessions.revoke",
                 "browserSessions.revokeOthers",
+                "browserSessions.revokeCurrent",
                 "connectedClients.list",
                 "connectedClients.revoke",
                 "principals.list",
@@ -106692,6 +106756,7 @@
                 "browserSessions.list",
                 "browserSessions.revoke",
                 "browserSessions.revokeOthers",
+                "browserSessions.revokeCurrent",
                 "connectedClients.list",
                 "connectedClients.revoke",
                 "principals.list",
@@ -107351,6 +107416,7 @@
                 "browserSessions.list",
                 "browserSessions.revoke",
                 "browserSessions.revokeOthers",
+                "browserSessions.revokeCurrent",
                 "connectedClients.list",
                 "connectedClients.revoke",
                 "principals.list",
@@ -108010,6 +108076,7 @@
                 "browserSessions.list",
                 "browserSessions.revoke",
                 "browserSessions.revokeOthers",
+                "browserSessions.revokeCurrent",
                 "connectedClients.list",
                 "connectedClients.revoke",
                 "principals.list",
@@ -153599,6 +153666,7 @@
                       "browserSessions.list",
                       "browserSessions.revoke",
                       "browserSessions.revokeOthers",
+                      "browserSessions.revokeCurrent",
                       "connectedClients.list",
                       "connectedClients.revoke",
                       "principals.list",
@@ -269201,7 +269269,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:842c0e2a2eb34897173002f40a5726c709aab3bee47de06fd1349cfdae06c986",
+  "compatibilityDigest": "sha256:4643e1885d73a1dfce0d4df838ecd57bccc37756d95013756d8695102c38e4cb",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -276657,6 +276725,7 @@
             "browserSessions.list",
             "browserSessions.revoke",
             "browserSessions.revokeOthers",
+            "browserSessions.revokeCurrent",
             "connectedClients.list",
             "connectedClients.revoke",
             "principals.list",
@@ -327253,6 +327322,7 @@
             "browserSessions.list",
             "browserSessions.revoke",
             "browserSessions.revokeOthers",
+            "browserSessions.revokeCurrent",
             "connectedClients.list",
             "connectedClients.revoke",
             "principals.list",
@@ -327912,6 +327982,7 @@
             "browserSessions.list",
             "browserSessions.revoke",
             "browserSessions.revokeOthers",
+            "browserSessions.revokeCurrent",
             "connectedClients.list",
             "connectedClients.revoke",
             "principals.list",
@@ -328571,6 +328642,7 @@
             "browserSessions.list",
             "browserSessions.revoke",
             "browserSessions.revokeOthers",
+            "browserSessions.revokeCurrent",
             "connectedClients.list",
             "connectedClients.revoke",
             "principals.list",
@@ -374310,6 +374382,7 @@
                   "browserSessions.list",
                   "browserSessions.revoke",
                   "browserSessions.revokeOthers",
+                  "browserSessions.revokeCurrent",
                   "connectedClients.list",
                   "connectedClients.revoke",
                   "principals.list",

@@ -649,6 +649,34 @@ export async function browserSessionsRevoke(context: ActionContext) {
 }
 
 /**
+ * Ends the caller's own sign-in. The desktop app uses it to sign out and to
+ * drop a sign-in its computer's keyring refused to keep; it is accepted with
+ * that sign-in alone, like every action behind the browser-session check.
+ */
+export async function browserSessionsRevokeCurrent(context: ActionContext) {
+  const authorized = requireAuthorizedContext(context);
+  if (!context.sessionId) {
+    throw new ActionAuthorizationError(
+      "browser session action requires a resolved session",
+    );
+  }
+  const providerUserId = await resolveProviderUserId(authorized);
+  // Zero rows means the sign-in ended between the check and here: that is what was asked for.
+  await authorized.transaction.query(
+    `delete from public.session where id = $1 and "userId" = $2`,
+    [context.sessionId, providerUserId],
+  );
+  await audit(authorized, {
+    organizationId: null,
+    operation: Action.BrowserSessionsRevokeCurrent,
+    resourceType: "browser_session",
+    resourceId: context.sessionId,
+    details: { current: true },
+  });
+  return { revoked: true, current: true };
+}
+
+/**
  * `desktopHandoffs.create`: a one-use code that opens a browser session for
  * the desktop window. Only the desktop app's own sign-in may ask.
  */
