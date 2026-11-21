@@ -195,15 +195,16 @@ Deno.test("a tight budget keeps the required constraints, drops the lowest prior
     for (const line of CORPUS.constraints.split("\n")) {
       assert(constraintText.includes(line), "still recalled: " + line);
     }
-    // Something had to give, and it is the lowest priority one.
+    // The budget fits the three small items and not the 60 KB filler, which is
+    // the lowest priority: exactly it is dropped, nothing else, and the reason
+    // is named. Nothing that is kept is cut short.
+    assertEquals(kept, ["constraints", "decision", "failed"]);
+    assertEquals(pack.omitted, [{ itemId: "filler", reason: "over_budget" }]);
+    assertEquals(omitted, ["filler"]);
     assert(
-      omitted.length > 0 ||
-        (pack.items as Json[]).some((i) => i.truncated === true),
+      (pack.items as Json[]).every((item) => item.truncated === false),
+      "kept items are whole",
     );
-    if (omitted.length > 0) {
-      assert(!omitted.includes("constraints"));
-      if (omitted.includes("decision")) assert(omitted.includes("filler"));
-    }
     // The same request builds the same pack.
     const again = await build(fixture, TIGHT, candidates);
     assertEquals((await again.json() as Json).packDigest, pack.packDigest);
