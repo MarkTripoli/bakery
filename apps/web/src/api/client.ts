@@ -282,6 +282,16 @@ export function versionEtag(version: number): string {
   return `"v${version}"`;
 }
 export type { AccessAdminClient } from "./access-client.ts";
+export type EvaluationBatch = ClientOutputMap["EvaluationBatch"];
+export type EvaluationBatchPage = ClientOutputMap["Page<EvaluationBatch>"];
+export type EvaluationBatchResultPage =
+  ClientOutputMap["Page<EvaluationBatchResult>"];
+export type EvaluationBatchResult = EvaluationBatchResultPage["items"][number];
+export type EvaluationAttemptPage = ClientOutputMap["Page<EvaluationAttempt>"];
+export type EvaluationAttempt = EvaluationAttemptPage["items"][number];
+/** What one measured result can be: the seven states the server keeps. */
+export type EvaluationResultState = EvaluationBatchResult["state"];
+
 export type OrganizationAccessPage =
   ClientOutputMap["Page<OrganizationAccess>"];
 export type OrganizationAccess = OrganizationAccessPage["items"][number];
@@ -1967,6 +1977,44 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<MemoryRevisionListResponse>>;
+  /** The runs of the organization, newest first: one page of the Evaluations tab. */
+  readonly listEvaluationBatches: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<EvaluationBatchPage>>;
+  /** One run with its counts and its quality gate. */
+  readonly getEvaluationBatch: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<EvaluationBatch>>;
+  /** Stops a run that is waiting or running. `version` is the run's own, sent as If-Match. */
+  readonly cancelEvaluationBatch: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly version: number;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<EvaluationBatch>>;
+  /** The results of one run, optionally only those in one state. */
+  readonly listEvaluationResults: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly state?: EvaluationResultState;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<EvaluationBatchResultPage>>;
+  /** The attempts behind one result, newest first. */
+  readonly listEvaluationAttempts: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<EvaluationAttemptPage>>;
   /**
    * Puts a fact in use (approving a suggestion, or using it again) or stops
    * using it. `version` is the fact's own, sent as If-Match; the server may
@@ -6293,6 +6341,103 @@ export function createBakeryApiClient({
       organizationId = options.organizationId;
       try {
         const data = await client.actions["memoryRevisions.list"](
+          {
+            id: options.id,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listEvaluationBatches(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["evaluationBatches.list"](
+          {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getEvaluationBatch(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["evaluationBatches.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async cancelEvaluationBatch(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["evaluationBatches.cancel"](
+          { id: options.id },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listEvaluationResults(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["evaluationBatchResults.list"](
+          {
+            id: options.id,
+            ...(options.state === undefined ? {} : { state: options.state }),
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listEvaluationAttempts(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["evaluationAttempts.list"](
           {
             id: options.id,
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),

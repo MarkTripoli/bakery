@@ -1,9 +1,10 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 import { ActionKind } from "../../packages/contracts/src/action-registry.ts";
 import { implementedActions } from "../../packages/contracts/src/implemented-actions.ts";
 import {
   assertSessionToolAllowed,
   listSessionTools,
+  PEOPLE_ONLY_OPERATIONS,
   POWER_SESSION_SCOPES,
   powerForSessionScope,
   sessionOperationScopes,
@@ -171,6 +172,45 @@ Deno.test("runs.retry is never a session tool, whatever the session holds", () =
     assertEquals(code(error), "SESSION_TOOL_UNKNOWN");
   }
   assertEquals((names(offered) as string[]).includes("runs.retry"), false);
+});
+
+Deno.test("exactly the 15 people-only operations are refused as a person's; another unscoped operation stays unknown", () => {
+  assertEquals(PEOPLE_ONLY_OPERATIONS.size, 15);
+  for (const name of PEOPLE_ONLY_OPERATIONS) {
+    assert(
+      (implementedActions as readonly string[]).includes(name),
+      name + " is registered",
+    );
+    assert(!sessionOperationScopes().includes(name), name + " has no scope");
+    assertEquals(
+      code(assertThrows(() => assertSessionToolAllowed(["work.read"], name))),
+      "SESSION_TOOL_PEOPLE_ONLY",
+      name,
+    );
+  }
+  // Registered and unscoped, but not one of O51's: not called a person's.
+  for (const name of ["identity.get", "organizations.list"]) {
+    assert((implementedActions as readonly string[]).includes(name), name);
+    assert(!sessionOperationScopes().includes(name), name);
+    assertEquals(
+      code(assertThrows(() => assertSessionToolAllowed(["work.read"], name))),
+      "SESSION_TOOL_UNKNOWN",
+      name,
+    );
+  }
+});
+
+Deno.test("a registered operation no scope names is a person's, refused by name", () => {
+  // secrets.list is registered and never classified for sessions (O51): the
+  // refusal says so rather than claiming no such operation exists.
+  assertEquals(
+    code(
+      assertThrows(() =>
+        assertSessionToolAllowed(["work.read"], "secrets.list")
+      ),
+    ),
+    "SESSION_TOOL_PEOPLE_ONLY",
+  );
 });
 
 Deno.test("the comment and edit_work powers offer exactly their own tools", () => {

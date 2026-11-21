@@ -17,6 +17,10 @@ import {
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
+import {
+  hiddenArtifactIds,
+  reviewerIsolationOf,
+} from "../knowledge/reviewer-isolation.ts";
 import { assertMayAuthorSkill, SKILL_VISIBLE_TO } from "./skill-scope-guard.ts";
 import { insertLocalSkillIdentity } from "./skill-identity.ts";
 import {
@@ -276,16 +280,21 @@ async function listPage<
   table: "skill_sources" | "skills";
   columns: string;
   project: (row: T) => O;
+  /** Only skills of this scope; the cursor is bound to it. Skills only. */
+  scope?: "global" | "organization" | "personal";
 }) {
   const visibility = options.table === "skills"
     ? `and ${SKILL_VISIBLE_TO("$5")}`
     : "";
+  const scopeFilter = options.scope === undefined ? "" : "and scope = $6::text";
   const binding: CursorBinding = {
     action: options.action,
     principalId: options.principalId,
     organizationId: options.organizationId,
     ordering: PAGE_ORDERING,
-    filters: "{}",
+    filters: options.scope === undefined
+      ? "{}"
+      : JSON.stringify({ scope: options.scope }),
     schemaVersion: 1,
   };
   const position = await decodeCursor(
@@ -302,6 +311,7 @@ async function listPage<
       where organization_id = $1
         and ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
         ${visibility}
+        ${scopeFilter}
       order by created_at desc, id desc
       limit $4`,
     [
@@ -310,6 +320,7 @@ async function listPage<
       position?.id ?? null,
       limit + 1,
       ...(visibility === "" ? [] : [options.principalId]),
+      ...(scopeFilter === "" ? [] : [options.scope]),
     ],
   );
   const visible = result.rows.slice(0, limit);
@@ -702,7 +713,10 @@ export function createCatalogHandlers(
       return toSkillSource(row);
     },
 
-    async listSkills(context: ActionContext, input: CursorInput) {
+    async listSkills(
+      context: ActionContext,
+      input: z.output<typeof contractSchemas.SkillQuery>,
+    ) {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
       return await listPage<SkillRow, ReturnType<typeof toSkill>>({
@@ -715,6 +729,7 @@ export function createCatalogHandlers(
         table: "skills",
         columns: SKILL_COLUMNS,
         project: toSkill,
+        scope: input.scope,
       });
     },
 
@@ -731,7 +746,7 @@ export function createCatalogHandlers(
       if (!includeArtifacts && input.kind === "artifact") {
         throw new StandardError({ code: "AUTH_FORBIDDEN" });
       }
-      return await searchLibraryPage({
+      const page = await searchLibraryPage({
         transaction,
         organizationId,
         principalId,
@@ -739,6 +754,21 @@ export function createCatalogHandlers(
         secret,
         includeArtifacts,
       });
+      // A reviewer session never finds another step's transcript (O47).
+      const hidden = await hiddenArtifactIds(
+        transaction,
+        await reviewerIsolationOf(transaction, context, organizationId),
+        organizationId,
+        page.items.filter((item) => item.kind === "artifact").map((item) =>
+          item.id
+        ),
+      );
+      return {
+        ...page,
+        items: page.items.filter((item) =>
+          item.kind !== "artifact" || !hidden.has(item.id)
+        ),
+      };
     },
 
     async getSkill(context: ActionContext) {

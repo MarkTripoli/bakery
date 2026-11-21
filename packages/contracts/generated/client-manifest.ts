@@ -2890,7 +2890,7 @@ export const clientManifest = {
       "action": "skills.list",
       "access": "Developer",
       "permission": "skill:read",
-      "input": "CursorQuery",
+      "input": "SkillQuery",
       "output": "Page<Skill>",
       "event": "",
       "mcp": "bakery_skills_list",
@@ -10686,6 +10686,29 @@ export const clientManifest = {
       "permission": "batch:read",
       "input": "BatchQuery",
       "output": "Page<Batch>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/batches/startable",
+      "action": "batches.startable",
+      "access": "Developer",
+      "permission": "batch:read",
+      "input": "BatchStartableQuery",
+      "output": "BatchStartable",
       "event": "",
       "mcp": "",
       "idempotency": "read",
@@ -18910,6 +18933,7 @@ export const clientManifest = {
             "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "batches.list",
+            "batches.startable",
             "batches.get",
             "batches.create",
             "batches.pause",
@@ -19301,6 +19325,35 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Lists questions using opaque keyset pagination bound to the current principal and scope; page/offset-style parameters are rejected."
+    },
+    "SkillQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scope": {
+          "description": "Restricts the listing to skills of one scope: global (comes with Bakery), organization (shared by everyone in the organization) or personal (private to the caller); omit to list every skill the caller can see.",
+          "type": "string",
+          "enum": [
+            "global",
+            "organization",
+            "personal"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of skills returned per page; defaults to 25 and cannot exceed 100. SkillQuery.limit must be at least 1. SkillQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -30322,10 +30375,51 @@ export const clientManifest = {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "state": {
+          "description": "Only the batches in this state. Omit it for every state.",
+          "type": "string",
+          "enum": [
+            "running",
+            "waiting",
+            "paused",
+            "stopping",
+            "finishing",
+            "finished",
+            "stopped"
+          ]
         }
       },
       "additionalProperties": false,
-      "description": "Lists batches newest first, optionally for one repository."
+      "description": "Lists batches newest first, optionally for one repository and one state."
+    },
+    "BatchStartableQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The repository whose issues a batch would take."
+        },
+        "cursor": {
+          "description": "Opaque cursor from the previous page.",
+          "type": "string",
+          "maxLength": 65536
+        },
+        "limit": {
+          "description": "Page size. BatchStartableQuery.limit must be at least 1. BatchStartableQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "repositoryId"
+      ],
+      "additionalProperties": false,
+      "description": "Lists the open issues in a repository that a batch could start now, in the order a batch takes them (lowest issue number first), with the smallest spend that can start one."
     },
     "AgentFileGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46255,6 +46349,7 @@ export const clientManifest = {
                   "ticketTaskLinks.resyncNote",
                   "ticketRequests.create",
                   "batches.list",
+                  "batches.startable",
                   "batches.get",
                   "batches.create",
                   "batches.pause",
@@ -66735,6 +66830,7 @@ export const clientManifest = {
             "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "batches.list",
+            "batches.startable",
             "batches.get",
             "batches.create",
             "batches.pause",
@@ -101909,6 +102005,34 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "The ticket (issue) this entry is for."
               },
+              "issueNumber": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The issue's number in its tracker, as last stored; null when the stored ticket has none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchIssue.issueNumber may be null in the safe projection."
+              },
+              "issueTitle": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The issue's title as last stored, at most 500 characters; null when none is stored."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchIssue.issueTitle may be null in the safe projection."
+              },
               "state": {
                 "type": "string",
                 "enum": [
@@ -101998,6 +102122,8 @@ export const clientManifest = {
               "id",
               "position",
               "externalTicketId",
+              "issueNumber",
+              "issueTitle",
               "state",
               "reason",
               "ticketRequestId",
@@ -102261,6 +102387,34 @@ export const clientManifest = {
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                       "description": "The ticket (issue) this entry is for."
                     },
+                    "issueNumber": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The issue's number in its tracker, as last stored; null when the stored ticket has none."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "BatchIssue.issueNumber may be null in the safe projection."
+                    },
+                    "issueTitle": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The issue's title as last stored, at most 500 characters; null when none is stored."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "BatchIssue.issueTitle may be null in the safe projection."
+                    },
                     "state": {
                       "type": "string",
                       "enum": [
@@ -102350,6 +102504,8 @@ export const clientManifest = {
                     "id",
                     "position",
                     "externalTicketId",
+                    "issueNumber",
+                    "issueTitle",
                     "state",
                     "reason",
                     "ticketRequestId",
@@ -102462,6 +102618,110 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of Batch."
+    },
+    "BatchStartable": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "externalTicketId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The ticket (issue) the batch would start."
+              },
+              "number": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The issue's number in its tracker."
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The issue's title as last stored, at most 500 characters; null when none is stored."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchStartableIssue.title may be null in the safe projection."
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "A link to the issue, or null when the tracker gave none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchStartableIssue.url may be null in the safe projection."
+              },
+              "checkedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the stored readiness check this answer rests on."
+              }
+            },
+            "required": [
+              "externalTicketId",
+              "number",
+              "title",
+              "url",
+              "checkedAt"
+            ],
+            "additionalProperties": false,
+            "description": "The startable issues on this page, lowest issue number first. Each array item follows this format."
+          },
+          "description": "The startable issues on this page, lowest issue number first."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque cursor for the next page, or null on the last page."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "BatchStartable.nextCursor may be null in the safe projection."
+        },
+        "smallestSpendUsd": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "The least a batch's spend limit can be and still start one issue: the reservation of one mandatory path plus one repair cycle. Null when the repository cannot run work now, so no amount would start one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "BatchStartable.smallestSpendUsd may be null in the safe projection."
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor",
+        "smallestSpendUsd"
+      ],
+      "additionalProperties": false,
+      "description": "The issues a batch in one repository would take now, in the order it takes them, and the smallest spend limit that can start one issue. Returned by `GET /v1/batches/startable`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "AgentFileGrant": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

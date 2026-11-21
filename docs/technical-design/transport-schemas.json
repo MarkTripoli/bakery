@@ -3217,6 +3217,46 @@
       ],
       "description": "Lists questions using opaque keyset pagination bound to the current principal and scope; page/offset-style parameters are rejected."
     },
+    "SkillQuery": {
+      "fields": [
+        {
+          "name": "scope",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "global",
+            "organization",
+            "personal"
+          ],
+          "description": "Restricts the listing to skills of one scope: global (comes with Bakery), organization (shared by everyone in the organization) or personal (private to the caller); omit to list every skill the caller can see."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of skills returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
+    },
     "RepositoryCreate": {
       "fields": [
         {
@@ -12746,9 +12786,51 @@
           "type": "uuid",
           "required": false,
           "description": "Only the batches of this repository."
+        },
+        {
+          "name": "state",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "running",
+            "waiting",
+            "paused",
+            "stopping",
+            "finishing",
+            "finished",
+            "stopped"
+          ],
+          "description": "Only the batches in this state. Omit it for every state."
         }
       ],
-      "description": "Lists batches newest first, optionally for one repository."
+      "description": "Lists batches newest first, optionally for one repository and one state."
+    },
+    "BatchStartableQuery": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "The repository whose issues a batch would take."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "description": "Opaque cursor from the previous page."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100
+          },
+          "description": "Page size."
+        }
+      ],
+      "description": "Lists the open issues in a repository that a batch could start now, in the order a batch takes them (lowest issue number first), with the smallest spend that can start one."
     },
     "AgentFileGrantCreate": {
       "fields": [
@@ -33156,6 +33238,8 @@
         "id",
         "position",
         "externalTicketId",
+        "issueNumber",
+        "issueTitle",
         "state",
         "reason",
         "ticketRequestId",
@@ -33164,6 +33248,8 @@
         "mergedAt"
       ],
       "nullableFields": [
+        "issueNumber",
+        "issueTitle",
         "reason",
         "ticketRequestId",
         "costUsd",
@@ -33174,6 +33260,8 @@
         "id": "uuid",
         "position": "integer",
         "externalTicketId": "uuid",
+        "issueNumber": "string",
+        "issueTitle": "string",
         "state": "enum(started|merged|failed|cancelled|passed_over)",
         "reason": "string",
         "ticketRequestId": "uuid",
@@ -33186,6 +33274,8 @@
         "id": "Stable UUID of this batch entry.",
         "position": "The order the batch considered it in, from 1.",
         "externalTicketId": "The ticket (issue) this entry is for.",
+        "issueNumber": "The issue's number in its tracker, as last stored; null when the stored ticket has none.",
+        "issueTitle": "The issue's title as last stored, at most 500 characters; null when none is stored.",
         "state": "started while it is being worked on; merged, failed or cancelled when it ended; passed_over when it could not start.",
         "reason": "For a passed-over issue, the readiness reason code; otherwise null.",
         "ticketRequestId": "The ordinary ticket request the batch made to start it, or null when it was passed over.",
@@ -33283,6 +33373,56 @@
     "Page<Batch>": {
       "pageOf": "Batch",
       "description": "Cursor page of batches, newest first, returned by `GET /v1/batches`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "BatchStartableIssue": {
+      "fields": [
+        "externalTicketId",
+        "number",
+        "title",
+        "url",
+        "checkedAt"
+      ],
+      "nullableFields": [
+        "title",
+        "url"
+      ],
+      "fieldTypes": {
+        "externalTicketId": "uuid",
+        "number": "string",
+        "title": "string",
+        "url": "string",
+        "checkedAt": "timestamp"
+      },
+      "description": "One open issue a batch could start now: its last stored readiness check passes every check except the request label and who applied it, which a batch's manual start does not need, and no request for it is open. A batch reads GitHub again before it starts an issue, so this is a forecast, not a promise.",
+      "fieldDescriptions": {
+        "externalTicketId": "The ticket (issue) the batch would start.",
+        "number": "The issue's number in its tracker.",
+        "title": "The issue's title as last stored, at most 500 characters; null when none is stored.",
+        "url": "A link to the issue, or null when the tracker gave none.",
+        "checkedAt": "UTC timestamp of the stored readiness check this answer rests on."
+      }
+    },
+    "BatchStartable": {
+      "fields": [
+        "items",
+        "nextCursor",
+        "smallestSpendUsd"
+      ],
+      "nullableFields": [
+        "nextCursor",
+        "smallestSpendUsd"
+      ],
+      "fieldTypes": {
+        "items": "BatchStartableIssue[]",
+        "nextCursor": "string",
+        "smallestSpendUsd": "decimal"
+      },
+      "description": "The issues a batch in one repository would take now, in the order it takes them, and the smallest spend limit that can start one issue. Returned by `GET /v1/batches/startable`. `nextCursor: null` marks the last page; there are no page numbers or offsets.",
+      "fieldDescriptions": {
+        "items": "The startable issues on this page, lowest issue number first.",
+        "nextCursor": "Opaque cursor for the next page, or null on the last page.",
+        "smallestSpendUsd": "The least a batch's spend limit can be and still start one issue: the reservation of one mandatory path plus one repair cycle. Null when the repository cannot run work now, so no amount would start one."
+      }
     },
     "AgentFileGrant": {
       "fields": [
