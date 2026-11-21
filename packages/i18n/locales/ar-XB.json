@@ -5964,5 +5964,6 @@
   "mentions.added.levelLabel": "⟪Access for {name}⟫",
   "mentions.added.levelChanged": "⟪Changed {name}'s access: {level}.⟫",
   "mentions.added.levelFailed": "⟪Access was not changed. Nothing changed. Try again.⟫",
-  "mentions.added.documentDescription": "⟪They were mentioned in comments. Choose what each of them can do with this document.⟫"
+  "mentions.added.documentDescription": "⟪They were mentioned in comments. Choose what each of them can do with this document.⟫",
+  "mentions.added.notShown": "⟪That message is not loaded yet. Use Load earlier messages at the top of the conversation, then try again.⟫"
 }

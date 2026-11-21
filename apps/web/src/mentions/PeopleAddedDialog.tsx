@@ -38,6 +38,8 @@ const WORDS = {
     show: "mentions.added.show",
     confirmTitle: "mentions.added.confirmTitle",
     confirmBody: "mentions.added.confirmBody",
+    // The message is an older one the page has not loaded; threads do not apply.
+    notShown: "mentions.added.notShown",
   },
   document: {
     title: "mentions.added.documentTitle",
@@ -45,8 +47,21 @@ const WORDS = {
     show: "mentions.added.documentShow",
     confirmTitle: "mentions.added.documentConfirmTitle",
     confirmBody: "mentions.added.documentConfirmBody",
+    // The comment is a reply inside a thread that is closed.
+    notShown: "mentions.added.documentNotShown",
   },
 } as const;
+
+/**
+ * The grants a comment gave. The access list of a document also holds access
+ * given by hand, which is not "added by a mention", so it is neither counted
+ * nor listed here.
+ */
+export function grantsFromComments<
+  T extends { readonly sourceCommentId: string | null },
+>(grants: readonly T[]): T[] {
+  return grants.filter((grant) => grant.sourceCommentId !== null);
+}
 
 /**
  * The people a conversation or a document was opened to by a mention, for
@@ -86,10 +101,11 @@ export function PeopleAddedDialog(
       level: null,
       sourceId: grant.sourceMessageId,
     }))
-    : documentGrants.data?.map((grant) => ({
-      ...grant,
-      sourceId: grant.sourceCommentId,
-    }));
+    : documentGrants.data &&
+      grantsFromComments(documentGrants.data).map((grant) => ({
+        ...grant,
+        sourceId: grant.sourceCommentId,
+      }));
   const [removing, setRemoving] = useState<Grant | null>(null);
   const [outcome, setOutcome] = useState<
     | { readonly kind: "removed" | "changed"; readonly name: string }
@@ -241,7 +257,7 @@ export function PeopleAddedDialog(
                   : outcome.kind === "changed"
                   ? translate("mentions.added.changed", { name: outcome.name })
                   : outcome.kind === "notShown"
-                  ? translate("mentions.added.documentNotShown")
+                  ? translate(words.notShown)
                   : outcome.kind === "levelChanged"
                   ? translate("mentions.added.levelChanged", {
                     name: outcome.name,

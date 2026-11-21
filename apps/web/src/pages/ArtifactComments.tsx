@@ -19,7 +19,10 @@ import {
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { useConnectivity } from "../app/connectivity.ts";
-import { PeopleAddedDialog } from "../mentions/PeopleAddedDialog.tsx";
+import {
+  grantsFromComments,
+  PeopleAddedDialog,
+} from "../mentions/PeopleAddedDialog.tsx";
 import { useMentionField } from "../mentions/useMentionField.tsx";
 import {
   type ArtifactCommentComposerModel,
@@ -156,6 +159,8 @@ export function ArtifactComments(
     ...artifactAccessQueryOptions(api, scope, artifact.id),
     enabled: canShare && Boolean(scope.organizationId),
   });
+  // Only the access a comment gave is "added by a mention"; access given by hand is not.
+  const addedCount = grantsFromComments(added.data ?? []).length;
   const [addedOpen, setAddedOpen] = useState(false);
   const submit = async () => {
     if (!scope.organizationId || busy || (!reply && invalidAnchor)) return;
@@ -399,10 +404,10 @@ export function ArtifactComments(
       {canShare
         ? (
           <>
-            {(added.data?.length ?? 0) > 0 || addedOpen
+            {addedCount > 0 || addedOpen
               ? (
                 <UI.Button onClick={() => setAddedOpen(true)} variant="text">
-                  {t("mentions.added.link", { count: added.data?.length ?? 0 })}
+                  {t("mentions.added.link", { count: addedCount })}
                 </UI.Button>
               )
               : null}

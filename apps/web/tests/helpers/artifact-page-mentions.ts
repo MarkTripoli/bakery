@@ -493,6 +493,37 @@ test("people a mention added: the link, the list, Show comment, and taking acces
     .toBeVisible();
 });
 
+test("access given by hand is not counted or listed as added by a mention", async ({ page }) => {
+  const byHand = {
+    ...SAMIR_GRANT,
+    id: "00000000-0000-4000-8000-0000000000c2",
+    principalId: DANA,
+    displayName: "Dana Lee",
+    sourceCommentId: null,
+  };
+  await open(page, world({ canShare: true, grants: [SAMIR_GRANT, byHand] }));
+  await page.getByRole("button", { name: "1 person was added by a mention" })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "People added to this document",
+  });
+  await expect(dialog.getByText("Samir Okafor", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Dana Lee", { exact: true })).toHaveCount(0);
+});
+
+test("a document shared only by hand shows no People added link", async ({ page }) => {
+  await open(
+    page,
+    world({
+      canShare: true,
+      grants: [{ ...SAMIR_GRANT, sourceCommentId: null }],
+    }),
+  );
+  await expect(commentBox(page)).toBeVisible();
+  await expect(page.getByRole("button", { name: /added by a mention/ }))
+    .toHaveCount(0);
+});
+
 test("Can also edit: the help line shows, the post gives edit, and the line says so", async ({ page }) => {
   const { state } = await open(page);
   await chooseSamir(page);

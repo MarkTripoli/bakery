@@ -3118,6 +3118,7 @@
   "mentions.added.levelChanged": "Changed {name}'s access: {level}.",
   "mentions.added.levelFailed": "Access was not changed. Nothing changed. Try again.",
   "mentions.added.documentShow": "Show comment",
+  "mentions.added.notShown": "That message is not loaded yet. Use Load earlier messages at the top of the conversation, then try again.",
   "mentions.added.documentNotShown": "That comment is inside a thread that is closed. Open the thread to find it.",
   "mentions.added.documentConfirmTitle": "Remove {name}'s access to this document?",
   "mentions.added.documentConfirmBody": "{name} will no longer be able to open this document. Their comments stay.",
