@@ -57,10 +57,8 @@ import {
 } from "./skill-drafts.ts";
 import { CatalogImplementedAction } from "@bakery/contracts/implemented-actions";
 import {
-  commitGlobalSkillInstall,
-  type GlobalSkillInstallPreparation,
-  prepareGlobalSkillInstall,
-  storeGlobalSkillInstall,
+  createGlobalSkillAuthority,
+  withGlobalSkillInstall,
 } from "./global-skills.ts";
 
 const publicationExecutionStage = Symbol("publicationExecutionStage");
@@ -124,25 +122,6 @@ class SourceUpdatePreflightRollbackError extends Error {
   }
 }
 
-const globalInstallStage = Symbol("globalInstallStage");
-
-/** skills.list in stages, when the organization is missing Bakery's own skills. */
-type GlobalInstallStage = {
-  preparation?: GlobalSkillInstallPreparation;
-  proofs?: Awaited<ReturnType<typeof storeGlobalSkillInstall>>;
-};
-
-type GlobalInstallContext = ActionContext & {
-  [globalInstallStage]?: GlobalInstallStage;
-};
-
-class GlobalInstallPreflightRollbackError extends Error {
-  constructor() {
-    super("SKILL_GLOBAL_INSTALL_PREFLIGHT_ROLLBACK");
-    this.name = "GlobalInstallPreflightRollbackError";
-  }
-}
-
 class PublicationPreflightRollbackError extends Error {
   constructor() {
     super("SKILL_VERSION_PUBLICATION_PREFLIGHT_ROLLBACK");
@@ -170,66 +149,14 @@ export function createCatalogRoutes(options: {
     (options.skillFileRoot
       ? new SkillFileStore(options.skillFileRoot)
       : undefined);
-  const baseHandlers = createCatalogHandlers(options.cursorSecret, {
-    normalizeSourceLocator: options.normalizeSourceLocator,
-    skillFileStore: store,
-  });
-  // Listing skills first makes sure the organization has Bakery's own skills:
-  // one short read when it does, and the three-phase install when it does not.
-  const handlers: typeof baseHandlers = {
-    ...baseHandlers,
-    listSkills: async (context, input) => {
-      const stage = (context as GlobalInstallContext)[globalInstallStage];
-      if (stage) {
-        const { transaction, organizationId } = requireWorkTransaction(context);
-        if (stage.proofs && stage.preparation) {
-          await commitGlobalSkillInstall({
-            transaction,
-            preparation: stage.preparation,
-            proofs: stage.proofs,
-            requestId: context.requestId,
-            traceId: context.traceId,
-          });
-        } else {
-          const preparation = await prepareGlobalSkillInstall({
-            transaction,
-            organizationId,
-          });
-          if (preparation.installs.length > 0) {
-            stage.preparation = preparation;
-            // Release the connection before any object is written.
-            throw new GlobalInstallPreflightRollbackError();
-          }
-        }
-      }
-      return await baseHandlers.listSkills(context, input);
-    },
-  };
+  const handlers = withGlobalSkillInstall(
+    createCatalogHandlers(options.cursorSecret, {
+      normalizeSourceLocator: options.normalizeSourceLocator,
+      skillFileStore: store,
+    }),
+  );
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
-  const catalogAuthority: ActionAuthorityRunner = {
-    async run(action, context, input, next) {
-      if (
-        action.name !== CatalogImplementedAction.SkillsList || !store
-      ) {
-        return await postgresAuthority.run(action, context, input, next);
-      }
-      const stage: GlobalInstallStage = {};
-      const staged = () =>
-        Object.assign({}, context, { [globalInstallStage]: stage });
-      try {
-        return await postgresAuthority.run(action, staged(), input, next);
-      } catch (error) {
-        if (!(error instanceof GlobalInstallPreflightRollbackError)) {
-          throw error;
-        }
-      }
-      if (!stage.preparation) {
-        throw new Error("SKILL_GLOBAL_INSTALL_PREPARATION_MISSING");
-      }
-      stage.proofs = await storeGlobalSkillInstall(stage.preparation, store);
-      return await postgresAuthority.run(action, staged(), input, next);
-    },
-  };
+  const catalogAuthority = createGlobalSkillAuthority(postgresAuthority, store);
   const postgresCommandRunner = createPostgresCommandRunner();
   const publicationCommandRunner: CommandRunner = {
     async run(request) {

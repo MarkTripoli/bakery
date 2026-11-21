@@ -1,4 +1,11 @@
+import type {
+  ActionAuthorityRunner,
+  ActionContext,
+} from "@bakery/contracts/action-registry";
+import { CatalogImplementedAction } from "@bakery/contracts/implemented-actions";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { requireWorkTransaction } from "../work/work-transaction.ts";
+import type { CatalogActionHandlers } from "./actions.ts";
 import {
   BAKERY_PRINCIPAL_ID,
   ensureBakeryPrincipal,
@@ -223,4 +230,98 @@ export async function commitGlobalSkillInstall(options: {
       traceId: options.traceId,
     });
   }
+}
+
+const globalInstallStage = Symbol("globalInstallStage");
+
+/** skills.list in stages, when the organization is missing Bakery's own skills. */
+type GlobalInstallStage = {
+  preparation?: GlobalSkillInstallPreparation;
+  proofs?: readonly LocalSkillVersionPublicationProof[];
+};
+
+type GlobalInstallContext = ActionContext & {
+  [globalInstallStage]?: GlobalInstallStage;
+};
+
+class GlobalInstallPreflightRollbackError extends Error {
+  constructor() {
+    super("SKILL_GLOBAL_INSTALL_PREFLIGHT_ROLLBACK");
+    this.name = "GlobalInstallPreflightRollbackError";
+  }
+}
+
+/**
+ * Listing skills first makes sure the organization has Bakery's own skills: one
+ * short read when it does. When it does not, the handler stops after the
+ * preflight (see `createGlobalSkillAuthority`) and, once the files are stored,
+ * installs and lists in one transaction. A call that did not come through that
+ * authority has no stage and lists as before.
+ */
+export function withGlobalSkillInstall(
+  handlers: CatalogActionHandlers,
+): CatalogActionHandlers {
+  return {
+    ...handlers,
+    listSkills: async (context, input) => {
+      const stage = (context as GlobalInstallContext)[globalInstallStage];
+      if (stage) {
+        const { transaction, organizationId } = requireWorkTransaction(context);
+        if (stage.proofs && stage.preparation) {
+          await commitGlobalSkillInstall({
+            transaction,
+            preparation: stage.preparation,
+            proofs: stage.proofs,
+            requestId: context.requestId,
+            traceId: context.traceId,
+          });
+        } else {
+          const preparation = await prepareGlobalSkillInstall({
+            transaction,
+            organizationId,
+          });
+          if (preparation.installs.length > 0) {
+            stage.preparation = preparation;
+            // Release the connection before any object is written.
+            throw new GlobalInstallPreflightRollbackError();
+          }
+        }
+      }
+      return await handlers.listSkills(context, input);
+    },
+  };
+}
+
+/**
+ * The authority that runs `skills.list` in the two passes the install needs,
+ * the way a version publication does: preflight (rolled back), store the files
+ * with no connection held, then the real pass. Every other action, and every
+ * call when no skill file store is configured, runs under `base` untouched.
+ */
+export function createGlobalSkillAuthority(
+  base: ActionAuthorityRunner,
+  store: SkillFileStoreOperations | undefined,
+): ActionAuthorityRunner {
+  return {
+    async run(action, context, input, next) {
+      if (action.name !== CatalogImplementedAction.SkillsList || !store) {
+        return await base.run(action, context, input, next);
+      }
+      const stage: GlobalInstallStage = {};
+      const staged = () =>
+        Object.assign({}, context, { [globalInstallStage]: stage });
+      try {
+        return await base.run(action, staged(), input, next);
+      } catch (error) {
+        if (!(error instanceof GlobalInstallPreflightRollbackError)) {
+          throw error;
+        }
+      }
+      if (!stage.preparation) {
+        throw new Error("SKILL_GLOBAL_INSTALL_PREPARATION_MISSING");
+      }
+      stage.proofs = await storeGlobalSkillInstall(stage.preparation, store);
+      return await base.run(action, staged(), input, next);
+    },
+  };
 }
