@@ -446,13 +446,23 @@ async function checkReferences(
   return null;
 }
 
-/** Migration versions the release knows: the file names under every module's migrations/bakery. */
+/**
+ * The migration versions the release knows for the `bakery` ledger: the files
+ * in the platform's own migrations directory and in each module's
+ * `migrations/bakery`. The `provider` and `data` owners keep their own ledgers
+ * and are not part of it. A version is the file name without `.sql`.
+ */
 export async function releaseMigrations(root: string): Promise<Set<string>> {
   const versions = new Set<string>();
-  const modules = join(root, "apps", "server", "src", "modules");
+  const src = join(root, "apps", "server", "src");
+  const directories = [join(src, "platform", "migrations")];
+  const modules = join(src, "modules");
   for (const module of await readdir(modules, { withFileTypes: true })) {
-    if (!module.isDirectory()) continue;
-    const directory = join(modules, module.name, "migrations", "bakery");
+    if (module.isDirectory()) {
+      directories.push(join(modules, module.name, "migrations", "bakery"));
+    }
+  }
+  for (const directory of directories) {
     let names: string[];
     try {
       names = await readdir(directory);

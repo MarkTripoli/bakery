@@ -123,14 +123,28 @@ async function withFixture(
       join(release, "infra/production/compose.yaml"),
       `services:\n  postgres:\n    image: ${POSTGRES}\n  redis:\n    image: ${REDIS}\n`,
     );
-    const migrations = join(
+    // The bakery ledger's sources: the platform's own directory (no owner
+    // subdirectory) and each module's migrations/bakery. A provider-owned
+    // migration is another ledger and must not count.
+    const platform = join(release, "apps/server/src/platform/migrations");
+    const module = join(
       release,
       "apps/server/src/modules/auth/migrations/bakery",
     );
-    await Deno.mkdir(migrations, { recursive: true });
-    for (const name of ["0001_start", "0002_next", "0003_last"]) {
-      await Deno.writeTextFile(join(migrations, `${name}.sql`), "-- sql");
+    const provider = join(
+      release,
+      "apps/server/src/modules/auth/migrations/provider",
+    );
+    for (const directory of [platform, module, provider]) {
+      await Deno.mkdir(directory, { recursive: true });
     }
+    await Deno.writeTextFile(join(platform, "0001_start.sql"), "-- sql");
+    await Deno.writeTextFile(join(module, "0002_next.sql"), "-- sql");
+    await Deno.writeTextFile(join(module, "0003_last.sql"), "-- sql");
+    await Deno.writeTextFile(
+      join(provider, "0004_provider_only.sql"),
+      "-- sql",
+    );
     const calls: string[] = [];
     const references = JSON.stringify({
       format: 1,
@@ -508,5 +522,23 @@ Deno.test("the images come from the release's compose file, and a compose file t
       f.calls.filter((call) => call.startsWith("docker run")).length,
       0,
     );
+  });
+});
+
+Deno.test("the release's migrations are the platform's and each module's bakery ones, not another owner's", async () => {
+  await withFixture({}, async (f) => {
+    const { releaseMigrations } = await import(
+      "../../scripts/deploy/backup-runner/drill.ts"
+    );
+    assertEquals(
+      [...await releaseMigrations(f.release)].sort(),
+      ["0001_start", "0002_next", "0003_last"],
+    );
+    // A restored ledger holding only a provider-owned version is unknown to it.
+    const result = await f.run({
+      script: { "schema_migrations": ok("0001_start\n0004_provider_only") },
+    });
+    assertEquals(result.checksFailed, ["migrations"]);
+    assert(result.detail!.includes("0004_provider_only"));
   });
 });
