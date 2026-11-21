@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "8994fa256c92eb16bd74efe564e9c08a2a10c23b"
+    "76b0d8e448facf07eef4c78af3e77386ebadab2c"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:1cf004af3771a81ff0bf65260951658a68ad86256ac348a92f3a29fe91d3f759",
-  "reason": "#64 slice C cutoff re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 8994fa256c92eb16bd74efe564e9c08a2a10c23b: BackupStatus gains lastBackupCutoffAt, required (the cutoff record of the last backup); the runner route backupRunner.cutoff is new, with BackupRunCutoff, BackupCutoff and BackupCutoffOperation. The digest follows the tree when main moved again (#808 merged); my previous approval on the earlier main is displaced, kept unchanged.",
+  "reason": "#64 slice C cutoff re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 76b0d8e448facf07eef4c78af3e77386ebadab2c: BackupStatus gains lastBackupCutoffAt, required (the cutoff record of the last backup); the runner route backupRunner.cutoff is new, with BackupRunCutoff, BackupCutoff and BackupCutoffOperation. The digest follows the tree when main moved again (#808 merged); my previous approval on the earlier main is displaced, kept unchanged.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
