@@ -37871,19 +37871,6 @@ const transportSchemas = {
       ],
       "description": "Built-in host control action for connection discovery. Not user-definable code and not an extra YAML workflow primitive."
     },
-    "plugin.job": {
-      "inputFields": {
-        "installId": "uuid",
-        "entry": "string"
-      },
-      "outputFields": {
-        "resultJson": "string<=65536"
-      },
-      "capabilities": [
-        "plugin.job.contained"
-      ],
-      "description": "Runs one plugin job's code inside a contained runtime with no network. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
-    },
     "secret.identity.read": {
       "inputSchema": "SecretIdentityReadInput",
       "outputSchema": "SecretIdentityOutput",
@@ -37942,6 +37929,19 @@ const transportSchemas = {
         "storage"
       ],
       "description": "Model judge scorer: scores one pinned output artifact version against a rubric. The server validates the judge's structured answer against the input's output schema and records a mismatch as unscored. The worker makes one bounded judge call (rubric, output text and answer schema; no tools, no worktree) and reports its usage against the job's budget reservation; a worker with no judge provider, a timeout, or a schema-invalid answer reports unscored with the reason."
+    },
+    "plugin.job": {
+      "inputFields": {
+        "installId": "uuid",
+        "entry": "string"
+      },
+      "outputFields": {
+        "resultJson": "string<=65536"
+      },
+      "capabilities": [
+        "plugin.job.contained"
+      ],
+      "description": "Runs one plugin job's code inside a contained runtime with no network. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
     }
   },
   "workerEvents": {
