@@ -335,6 +335,8 @@ for (
       )
         .toBeVisible();
       await expect(row.getByRole("button", { name: "Answer" })).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-question-not-allowed");
     });
 
     test("an expired question says so and opens the task; an answered one shows nothing", async ({ page }) => {
@@ -347,6 +349,8 @@ for (
       )
         .toBeVisible();
       await expect(page.getByTestId("issue-question")).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-question-expired");
     });
 
     test("an answered question and an approval show no row", async ({ page }) => {
