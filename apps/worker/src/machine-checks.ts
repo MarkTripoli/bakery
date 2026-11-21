@@ -36,6 +36,8 @@ export type MachineCheckFacts = Readonly<{
   stopping: boolean;
   /** The operating-system user's home directory, when the worker may read it. */
   homeDir: string | null;
+  /** The worker's own user id, or null where the platform has none. */
+  uid: number | null;
 }>;
 
 export type MachineCheckProbes = Readonly<{
@@ -49,16 +51,23 @@ type Outcome =
   | { status: "fail" | "unknown"; reason: string };
 
 /**
- * Available bytes from `df -Pk` output: the second line's fourth column, in
+ * One `df -Pk` data line: the device (which may hold spaces), then total,
+ * used and available 1024-byte blocks, the capacity and the mount point. The
+ * numbers are read from the capacity token backwards, never by position.
+ */
+const DF_LINE = /^(.+?)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\d+)%\s+\S/;
+
+/**
+ * Available bytes from `df -Pk` output: the last line's Available column, in
  * 1024-byte blocks. Null for anything that does not look like that.
  */
 export function parseDfAvailableBytes(output: string): number | null {
   const lines = output.trim().split("\n");
   if (lines.length < 2) return null;
-  const columns = lines[lines.length - 1].trim().split(/\s+/);
-  if (columns.length < 6) return null;
-  const blocks = Number(columns[3]);
-  return Number.isSafeInteger(blocks) && blocks >= 0 ? blocks * 1024 : null;
+  const match = DF_LINE.exec(lines[lines.length - 1].trim());
+  if (match === null || !/^\d+$/.test(match[4])) return null;
+  const blocks = Number(match[4]);
+  return Number.isSafeInteger(blocks) ? blocks * 1024 : null;
 }
 
 /** Free bytes under `path` by `df`; null when it cannot run or answers oddly. */
@@ -122,6 +131,7 @@ async function spoolAccess(spoolPath: string): Promise<Outcome> {
 async function credentialIsolation(
   stateDir: string,
   homeDir: string | null,
+  uid: number | null,
 ): Promise<Outcome> {
   let stat: Deno.FileInfo;
   let real: string;
@@ -136,12 +146,6 @@ async function credentialIsolation(
   }
   if (stat.mode !== null && (stat.mode & 0o077) !== 0) {
     return { status: "fail", reason: "state_dir_not_private" };
-  }
-  let uid: number | null = null;
-  try {
-    uid = Deno.uid();
-  } catch {
-    uid = null;
   }
   if (uid !== null && stat.uid !== null && stat.uid !== uid) {
     return { status: "fail", reason: "state_dir_not_owned" };
@@ -184,6 +188,7 @@ export async function machineChecks(
     credential_isolation: await credentialIsolation(
       facts.stateDir,
       facts.homeDir,
+      facts.uid,
     ),
     spool_access: await spoolAccess(facts.spoolPath),
     disk_threshold: await diskThreshold(facts.stateDir, probes),

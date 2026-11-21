@@ -127,7 +127,6 @@ Deno.test("Claude harness permissions include its repository, state, executable,
     "/usr/bin/bwrap",
     "/usr/bin/ldd",
     "/usr/bin/kill",
-
     "/usr/bin/df",
     "/usr/bin/setsid",
     "/usr/bin/git",
@@ -141,7 +140,6 @@ Deno.test("Claude harness permissions include its repository, state, executable,
     "/usr/bin/bwrap",
     "/usr/bin/ldd",
     "/usr/bin/kill",
-
     "/usr/bin/df",
   ]);
   assert(!disabled.read.includes("/usr/bin/setsid"));

@@ -80,6 +80,15 @@ function homeDirectory(): string | null {
   }
 }
 
+/** The worker's own user id; null where the platform has none. */
+function userId(): number | null {
+  try {
+    return Deno.uid();
+  } catch {
+    return null;
+  }
+}
+
 /** True when the executor reports local readiness checks. */
 export function hasReadinessChecks(state: SupervisorState): boolean {
   return typeof state.executor?.readinessChecks === "function";
@@ -150,6 +159,7 @@ export async function refreshReadiness(
         spoolPath: state.config.spoolPath,
         stopping: state.stopping,
         homeDir: homeDirectory(),
+        uid: userId(),
       }),
       ...capabilityChecks,
     ];

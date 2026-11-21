@@ -34,6 +34,7 @@ async function withState<T>(
       spoolPath: `${directory}/spool.json`,
       stopping: false,
       homeDir: null,
+      uid: Deno.uid(),
     }, directory);
   } finally {
     await Deno.chmod(directory, 0o700).catch(() => undefined);
@@ -56,7 +57,7 @@ Deno.test("a healthy machine reports all five checks as passing, in the server's
     }
   }));
 
-Deno.test("low free disk fails the threshold at exactly the minimum, and an unreadable disk is unknown", () =>
+Deno.test("free disk at the minimum passes, one byte below fails, and an unreadable disk is unknown", () =>
   withState(async (facts) => {
     const at = byId(
       await machineChecks(facts, probes(MACHINE_DISK_MIN_FREE_BYTES)),
@@ -101,6 +102,22 @@ Deno.test("a state directory that is the user's home fails credential isolation"
     );
     assertEquals(checks.credential_isolation.status, "fail");
     assertEquals(checks.credential_isolation.reason, "state_dir_is_home");
+  }));
+
+Deno.test("a state directory owned by another user fails credential isolation", () =>
+  withState(async (facts) => {
+    const owner = facts.uid;
+    if (owner === null) return;
+    const checks = byId(
+      await machineChecks({ ...facts, uid: owner + 1 }, probes(2 ** 40)),
+    );
+    assertEquals(checks.credential_isolation.status, "fail");
+    assertEquals(checks.credential_isolation.reason, "state_dir_not_owned");
+    // A platform with no user id cannot say who owns it: ownership is skipped.
+    const unknownUser = byId(
+      await machineChecks({ ...facts, uid: null }, probes(2 ** 40)),
+    );
+    assertEquals(unknownUser.credential_isolation.status, "pass");
   }));
 
 Deno.test("a missing state directory fails credential isolation with a fixed reason", () =>
@@ -164,6 +181,16 @@ Deno.test("df output is read as available kibibytes, and anything else is refuse
     null,
   );
   assertEquals(parseDfAvailableBytes("h\n/dev/x 1 2 -5 49% /"), null);
+  // A device name with a space still yields the Available column, not Used.
+  assertEquals(
+    parseDfAvailableBytes("h\n//srv/my share 1000 600 400 60% /mnt"),
+    400 * 1024,
+  );
+  // So does a mount point with a space.
+  assertEquals(
+    parseDfAvailableBytes("h\n/dev/x 1000 600 400 60% /mnt/my disk"),
+    400 * 1024,
+  );
 });
 
 Deno.test("df is read when it may run, and an unavailable df makes the check unknown rather than throwing", async () => {
