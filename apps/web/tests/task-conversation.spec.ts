@@ -3291,6 +3291,8 @@ test("a person the writer may not give access to can be chosen: the block names 
     .toBeVisible();
   await expect(page.getByText(/you can't give access to it/)).toHaveCount(0);
   await expect(send).toBeEnabled();
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-asked");
   await send.click();
   await expect.poll(() => state.sent.length).toBe(1);
   expect(state.sent[0].body).toMatchObject({ mentions: [DANA] });
@@ -3355,6 +3357,8 @@ test("after a send that gave access: the line, Undo access, and what happened", 
   );
   await expect(undone).toBeVisible();
   expect(state.revokes.at(-1)).toEqual({ principalId: SAM, ifMatch: '"v4"' });
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-undone");
   // Typing again ends the block.
   await box.fill("Next");
   await expect(undone).toHaveCount(0);
