@@ -137168,6 +137168,64 @@
                   "description": "Null indicates that the value is unavailable."
                 }
               ]
+            },
+            "stateCopy": {
+              "description": "PluginInstall.stateCopy may be null in this transport value.",
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PluginInstall____schema1"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/PluginInstall____schema1"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "description": "The copy of this install's saved data that Bakery keeps from before its last move to another version: {versionId, versionName, takenAt, itemCount}, where versionId and versionName are the version the install left, takenAt is a UTC timestamp and itemCount is the number of saved items in the copy. restoreState on a move back to that version brings it back. Null when the install has never moved."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "cannotReadVersionIds": {
+              "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it. Each array item follows this format."
+              }
             }
           },
           "required": [
@@ -137288,6 +137346,117 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/components/schemas/PluginInstall____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "PluginInstall____schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginInstall____schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginInstall____schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PluginInstall____schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/PluginInstall____schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -230990,6 +231159,64 @@
                         "description": "Null indicates that the value is unavailable."
                       }
                     ]
+                  },
+                  "stateCopy": {
+                    "description": "PluginInstall.stateCopy may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "description": "JSON string value."
+                          },
+                          {
+                            "type": "number",
+                            "description": "JSON number value."
+                          },
+                          {
+                            "type": "boolean",
+                            "description": "JSON boolean value."
+                          },
+                          {
+                            "type": "null",
+                            "description": "JSON null value."
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/Page<PluginInstall>____schema1"
+                            },
+                            "description": "JSON array value."
+                          },
+                          {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string",
+                              "description": "JSON object key."
+                            },
+                            "additionalProperties": {
+                              "$ref": "#/components/schemas/Page<PluginInstall>____schema1"
+                            },
+                            "description": "JSON object value."
+                          }
+                        ],
+                        "description": "The copy of this install's saved data that Bakery keeps from before its last move to another version: {versionId, versionName, takenAt, itemCount}, where versionId and versionName are the version the install left, takenAt is a UTC timestamp and itemCount is the number of saved items in the copy. restoreState on a move back to that version brings it back. Null when the install has never moved."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  },
+                  "cannotReadVersionIds": {
+                    "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it.",
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it. Each array item follows this format."
+                    }
                   }
                 },
                 "required": [
@@ -231164,6 +231391,117 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/components/schemas/Page<PluginInstall>____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "Page<PluginInstall>____schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Page<PluginInstall>____schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/Page<PluginInstall>____schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Page<PluginInstall>____schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/Page<PluginInstall>____schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -271082,7 +271420,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:17d6b845a2363cca61c705b30e19eca6d1cf9b797961257b17d3314ec158514a",
+  "compatibilityDigest": "sha256:4698f49dd46f4c100e1f4f840d3cc3f70dd07759e9115c9b83df35babb9bad16",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -359036,6 +359374,64 @@
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "stateCopy": {
+          "description": "PluginInstall.stateCopy may be null in this transport value.",
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema1"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema1"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The copy of this install's saved data that Bakery keeps from before its last move to another version: {versionId, versionName, takenAt, itemCount}, where versionId and versionName are the version the install left, takenAt is a UTC timestamp and itemCount is the number of saved items in the copy. restoreState on a move back to that version brings it back. Null when the install has never moved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "cannotReadVersionIds": {
+          "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -359156,6 +359552,117 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -452996,6 +453503,64 @@
                     "description": "Null indicates that the value is unavailable."
                   }
                 ]
+              },
+              "stateCopy": {
+                "description": "PluginInstall.stateCopy may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "The copy of this install's saved data that Bakery keeps from before its last move to another version: {versionId, versionName, takenAt, itemCount}, where versionId and versionName are the version the install left, takenAt is a UTC timestamp and itemCount is the number of saved items in the copy. restoreState on a move back to that version brings it back. Null when the install has never moved."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "cannotReadVersionIds": {
+                "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it.",
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it. Each array item follows this format."
+                }
               }
             },
             "required": [
@@ -453170,6 +453735,117 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
                     },
                     "description": "JSON object value."
                   }

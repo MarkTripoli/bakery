@@ -12,6 +12,8 @@ import {
 import {
   addedCapabilities,
   approvalMatches,
+  type InstallReadExtras,
+  installReadExtras,
   liveStateRange,
   loadSnapshot,
   restoreSnapshotState,
@@ -114,7 +116,11 @@ type PluginStateItem = z.output<typeof contractSchemas.PluginStateItem>;
 const iso = (value: Date | string | null): string | null =>
   value === null ? null : new Date(value).toISOString();
 
-function toInstall(row: InstallRow, organizationId: string): PluginInstall {
+function toInstall(
+  row: InstallRow,
+  organizationId: string,
+  extras: InstallReadExtras,
+): PluginInstall {
   return {
     id: row.id,
     organizationId,
@@ -133,7 +139,19 @@ function toInstall(row: InstallRow, organizationId: string): PluginInstall {
         row.last_update_failure === undefined
       ? null
       : row.last_update_failure as PluginInstall["lastUpdateFailure"],
+    stateCopy: extras.stateCopy,
+    cannotReadVersionIds: extras.cannotReadVersionIds,
   };
+}
+
+/** A page of installs as the contract names them, with what each keeps and which versions cannot read it. */
+async function toInstalls(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  rows: readonly InstallRow[],
+): Promise<PluginInstall[]> {
+  const extras = await installReadExtras(transaction, organizationId, rows);
+  return rows.map((row) => toInstall(row, organizationId, extras.get(row.id)!));
 }
 
 function toStateItem(row: StateRow): PluginStateItem {
@@ -384,7 +402,7 @@ export async function listPluginInstalls(
   const visible = rows.rows.slice(0, limit);
   const last = visible.at(-1);
   return {
-    items: visible.map((row) => toInstall(row, organizationId)),
+    items: await toInstalls(transaction, organizationId, visible),
     nextCursor: rows.rows.length > limit && last
       ? await encodeCursor(secret, binding, {
         createdAt: last.cursor_created_at,
@@ -410,7 +428,7 @@ export async function getPluginInstall(
       params: { reason: "plugin_install_not_found" },
     });
   }
-  return toInstall(row, organizationId);
+  return (await toInstalls(transaction, organizationId, [row]))[0];
 }
 
 /**
@@ -560,7 +578,7 @@ export async function createPluginInstall(
     );
   }
 
-  return toInstall(installed, organizationId);
+  return (await toInstalls(transaction, organizationId, [installed]))[0];
 }
 
 /**
@@ -631,6 +649,8 @@ export async function updatePluginInstall(
       versionId: string;
       versionName: string;
       reason: string;
+      /** Whether the caller asked for a restore with this try. */
+      restoreState: boolean;
       /** Set when the reason is that capabilities were not approved. */
       addedCapabilities?: string[];
     }
@@ -678,6 +698,7 @@ export async function updatePluginInstall(
         versionId: input.versionId,
         versionName: versionRow.version_name,
         reason: "plugin_sdk_incompatible",
+        restoreState,
       };
     } else {
       try {
@@ -688,6 +709,7 @@ export async function updatePluginInstall(
           versionId: input.versionId,
           versionName: versionRow.version_name,
           reason: `plugin_manifest_${error.code.toLowerCase()}`,
+          restoreState,
         };
       }
     }
@@ -707,6 +729,7 @@ export async function updatePluginInstall(
         versionId: input.versionId!,
         versionName: versionRow.version_name,
         reason,
+        restoreState,
         ...extra,
       });
       if (!approvalMatches(added, approved)) {
@@ -859,7 +882,7 @@ export async function updatePluginInstall(
       failureNote,
     ],
   );
-  return toInstall(rows.rows[0], organizationId);
+  return (await toInstalls(transaction, organizationId, [rows.rows[0]]))[0];
 }
 
 /** The manifest of the version an install pins now, which the next one is compared with. */

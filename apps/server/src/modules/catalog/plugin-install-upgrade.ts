@@ -1,7 +1,8 @@
 import type { PgTransactionClient } from "../../platform/database.ts";
-import type {
-  PluginInstallCapability,
-  PluginManifest,
+import {
+  parsePluginManifest,
+  type PluginInstallCapability,
+  type PluginManifest,
 } from "@bakery/contracts/plugin-sdk";
 
 /**
@@ -234,4 +235,140 @@ export async function restoreSnapshotState(
       ],
     );
   }
+}
+
+/** The newest versions of a package the read model checks against an install's state. */
+export const READABLE_VERSIONS_CHECKED = 100;
+
+/** What an install read says about its snapshot and about which versions can read its state. */
+export type InstallReadExtras = Readonly<{
+  stateCopy:
+    | Readonly<{
+      versionId: string;
+      versionName: string;
+      takenAt: string;
+      itemCount: number;
+    }>
+    | null;
+  cannotReadVersionIds: string[];
+}>;
+
+/**
+ * For a page of installs, the copy of state each keeps and the versions of its
+ * package that cannot read the state it holds now.
+ *
+ * Both are what a person needs to see before asking for a move, so the page
+ * can say "this version cannot read your saved data" and offer the restore
+ * without trying and being refused. One query per question for the whole page,
+ * never one per install. A version whose manifest does not parse is left out:
+ * a move to it is refused for its manifest, which is a different answer.
+ */
+export async function installReadExtras(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  installs: readonly { id: string; plugin_package_id: string }[],
+): Promise<Map<string, InstallReadExtras>> {
+  const extras = new Map<string, InstallReadExtras>();
+  if (installs.length === 0) return extras;
+  const ids = installs.map((install) => install.id);
+
+  const copies = await transaction.query<{
+    plugin_install_id: string;
+    from_plugin_version_id: string;
+    version_name: string;
+    created_at: Date | string;
+    state_row_count: number;
+  }>(
+    `select s.plugin_install_id, s.from_plugin_version_id, v.version_name,
+            s.created_at, s.state_row_count
+       from bakery.plugin_install_snapshots s
+       join bakery.plugin_versions v on v.id = s.from_plugin_version_id
+      where s.organization_id = $1 and s.plugin_install_id = any($2::uuid[])`,
+    [organizationId, ids],
+  );
+  const ranges = await transaction.query<
+    { plugin_install_id: string; min: number; max: number }
+  >(
+    `select plugin_install_id, min(schema_version)::int as min,
+            max(schema_version)::int as max
+       from bakery.plugin_state
+      where organization_id = $1 and plugin_install_id = any($2::uuid[])
+      group by plugin_install_id`,
+    [organizationId, ids],
+  );
+  const heldRange = new Map(
+    ranges.rows.map((row) => [row.plugin_install_id, row]),
+  );
+
+  // Only installs that hold state can have a version that cannot read it.
+  const packages = [
+    ...new Set(
+      installs.filter((install) => heldRange.has(install.id)).map((install) =>
+        install.plugin_package_id
+      ),
+    ),
+  ];
+  const versionsOf = new Map<
+    string,
+    { id: string; manifest: PluginManifest }[]
+  >();
+  if (packages.length > 0) {
+    const versions = await transaction.query<{
+      plugin_package_id: string;
+      id: string;
+      manifest: unknown;
+    }>(
+      `select plugin_package_id, id, manifest
+         from (
+           select v.plugin_package_id, v.id, v.manifest,
+                  row_number() over (
+                    partition by v.plugin_package_id
+                    order by v.published_at desc, v.id desc
+                  ) as newest
+             from bakery.plugin_versions v
+             join bakery.plugin_packages p
+               on p.organization_id = v.organization_id
+              and p.id = v.plugin_package_id
+            where v.organization_id = $1
+              and v.plugin_package_id = any($2::uuid[])
+              and v.published_at is not null
+              and p.listing_status <> 'withdrawn'
+         ) ranked
+        where newest <= $3`,
+      [organizationId, packages, READABLE_VERSIONS_CHECKED],
+    );
+    for (const row of versions.rows) {
+      let manifest: PluginManifest;
+      try {
+        manifest = parsePluginManifest(row.manifest);
+      } catch {
+        continue;
+      }
+      const list = versionsOf.get(row.plugin_package_id) ?? [];
+      list.push({ id: row.id, manifest });
+      versionsOf.set(row.plugin_package_id, list);
+    }
+  }
+
+  const copyOf = new Map(
+    copies.rows.map((row) => [row.plugin_install_id, row]),
+  );
+  for (const install of installs) {
+    const copy = copyOf.get(install.id);
+    const range = heldRange.get(install.id);
+    extras.set(install.id, {
+      stateCopy: copy === undefined ? null : {
+        versionId: copy.from_plugin_version_id,
+        versionName: copy.version_name,
+        takenAt: new Date(copy.created_at).toISOString(),
+        itemCount: copy.state_row_count,
+      },
+      cannotReadVersionIds: range === undefined
+        ? []
+        : (versionsOf.get(install.plugin_package_id) ?? [])
+          .filter((version) => !stateReadableBy(range, version.manifest))
+          .map((version) => version.id),
+    });
+  }
+  return extras;
 }

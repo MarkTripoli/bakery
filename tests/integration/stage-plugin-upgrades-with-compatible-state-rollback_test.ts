@@ -214,6 +214,11 @@ Deno.test("AC1: a version that cannot read the saved state is not activated, and
     assertEquals(refused.pluginVersionId, first.versionId);
     assertEquals(refused.stateSchemaVersion, 1);
     assertEquals(refused.lastUpdateFailure.reason, "plugin_state_incompatible");
+    // The refusal says no restore was asked for, and the install says up front
+    // that this version cannot read what it holds, with no copy to go back to.
+    assertEquals(refused.lastUpdateFailure.restoreState, false);
+    assertEquals(refused.cannotReadVersionIds, [strict.versionId]);
+    assertEquals(refused.stateCopy, null);
     assertEquals(
       await pinnedVersion(fixture, first.installId),
       first.versionId,
@@ -263,6 +268,15 @@ Deno.test("AC2: a rollback past state the old version cannot read is blocked, an
     });
     assertEquals(blocked.pluginVersionId, second.versionId);
     assertEquals(blocked.lastUpdateFailure.reason, "plugin_state_incompatible");
+    assertEquals(blocked.lastUpdateFailure.restoreState, false);
+    // The install says what it can offer: the first version cannot read today's
+    // data, and the copy it keeps is that version's, taken when the install left
+    // it, with the one item it held then.
+    assertEquals(blocked.cannotReadVersionIds, [first.versionId]);
+    assertEquals(blocked.stateCopy.versionId, first.versionId);
+    assertEquals(blocked.stateCopy.itemCount, 1);
+    assert(!Number.isNaN(Date.parse(blocked.stateCopy.takenAt)));
+    assertEquals(typeof blocked.stateCopy.versionName, "string");
     assertEquals(await stateRows(fixture, first.installId), rowsOnSecond);
 
     // A restore brings back the state the first version left, and discards what
@@ -366,6 +380,8 @@ Deno.test("a restore is only for the version the snapshot was taken from", () =>
       none.lastUpdateFailure.reason,
       "plugin_state_snapshot_not_for_version",
     );
+    assertEquals(none.lastUpdateFailure.restoreState, true);
+    assertEquals(none.stateCopy, null);
 
     await moveInstall(fixture, first.installId, {
       versionId: second.versionId,
@@ -464,4 +480,57 @@ Deno.test("an uninstall keeps the install, its state and its snapshot, and remov
       method: "GET",
     });
     assertEquals((await read.json()).status, "uninstalled");
+  }));
+
+Deno.test("a list says, for each install on the page, its own copy and its own unreadable versions", () =>
+  withPluginFixture(async (fixture, store) => {
+    const moved = await installFirst(fixture, store);
+    await writeState(fixture, moved.installId, {
+      key: "theme",
+      value: { theme: "dark" },
+      schemaVersion: 1,
+      expectedCasVersion: 0,
+    });
+    const second = await publishVersion(
+      fixture,
+      store,
+      manifestOf({ stateSchemaVersion: 2, stateCompatibleFrom: 1 }),
+      moved.packageId,
+    );
+    await moveInstall(fixture, moved.installId, {
+      versionId: second.versionId,
+    });
+    await writeState(fixture, moved.installId, {
+      key: "layout",
+      value: { columns: 3 },
+      schemaVersion: 2,
+      expectedCasVersion: 0,
+    });
+    // Another package's install on the same page, never moved and holding nothing.
+    const other = await installFirst(
+      fixture,
+      store,
+      manifestOf({ name: "other-plugin" }),
+      "personal",
+    );
+
+    const response = await call(fixture, "/v1/plugin-installs", {
+      method: "GET",
+    });
+    assertEquals(response.status, 200, await response.clone().text());
+    const items: {
+      id: string;
+      stateCopy: { versionId: string } | null;
+      cannotReadVersionIds: string[];
+    }[] = (await response.json()).items;
+    const byId = new Map(items.map((item) => [item.id, item]));
+    assertEquals(
+      byId.get(moved.installId)?.stateCopy?.versionId,
+      moved.versionId,
+    );
+    assertEquals(byId.get(moved.installId)?.cannotReadVersionIds, [
+      moved.versionId,
+    ]);
+    assertEquals(byId.get(other.installId)?.stateCopy, null);
+    assertEquals(byId.get(other.installId)?.cannotReadVersionIds, []);
   }));

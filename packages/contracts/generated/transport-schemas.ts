@@ -28540,7 +28540,9 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy",
+        "cannotReadVersionIds"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -28556,13 +28558,16 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "lastUpdateFailure": "json|null"
+        "lastUpdateFailure": "json|null",
+        "stateCopy": "json|null",
+        "cannotReadVersionIds": "uuid[]"
       },
       "nullableFields": [
         "ownerPrincipalId",
         "activatedAt",
         "disabledAt",
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy"
       ],
       "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install. lastUpdateFailure records an update that was refused because the new version did not pass its checks.",
       "fieldDescriptions": {
@@ -28579,10 +28584,14 @@ const transportSchemas = {
         "createdAt": "Timestamp recording when the created event occurred for this plugin install record.",
         "updatedAt": "Timestamp recording the last update to this plugin install record.",
         "version": "Monotonic revision used to order or conditionally update this plugin install record.",
-        "lastUpdateFailure": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show."
+        "lastUpdateFailure": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at, addedCapabilities}, where reason is a stable slug (plugin_sdk_incompatible, plugin_manifest_ followed by the manifest problem, plugin_capabilities_not_approved, plugin_capability_approval_mismatch, plugin_state_incompatible or plugin_state_snapshot_not_for_version), at is a UTC timestamp, and addedCapabilities (only for the two capability reasons) lists the capabilities the version asks for beyond the pinned one. The install keeps running its prior version. Null when there is nothing to show.",
+        "stateCopy": "The copy of this install's saved data that Bakery keeps from before its last move to another version: {versionId, versionName, takenAt, itemCount}, where versionId and versionName are the version the install left, takenAt is a UTC timestamp and itemCount is the number of saved items in the copy. restoreState on a move back to that version brings it back. Null when the install has never moved.",
+        "cannotReadVersionIds": "Ids of the package's published versions, the 100 newest at most, that cannot read the data this install holds now, so a move to one of them is refused unless restoreState brings back a copy that it can read. A version not listed can read it. Empty when the install holds no saved data or every version can read it."
       },
       "optionalFields": [
-        "lastUpdateFailure"
+        "lastUpdateFailure",
+        "stateCopy",
+        "cannotReadVersionIds"
       ]
     },
     "Page<PluginInstall>": {
