@@ -884,14 +884,16 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "b5c94881564cc3f2254efb23fd52338828d047d3",
+    "f5ec00f7de45132935cf369a5841a7b710f99c61",
   ];
   const approvedDigest =
-    "sha256:dc9bc9faa37e598d625d1fb669b99daaa3a52e6492cc63feebb4f07363963f31";
+    "sha256:c44fd407f81156779a18a51f17df17fcfa8630047667593898fa60731dad73cb";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced by the #77 desktop handoff rebind onto main f5ec00f7d: main's own approval, kept unchanged.
+    "sha256:dc9bc9faa37e598d625d1fb669b99daaa3a52e6492cc63feebb4f07363963f31",
     // Displaced when main moved again (#848 merged): the digest follows the tree; my previous #58 item 3 approval on main fcf081cb.
     "sha256:282e7c27884d1391ae1a77fd9d18c934a7e8f93033f0bdbbec81965c31b313a0",
     // Displaced when main moved again (#846 merged): the digest follows the tree; my previous #58 item 3 approval on main 523b2647d.
