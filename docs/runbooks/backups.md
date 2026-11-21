@@ -358,6 +358,71 @@ flags as an anomaly any effect changed after the cutoff, which a dump taken whil
 quiet cannot contain. `compareCensus` checks a restored database against the census
 a backup recorded; the restore drill (slice D) uses it.
 
+## The restore drill: proof that a backup restores
+
+A backup you have never restored is a hope. The restore drill restores a
+completed set into **isolated, throwaway copies** of the stores on the host,
+checks them there, measures how old the backup is and how long the restore took,
+and reports the result so the administrator can see it.
+
+```sh
+sudo bash /opt/bakery/deploy/restore-drill.sh /var/lib/bakery/backups/<set> /path/to/identity
+```
+
+It needs Deno, the release checkout in `/opt/bakery/background`, `age`, Docker,
+the secrets key file named in `infra.env`, and the runner's credential in
+`/etc/bakery/backup-runner.env` to report. Without Deno or the checkout it
+stops with exit 70 and says which is missing. Pass `--no-report` to run it
+without the credential: the result is printed and not recorded.
+
+**It is isolated.** Every container runs with **no network**, nothing is mounted
+from production, and nothing restored is sent anywhere. The restored data is
+never written to a file on the host: the Redis snapshot is streamed into its
+container, and the files archive is extracted into a scratch directory that is
+removed at the end. The isolated databases, the scratch directory and the
+containers are removed when the drill ends, whether it passed or not. The drill
+never writes to a production store. It is **not** a restore in place.
+
+**What it checks, in this order.** It stops at the first check that fails.
+
+| check | what it proves | failure code |
+| ----- | -------------- | ------------ |
+| `manifest` | the set declares itself complete and every required store is captured | `set_incomplete` |
+| `checksums` | every file is present with the recorded size and hash, and `SHA256SUMS` agrees | `set_incomplete` |
+| `key` | the secrets key file is the one the backup was taken with | `key_mismatch` |
+| `postgres` | both databases restore into an isolated Postgres of the image production runs | `restore_failed` |
+| `redis` | the Redis snapshot is a readable RDB file | `restore_failed` |
+| `files` | the files archive extracts, stays inside its directory, and holds the skills and worker trees | `restore_failed` |
+| `references` | the references list matches the manifest's counts, and each skill file it names is there with its recorded size and hash | `references_missing` |
+| `migrations` | every migration the restored database has applied is one this release knows | `migration_unsupported` |
+| `cutoff` | the restored database holds the cutoff record of the manifest, and its live effects match the recorded census | `cutoff_mismatch` |
+
+A set whose cutoff is only the host clock (a backup the timer took, not the
+runner) passes every restore-side check and then fails `cutoff`: a restore that
+must not replay unknown effects needs the database cutoff. An unexpected error
+is reported as `drill_error`. A failure's detail says what to do about it and
+holds no path, key or restored data.
+
+**Age and time.** `rpoSeconds` is the age of the backup: the seconds from its
+cutoff to the start of the drill, which is the data a failure at that moment
+would have lost. `rtoSeconds` is the time the restore and its checks took on this
+host for a set of this size: it measures the restore, not a failover to another
+machine. Both clocks are the host's clock and the database's clock, so a skew
+between them shows up in the age.
+
+**What it does not cover.** Objects kept in a remote store (R2) are recorded by
+key and hash and are counted, not read: their bytes are not in the set. The
+drill cannot say what any unsettled effect did at its provider; that is what the
+cutoff records and what a restore must treat as unknown (slice E).
+
+**Where to read the result.** The administrator's `GET
+/v1/installation/backups/drills` lists the drills, newest report first, with the
+backup name, the outcome, the failed check and its code, the age and the time.
+The drill prints `RESTORE_DRILL_PASSED` or `RESTORE_DRILL_FAILED` and exits 0 when
+it passed, 1 when it failed, and 3 when it ran but its result could not be
+reported (a network error is retried three times; a refusal is not). The drill's
+own id is chosen by the host, so reporting the same drill twice records it once.
+
 ## What the runner does when something goes wrong
 
 The order of a pass is: claim, hold the installation, wait for quiet, read

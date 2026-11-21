@@ -714,6 +714,7 @@ export const BackupImplementedAction = Object.freeze(
     BackupsList: "backups.list",
     BackupsStatus: "backups.status",
     BackupsStart: "backups.start",
+    BackupsDrillsList: "backups.drills.list",
     BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
     BackupScheduleGet: "backupSchedule.get",
     BackupSchedulePut: "backupSchedule.put",
@@ -725,6 +726,7 @@ export const BackupImplementedAction = Object.freeze(
     BackupRunnerReport: "backupRunner.report",
     BackupRunnerMaintain: "backupRunner.maintain",
     BackupRunnerCutoff: "backupRunner.cutoff",
+    BackupRunnerDrill: "backupRunner.drill",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const backupImplementedActions = Object.freeze(
