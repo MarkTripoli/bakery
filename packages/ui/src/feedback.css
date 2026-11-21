@@ -64,6 +64,14 @@
   flex: none;
 }
 
+/* On a phone a banner's action takes its own row under the text, so a short
+   label never squeezes the message into a narrow column. */
+@media (max-width: 743px) {
+  .ui-alert-banner__action {
+    flex-basis: 100%;
+  }
+}
+
 .ui-inline-notice__icon,
 .ui-alert-banner__icon {
   flex: none;
