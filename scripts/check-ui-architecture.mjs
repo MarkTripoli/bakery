@@ -2127,13 +2127,6 @@ function relativeInside(root, path) {
 }
 
 /**
- * Everything the checker knows about one module: its diagnostics and the
- * catalog compositions that apply to it. One whole-workspace analysis, the
- * same one `checkUiArchitecture` runs, filtered to the file. Throws
- * `NotAnalyzedModuleError` for a directory, non-source file or file outside
- * the analyzed packages, so "no diagnostics" never means "not looked at".
- */
-/**
  * A fingerprint of every file under `root` an analysis could read: its path,
  * size and modification time. Installed packages and git's own files are left
  * out; the lockfile and the package manager's record stand for the packages. Any
@@ -2193,6 +2186,13 @@ function analysisOf(root) {
   return analysis;
 }
 
+/**
+ * Everything the checker knows about one module: its diagnostics and the
+ * catalog compositions that apply to it. One whole-workspace analysis, the
+ * same one `checkUiArchitecture` runs, filtered to the file. Throws
+ * `NotAnalyzedModuleError` for a directory, non-source file or file outside
+ * the analyzed packages, so "no diagnostics" never means "not looked at".
+ */
 export function describeFile(path, { root = ROOT } = {}) {
   const relativePath = relativeInside(root, path);
   const { diagnostics, appliedCompositions, files } = analysisOf(root);
