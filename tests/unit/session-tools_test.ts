@@ -170,3 +170,16 @@ Deno.test("runs.retry is never a session tool, whatever the session holds", () =
   }
   assertEquals((names(offered) as string[]).includes("runs.retry"), false);
 });
+
+Deno.test("a registered operation no scope names is a person's, refused by name", () => {
+  // secrets.list is registered and never classified for sessions (O51): the
+  // refusal says so rather than claiming no such operation exists.
+  assertEquals(
+    code(
+      assertThrows(() =>
+        assertSessionToolAllowed(["work.read"], "secrets.list")
+      ),
+    ),
+    "SESSION_TOOL_PEOPLE_ONLY",
+  );
+});

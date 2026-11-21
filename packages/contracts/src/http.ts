@@ -385,6 +385,10 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "agent_file_grant_requires_person",
       "agent_file_area_not_declared",
       "agent_file_connection_not_bound",
+      "agent_file_reviewer_outputs_only",
+      // A session asked for an operation only a person may call (O51): it is
+      // registered, never offered to a session (#448).
+      "session_operation_people_only",
     ]),
   } as const,
 );

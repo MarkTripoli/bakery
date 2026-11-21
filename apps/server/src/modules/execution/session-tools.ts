@@ -192,6 +192,11 @@ export function assertSessionToolAllowed(
 ): OperationScope {
   const scope = OPERATION_SCOPES[name];
   if (!scope) {
+    // A registered operation no scope names is a person's alone (O51): it is
+    // refused by name. Only a name no operation has stays unknown.
+    if ((implementedActions as readonly string[]).includes(name)) {
+      throw new SessionToolError("SESSION_TOOL_PEOPLE_ONLY", name);
+    }
     throw new SessionToolError("SESSION_TOOL_UNKNOWN", name);
   }
   if (!scopes.includes(scope)) {
@@ -202,13 +207,18 @@ export function assertSessionToolAllowed(
 
 export class SessionToolError extends Error {
   constructor(
-    readonly code: "SESSION_TOOL_UNKNOWN" | "SESSION_TOOL_DENIED",
+    readonly code:
+      | "SESSION_TOOL_UNKNOWN"
+      | "SESSION_TOOL_DENIED"
+      | "SESSION_TOOL_PEOPLE_ONLY",
     readonly tool: string,
     readonly scope?: OperationScope,
   ) {
     super(
       code === "SESSION_TOOL_UNKNOWN"
         ? `no session tool named ${tool}`
+        : code === "SESSION_TOOL_PEOPLE_ONLY"
+        ? `${tool} is a person's operation, never a session's`
         : `session does not hold ${scope} for ${tool}`,
     );
     this.name = "SessionToolError";

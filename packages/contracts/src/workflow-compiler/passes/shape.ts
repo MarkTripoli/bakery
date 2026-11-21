@@ -17,6 +17,7 @@ import { WORKFLOW_STRUCTURED_INPUT_TYPES } from "../schema.ts";
 import {
   DEFAULT_STEP_FILES,
   SEALED_STEP_FILES,
+  sealedByDefault,
   WORKFLOW_FILE_READ_AREAS,
   WORKFLOW_FILE_WRITE_AREAS,
   type WorkflowStepFiles,
@@ -384,15 +385,24 @@ function readFileAreas<T extends string>(
  * Reads a step's `sealed` sugar (O53). True expands into the sealed files
  * section, so it and the explicit section normalize to the same node and
  * digest; a files section naming anything else is a conflict, never resolved
- * silently. False or absent leaves the step's own files section alone.
+ * silently. False leaves the step's own files section alone. Absent, an
+ * evaluation step with no files section is sealed by default, and any other
+ * step keeps its own section or the defaults.
  */
 function readSealed(
   context: Context,
   raw: Record<string, unknown>,
   files: WorkflowStepFiles | undefined | null,
   path: Path,
+  action: string,
 ): WorkflowStepFiles | undefined | null {
-  if (!Object.hasOwn(raw, "sealed")) return undefined;
+  if (!Object.hasOwn(raw, "sealed")) {
+    if (files !== undefined || !sealedByDefault(action)) return undefined;
+    return {
+      read: [...SEALED_STEP_FILES.read],
+      write: [...SEALED_STEP_FILES.write],
+    };
+  }
   const parsed = WorkflowStepSealedSchema.safeParse(raw["sealed"]);
   if (!parsed.success) {
     report(context, [...path, "sealed"], "action_sealed_invalid");
@@ -895,7 +905,7 @@ function shapeAction(
   if (outputSlots === null) failed = true;
   const files = readStepFiles(context, raw["files"], [...path, "files"]);
   if (files === null) failed = true;
-  const sealedFiles = readSealed(context, raw, files, path);
+  const sealedFiles = readSealed(context, raw, files, path, action);
   if (sealedFiles === null) failed = true;
 
   let limits: WorkflowActionNode["limits"];
