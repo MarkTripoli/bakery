@@ -16,6 +16,7 @@ import { authorizeTicketAdmission } from "./ticket-request-command.ts";
 import { smallestBatchSpend } from "./batch-startable.ts";
 import type { BudgetRuntimeConfig } from "@bakery/config";
 import { requireWorkTransaction } from "./work-transaction.ts";
+import { mayActOnQuestion } from "../auth/application/run-grants.ts";
 
 /**
  * Batches (#58): a bounded run of issues in one repository.
@@ -129,7 +130,7 @@ export async function loadBatch(
   transaction: PgTransactionClient,
   organizationId: string,
   id: string,
-  options: { lock?: boolean } = {},
+  options: { lock?: boolean; viewerPrincipalId?: string } = {},
 ): Promise<Batch> {
   const found = await transaction.query<Row>(
     `select ${COLUMNS} from bakery.batches as batch
@@ -187,7 +188,14 @@ export async function loadBatch(
     elapsedSeconds: Number(row.elapsed_seconds),
     spentUsd: formatUsd(spent),
     issues: issues.map(toIssue),
-    waitingOn: await readWaitingOn(transaction, organizationId, id),
+    waitingOn: options.viewerPrincipalId
+      ? await readWaitingOn(
+        transaction,
+        organizationId,
+        id,
+        options.viewerPrincipalId,
+      )
+      : null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
     version: row.version,
@@ -199,18 +207,25 @@ type WaitingRow = {
   kind: string;
   task_id: string;
   created_at: Date;
-  audience: { type?: string; principalIds?: string[] } | null;
+  audience: { type: string; principalIds?: string[] };
 };
+
+/** How many open items to look through for one the viewer may see. */
+const WAITING_CANDIDATES = 50;
 
 /**
  * What the issue being worked on is waiting for a person to do: its task's oldest
- * open question or approval, read now. Null when no issue is being worked on or
- * nothing is open. The question's text is not read here; the task page shows it.
+ * open question or approval that the viewer may see, read now. An item private to
+ * named people does not exist for anyone else, exactly as it does in
+ * `questions.get` and `approvals.get`, so the oldest one the viewer may see wins.
+ * Null when no issue is being worked on, nothing is open, or the viewer may see
+ * none of it. The question's text is not read here; the task page shows it.
  */
 async function readWaitingOn(
   transaction: PgTransactionClient,
   organizationId: string,
   batchId: string,
+  viewerPrincipalId: string,
 ) {
   const found = await transaction.query<WaitingRow>(
     `select question.id, question.kind, question.task_id, question.created_at,
@@ -229,12 +244,26 @@ async function readWaitingOn(
         and issue.state = 'started' and question.status = 'open'
         and (question.run_id is null or question.run_id = run.id)
       order by question.created_at, question.id
-      limit 1`,
-    [organizationId, batchId],
+      limit $3`,
+    [organizationId, batchId, WAITING_CANDIDATES],
   );
-  const row = found.rows[0];
+  let row: WaitingRow | undefined;
+  for (const candidate of found.rows) {
+    if (
+      await mayActOnQuestion(
+        transaction,
+        organizationId,
+        viewerPrincipalId,
+        candidate,
+        candidate.kind === "approval" ? "approve" : "answer",
+      )
+    ) {
+      row = candidate;
+      break;
+    }
+  }
   if (!row) return null;
-  const named = row.audience?.type === "principals"
+  const named = row.audience.type === "principals"
     ? (row.audience.principalIds ?? []).slice(0, 3)
     : [];
   const people = named.length === 0 ? [] : (await transaction.query<
@@ -291,8 +320,12 @@ async function audit(
 
 /** `batches.get`. */
 export async function getBatch(context: ActionContext): Promise<Batch> {
-  const { transaction, organizationId } = requireWorkTransaction(context);
-  return await loadBatch(transaction, organizationId, batchId(context));
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  return await loadBatch(transaction, organizationId, batchId(context), {
+    viewerPrincipalId: principalId,
+  });
 }
 
 /** `batches.list`: newest first, optionally one repository's. */
@@ -343,7 +376,11 @@ export function createBatchesListHandler(cursorSecret: string) {
     const visible = rows.slice(0, limit);
     const items: Batch[] = [];
     for (const row of visible) {
-      items.push(await loadBatch(transaction, organizationId, row.id));
+      items.push(
+        await loadBatch(transaction, organizationId, row.id, {
+          viewerPrincipalId: principalId,
+        }),
+      );
     }
     const last = visible.at(-1);
     return {
@@ -437,7 +474,9 @@ export async function createBatch(
     }
     throw error;
   }
-  const created = await loadBatch(transaction, organizationId, id);
+  const created = await loadBatch(transaction, organizationId, id, {
+    viewerPrincipalId: principalId,
+  });
   await audit(
     context,
     transaction,
@@ -480,12 +519,14 @@ async function control(
     transaction,
     organizationId,
     batchId(context),
-    { lock: true },
+    { lock: true, viewerPrincipalId: principalId },
   );
   if (current.state === spec.to) return current;
   if (!spec.from.includes(current.state)) throw conflict(spec.refusal);
   await apply(transaction, current, principalId);
-  const changed = await loadBatch(transaction, organizationId, current.id);
+  const changed = await loadBatch(transaction, organizationId, current.id, {
+    viewerPrincipalId: principalId,
+  });
   await audit(
     context,
     transaction,
@@ -607,7 +648,7 @@ export async function stopBatch(
     transaction,
     organizationId,
     batchId(context),
-    { lock: true },
+    { lock: true, viewerPrincipalId: principalId },
   );
   if (current.state === "stopped") return current;
   if (!(LIVE_BATCH_STATES as readonly string[]).includes(current.state)) {
@@ -630,7 +671,9 @@ export async function stopBatch(
           where id = $1`,
     running ? [current.id, principalId, cancels] : [current.id, principalId],
   );
-  const changed = await loadBatch(transaction, organizationId, current.id);
+  const changed = await loadBatch(transaction, organizationId, current.id, {
+    viewerPrincipalId: principalId,
+  });
   await audit(
     context,
     transaction,

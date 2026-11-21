@@ -1128,9 +1128,11 @@ Deno.test("batches: a batch says what the issue being worked on waits for, and c
         where organization_id = $1 and id = $2`,
       [fx.organizationId, runId],
     )).rows[0].task_id;
-    const read = async () =>
-      (await loadBatch(fx.runtime as never, fx.organizationId, batchId))
-        .waitingOn;
+    const readAs = async (viewerPrincipalId?: string) =>
+      (await loadBatch(fx.runtime as never, fx.organizationId, batchId, {
+        viewerPrincipalId,
+      })).waitingOn;
+    const read = () => readAs(fx.adminId);
 
     // Nothing is open: the batch is not waiting on anyone.
     assertEquals(await read(), null);
@@ -1166,6 +1168,34 @@ Deno.test("batches: a batch says what the issue being worked on waits for, and c
       [fx.organizationId, questionId],
     );
     assertEquals((await read())?.askedOf, []);
+
+    // A read with no viewer shows nothing, and an item private to someone else
+    // does not exist for this viewer: the next one they may see is shown instead.
+    assertEquals(await readAs(undefined), null);
+    const privateId = crypto.randomUUID();
+    await insertWithoutForeignKeys(fx.owner, "questions", {
+      id: privateId,
+      organization_id: fx.organizationId,
+      task_id: taskId,
+      run_id: runId,
+      kind: "question",
+      status: "open",
+      created_at: "2000-01-01T00:00:00Z",
+      audience: JSON.stringify({
+        type: "principals",
+        principalIds: [crypto.randomUUID()],
+      }),
+    });
+    assertEquals(
+      (await read())?.questionId,
+      questionId,
+      "the older private question is hidden from a caller outside its audience",
+    );
+    await fx.owner.query(
+      `update bakery.questions set status = 'answered'
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, privateId],
+    );
     await fx.owner.query(
       `update bakery.questions set status = 'answered'
         where organization_id = $1 and id = $2`,
