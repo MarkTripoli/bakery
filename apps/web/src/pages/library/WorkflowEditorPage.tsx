@@ -4,6 +4,7 @@ import * as UI from "@bakery/ui";
 import {
   effectiveAccessQueryOptions,
   workflowQueryOptions,
+  workflowVersionSkillsQueryOptions,
   workflowVersionsQueryOptions,
 } from "../../api/query.ts";
 import { useBakeryApi } from "../../api/context.tsx";
@@ -14,7 +15,13 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { RouterLink } from "../../app/router-link.tsx";
 import { ShellSlot } from "../../shell/shell-slots.tsx";
 import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
-import { type PanelTarget, StepPanel } from "./StepPanel.tsx";
+import {
+  type PanelTarget,
+  StepPanel,
+  type StepSkillRow,
+  type StepSkills,
+} from "./StepPanel.tsx";
+import type { WorkflowVersionSkills } from "../../api/client.ts";
 import { WorkflowDiagram } from "./WorkflowDiagram.tsx";
 import { versionSource } from "./copy-workflow.ts";
 import {
@@ -151,6 +158,28 @@ export function WorkflowEditorPage(
           : null,
       }];
     });
+  }, [draft]);
+
+  // The skills the steps of the draft name (#431), read for the saved draft: a
+  // step is found by its place in the definition, so a saved change reads again.
+  const skillsRead = useQuery(
+    workflowVersionSkillsQueryOptions(
+      api,
+      scope,
+      workflowId,
+      draft?.id ?? "",
+      draft?.digest ?? "",
+    ),
+  );
+  const stepPaths = useMemo(() => {
+    const spec = record(draft?.normalizedSpec);
+    const steps = Array.isArray(spec.steps) ? spec.steps : [];
+    const paths = new Map<string, string>();
+    steps.forEach((raw, index) => {
+      const id = record(raw).id;
+      if (typeof id === "string") paths.set(id, `/steps/${index}`);
+    });
+    return paths;
   }, [draft]);
 
   const [editor, dispatch] = useReducer(
@@ -505,6 +534,11 @@ export function WorkflowEditorPage(
         : step.problem === "unknown"
         ? translate("library.editor.problem.unknown" as never)
         : translate("library.editor.problem.unreadable" as never),
+      skills: skillsOf(
+        live?.agentVersionId != null,
+        stepPaths.get(step.id),
+        skillsRead,
+      ),
       canMoveUp: index > 0,
       canMoveDown: index >= 0 && index < steps.length - 1,
       disabled: !editable || index < 0,
@@ -879,6 +913,44 @@ export function WorkflowEditorPage(
         : null}
     </>
   );
+}
+
+/**
+ * What a step's Skills list shows (#431): only a step with an agent has one.
+ * The rows are the skills the server names for the step's place in the draft,
+ * in the order it gives them; while the read is on its way, or when it failed,
+ * the list says so instead of looking empty.
+ */
+function skillsOf(
+  hasAgent: boolean,
+  stepPath: string | undefined,
+  read: {
+    readonly isPending: boolean;
+    readonly isError: boolean;
+    readonly fetchStatus: string;
+    readonly data: WorkflowVersionSkills | undefined;
+    readonly refetch: () => unknown;
+  },
+): StepSkills {
+  if (!hasAgent || stepPath === undefined) return { kind: "hidden" };
+  // No saved draft to read skills for (the read is switched off): nothing to show.
+  if (read.isPending && read.fetchStatus === "idle") return { kind: "hidden" };
+  if (read.isError) {
+    return { kind: "failed", onRetry: () => void read.refetch() };
+  }
+  if (read.data === undefined) return { kind: "loading" };
+  const rows: StepSkillRow[] = read.data.items
+    .filter((item) => item.stepPath === stepPath)
+    .map((item, index) => ({
+      key: `${item.stepPath}#${index}`,
+      name: item.skillName,
+      revision: item.revision,
+      scope: item.scope,
+      owner: item.ownerDisplayName,
+      mine: item.mine,
+      status: item.status,
+    }));
+  return { kind: "ready", rows };
 }
 
 /** The name a card carries, for a problem row that names it. */

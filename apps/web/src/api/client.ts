@@ -333,6 +333,9 @@ export type ApplicationResponse = ClientOutputMap["Application"];
 export type WorkflowDefinitionResponse = ClientOutputMap["Workflow"];
 export type WorkflowDefinitionListResponse = ClientOutputMap["Page<Workflow>"];
 export type WorkflowVersionResponse = ClientOutputMap["WorkflowVersion"];
+/** Every skill the steps of one workflow version name, as the reader may see them. */
+export type WorkflowVersionSkills = ClientOutputMap["WorkflowVersionSkills"];
+export type WorkflowStepSkill = WorkflowVersionSkills["items"][number];
 export type WorkflowVersionListResponse =
   ClientOutputMap["Page<WorkflowVersion>"];
 export type DefinitionUpdate = ClientInputMap["DefinitionUpdate"];
@@ -1865,6 +1868,13 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowVersionListResponse>>;
+  /** The skills the steps of one workflow version name, with whether each can be used now; a draft or a published version. */
+  readonly listWorkflowVersionSkills: (options: {
+    readonly organizationId: string;
+    readonly workflowId: string;
+    readonly versionId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowVersionSkills>>;
   /** Makes a published version the one new tasks use; `version` is the workflow's, sent as If-Match. */
   readonly activateWorkflowVersion: (options: {
     readonly organizationId: string;
@@ -6153,6 +6163,21 @@ export function createBakeryApiClient({
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listWorkflowVersionSkills(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowVersions.skills"](
+          { id: options.workflowId, versionId: options.versionId },
           { signal: options.signal },
         );
         return { ok: true, data };

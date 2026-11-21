@@ -356,6 +356,7 @@ function fakeApi(
     updateMemory: rejecting,
     createMemoryRevision: rejecting,
     listWorkflowVersions: rejecting,
+    listWorkflowVersionSkills: rejecting,
     activateWorkflowVersion: rejecting,
     updateWorkflow: rejecting,
     listAgentVersions: rejecting,

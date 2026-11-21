@@ -18,6 +18,30 @@ import { ACTION_LINES } from "./workflow-state.ts";
  * and redo still decide what actually happens.
  */
 
+/**
+ * One skill a step names, as the reader may see it (#431, design-ux). Someone
+ * else's private skill is a placeholder: its name, its owner and its version,
+ * never a link, a file or a description.
+ */
+export type StepSkillRow = {
+  readonly key: string;
+  readonly name: string | null;
+  readonly revision: number | null;
+  readonly scope: "global" | "organization" | "personal" | null;
+  readonly owner: string | null;
+  /** The reader owns this private skill. */
+  readonly mine: boolean;
+  /** Whether the skill can be used at this step now, or why it cannot. */
+  readonly status: "available" | "stopped" | "unavailable" | "missing";
+};
+
+/** What the Skills list of a step shows: not at all, while it reads, when it failed, or the rows. */
+export type StepSkills =
+  | { readonly kind: "hidden" }
+  | { readonly kind: "loading" }
+  | { readonly kind: "failed"; readonly onRetry: () => void }
+  | { readonly kind: "ready"; readonly rows: readonly StepSkillRow[] };
+
 /** What the panel is showing. */
 export type PanelTarget =
   | { readonly kind: "start" }
@@ -37,6 +61,8 @@ export type PanelTarget =
     /** What the definition states, when the step could not be drawn as an action. */
     readonly code: string | undefined;
     readonly problem: string | undefined;
+    /** The skills the step names (#431). */
+    readonly skills: StepSkills;
     readonly canMoveUp: boolean;
     readonly canMoveDown: boolean;
     readonly disabled: boolean;
@@ -156,7 +182,126 @@ export function StepPanel(
             })}
           </UI.Text>
         )}
+        {target.skills.kind === "hidden"
+          ? null
+          : <Skills skills={target.skills} />}
       </UI.Stack>
     </UI.InspectorPanel>
+  );
+}
+
+/**
+ * The Skills list of a step: the skills it names, in the order the server gives
+ * them. A private skill wears one small word, Private; someone else's is plain
+ * text on its row, with who let the workflow use it.
+ */
+function Skills(
+  { skills }: {
+    readonly skills: Exclude<StepSkills, { readonly kind: "hidden" }>;
+  },
+) {
+  const { translate } = useI18n();
+  const t = (key: string, values?: Record<string, string | number>) =>
+    translate(
+      `library.workflow.editor.skills.${key}` as never,
+      values as never,
+    );
+  return (
+    <UI.Stack data-testid="step-skills" gap="compact">
+      <UI.Inline gap="compact">
+        <UI.Text variant="strong">{t("title")}</UI.Text>
+        <UI.HelpTip label={t("helpLabel")}>{t("help")}</UI.HelpTip>
+      </UI.Inline>
+      {skills.kind === "loading"
+        ? (
+          <div aria-busy="true">
+            <UI.Skeleton shape="row" />
+          </div>
+        )
+        : skills.kind === "failed"
+        ? (
+          <UI.InlineNotice
+            action={
+              <UI.Button onClick={skills.onRetry} variant="secondary">
+                {translate("core.actions.retry" as never)}
+              </UI.Button>
+            }
+            role="status"
+            tone="error"
+          >
+            {t("failed")}
+          </UI.InlineNotice>
+        )
+        : skills.rows.length === 0
+        ? <UI.Text variant="muted">{t("empty")}</UI.Text>
+        : (
+          <UI.DescriptionList>
+            {skills.rows.map((row) => (
+              <SkillRow
+                key={row.key}
+                row={row}
+                t={t}
+              />
+            ))}
+          </UI.DescriptionList>
+        )}
+    </UI.Stack>
+  );
+}
+
+function SkillRow(
+  { row, t }: {
+    readonly row: StepSkillRow;
+    readonly t: (
+      key: string,
+      values?: Record<string, string | number>,
+    ) => string;
+  },
+) {
+  const version = row.revision ?? 0;
+  const name = row.name ?? "";
+  // A skill that cannot be used says so in words, and what to do about it.
+  if (row.status !== "available") {
+    return (
+      <UI.DescriptionItem
+        description={t(`slot.${row.status}.body`, { name })}
+        title={
+          <UI.Inline gap="compact">
+            <span>
+              {row.name === null
+                ? t(`slot.${row.status}.titleUnnamed`)
+                : t(`slot.${row.status}.title`, { name })}
+            </span>
+            <UI.Badge tone="warning">{t("slot.badge")}</UI.Badge>
+          </UI.Inline>
+        }
+      />
+    );
+  }
+  const personal = row.scope === "personal";
+  const owner = row.owner ?? "";
+  return (
+    <UI.DescriptionItem
+      description={personal
+        ? row.mine
+          ? t("row.mine", { version })
+          : t("row.theirs", { version, owner })
+        : t(row.scope === "global" ? "row.global" : "row.organization", {
+          version,
+        })}
+      title={
+        <UI.Inline gap="compact">
+          <span>{name}</span>
+          {personal ? <UI.Badge tone="neutral">{t("private")}</UI.Badge> : null}
+          {personal && !row.mine
+            ? (
+              <UI.HelpTip label={t("privateHelpLabel", { name })}>
+                {t("privateHelp", { owner })}
+              </UI.HelpTip>
+            )
+            : null}
+        </UI.Inline>
+      }
+    />
   );
 }

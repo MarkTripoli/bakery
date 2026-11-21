@@ -137,6 +137,7 @@ import type {
   WorkflowDefinitionResponse,
   WorkflowPresetListResponse,
   WorkflowVersionResponse,
+  WorkflowVersionSkills,
 } from "./client.ts";
 import { protectedQueryKey, type ProtectedScope } from "../app/query-scope.ts";
 
@@ -2682,6 +2683,38 @@ export function agentQueryOptions(
         }),
       );
     },
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The skills the steps of one workflow version name (#431), read for the
+ * version being edited. The digest is in the key so a saved change to the
+ * draft reads the skills again.
+ */
+export function workflowVersionSkillsQueryOptions(
+  client: Pick<BakeryApiClient, "listWorkflowVersionSkills">,
+  scope: ApiScope,
+  workflowId: string,
+  versionId: string,
+  digest: string,
+) {
+  return queryOptions<WorkflowVersionSkills, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "library.workflowVersionSkills", {
+      workflowId,
+      versionId,
+      digest,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listWorkflowVersionSkills({
+          organizationId: requireOrganization(scope),
+          workflowId,
+          versionId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && versionId !== "",
     retry: retryNetworkOnce,
   });
 }
