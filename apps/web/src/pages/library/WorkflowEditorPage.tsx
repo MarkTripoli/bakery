@@ -30,6 +30,7 @@ import {
   editorStateOf,
   type EditorStep,
   freeStepId,
+  skillsOfNode,
 } from "./editor-state.ts";
 import {
   problemSentence,
@@ -156,6 +157,7 @@ export function WorkflowEditorPage(
         agentVersionId: typeof step.agentVersionId === "string"
           ? step.agentVersionId
           : null,
+        skills: skillsOfNode(step),
       }];
     });
   }, [draft]);
@@ -289,6 +291,7 @@ export function WorkflowEditorPage(
         id,
         uses: typeof step.uses === "string" ? step.uses : "",
         agentVersionId: null,
+        skills: skillsOfNode(step),
       }];
     });
   }, [inUse]);
@@ -693,7 +696,7 @@ export function WorkflowEditorPage(
             onPick={(uses) => {
               const afterId = pickerAfter ?? null;
               const id = freeStepId(editor, uses.replaceAll(".", "-"));
-              const step = { id, uses, agentVersionId: null };
+              const step = { id, uses, agentVersionId: null, skills: [] };
               dispatch({ kind: "add", step });
               // Put the new step where the "+" was pressed.
               if (afterId !== null) {
