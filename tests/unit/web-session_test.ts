@@ -346,8 +346,6 @@ function fakeApi(
     cancelEvaluationBatch: rejecting,
     listEvaluationResults: rejecting,
     listEvaluationAttempts: rejecting,
-    listEvaluationDatasets: rejecting,
-    listEvaluationCases: rejecting,
     updateMemory: rejecting,
     createMemoryRevision: rejecting,
     listWorkflowVersions: rejecting,

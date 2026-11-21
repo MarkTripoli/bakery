@@ -285,10 +285,6 @@ export type EvaluationBatchResultPage =
 export type EvaluationBatchResult = EvaluationBatchResultPage["items"][number];
 export type EvaluationAttemptPage = ClientOutputMap["Page<EvaluationAttempt>"];
 export type EvaluationAttempt = EvaluationAttemptPage["items"][number];
-export type EvaluationDatasetPage = ClientOutputMap["Page<EvaluationDataset>"];
-export type EvaluationDataset = EvaluationDatasetPage["items"][number];
-export type EvaluationCasePage = ClientOutputMap["Page<EvaluationCase>"];
-export type EvaluationCase = EvaluationCasePage["items"][number];
 /** What one measured result can be: the seven states the server keeps. */
 export type EvaluationResultState = EvaluationBatchResult["state"];
 
@@ -1979,20 +1975,6 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<EvaluationAttemptPage>>;
-  /** The fixed sets of test cases a run can measure: their names for the rows. */
-  readonly listEvaluationDatasets: (options: {
-    readonly organizationId: string;
-    readonly cursor?: string;
-    readonly limit?: number;
-    readonly signal?: AbortSignal;
-  }) => Promise<ApiResult<EvaluationDatasetPage>>;
-  /** The test cases of the organization: their names for the result rows. */
-  readonly listEvaluationCases: (options: {
-    readonly organizationId: string;
-    readonly cursor?: string;
-    readonly limit?: number;
-    readonly signal?: AbortSignal;
-  }) => Promise<ApiResult<EvaluationCasePage>>;
   /**
    * Puts a fact in use (approving a suggestion, or using it again) or stops
    * using it. `version` is the fact's own, sent as If-Match; the server may
@@ -6356,42 +6338,6 @@ export function createBakeryApiClient({
         const data = await client.actions["evaluationAttempts.list"](
           {
             id: options.id,
-            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
-            ...(options.limit === undefined ? {} : { limit: options.limit }),
-          },
-          { signal: options.signal },
-        );
-        return { ok: true, data };
-      } catch (error) {
-        return failed(error);
-      } finally {
-        organizationId = undefined;
-      }
-    },
-
-    async listEvaluationDatasets(options) {
-      organizationId = options.organizationId;
-      try {
-        const data = await client.actions["evaluationDatasets.list"](
-          {
-            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
-            ...(options.limit === undefined ? {} : { limit: options.limit }),
-          },
-          { signal: options.signal },
-        );
-        return { ok: true, data };
-      } catch (error) {
-        return failed(error);
-      } finally {
-        organizationId = undefined;
-      }
-    },
-
-    async listEvaluationCases(options) {
-      organizationId = options.organizationId;
-      try {
-        const data = await client.actions["evaluationCases.list"](
-          {
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },

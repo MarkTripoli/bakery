@@ -225,28 +225,35 @@ Deno.test("a pin is read as a kind, an id and a version, and anything else is ot
   assertEquals(candidatePin(null).version, null);
 });
 
-Deno.test("a run's title uses the definition's name when the pin names one, else the kind and the version", () => {
-  const names = {
-    agents: new Map([["a1", "Reviewer"]]),
-    workflows: new Map([["w1", "Reviewed coding"]]),
-  };
+Deno.test("a run's title uses the definition's name the server gives, else the kind and the version", () => {
   assertEquals(
-    pinTitle({ kind: "agentVersion", id: "a1", version: 5 }, names),
+    pinTitle({ kind: "agentVersion", id: "a1", version: 5 }, {
+      name: "Reviewer",
+    }),
     {
       key: "library.evaluations.title.named",
       values: { name: "Reviewer", version: 5 },
     },
   );
   assertEquals(
-    pinTitle({ kind: "workflowVersion", id: "w1", version: 2 }, names).values,
+    pinTitle({ kind: "workflowVersion", id: "w1", version: 2 }, {
+      name: "Reviewed coding",
+    }).values,
     { name: "Reviewed coding", version: 2 },
   );
+  // The pin names nothing the server can resolve: the name is null.
   assertEquals(
-    pinTitle({ kind: "agentVersion", id: "unknown", version: 3 }, names),
+    pinTitle({ kind: "agentVersion", id: "unknown", version: 3 }, {
+      name: null,
+    }),
     { key: "library.evaluations.title.agent", values: { version: 3 } },
   );
   assertEquals(
-    pinTitle({ kind: "x" }, names).key,
+    pinTitle({ kind: "workflowVersion", id: "w9", version: 4 }, null),
+    { key: "library.evaluations.title.workflow", values: { version: 4 } },
+  );
+  assertEquals(
+    pinTitle({ kind: "x" }, null).key,
     "library.evaluations.title.unknown",
   );
 });
@@ -288,6 +295,7 @@ Deno.test("results group by test case on the candidate side only, in server orde
     batchId: "b",
     role,
     caseId,
+    caseName: `Case ${caseId}`,
     caseRevision: 1,
     scorerId: "s",
     scorerRevision: 1,
@@ -307,5 +315,6 @@ Deno.test("results group by test case on the candidate side only, in server orde
     row("4", "c1", "candidate"),
   ]);
   assertEquals(groups.map((group) => group.caseId), ["c1", "c2"]);
+  assertEquals(groups.map((group) => group.caseName), ["Case c1", "Case c2"]);
   assertEquals(groups[0].results.map((result) => result.id), ["1", "4"]);
 });

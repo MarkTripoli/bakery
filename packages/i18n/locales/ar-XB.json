@@ -5724,9 +5724,6 @@
   "library.evaluations.column.action": "⟪Action⟫",
   "library.evaluations.open": "⟪Open⟫",
   "library.evaluations.openLabel": "⟪Open the run of {title}⟫",
-  "library.evaluations.rowLine": "⟪{set}, {count, plural, one {# test case} other {# test cases}} · {started}⟫",
-  "library.evaluations.set.unknown": "⟪A set of test cases⟫",
-  "library.evaluations.rowLineUnknownSet": "⟪{set} · {started}⟫",
   "library.evaluations.emptyTitle": "⟪No runs yet⟫",
   "library.evaluations.emptyDescription": "⟪A run measures a workflow or agent on a set of test cases. Nothing has been measured in this organization.⟫",
   "library.evaluations.showMore": "⟪Show more⟫",
@@ -5770,7 +5767,6 @@
   "library.evaluation.stop.confirm": "⟪Stop run⟫",
   "library.evaluation.stop.error": "⟪The run could not be stopped. Try again.⟫",
   "library.evaluation.results.title": "⟪Results⟫",
-  "library.evaluation.results.summary": "⟪{measured} of {required} measured: {cases, plural, one {# test case} other {# test cases}}, each by {scorers, plural, one {# scorer} other {# scorers}}. The six counts always add up to {required}.⟫",
   "library.evaluation.results.empty": "⟪No results in this state.⟫",
   "library.evaluation.results.more": "⟪Show more results⟫",
   "library.evaluation.results.error": "⟪The results could not be loaded.⟫",
@@ -5811,13 +5807,12 @@
   "library.evaluation.result.line": "⟪{scorer}: {words}⟫",
   "library.evaluation.result.lineScore": "⟪{scorer}: {words} · score {score}⟫",
   "library.evaluation.result.scorerRepetition": "⟪{scorer}, repetition {n}⟫",
-  "library.evaluation.case.unknown": "⟪Test case {id}⟫",
-  "library.evaluation.results.summaryUnknownSet": "⟪{measured} of {required} measured. The six counts always add up to {required}.⟫",
   "library.evaluation.attempts.toggle": "⟪{count, plural, one {# attempt} other {# attempts}}⟫",
   "library.evaluation.attempts.label": "⟪Attempts at {scorer}⟫",
   "library.evaluation.attempts.loading": "⟪Loading the attempts⟫",
   "library.evaluation.attempts.error": "⟪The attempts could not be loaded.⟫",
   "library.evaluation.attempts.line": "⟪Attempt {number} · {time} · {state}⟫",
   "library.evaluation.attempts.hide": "⟪{count, plural, one {Hide # attempt} other {Hide # attempts}}⟫",
-  "library.evaluation.measuredOnUnknownSet": "⟪Measured on a set of test cases⟫"
+  "library.evaluations.rowLine": "⟪{set} · {started}⟫",
+  "library.evaluation.results.summary": "⟪{measured} of {required} measured. The six counts always add up to {required}.⟫"
 }

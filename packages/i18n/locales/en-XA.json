@@ -5724,9 +5724,6 @@
   "library.evaluations.column.action": "⟦Àçŧïôñ…⟧",
   "library.evaluations.open": "⟦Ôþëñ⟧",
   "library.evaluations.openLabel": "⟦Ôþëñ ŧĥë ŕûñ ôƒ {title} ŧëšŧ ç⟧",
-  "library.evaluations.rowLine": "⟦{set}, {count, plural, one {# test case} other {# test cases}} · {started} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "library.evaluations.set.unknown": "⟦À šëŧ ôƒ ŧëšŧ çàšëš ŧëšŧ⟧",
-  "library.evaluations.rowLineUnknownSet": "⟦{set} · {started} ŧëš⟧",
   "library.evaluations.emptyTitle": "⟦Ñô ŕûñš ÿëŧ ŧ⟧",
   "library.evaluations.emptyDescription": "⟦À ŕûñ ɱëàšûŕëš à ŵôŕķƒļôŵ ôŕ àĝëñŧ ôñ à šëŧ ôƒ ŧëšŧ çàšëš. Ñôŧĥïñĝ ĥàš ƀëëñ ɱëàšûŕëð ïñ ŧĥïš ôŕĝàñïžàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.evaluations.showMore": "⟦Šĥôŵ ɱôŕë ŧ⟧",
@@ -5770,7 +5767,6 @@
   "library.evaluation.stop.confirm": "⟦Šŧôþ ŕûñ…⟧",
   "library.evaluation.stop.error": "⟦Ŧĥë ŕûñ çôûļð ñôŧ ƀë šŧôþþëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
   "library.evaluation.results.title": "⟦Ŕëšûļŧš…⟧",
-  "library.evaluation.results.summary": "⟦{measured} ôƒ {required} ɱëàšûŕëð: {cases, plural, one {# test case} other {# test cases}}, ëàçĥ ƀÿ {scorers, plural, one {# scorer} other {# scorers}}. Ŧĥë šïẋ çôûñŧš àļŵàÿš àðð ûþ ŧô {required}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "library.evaluation.results.empty": "⟦Ñô ŕëšûļŧš ïñ ŧĥïš šŧàŧë. ŧëšŧ ç⟧",
   "library.evaluation.results.more": "⟦Šĥôŵ ɱôŕë ŕëšûļŧš ŧëš⟧",
   "library.evaluation.results.error": "⟦Ŧĥë ŕëšûļŧš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ⟧",
@@ -5811,13 +5807,12 @@
   "library.evaluation.result.line": "⟦{scorer}: {words} ŧëš⟧",
   "library.evaluation.result.lineScore": "⟦{scorer}: {words} · šçôŕë {score} ŧëšŧ çôþÿ⟧",
   "library.evaluation.result.scorerRepetition": "⟦{scorer}, ŕëþëŧïŧïôñ {n} ŧëšŧ ç⟧",
-  "library.evaluation.case.unknown": "⟦Ŧëšŧ çàšë {id} ŧë⟧",
-  "library.evaluation.results.summaryUnknownSet": "⟦{measured} ôƒ {required} ɱëàšûŕëð. Ŧĥë šïẋ çôûñŧš àļŵàÿš àðð ûþ ŧô {required}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.evaluation.attempts.toggle": "⟦{count, plural, one {# attempt} other {# attempts}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.evaluation.attempts.label": "⟦Àŧŧëɱþŧš àŧ {scorer} ŧëšŧ⟧",
   "library.evaluation.attempts.loading": "⟦Ļôàðïñĝ ŧĥë àŧŧëɱþŧš ŧëšŧ⟧",
   "library.evaluation.attempts.error": "⟦Ŧĥë àŧŧëɱþŧš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ⟧",
   "library.evaluation.attempts.line": "⟦Àŧŧëɱþŧ {number} · {time} · {state} ŧëšŧ çôþÿŧ⟧",
   "library.evaluation.attempts.hide": "⟦{count, plural, one {Hide # attempt} other {Hide # attempts}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "library.evaluation.measuredOnUnknownSet": "⟦Ṁëàšûŕëð ôñ à šëŧ ôƒ ŧëšŧ çàšëš ŧëšŧ çôþ⟧"
+  "library.evaluations.rowLine": "⟦{set} · {started} ŧëš⟧",
+  "library.evaluation.results.summary": "⟦{measured} ôƒ {required} ɱëàšûŕëð. Ŧĥë šïẋ çôûñŧš àļŵàÿš àðð ûþ ŧô {required}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

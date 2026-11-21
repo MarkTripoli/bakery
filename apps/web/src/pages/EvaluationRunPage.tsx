@@ -40,7 +40,6 @@ import {
   statesOfFilter,
   type Words,
 } from "./library/evaluations-state.ts";
-import { useEvaluationNames } from "./library/useEvaluationNames.ts";
 
 /** The attempts behind one result, read only once the person opens them. */
 function Attempts(
@@ -168,7 +167,6 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
       return next?.fetchNextPage();
     },
   };
-  const names = useEvaluationNames({ cases: true });
   const organizationId = scope.organizationId as string;
 
   const stop = useMutation({
@@ -211,7 +209,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
           {
             label: batch === undefined
               ? translate("library.evaluation.back")
-              : words(pinTitle(batch.candidate, names)),
+              : words(pinTitle(batch.candidate, batch.candidateDefinition)),
           },
         ]}
       />
@@ -296,8 +294,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
 
   const badge = runBadge(batch);
   const gate = gateCard(batch);
-  const dataset = names.datasets.get(batch.datasetId);
-  const setName = dataset?.name ?? translate("library.evaluations.set.unknown");
+  const setName = batch.datasetName;
   const lines = countLines(batch.counts);
   const chips = stateChips(batch.counts);
   const groups = groupByCase(results.items);
@@ -306,7 +303,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
       id.slice(0, 8);
   const baseline = batch.baseline === null
     ? null
-    : words(pinTitle(batch.baseline, names));
+    : words(pinTitle(batch.baseline, batch.baselineDefinition));
 
   const scorerLine = (result: EvaluationBatchResult) => {
     const base = scorerName(result.scorerId);
@@ -434,15 +431,11 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
         <UI.PageHeader
           variant="list"
           flush
-          title={words(pinTitle(batch.candidate, names))}
+          title={words(pinTitle(batch.candidate, batch.candidateDefinition))}
           subtitle={
             <UI.Stack gap="compact">
               <UI.Text variant="muted">
-                {dataset === undefined
-                  ? translate("library.evaluation.measuredOnUnknownSet")
-                  : translate("library.evaluation.measuredOn", {
-                    set: setName,
-                  })}
+                {translate("library.evaluation.measuredOn", { set: setName })}
               </UI.Text>
               <UI.Inline gap="compact">
                 <UI.Badge tone={badge.tone}>{words(badge.words)}</UI.Badge>
@@ -489,19 +482,10 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
               ))}
             </UI.Inline>
             <UI.Text variant="muted">
-              {dataset === undefined
-                // Without the set there is no test case count to give: the
-                // groups on screen change with the filter and "Show more".
-                ? translate("library.evaluation.results.summaryUnknownSet", {
-                  measured: batch.measuredCount,
-                  required: batch.requiredCount,
-                })
-                : translate("library.evaluation.results.summary", {
-                  measured: batch.measuredCount,
-                  required: batch.requiredCount,
-                  cases: dataset.cases.length,
-                  scorers: batch.scorers.length,
-                })}
+              {translate("library.evaluation.results.summary", {
+                measured: batch.measuredCount,
+                required: batch.requiredCount,
+              })}
             </UI.Text>
             {chips.length > 0
               ? (
@@ -559,10 +543,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
                       role="listitem"
                     >
                       <UI.StackedRow
-                        title={names.cases.get(group.caseId) ??
-                          translate("library.evaluation.case.unknown", {
-                            id: group.caseId.slice(0, 8),
-                          })}
+                        title={group.caseName}
                       >
                         <UI.Stack gap="compact">
                           {group.results.map((result) => (
@@ -636,7 +617,9 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
             <UI.DescriptionList>
               <UI.DescriptionItem
                 title={translate("library.evaluation.used.measured")}
-                description={words(pinTitle(batch.candidate, names))}
+                description={words(
+                  pinTitle(batch.candidate, batch.candidateDefinition),
+                )}
               />
               {baseline === null ? null : (
                 <UI.DescriptionItem
@@ -650,7 +633,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
                   "library.evaluation.used.testCasesValue",
                   {
                     set: setName,
-                    date: when(dataset?.createdAt ?? batch.createdAt),
+                    date: when(batch.createdAt),
                   },
                 )}
               />

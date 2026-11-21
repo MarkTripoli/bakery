@@ -53,8 +53,8 @@ for (
       await expect(
         page.getByText("The quality gate is judged when the run ends.").first(),
       ).toBeVisible();
-      // The set a run measured is named with how many test cases it holds.
-      await expect(page.getByText(/Support questions, 5 test cases · /).first())
+      // The set a run measured is named on its row, with when it started.
+      await expect(page.getByText(/Support questions · /).first())
         .toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "library-evaluations-list");
@@ -113,7 +113,7 @@ for (
       await expect(page.getByText("3 not run")).toBeVisible();
       await expect(
         page.getByText(
-          "7 of 10 measured: 5 test cases, each by 2 scorers. The six counts always add up to 10.",
+          "7 of 10 measured. The six counts always add up to 10.",
         ),
       ).toBeVisible();
       await page.mouse.move(700, 700);
@@ -461,28 +461,34 @@ for (
       await expect(empty).toHaveCount(0);
     });
 
-    test("a run whose set is not known gives no test case count", async ({ page }) => {
-      await evaluationsFixture(page, { datasetsStatus: 503 });
-      await page.goto(run(IDS.gaps));
-      await expect(
-        page.getByText(
-          "7 of 10 measured. The six counts always add up to 10.",
-        ),
-      ).toBeVisible();
-      await expect(page.getByText(/test cases?, each by/)).toHaveCount(0);
-      await expect(
-        page.getByText("Measured on a set of test cases", { exact: true }),
-      )
-        .toBeVisible();
-      await page.mouse.move(700, 700);
-      await still(page, "evaluation-run-unknown-set");
+    test("names come from the run itself: no list of agents, workflows, sets or test cases is read", async ({ page }) => {
+      await evaluationsFixture(page);
+      const listed: string[] = [];
+      page.on("request", (request) => {
+        const path = new URL(request.url()).pathname;
+        if (
+          /^\/v1\/(agents|workflows|evaluation-datasets|evaluation-cases)$/
+            .test(path)
+        ) listed.push(path);
+      });
       await page.goto(LIST);
-      await expect(page.getByText(/A set of test cases · /).first())
+      await expect(page.getByText(/Support questions · /).first())
         .toBeVisible();
-      await expect(page.getByText(/A set of test cases, \d+ test case/))
-        .toHaveCount(0);
-      await page.mouse.move(700, 700);
-      await still(page, "library-evaluations-unknown-set");
+      await page.goto(run(IDS.gaps));
+      await expect(page.getByText("Measured on Support questions"))
+        .toBeVisible();
+      await expect(
+        page.getByText("Refund for a duplicate charge").first(),
+      ).toBeVisible();
+      expect(listed).toEqual([]);
+    });
+
+    test("a run whose definition has no name says its kind and its version", async ({ page }) => {
+      await evaluationsFixture(page);
+      await page.goto(run(IDS.noName));
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(page.getByText("Reviewed coding, version 5")).toHaveCount(0);
+      await expect(page.getByText(/version 4/).first()).toBeVisible();
     });
 
     test("a running run reads again on its own and its counts change in place", async ({ page }) => {

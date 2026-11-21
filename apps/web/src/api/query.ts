@@ -37,8 +37,6 @@ import type {
   EvaluationBatch,
   EvaluationBatchPage,
   EvaluationBatchResultPage,
-  EvaluationCase,
-  EvaluationDataset,
   EvaluationResultState,
   ExternalTicketListResponse,
   ExternalTicketResponse,
@@ -4018,66 +4016,6 @@ export function evaluationAttemptsQueryOptions(
       return items;
     },
     enabled: Boolean(scope.organizationId) && id !== "",
-    retry: retryNetworkOnce,
-  });
-}
-
-/** The test case sets of the organization (a few pages at most): their names for the run rows. */
-export function evaluationDatasetsQueryOptions(
-  client: Pick<BakeryApiClient, "listEvaluationDatasets">,
-  scope: ApiScope,
-) {
-  return queryOptions<EvaluationDataset[], ApiFailure>({
-    queryKey: protectedQueryKey(scope, "evaluationDatasets.list", {}),
-    queryFn: async ({ signal }) => {
-      const items: EvaluationDataset[] = [];
-      let cursor: string | undefined;
-      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
-        const read = unwrap(
-          await client.listEvaluationDatasets({
-            organizationId: requireOrganization(scope),
-            cursor,
-            limit: 100,
-            signal,
-          }),
-        );
-        items.push(...read.items);
-        if (read.nextCursor === null) return items;
-        cursor = read.nextCursor;
-      }
-      return items;
-    },
-    enabled: Boolean(scope.organizationId),
-    retry: retryNetworkOnce,
-  });
-}
-
-/** The test cases of the organization (a few pages at most): their names for the result rows. */
-export function evaluationCasesQueryOptions(
-  client: Pick<BakeryApiClient, "listEvaluationCases">,
-  scope: ApiScope,
-) {
-  return queryOptions<EvaluationCase[], ApiFailure>({
-    queryKey: protectedQueryKey(scope, "evaluationCases.list", {}),
-    queryFn: async ({ signal }) => {
-      const items: EvaluationCase[] = [];
-      let cursor: string | undefined;
-      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
-        const read = unwrap(
-          await client.listEvaluationCases({
-            organizationId: requireOrganization(scope),
-            cursor,
-            limit: 100,
-            signal,
-          }),
-        );
-        items.push(...read.items);
-        if (read.nextCursor === null) return items;
-        cursor = read.nextCursor;
-      }
-      return items;
-    },
-    enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });
 }

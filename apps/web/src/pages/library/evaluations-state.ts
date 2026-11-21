@@ -309,32 +309,20 @@ export function candidatePin(value: unknown): CandidatePin {
   };
 }
 
-/** The names the lists the Library already reads give a pin: definitions by id. */
-export type DefinitionNames = ReadonlyMap<string, string>;
-
 /**
- * "{name}, version {n}" for what a run measured. The server gives a pin and no
- * name (design-ux #75, "For the server" 1), so the name is read from the
- * organization's agents and workflows when the pin's id is one of them; if it
- * is not (a version's own id), the words say the kind and the version.
+ * "{name}, version {n}" for what a run measured. The pin gives the version and
+ * the server gives the definition's name beside it; when the pin names nothing
+ * the server can resolve, the name is null and the words say the kind and the
+ * version.
  */
 export function pinTitle(
   value: unknown,
-  names: {
-    readonly agents: DefinitionNames;
-    readonly workflows: DefinitionNames;
-  },
+  definition: { readonly name: string | null } | null,
 ): Words {
   const pin = candidatePin(value);
   const version = pin.version;
   if (version === null) return { key: "library.evaluations.title.unknown" };
-  const name = pin.id === null
-    ? undefined
-    : pin.kind === "agent"
-    ? names.agents.get(pin.id)
-    : pin.kind === "workflow"
-    ? names.workflows.get(pin.id)
-    : names.agents.get(pin.id) ?? names.workflows.get(pin.id);
+  const name = definition?.name ?? undefined;
   if (name !== undefined) {
     return {
       key: "library.evaluations.title.named",
@@ -385,6 +373,8 @@ export function resultWords(
 /** One test case of a run with a line for each scorer that measured it. */
 export type CaseGroup = {
   readonly caseId: string;
+  /** The test case's name, as the server gives it on each of its results. */
+  readonly caseName: string;
   readonly results: readonly EvaluationBatchResult[];
 };
 
@@ -403,7 +393,11 @@ export function groupByCase(
     if (list === undefined) groups.set(result.caseId, [result]);
     else list.push(result);
   }
-  return [...groups].map(([caseId, rows]) => ({ caseId, results: rows }));
+  return [...groups].map(([caseId, rows]) => ({
+    caseId,
+    caseName: rows[0].caseName,
+    results: rows,
+  }));
 }
 
 /** The chips under the gate: All, then one per kind of result that has any. */

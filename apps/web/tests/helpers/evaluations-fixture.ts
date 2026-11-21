@@ -108,9 +108,15 @@ const run = (
   ({
     id,
     datasetId: IDS.dataset,
+    datasetName: "Support questions",
     datasetDigest: "sha256:aaaa",
     candidate: { kind: "workflowVersion", id: IDS.workflow, version: 5 },
+    candidateDefinition: {
+      definitionId: IDS.workflow,
+      name: "Reviewed coding",
+    },
     baseline: null,
+    baselineDefinition: null,
     scorers: SCORERS,
     state: "completed",
     requiredCount: 10,
@@ -123,6 +129,7 @@ const run = (
     },
     hiddenCount: 0,
     canceledAt: null,
+    canceledBy: null,
     completedAt: STAMP,
     createdAt: new Date(Date.UTC(2026, 10, 20, 12 - at)).toISOString(),
     updatedAt: STAMP,
@@ -153,8 +160,6 @@ export type EvaluationsOptions = {
   extra?: number;
   /** Add a run with 60 errors and 5 unscored results: two pages of errors, then the rest. */
   manyErrors?: boolean;
-  /** Reading the sets of test cases answers this status, so no set is known. */
-  datasetsStatus?: number;
   /** The first Stop is refused with 412 after someone else already changed the run. */
   conflictOnce?: boolean;
   /** Reading the run list answers this status. */
@@ -208,6 +213,7 @@ export async function evaluationsFixture(
     run(IDS.running, 1, {
       state: "running",
       candidate: { kind: "agentVersion", id: IDS.agent, version: 3 },
+      candidateDefinition: { definitionId: IDS.agent, name: "Reviewer" },
       measuredCount: 4,
       counts: { ...ZERO, passed: 3, failed: 1, missing: 6 },
       gate: {
@@ -221,9 +227,14 @@ export async function evaluationsFixture(
     run(IDS.met, 2, {
       candidate: { kind: "workflowVersion", id: IDS.workflow, version: 4 },
       baseline: { kind: "workflowVersion", id: IDS.workflow, version: 3 },
+      baselineDefinition: {
+        definitionId: IDS.workflow,
+        name: "Reviewed coding",
+      },
     }),
     run(IDS.notMet, 3, {
       candidate: { kind: "agentVersion", id: IDS.agent, version: 2 },
+      candidateDefinition: { definitionId: IDS.agent, name: "Reviewer" },
       counts: { ...ZERO, passed: 6, failed: 4 },
       gate: {
         decision: "not_met",
@@ -258,10 +269,12 @@ export async function evaluationsFixture(
         blockers: [],
       },
       canceledAt: STAMP,
+      canceledBy: uuid(700),
     }),
     run(IDS.failed, 6, {
       state: "failed",
       candidate: { kind: "somethingElse", id: uuid(999), version: 1 },
+      candidateDefinition: null,
       measuredCount: 0,
       counts: { ...ZERO, missing: 10 },
       gate: {
@@ -272,6 +285,8 @@ export async function evaluationsFixture(
     }),
     run(IDS.noName, 7, {
       candidate: { kind: "agentVersion", id: uuid(998), version: 4 },
+      // The pin names a definition the server cannot name.
+      candidateDefinition: { definitionId: uuid(998), name: null },
     }),
     run(IDS.everyState, 8, {
       state: "completed_with_errors",
@@ -373,73 +388,6 @@ export async function evaluationsFixture(
   };
 
   await page.route(
-    (url) => url.pathname === "/v1/agents",
-    (route) =>
-      json(route, {
-        items: [{
-          id: IDS.agent,
-          slug: "reviewer",
-          name: "Reviewer",
-          description: null,
-          enabled: true,
-          activeVersionId: null,
-          createdAt: STAMP,
-          updatedAt: STAMP,
-          version: 1,
-        }],
-        nextCursor: null,
-      }),
-  );
-  await page.route(
-    (url) => url.pathname === "/v1/workflows",
-    (route) =>
-      json(route, {
-        items: [{
-          id: IDS.workflow,
-          slug: "reviewed-coding",
-          name: "Reviewed coding",
-          origin: {
-            kind: "authored",
-            catalogKey: null,
-            catalogVersion: null,
-            sourceWorkflowId: null,
-            sourceVersionId: null,
-            sourceDigest: null,
-          },
-          description: null,
-          enabled: true,
-          activeVersionId: null,
-          createdAt: STAMP,
-          updatedAt: STAMP,
-          version: 1,
-        }],
-        nextCursor: null,
-      }),
-  );
-  await page.route(
-    (url) => url.pathname === "/v1/evaluation-datasets",
-    (route) =>
-      options.datasetsStatus !== undefined
-        ? problem(route, options.datasetsStatus, "SERVER_ERROR")
-        : json(route, {
-          items: [{
-            id: IDS.dataset,
-            name: "Support questions",
-            cases: CASES.map((entry) => ({
-              caseId: entry.id,
-              caseRevision: 1,
-            })),
-            digest: "sha256:aaaa",
-            createdAt: "2026-11-01T09:00:00.000Z",
-          }],
-          nextCursor: null,
-        }),
-  );
-  await page.route(
-    (url) => url.pathname === "/v1/evaluation-cases",
-    (route) => json(route, { items: CASES, nextCursor: null }),
-  );
-  await page.route(
     (url) => url.pathname === "/v1/evaluation-batches",
     (route) => {
       const { url } = record(route);
@@ -486,6 +434,7 @@ export async function evaluationsFixture(
           measuredCount: found.measuredCount,
           counts: { ...ZERO, passed: 3, failed: 1, canceled: 6 },
           canceledAt: STAMP,
+          canceledBy: uuid(701),
           version: found.version + 1,
         });
         return problem(route, 412, "PRECONDITION_FAILED");
@@ -500,6 +449,7 @@ export async function evaluationsFixture(
           canceled: 6,
         },
         canceledAt: STAMP,
+        canceledBy: uuid(700),
         version: found.version + 1,
       });
       return json(route, found);
@@ -522,6 +472,7 @@ export async function evaluationsFixture(
           batchId: id,
           role: "candidate",
           caseId: CASES[caseIndex % CASES.length].id,
+          caseName: CASES[caseIndex % CASES.length].name,
           caseRevision: 1,
           scorerId: scorer.scorerId,
           scorerRevision: scorer.scorerRevision,
