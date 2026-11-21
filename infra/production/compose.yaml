@@ -13,7 +13,9 @@ services:
     # Continuous WAL archiving for "Restore to any minute" (#80): every finished
     # segment, and at least one a minute, is copied to the host spool. The host
     # backup runner encrypts and ships it off-site when the switch is on, and
-    # prunes the spool either way. A copy never overwrites an existing file.
+    # prunes the spool either way. A copy never overwrites an existing file, and
+    # it is written under .tmp and renamed, so the runner never sees (and ships,
+    # then deletes) a segment that is still being copied.
     command:
       - postgres
       - -c
@@ -23,7 +25,7 @@ services:
       - -c
       - archive_timeout=60
       - -c
-      - archive_command=test ! -f /wal-spool/%f && cp %p /wal-spool/%f
+      - archive_command=test ! -f /wal-spool/%f && cp %p /wal-spool/%f.tmp && mv /wal-spool/%f.tmp /wal-spool/%f
     ports: ["127.0.0.1:5432:5432"]
     volumes:
       - /var/lib/bakery/postgres:/var/lib/postgresql/data

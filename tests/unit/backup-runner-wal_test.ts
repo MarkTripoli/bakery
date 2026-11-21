@@ -129,3 +129,27 @@ Deno.test("the earliest base backup is the oldest set that holds one", async () 
   );
   assertEquals(await earliestBaseBackup(join(root, "missing")), null);
 });
+
+Deno.test("a segment still being copied (<segment>.tmp) is never shipped or removed, on or off", async () => {
+  for (const enabled of [true, false]) {
+    const spool = await spoolWith([SEG1, SEG2 + ".tmp"]);
+    try {
+      const { connection, puts } = fakeConnection();
+      const outcome = await shipWal({
+        spool,
+        enabled,
+        connection,
+        encrypt: (path) => Deno.readFile(path),
+        report: () => Promise.resolve(),
+        earliestBaseBackupAt: new Date("2026-11-20T03:00:00Z"),
+      });
+      assertEquals(puts, enabled ? [walKey("prod/", SEG1)] : []);
+      assertEquals(outcome.shipped + outcome.pruned, 1);
+      assertEquals([...Deno.readDirSync(spool)].map((e) => e.name), [
+        SEG2 + ".tmp",
+      ]);
+    } finally {
+      await Deno.remove(spool, { recursive: true });
+    }
+  }
+});
