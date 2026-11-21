@@ -249,7 +249,8 @@ export const UNAVAILABLE_ROUTE_NAMES_CAP = 20;
  * row per route: per harness for `different_harness` (a person sees which other
  * agents have routes), and the names of at most
  * `UNAVAILABLE_ROUTE_NAMES_CAP` routes for `route_open` (a person may know
- * them by name and wait for one). Reasons with no route are left out.
+ * them by name and wait for one) and for `route_not_active` (a person sees
+ * which routes are turned off in Settings). Reasons with no route are left out.
  */
 export function summarizeUnavailable(
   refused: readonly {
@@ -273,7 +274,7 @@ export function summarizeUnavailable(
           count,
         }));
     }
-    if (reason === "route_open") {
+    if (reason === "route_open" || reason === "route_not_active") {
       group.routes = mine.slice(0, UNAVAILABLE_ROUTE_NAMES_CAP).map((
         { candidate },
       ) => ({

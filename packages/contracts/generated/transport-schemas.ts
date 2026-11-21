@@ -32234,7 +32234,7 @@ const transportSchemas = {
         "reason": "Why these routes cannot take the step: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident). A route with several reasons counts once, under the first a person would fix: not active, then harness, then open.",
         "count": "How many routes this reason covers, at least 1.",
         "harnesses": "For different_harness only: the routes counted per harness, most first. Absent for any other reason.",
-        "routes": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason."
+        "routes": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness."
       },
       "optionalFields": [
         "harnesses",

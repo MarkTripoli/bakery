@@ -10,7 +10,9 @@ import { msUntilNextShown, type Offer, shownOffers } from "./model.ts";
  * model has, once each has waited a minute, oldest first. The run's own
  * `waitingOnModel` is the gate: unless the run says a step waits, nothing is
  * asked and nothing is shown, so a card goes the moment the incident closes. A
- * Viewer is not served the offers; the refused read shows nothing.
+ * Viewer is not served the offers; the refused read shows nothing. Any other
+ * failed first read is `failed`: the run still waits, so the page keeps its
+ * card and offers `retry`.
  */
 export function useWaitingOffers(
   { runId, enabled, waitingOnModel }: {
@@ -18,7 +20,12 @@ export function useWaitingOffers(
     readonly enabled: boolean;
     readonly waitingOnModel: boolean | undefined;
   },
-): readonly Offer[] {
+): {
+  readonly offers: readonly Offer[];
+  readonly failed: boolean;
+  readonly retrying: boolean;
+  readonly retry: () => void;
+} {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const gate = enabled && waitingOnModel === true;
@@ -39,5 +46,14 @@ export function useWaitingOffers(
     const timer = setTimeout(() => setTick((count) => count + 1), wait + 25);
     return () => clearTimeout(timer);
   }, [offers, tick]);
-  return shown;
+  const error = query.error;
+  const refused = error?.kind === "problem" && error.problem.status === 403;
+  const failed = gate && query.data === undefined && error !== null &&
+    !refused;
+  return {
+    offers: shown,
+    failed,
+    retrying: query.isFetching,
+    retry: () => void query.refetch(),
+  };
 }

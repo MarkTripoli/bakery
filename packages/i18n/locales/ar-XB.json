@@ -5365,7 +5365,6 @@
   "tasks.waiting.unavailable.route_open": "⟪Not working right now ({count}): {names}⟫",
   "tasks.waiting.unavailable.routeName": "⟪{provider} {model}⟫",
   "tasks.waiting.unavailable.andMore": "⟪{names} and {count} more⟫",
-  "tasks.waiting.unavailable.route_not_active": "⟪Turned off ({count}). Turned off in Settings, Providers.⟫",
   "tasks.waiting.continued": "⟪Continuing with {agent} with {model}. The step starts again.⟫",
   "tasks.waiting.refused.changed": "⟪This changed while you were choosing. Nothing was switched; the latest is shown.⟫",
   "tasks.waiting.refused.alreadyContinued": "⟪Someone already chose another way for this step. The latest is shown.⟫",
@@ -5374,5 +5373,10 @@
   "tasks.waiting.refused.noPrice": "⟪Bakery has no price for that one, so it cannot hold a budget for it. Pick another.⟫",
   "tasks.waiting.refused.confirming": "⟪Bakery is still confirming what the last attempt did. Try again in a moment.⟫",
   "tasks.waiting.refused.noBudget": "⟪This step has no budget or attempts left, so it cannot be moved.⟫",
-  "tasks.waiting.refused.other": "⟪Nothing was switched. Try again.⟫"
+  "tasks.waiting.refused.other": "⟪Nothing was switched. Try again.⟫",
+  "tasks.waiting.chooser.loadFailed": "⟪The choices could not be loaded.⟫",
+  "tasks.waiting.chooser.retry": "⟪Try again⟫",
+  "tasks.waiting.unknownTitle": "⟪A step is waiting on its model⟫",
+  "tasks.waiting.unavailable.showTurnedOff": "⟪Show the {count}⟫",
+  "tasks.waiting.unavailable.route_not_active": "⟪Turned off in Settings, Providers.⟫"
 }

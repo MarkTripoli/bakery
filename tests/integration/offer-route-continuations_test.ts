@@ -366,7 +366,16 @@ Deno.test("route continuations: a step pinned to a route with an open incident i
     );
     // The rest are counts per reason, never rows.
     assertEquals(offer.unavailable, [
-      { reason: "route_not_active", count: 1 },
+      {
+        reason: "route_not_active",
+        count: 1,
+        routes: [{
+          provider: PIN.provider,
+          model: PIN.model,
+          providerName: "Anthropic",
+          modelName: PIN.model,
+        }],
+      },
       {
         reason: "different_harness",
         count: 2,

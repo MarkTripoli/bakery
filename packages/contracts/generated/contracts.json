@@ -248765,7 +248765,7 @@
               }
             },
             "routes": {
-              "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason.",
+              "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
               "type": "array",
               "items": {
                 "type": "object",
@@ -248798,7 +248798,7 @@
                   "modelName"
                 ],
                 "additionalProperties": false,
-                "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason. Each array item follows this format."
+                "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
               }
             }
           },
@@ -249222,7 +249222,7 @@
                     }
                   },
                   "routes": {
-                    "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason.",
+                    "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -249255,7 +249255,7 @@
                         "modelName"
                       ],
                       "additionalProperties": false,
-                      "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason. Each array item follows this format."
+                      "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
                     }
                   }
                 },
@@ -249582,7 +249582,7 @@
                           }
                         },
                         "routes": {
-                          "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason.",
+                          "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -249615,7 +249615,7 @@
                               "modelName"
                             ],
                             "additionalProperties": false,
-                            "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason. Each array item follows this format."
+                            "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
                           }
                         }
                       },
@@ -264794,7 +264794,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:cf4c74a76008b30a040dc12607d479f6f88cc46c7d7952c4b5bbb481f9f56036",
+  "compatibilityDigest": "sha256:870b93ba9f1328843bbce65bf5152740fef8639b29aca4e1d62fbc4edcea4f58",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -466377,7 +466377,7 @@
           }
         },
         "routes": {
-          "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason.",
+          "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
           "type": "array",
           "items": {
             "type": "object",
@@ -466410,7 +466410,7 @@
               "modelName"
             ],
             "additionalProperties": false,
-            "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason. Each array item follows this format."
+            "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
           }
         }
       },
@@ -466834,7 +466834,7 @@
                 }
               },
               "routes": {
-                "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason.",
+                "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
                 "type": "array",
                 "items": {
                   "type": "object",
@@ -466867,7 +466867,7 @@
                     "modelName"
                   ],
                   "additionalProperties": false,
-                  "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason. Each array item follows this format."
+                  "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
                 }
               }
             },
@@ -467194,7 +467194,7 @@
                       }
                     },
                     "routes": {
-                      "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason.",
+                      "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -467227,7 +467227,7 @@
                           "modelName"
                         ],
                         "additionalProperties": false,
-                        "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason. Each array item follows this format."
+                        "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
                       }
                     }
                   },

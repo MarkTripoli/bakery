@@ -289,6 +289,13 @@ Deno.test("a candidate gives exactly one reason for not being eligible, or none"
   );
 });
 
+const TURNED_OFF = {
+  provider: "anthropic",
+  model: "claude-x",
+  providerName: "Anthropic",
+  modelName: "claude-x",
+};
+
 Deno.test("only usable routes are targets; the rest are counts per reason, never rows", async () => {
   const { transaction } = stand({
     run: { status: "running" },
@@ -316,7 +323,12 @@ Deno.test("only usable routes are targets; the rest are counts per reason, never
     "unverified",
   ]);
   assertEquals(offer.unavailable, [
-    { reason: "route_not_active", count: 3 },
+    // Turned off routes are named too, so a person sees which to turn on.
+    {
+      reason: "route_not_active",
+      count: 3,
+      routes: [TURNED_OFF, TURNED_OFF, TURNED_OFF],
+    },
     {
       reason: "different_harness",
       count: 4,
@@ -356,6 +368,30 @@ Deno.test("open routes are named at most up to the cap, and still all counted", 
   assertEquals(open.count, UNAVAILABLE_ROUTE_NAMES_CAP + 5);
   assertEquals(open.routes!.length, UNAVAILABLE_ROUTE_NAMES_CAP);
   assertEquals(open.routes![0]!.model, "m-0");
+});
+
+Deno.test("turned off routes are named at most up to the cap, and still all counted", async () => {
+  const off = Array.from(
+    { length: UNAVAILABLE_ROUTE_NAMES_CAP + 2 },
+    (_, n) => route(`off-${n}`, { status: "disabled", model: `m-${n}` }),
+  );
+  const { transaction } = stand({
+    run: { status: "running" },
+    stalled: [stalledRow],
+    candidates: [route(SOURCE), ...off],
+  });
+  const offer = (await listRouteContinuations(context(transaction), {}))
+    .offers[0]!;
+  const turnedOff = offer.unavailable[0]!;
+  assertEquals(turnedOff.reason, "route_not_active");
+  assertEquals(turnedOff.count, UNAVAILABLE_ROUTE_NAMES_CAP + 2);
+  assertEquals(turnedOff.routes!.length, UNAVAILABLE_ROUTE_NAMES_CAP);
+  assertEquals(turnedOff.routes![0], {
+    provider: "anthropic",
+    model: "m-0",
+    providerName: "Anthropic",
+    modelName: "m-0",
+  });
 });
 
 Deno.test("a target is priced only with an account and an active price for its pin", async () => {

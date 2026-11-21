@@ -395,6 +395,23 @@ export function continuedNotice(t: Translator, target: Target): string {
   });
 }
 
+/** The named routes of a group, with "and {n} more" past the names sent. */
+function routeNames(t: Translator, group: Unavailable): string {
+  const names = (group.routes ?? []).map((one) =>
+    t("tasks.waiting.unavailable.routeName", {
+      provider: one.providerName,
+      model: one.modelName,
+    })
+  );
+  const more = group.count - names.length;
+  return more > 0
+    ? t("tasks.waiting.unavailable.andMore", {
+      names: names.join(", "),
+      count: more,
+    })
+    : names.join(", ");
+}
+
 /** The closed "cannot be used" line, or null when every route can be used. */
 export function unavailableSummary(
   t: Translator,
@@ -407,12 +424,16 @@ export function unavailableSummary(
 /**
  * One line per reason routes cannot be used, with its count: other coding
  * agents by agent only, routes not working by name, turned off routes as a
- * pointer to Settings.
+ * pointer to Settings with their names behind "Show the {n}" (`more`).
  */
 export function unavailableLines(
   t: Translator,
   offer: Pick<Offer, "unavailable">,
-): { reason: Unavailable["reason"]; text: string }[] {
+): {
+  reason: Unavailable["reason"];
+  text: string;
+  more?: { label: string; names: string };
+}[] {
   return offer.unavailable.map((group) => {
     if (group.reason === "different_harness") {
       return {
@@ -429,30 +450,24 @@ export function unavailableLines(
       };
     }
     if (group.reason === "route_open") {
-      const names = (group.routes ?? []).map((one) =>
-        t("tasks.waiting.unavailable.routeName", {
-          provider: one.providerName,
-          model: one.modelName,
-        })
-      );
-      const more = group.count - names.length;
       return {
         reason: group.reason,
         text: t("tasks.waiting.unavailable.route_open", {
           count: group.count,
-          names: more > 0
-            ? t("tasks.waiting.unavailable.andMore", {
-              names: names.join(", "),
-              count: more,
-            })
-            : names.join(", "),
+          names: routeNames(t, group),
         }),
       };
     }
     return {
       reason: group.reason,
-      text: t("tasks.waiting.unavailable.route_not_active", {
-        count: group.count,
+      text: t("tasks.waiting.unavailable.route_not_active"),
+      ...(group.routes === undefined || group.routes.length === 0 ? {} : {
+        more: {
+          label: t("tasks.waiting.unavailable.showTurnedOff", {
+            count: group.count,
+          }),
+          names: routeNames(t, group),
+        },
       }),
     };
   });

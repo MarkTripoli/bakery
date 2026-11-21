@@ -373,7 +373,16 @@ Deno.test("the end bar names the choice, the payment change and the cost", () =>
 Deno.test("routes that cannot be used read as counts, one line per reason", () => {
   const o = offer({
     unavailable: [
-      { reason: "route_not_active", count: 3 },
+      {
+        reason: "route_not_active",
+        count: 3,
+        routes: [{
+          provider: "openai",
+          model: "o3",
+          providerName: "OpenAI",
+          modelName: "o3",
+        }],
+      },
       {
         reason: "different_harness",
         count: 4,
@@ -397,10 +406,24 @@ Deno.test("routes that cannot be used read as counts, one line per reason", () =
   assertEquals(unavailableSummary(t, o), "9 routes cannot be used");
   assertEquals(unavailableSummary(t, offer()), null);
   assertEquals(unavailableLines(t, o).map((l) => l.text), [
-    "Turned off (3). Turned off in Settings, Providers.",
+    "Turned off in Settings, Providers.",
     "A different coding agent (4): Codex 3, Pi 1",
     "Not working right now (2): OpenAI gpt-5 and 1 more",
   ]);
+  // Turned off routes name themselves behind "Show the {n}", once.
+  assertEquals(unavailableLines(t, o)[0]!.more, {
+    label: "Show the 3",
+    names: "OpenAI o3 and 2 more",
+  });
+  assertEquals(
+    unavailableLines(
+      t,
+      offer({
+        unavailable: [{ reason: "route_not_active", count: 1 }],
+      }),
+    )[0]!.more,
+    undefined,
+  );
 });
 
 Deno.test("a refused choice maps to where it is said and whether choices reload", () => {

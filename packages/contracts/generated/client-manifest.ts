@@ -99068,7 +99068,7 @@ export const clientManifest = {
                       }
                     },
                     "routes": {
-                      "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason.",
+                      "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness.",
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -99101,7 +99101,7 @@ export const clientManifest = {
                           "modelName"
                         ],
                         "additionalProperties": false,
-                        "description": "For route_open only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for; count still covers them all. Absent for any other reason. Each array item follows this format."
+                        "description": "For route_open and route_not_active only: the provider and model of at most 20 of those routes, in creation order, so a person may recognise one to wait for or see which are turned off; count still covers them all. Absent for different_harness. Each array item follows this format."
                       }
                     }
                   },

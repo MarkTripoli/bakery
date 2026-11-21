@@ -221,11 +221,22 @@ type Waiting = {
   admits: Admit[];
   /** Answers an admit instead of the default success. */
   reply?: (route: Route) => Promise<void>;
+  /** The offers read answers 500 while this is true. */
+  failRead?: boolean;
 };
 
 /** Serves the task and its run waiting on a model. */
-async function openWaiting(page: Page, offers: Offer[]): Promise<Waiting> {
-  const state: Waiting = { offers, waiting: offers.length > 0, admits: [] };
+async function openWaiting(
+  page: Page,
+  offers: Offer[],
+  options: { failRead?: boolean } = {},
+): Promise<Waiting> {
+  const state: Waiting = {
+    offers,
+    waiting: offers.length > 0,
+    admits: [],
+    failRead: options.failRead,
+  };
   await mockAuthenticatedSession(page);
   await page.route(
     `**/v1/tasks/${id}`,
@@ -284,6 +295,9 @@ async function openWaiting(page: Page, offers: Offer[]): Promise<Waiting> {
   await page.route(`**/v1/runs/${runId}/route-continuations`, async (route) => {
     const request = route.request();
     if (request.method() === "GET") {
+      if (state.failRead) {
+        return await problemReply(route, problemBody(500, "INTERNAL_ERROR"));
+      }
       return await route.fulfill({
         json: { runId, offers: state.offers },
       });
@@ -537,7 +551,21 @@ test("routes that cannot be used are counts, one line per reason", async ({ page
   inPageOnly();
   await openWaiting(page, [offerRow({
     unavailable: [
-      { reason: "route_not_active", count: 2 },
+      {
+        reason: "route_not_active",
+        count: 2,
+        routes: [{
+          provider: "openai",
+          model: "gpt-4.1",
+          providerName: "OpenAI",
+          modelName: "gpt-4.1",
+        }, {
+          provider: "mistral",
+          model: "codestral",
+          providerName: "Mistral",
+          modelName: "codestral",
+        }],
+      },
       {
         reason: "different_harness",
         count: 3,
@@ -563,8 +591,16 @@ test("routes that cannot be used are counts, one line per reason", async ({ page
   await expect(unavailable).toContainText("6 routes cannot be used");
   await unavailable.getByText("6 routes cannot be used").click();
   await expect(unavailable).toContainText(
-    "Turned off (2). Turned off in Settings, Providers.",
+    "Turned off in Settings, Providers.",
   );
+  await expect(unavailable).not.toContainText("Turned off (");
+  // The names wait behind "Show the 2".
+  const turnedOff = page.getByTestId("route-waiting-turned-off");
+  await expect(turnedOff.getByText("OpenAI gpt-4.1, Mistral codestral"))
+    .toBeHidden();
+  await turnedOff.getByText("Show the 2", { exact: true }).click();
+  await expect(turnedOff.getByText("OpenAI gpt-4.1, Mistral codestral"))
+    .toBeVisible();
   await expect(unavailable).toContainText(
     "A different coding agent (3): Codex 2, Pi 1",
   );
@@ -624,6 +660,37 @@ test("a refused choice says why in the chooser; a lost answer retries with the s
   expect(state.admits[2].key).toBe(state.admits[1].key);
 });
 
+test("Enter on a model chooses it, as Space does", async ({ page }) => {
+  inPageOnly();
+  await openWaiting(page, [offerRow()]);
+  await chooseButton(page).click();
+  await providerRow(chooser(page), "openai").click();
+  await modelRadio(chooser(page), "gpt-5").focus();
+  await page.keyboard.press("Enter");
+  await expect(modelRadio(chooser(page), "gpt-5")).toBeChecked();
+  await expect(page.getByTestId("route-waiting-summary")).toHaveText(
+    "OpenAI · gpt-5 · Charged per use to an API key",
+  );
+  // Enter chooses; it does not send the choice.
+  await expect(chooser(page)).toBeVisible();
+});
+
+test("a failed read of the choices keeps the card and the badge, and Try again reads them", async ({ page }) => {
+  const state = await openWaiting(page, [offerRow()], { failRead: true });
+  await expect(card(page)).toHaveCount(1);
+  await expect(page.getByTestId("route-waiting-load-failed")).toContainText(
+    "The choices could not be loaded.",
+  );
+  await expect(page.getByText("Waiting on a model", { exact: true }).first())
+    .toBeVisible();
+  await expect(chooseButton(page)).toHaveCount(0);
+  state.failRead = false;
+  await page.getByTestId("route-waiting-load-failed")
+    .getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByTestId("route-waiting-load-failed")).toHaveCount(0);
+  await expect(chooseButton(page)).toBeVisible();
+});
+
 test("on a phone the chooser is a sheet in two steps: providers, then models", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openWaiting(page, [offerRow()]);
@@ -633,6 +700,15 @@ test("on a phone the chooser is a sheet in two steps: providers, then models", a
   await expect(chooser(page).locator("[data-route-id]")).toHaveCount(0);
   await providerRow(chooser(page), "openai").click();
   await expect(modelRadio(chooser(page), "gpt-5")).toBeVisible();
+  // The buttons stack full width, Continue first.
+  await modelRadio(chooser(page), "gpt-5").check();
+  const go = await page.getByTestId("route-waiting-continue").boundingBox();
+  const keep = await chooser(page).getByRole("button", {
+    name: "Keep waiting",
+  }).boundingBox();
+  expect(go!.y).toBeLessThan(keep!.y);
+  expect(Math.abs(go!.width - keep!.width)).toBeLessThan(1);
+  expect(Math.abs(go!.x - keep!.x)).toBeLessThan(1);
   await chooser(page).getByRole("button", { name: "‹ Providers" }).click();
   await expect(providerRow(chooser(page), "anthropic")).toBeVisible();
   await page.keyboard.press("Escape");
@@ -694,7 +770,21 @@ const wideOffer = () =>
       }),
     ],
     unavailable: [
-      { reason: "route_not_active", count: 4 },
+      {
+        reason: "route_not_active",
+        count: 4,
+        routes: [
+          ["openai", "OpenAI", "gpt-4.1"],
+          ["openai", "OpenAI", "o3"],
+          ["mistral", "Mistral", "codestral"],
+          ["xai", "xAI", "grok-4"],
+        ].map(([provider, providerName, model]) => ({
+          provider,
+          model,
+          providerName,
+          modelName: model,
+        })),
+      },
       {
         reason: "different_harness",
         count: 7,
@@ -737,6 +827,10 @@ const CHOOSER_CASES: readonly [
       .getByText("12 routes cannot be used").click();
     await expect(page.getByTestId("route-waiting-unavailable"))
       .toContainText("Codex 5");
+    await page.getByTestId("route-waiting-turned-off")
+      .getByText("Show the 4", { exact: true }).click();
+    await expect(page.getByTestId("route-waiting-turned-off"))
+      .toContainText("xAI grok-4");
   }],
   ["chooser-providers", "phone", async () => {}],
   ["chooser-models", "phone", async (page) => {
@@ -766,6 +860,25 @@ for (const scheme of SCHEMES) {
         });
       });
     }
+  }
+}
+
+for (const scheme of SCHEMES) {
+  for (const [size, width, height] of SIZES) {
+    test(`still: choices-failed, ${size} ${scheme}`, async ({ page }) => {
+      test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+      test.setTimeout(laneBudgetMs(90_000));
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width, height });
+      await openWaiting(page, [offerRow()], { failRead: true });
+      await expect(page.getByTestId("route-waiting-load-failed"))
+        .toBeVisible();
+      await page.setViewportSize({ width, height: TALL[size] });
+      await page.screenshot({
+        path: `${STILLS}/choices-failed-${size}-${scheme}.png`,
+        animations: "disabled",
+      });
+    });
   }
 }
 

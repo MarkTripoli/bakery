@@ -5365,7 +5365,6 @@
   "tasks.waiting.unavailable.route_open": "⟦Ñôŧ ŵôŕķïñĝ ŕïĝĥŧ ñôŵ ({count}): {names} ŧëšŧ çôþÿ ŧ⟧",
   "tasks.waiting.unavailable.routeName": "⟦{provider} {model} ŧëšŧ⟧",
   "tasks.waiting.unavailable.andMore": "⟦{names} àñð {count} ɱôŕë ŧëšŧ ç⟧",
-  "tasks.waiting.unavailable.route_not_active": "⟦Ŧûŕñëð ôƒƒ ({count}). Ŧûŕñëð ôƒƒ ïñ Šëŧŧïñĝš, Þŕôṽïðëŕš. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.waiting.continued": "⟦Çôñŧïñûïñĝ ŵïŧĥ {agent} ŵïŧĥ {model}. Ŧĥë šŧëþ šŧàŕŧš àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "tasks.waiting.refused.changed": "⟦Ŧĥïš çĥàñĝëð ŵĥïļë ÿôû ŵëŕë çĥôôšïñĝ. Ñôŧĥïñĝ ŵàš šŵïŧçĥëð; ŧĥë ļàŧëšŧ ïš šĥôŵñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "tasks.waiting.refused.alreadyContinued": "⟦Šôɱëôñë àļŕëàðÿ çĥôšë àñôŧĥëŕ ŵàÿ ƒôŕ ŧĥïš šŧëþ. Ŧĥë ļàŧëšŧ ïš šĥôŵñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
@@ -5374,5 +5373,10 @@
   "tasks.waiting.refused.noPrice": "⟦Ɓàķëŕÿ ĥàš ñô þŕïçë ƒôŕ ŧĥàŧ ôñë, šô ïŧ çàññôŧ ĥôļð à ƀûðĝëŧ ƒôŕ ïŧ. Þïçķ àñôŧĥëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "tasks.waiting.refused.confirming": "⟦Ɓàķëŕÿ ïš šŧïļļ çôñƒïŕɱïñĝ ŵĥàŧ ŧĥë ļàšŧ àŧŧëɱþŧ ðïð. Ŧŕÿ àĝàïñ ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.waiting.refused.noBudget": "⟦Ŧĥïš šŧëþ ĥàš ñô ƀûðĝëŧ ôŕ àŧŧëɱþŧš ļëƒŧ, šô ïŧ çàññôŧ ƀë ɱôṽëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
-  "tasks.waiting.refused.other": "⟦Ñôŧĥïñĝ ŵàš šŵïŧçĥëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ⟧"
+  "tasks.waiting.refused.other": "⟦Ñôŧĥïñĝ ŵàš šŵïŧçĥëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ⟧",
+  "tasks.waiting.chooser.loadFailed": "⟦Ŧĥë çĥôïçëš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ⟧",
+  "tasks.waiting.chooser.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
+  "tasks.waiting.unknownTitle": "⟦À šŧëþ ïš ŵàïŧïñĝ ôñ ïŧš ɱôðëļ ŧëšŧ çôþ⟧",
+  "tasks.waiting.unavailable.showTurnedOff": "⟦Šĥôŵ ŧĥë {count} ŧëš⟧",
+  "tasks.waiting.unavailable.route_not_active": "⟦Ŧûŕñëð ôƒƒ ïñ Šëŧŧïñĝš, Þŕôṽïðëŕš. ŧëšŧ çôþÿ⟧"
 }

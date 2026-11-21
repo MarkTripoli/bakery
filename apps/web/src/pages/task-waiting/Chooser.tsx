@@ -226,6 +226,12 @@ export function Chooser(
                   disabled={working || !choosable(row)}
                   name={group}
                   onChange={() => setChosen(row.routeId)}
+                  onKeyDown={(event) => {
+                    // Enter on a model chooses it, as Space does.
+                    if (event.key !== "Enter") return;
+                    event.preventDefault();
+                    if (!working && choosable(row)) setChosen(row.routeId);
+                  }}
                   value={row.routeId}
                 >
                   <UI.Text truncate title={row.modelName}>
@@ -291,9 +297,17 @@ export function Chooser(
       <UI.Disclosure summary={summary} data-testid="route-waiting-unavailable">
         <UI.Stack gap="tight" role="list">
           {unavailableLines(t, offer).map((line) => (
-            <UI.Text key={line.reason} role="listitem" variant="muted">
-              {line.text}
-            </UI.Text>
+            <UI.Stack gap="none" key={line.reason} role="listitem">
+              <UI.Text variant="muted">{line.text}</UI.Text>
+              {line.more === undefined ? null : (
+                <UI.Disclosure
+                  data-testid="route-waiting-turned-off"
+                  summary={line.more.label}
+                >
+                  <UI.Text variant="muted">{line.more.names}</UI.Text>
+                </UI.Disclosure>
+              )}
+            </UI.Stack>
           ))}
         </UI.Stack>
       </UI.Disclosure>
@@ -350,7 +364,13 @@ export function Chooser(
           </UI.InlineNotice>
         )}
       {phone
-        ? <UI.Inline variant="actions">{[go, keep]}</UI.Inline>
+        ? (
+          // A phone stacks the buttons full width, Continue first, so a long
+          // model name keeps its line.
+          <UI.Stack gap="tight" data-testid="route-waiting-actions">
+            {[go, keep]}
+          </UI.Stack>
+        )
         : <UI.Inline variant="end">{[keep, go]}</UI.Inline>}
     </UI.Stack>
   );

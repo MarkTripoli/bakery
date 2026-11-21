@@ -193,12 +193,14 @@ export function TaskRunSection(
     enabled: activeRun,
   });
   // The steps waiting on a model, once each has waited a minute (#70).
-  const waitingOffers = useWaitingOffers({
+  const waiting = useWaitingOffers({
     runId,
     enabled: activeRun,
     waitingOnModel: run.data?.waitingOnModel,
   });
-  const waitingOnModel = waitingOffers.length > 0;
+  const waitingOffers = waiting.offers;
+  // A failed read of the choices still leaves the run waiting on a model.
+  const waitingOnModel = waitingOffers.length > 0 || waiting.failed;
   const stepLanded = useRef(false);
   useEffect(() => {
     if (!landingStepId || stepLanded.current || !steps.data) return;
@@ -371,6 +373,9 @@ export function TaskRunSection(
                 taskId={taskId}
                 runId={runId}
                 offers={waitingOffers}
+                failed={waiting.failed}
+                retrying={waiting.retrying}
+                onRetry={waiting.retry}
               />
             )
             : null}

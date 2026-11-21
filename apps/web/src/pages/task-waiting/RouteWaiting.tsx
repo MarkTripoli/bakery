@@ -28,11 +28,15 @@ type Notice = Readonly<{ tone: "success" | "warning"; text: string }>;
  * incident closes the offer goes and the card goes with it, without a notice.
  */
 export function RouteWaiting(
-  { taskId, runId, offers }: {
+  { taskId, runId, offers, failed, retrying, onRetry }: {
     readonly taskId: string;
     readonly runId: string;
     /** The offers old enough to show, oldest first. */
     readonly offers: readonly Offer[];
+    /** The run waits on a model, but the choices could not be read. */
+    readonly failed: boolean;
+    readonly retrying: boolean;
+    readonly onRetry: () => void;
   },
 ) {
   const api = useBakeryApi();
@@ -156,6 +160,32 @@ export function RouteWaiting(
 
   return (
     <UI.Stack gap="standard" data-testid="route-waiting">
+      {failed && offers.length === 0
+        ? (
+          // The run says a step waits but the choices did not load: the card
+          // stays, and where the chooser would be the page says so.
+          <UI.AlertBanner data-testid="route-waiting-card" tone="warning">
+            <UI.Stack gap="tight">
+              <UI.Heading level="subsection">
+                {t("tasks.waiting.unknownTitle")}
+              </UI.Heading>
+              <UI.Text variant="muted">{t("tasks.waiting.second")}</UI.Text>
+              <UI.Stack gap="tight" data-testid="route-waiting-load-failed">
+                <UI.Text>{t("tasks.waiting.chooser.loadFailed")}</UI.Text>
+                <UI.Inline gap="compact">
+                  <UI.Button
+                    variant="secondary"
+                    loading={retrying}
+                    onClick={onRetry}
+                  >
+                    {t("tasks.waiting.chooser.retry")}
+                  </UI.Button>
+                </UI.Inline>
+              </UI.Stack>
+            </UI.Stack>
+          </UI.AlertBanner>
+        )
+        : null}
       {offers.map((offer) => {
         const copy = cardCopy(
           offer,
