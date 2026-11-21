@@ -6,7 +6,7 @@ import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import { decodeCursor, encodeCursor } from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { lockConversationScope } from "./postgres.ts";
-import { searchMentionCandidates } from "./mentions.ts";
+import { findSharers, searchMentionCandidates } from "./mentions.ts";
 
 type GrantRow = {
   id: string;
@@ -77,6 +77,37 @@ export function createConversationMentionCandidatesHandler(secret: string) {
       scopeId: conversationId,
       query: input as z.output<typeof contractSchemas.MentionCandidateQuery>,
     });
+  };
+}
+
+/**
+ * `conversationAccess.sharers`: up to three people in the reader's
+ * organization who may give access to this conversation, its author first.
+ * It names who to ask when the writer cannot share; it grants nothing.
+ */
+export function createConversationAccessSharersHandler() {
+  return async (context: ActionContext) => {
+    const { transaction, organizationId } = requireWorkTransaction(context);
+    const conversationId = conversationIdOf(context);
+    await lockConversationScope(
+      transaction,
+      organizationId,
+      conversationId,
+      "share",
+    );
+    const author = await transaction.query<{ created_by: string }>(
+      `select created_by from bakery.conversations
+        where organization_id = $1 and id = $2`,
+      [organizationId, conversationId],
+    );
+    return {
+      items: await findSharers(
+        transaction,
+        organizationId,
+        author.rows[0]?.created_by ?? null,
+        "conversation:share",
+      ),
+    };
   };
 }
 
