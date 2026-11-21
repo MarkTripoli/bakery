@@ -42,10 +42,13 @@ import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
 import { createPluginPackageRoutes } from "./modules/catalog/plugin-routes.ts";
 import { githubIngress } from "./modules/catalog/integration-providers/github-ingress.ts";
 import {
+  TICKET_CREATE_ACTION,
   TICKET_NOTE_ACTION,
   TICKET_NOTE_UPDATE_ACTION,
 } from "./modules/catalog/integration-providers/github.ts";
+import { createGateRemoteTicketCreator } from "./modules/integrations/ticket-create.ts";
 import { createGateTicketNoteWriter } from "./modules/integrations/ticket-notes.ts";
+import type { RemoteTicketCreator } from "./modules/work/ticket-create.ts";
 import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
@@ -236,6 +239,8 @@ export function createApp(options: {
   ticketFactIndex?: TicketFactIndex;
   /** Writes Bakery's status note on a ticket; the integration gate by default, an in-memory one in tests. */
   ticketNoteWriter?: TicketNoteWriter;
+  /** Creates a ticket in the tracker; the integration gate by default, an in-memory one in tests. */
+  ticketCreator?: RemoteTicketCreator;
   draftIsolation?: DraftIsolation;
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
@@ -350,6 +355,13 @@ export function createApp(options: {
           update: TICKET_NOTE_UPDATE_ACTION,
         },
       },
+    });
+  const ticketCreator = options.ticketCreator ??
+    createGateRemoteTicketCreator({
+      database: options.pgDatabase,
+      registry: integrationRegistry,
+      providerRequests,
+      createActions: { github: TICKET_CREATE_ACTION },
     });
   const integrations = {
     github: githubAppClient,
@@ -970,6 +982,7 @@ export function createApp(options: {
       factIndex: options.ticketFactIndex ?? createTicketFactIndex(),
       budget: options.config.budget,
       noteWriter: ticketNoteWriter,
+      ticketCreator,
     }),
   );
   app.route(
