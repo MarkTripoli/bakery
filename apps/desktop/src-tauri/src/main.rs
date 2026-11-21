@@ -1,5 +1,6 @@
 //! The Bakery desktop app: the Tauri shell around `bakery-desktop-core` (#77, slice 3).
 
+mod download;
 mod menu;
 mod net;
 mod shell;
@@ -303,6 +304,18 @@ fn main() {
             probe_result
         ])
         .setup(move |app| {
+            // The window is made here, not by the configuration, so that a file a page offers can be
+            // saved where the person chooses.
+            let window_config = app
+                .config()
+                .app
+                .windows
+                .first()
+                .cloned()
+                .expect("a window in the configuration");
+            tauri::WebviewWindowBuilder::from_config(app.handle(), &window_config)?
+                .on_download(download::handler(server.clone()))
+                .build()?;
             // After a server change the window comes back where it was.
             let restored = startup.handoff.as_ref().and_then(|h| h.place);
             if let (Some(place), Some(window)) = (restored, app.get_webview_window("main")) {

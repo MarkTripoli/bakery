@@ -162,6 +162,21 @@ def desktop_sessions():
     return urllib.request.urlopen(req).read().decode().count("Bakery app")
 
 
+def settled_sessions(quiet=3, timeout=30):
+    """The app's sign-in count once it has stopped changing for `quiet` seconds. The window asks for a
+    browser session of its own as soon as it is signed in, and that session carries the same label."""
+    end = time.time() + timeout
+    value, since = desktop_sessions(), time.time()
+    while time.time() < end:
+        time.sleep(0.5)
+        now = desktop_sessions()
+        if now != value:
+            value, since = now, time.time()
+        elif time.time() - since >= quiet:
+            break
+    return value
+
+
 def last_window(path):
     """The window the app showed last, as the app described it (never a secret)."""
     seen = [e["data"] for e in reports(path) if e["event"] == "view"]
@@ -240,8 +255,8 @@ def wait_until(condition, timeout=10):
     return condition()
 
 
-def clear_store():
-    subprocess.run(["secret-tool", "clear", "service", SERVICE, "username", USER], capture_output=True)
+def clear_store(user=None):
+    subprocess.run(["secret-tool", "clear", "service", SERVICE, "username", user or USER], capture_output=True)
 
 
 def server_flag(name):
@@ -475,7 +490,9 @@ def phase_sign_out():
     clear_store()
     start_app(p)
     check("[sign out] the app signs in", sign_in_to_app(p, "[sign out]"))
-    before, secret = desktop_sessions(), stored()
+    check("[sign out] the window opens the server's page, which asks for a session of its own",
+          wait_report(p, "server_page_opened", 1, timeout=40))
+    before, secret = settled_sessions(), stored()
     check("[sign out] the signed-in window offers Sign out", secret.startswith("bkd_"))
     press(p, "sign_out")
     check("[sign out] the sign-in panel comes back under the signed-out notice",
@@ -483,7 +500,8 @@ def phase_sign_out():
     window = (last_window(p) or {}).get("window", {})
     check("[sign out] and says the server ended the sign-in", window.get("ended_on_server") is True, str(window))
     check("[sign out] it is gone from this computer", wait_until(lambda: stored() == ""))
-    check("[sign out] the server no longer lists it", desktop_sessions() == before - 1, f"{before} before, {desktop_sessions()} after")
+    check("[sign out] the server lists fewer app sign-ins",
+          wait_until(lambda: desktop_sessions() < before, timeout=20), f"{before} before, {desktop_sessions()} after")
     check("[sign out] the sign-in the app held is refused", bearer_status(secret) == 401)
     check("[sign out] it appears in no report, log or file", leaked(secret) is None)
 
@@ -668,6 +686,7 @@ def phase_web_pages():
     host = web.split("//", 1)[1].split(":")[0]
     p = os.path.join(OUT, "m-web")
     clear_store()
+    clear_store(web)
     start_app(p, server=web)
     assert wait_window(p, "sign_in") is not None
     # A page link that arrives while nobody is signed in is kept, and opens after the sign-in.
@@ -702,29 +721,47 @@ def phase_web_pages():
 
 
 def phase_web_download():
-    """Builder question 5 as an experiment, in a run of its own so it cannot disturb the others: does a
-    file the page offers to download get saved? The result is printed for the design, not judged."""
+    """Builder question 5: a file a page offers is saved only where the person says, never silently
+    into the folder the app was started from. A run cannot answer the system's dialog, so it is run
+    twice: once with the harness choosing a folder in place of the dialog, and once as a person would
+    meet it, where the dialog must open and nothing may be written before it is answered."""
     web = os.environ.get("BAKERY_WEB", "")
     if not web:
         return
-    p = os.path.join(OUT, "n-download")
-    clear_store()
-    start_app(p, server=web)
-    url = sign_in_to_waiting(p, "[download]")
-    if not url:
-        return
-    deliver(confirm(request_id_of(url), session_cookie()))
-    if not wait_report(p, "server_page_opened", 1, timeout=40):
-        print("INFO download probe: no server page opened", flush=True)
-        return
-    time.sleep(3)
-    eval_in_window(p, "const a=document.createElement('a');a.href='/favicon.svg';a.download='bakery-probe.svg';"
-                      "document.body.appendChild(a);a.click()")
-    time.sleep(6)
-    found = subprocess.run("find / -xdev \\( -path /proc -o -path /sys \\) -prune -o -name 'bakery-probe*' -print 2>/dev/null | head -3",
-                           shell=True, capture_output=True, text=True).stdout.strip()
-    print("INFO download probe: " + (f"saved at {found}" if found else "nothing was saved"), flush=True)
-    stop_app()
+    drop = os.path.join(OUT, "downloads")
+    os.makedirs(drop, exist_ok=True)
+    probe = ("const a=document.createElement('a');a.href='/favicon.svg';a.download='bakery-probe.svg';"
+             "document.body.appendChild(a);a.click()")
+    for label, extra in (("[download] with a folder chosen", {"BAKERY_DESKTOP_DOWNLOAD_TO": drop}),
+                         ("[download] with the dialog", {})):
+        p = os.path.join(OUT, "n-download-" + ("hook" if extra else "dialog"))
+        clear_store(web)
+        if os.path.exists(os.path.join(drop, "bakery-probe.svg")):
+            os.remove(os.path.join(drop, "bakery-probe.svg"))
+        start_app(p, server=web, extra=extra)
+        url = sign_in_to_waiting(p, label)
+        if not url:
+            return
+        deliver(confirm(request_id_of(url), session_cookie()))
+        if not wait_report(p, "server_page_opened", 1, timeout=40):
+            check(label + ": the server's page opens", False)
+            stop_app()
+            continue
+        time.sleep(3)
+        eval_in_window(p, probe)
+        if extra:
+            check(label + ": the file is saved there", wait_until(lambda: os.path.exists(os.path.join(drop, "bakery-probe.svg")), timeout=20))
+            check(label + ": the app reports the save", wait_report(p, "download_finished", 1, timeout=20))
+        else:
+            # Without the harness, the system's save dialog opens and waits: nothing is written yet.
+            time.sleep(6)
+            check(label + ": nothing was written before the person answered",
+                  not os.path.exists("/work/bakery-probe.svg") and not os.path.exists(os.path.join(drop, "bakery-probe.svg")) and
+                  sum(1 for e in reports(p) if e["event"] == "download_started") == 0)
+            tree = subprocess.run("xwininfo -root -tree 2>/dev/null | grep -iE 'save|bakery-probe' | head -3",
+                                  shell=True, capture_output=True, text=True).stdout.strip()
+            print("INFO the save dialog's window: " + (tree or "not found by name (xwininfo may be missing)"), flush=True)
+        stop_app()
 
 
 def main():
