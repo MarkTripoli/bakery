@@ -51,7 +51,10 @@ export function Composer(
   const tooLong = body.length > MESSAGE_MAX;
   const locked = phase === "sending" || phase === "unknown";
   const canSend = !locked && !offline && body.trim() !== "" && !tooLong &&
-    phase !== "forbidden" && !mentionField.refused;
+    phase !== "forbidden" && !mentionField.refused && !mentionField.blocked;
+  // A send that was giving access failed on the server: nothing was given.
+  const failedOffer = phase === "error" ? mentionField.failed : null;
+  const reasonId = `${id}-reason`;
   const notice = phase === "unknown"
     ? {
       tone: "warning" as const,
@@ -61,6 +64,11 @@ export function Composer(
     ? {
       tone: "error" as const,
       text: t("tasks.conversation.composer.forbidden"),
+    }
+    : failedOffer !== null
+    ? {
+      tone: "error" as const,
+      text: `${failedOffer.line} ${failedOffer.detail}`,
     }
     : phase === "error"
     ? { tone: "error" as const, text: t("tasks.conversation.composer.failed") }
@@ -156,6 +164,9 @@ export function Composer(
         : (
           <UI.Button
             type="submit"
+            aria-describedby={mentionField.sendReason !== null
+              ? reasonId
+              : undefined}
             disabled={!canSend}
             loading={phase === "sending"}
           >
@@ -164,11 +175,23 @@ export function Composer(
               ? mentionField.sendLabel !== null
                 ? t("mentions.offer.sending")
                 : t("tasks.conversation.composer.sending")
+              : failedOffer !== null
+              ? t("mentions.failed.retry")
               : mentionField.sendLabel ?? t("tasks.conversation.composer.send")}
           </UI.Button>
         )}
       footnote={
         <>
+          {mentionField.sendReason !== null
+            ? (
+              <>
+                <span id={reasonId} role="status">
+                  {mentionField.sendReason}
+                </span>
+                <br />
+              </>
+            )
+            : null}
           {tooLong
             ? (
               <span id={`${id}-error`} role="alert">
