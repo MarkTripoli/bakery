@@ -89,6 +89,7 @@ export const SHARED_ADMIN_SPECS: readonly string[] = [
   "**/browser-artifact-core.spec.ts",
   "**/desktop-sign-in-return.spec.ts",
   "**/files-media-real-api.spec.ts",
+  "**/artifact-collaboration-real-api.spec.ts",
 ];
 
 /**
