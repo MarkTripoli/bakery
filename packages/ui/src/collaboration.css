@@ -1749,11 +1749,6 @@
     display: none;
   }
 }
-/* The frames show the empty composer with its primary send; disabled keeps
-   the full-strength fill and relies on the not-allowed cursor and a11y state. */
-.ui-message-composer__action .ui-button:disabled {
-  opacity: 1;
-}
 @media (max-width: 743px) {
   .ui-task-detail--conversation .ui-inline-notice--bar {
     align-items: center;
@@ -2666,4 +2661,125 @@ button.ui-activity-line__row:hover {
 /* Rows kept on screen while a filter or page change loads. */
 .ui-task-inbox[data-state="loading"] .ui-task-inbox__results {
   opacity: 0.56;
+}
+
+/* Mentions (design-ux #73): a list hung above the box from its start edge, then
+   the people the message will notify, between the field and the toolbar. */
+.ui-message-composer__box {
+  position: relative;
+}
+.ui-message-composer__picker {
+  inline-size: 100%;
+  inset-block-end: 100%;
+  inset-inline-start: var(--space-0);
+  margin-block-end: var(--space-1);
+  position: absolute;
+  z-index: var(--layer-popover);
+}
+.ui-message-composer__mentions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ui-mention-picker {
+  container-type: inline-size;
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-overlay);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+.ui-mention-picker__list {
+  list-style: none;
+  margin: var(--space-0);
+  max-block-size: calc(var(--space-12) * 5);
+  overflow-y: auto;
+  padding: var(--space-1);
+}
+.ui-mention-picker__option {
+  align-items: center;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  display: flex;
+  gap: var(--space-3);
+  min-block-size: var(--space-10);
+  padding: var(--space-1) var(--space-2);
+}
+.ui-mention-picker__option[aria-selected="true"] {
+  background: var(--color-surface-subtle);
+}
+.ui-mention-picker__option[aria-disabled="true"] {
+  color: var(--color-fg-muted);
+  cursor: default;
+}
+.ui-mention-picker__name {
+  flex: 1 1 0%;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-mention-picker__note {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+}
+.ui-mention-picker__rows,
+.ui-mention-picker__message {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+.ui-mention-picker__rows {
+  align-items: stretch;
+}
+.ui-mention-picker__message {
+  color: var(--color-fg-muted);
+  flex-direction: row;
+  flex-wrap: wrap;
+  font: var(--type-caption);
+}
+.ui-mention-picker__footer {
+  border-block-start: var(--border-default) solid var(--color-border);
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+  margin: var(--space-0);
+  padding: var(--space-2) var(--space-3);
+}
+/* A narrow picker (the comment panel beside a document): the reason goes under
+   the name, so a name never wraps beside it. */
+@container (max-width: 300px) {
+  .ui-mention-picker__option {
+    column-gap: var(--space-3);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: var(--space-0-5);
+  }
+  .ui-mention-picker__option > :first-child {
+    grid-row: 1 / span 2;
+  }
+  .ui-mention-picker__option > .ui-badge,
+  .ui-mention-picker__option > .ui-mention-picker__note {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+@media (pointer: coarse) {
+  .ui-mention-picker__option {
+    min-block-size: var(--space-12);
+  }
+}
+/* On a phone the field's 44px touch box reaches into the gap above the toolbar.
+   Its ring sits inside that box, and the box stops short of the send button
+   under it, so the ring never touches Send. */
+@media (max-width: 743px) {
+  .ui-message-composer__field textarea {
+    margin-block-end: calc(var(--space-0) - var(--space-1-5));
+    padding-inline: var(--space-1);
+  }
+  .ui-message-composer__field textarea:focus-visible {
+    outline-offset: var(--focus-offset-inset);
+  }
 }
