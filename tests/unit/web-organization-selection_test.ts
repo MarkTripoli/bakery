@@ -100,6 +100,13 @@ function fakeApi(
       update: rejecting,
       savedData: rejecting,
     },
+    batches: {
+      list: rejecting,
+      get: rejecting,
+      create: rejecting,
+      control: rejecting,
+      stop: rejecting,
+    },
     tickets: {
       get: rejecting,
       check: rejecting,

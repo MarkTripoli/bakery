@@ -13,6 +13,7 @@ import { sessionCookie } from "../helpers/auth.ts";
 import {
   closePgDatabase,
   openPgDatabase,
+  type PgDatabase,
 } from "../../apps/server/src/platform/database.ts";
 import type { AgentVersionCreateConfig } from "../../packages/contracts/src/contracts.ts";
 import { RepositoryExecutionContextSchema } from "../../packages/contracts/src/repository-inspection.ts";
@@ -36,6 +37,10 @@ export type SeededWorkflow = {
   organizationId: string;
   taskId: string;
   runId: string;
+  /** The published workflow version, the application and the repository the seed made. */
+  workflowVersionId: string;
+  applicationId: string;
+  repositoryId: string;
   requestDeliveryKey: string;
   /** The two fixed steps; empty for a compiled plan run, whose steps the engine appends. */
   steps: readonly SeededStep[];
@@ -78,6 +83,34 @@ export type SeedWorkflowOptions = Readonly<{
   plan?: (ids: { repositoryId: string; agentVersionId: string }) => PlanSeed;
   /** Worker slots (default 1): a claim per slot may be held at once. */
   slots?: number;
+  /** `false` seeds no run, task events or outbox row: an automation starts the runs. */
+  run?: boolean;
+}>;
+/** An automation seeded beside a run-less seed (#36): its trigger and policies. */
+export type AutomationSeed = Readonly<{
+  trigger: Record<string, unknown>;
+  overlapPolicy?: "skip" | "queue_one";
+  misfirePolicy?: "coalesce" | "skip";
+  /** The schedule cursor; by default a schedule is due 30 seconds ago. */
+  nextFireAt?: Date;
+}>;
+export type SeededAutomation = Readonly<{
+  definitionId: string;
+  versionId: string;
+}>;
+export type AutomationFiringState = Readonly<{
+  status: string;
+  pending: boolean;
+  skippedCount: number;
+  scheduledAt: string;
+  runId: string | null;
+  failureCode: string | null;
+  triggerEventId: string | null;
+}>;
+/** A delivery routed to an automation: the route the consumer reads. */
+export type SeededEventRoute = Readonly<{
+  routeId: string;
+  inboundEventId: string;
 }>;
 /** A job a worker holds: claimed and not yet reported. */
 export type ClaimedPlanJob = Readonly<{
@@ -116,6 +149,31 @@ export type RealInngestStack = {
    * signed-in administrator of the run's organization; returns the response.
    */
   readonly cancelRun: (seed: SeededWorkflow) => Promise<Response>;
+  /** Seeds an automation (an administrator of the seeded organization is its actor). */
+  readonly seedAutomation: (
+    seed: SeededWorkflow,
+    automation: AutomationSeed,
+  ) => Promise<SeededAutomation>;
+  readonly readAutomationFirings: (
+    automation: SeededAutomation,
+  ) => Promise<readonly AutomationFiringState[]>;
+  /** Moves the schedule cursor: the instant occurrences are counted from. */
+  readonly setAutomationCursor: (
+    automation: SeededAutomation,
+    at: Date,
+  ) => Promise<void>;
+  /** The organization's live GitHub authority for the seeded repository, and one delivered issue event routed to automations. */
+  readonly seedEventRoute: (
+    seed: SeededWorkflow,
+    event: { number: number; action: string },
+  ) => Promise<SeededEventRoute>;
+  /** Sends `intake.received` for a route to the real engine, as the outbox does. */
+  readonly sendIntakeEvent: (route: SeededEventRoute) => Promise<void>;
+  readonly readEventRoute: (
+    route: SeededEventRoute,
+  ) => Promise<
+    { status: string; outcomeCode: string | null; attempts: number }
+  >;
   readonly setStepAvailableAt: (
     seed: SeededWorkflow,
     index: 0 | 1,
@@ -517,6 +575,46 @@ export function createRealInngestStack(
           :'agent_version_id'::uuid, 'codex', 'active'
         );
     `;
+    // A seed without a run holds the organization, repository, agent and
+    // workflow only: an automation starts its own runs from them.
+    const runSql = options.run === false ? "" : `
+      insert into bakery.workflow_runs (
+        id, organization_id, task_id, workflow_version_id, requested_by,
+        status, snapshot, budget_limit_usd, application_id, repository_id, repository_profile_id,
+        repository_profile_revision, repository_profile_digest,
+        observation_id, observation_digest, base_sha
+      ) values (
+        :'run_id'::uuid, :'organization_id'::uuid, :'task_id'::uuid,
+        :'workflow_version_id'::uuid, :'principal_id'::uuid, 'running',
+        :'snapshot'::jsonb, '1.000000', :'application_id'::uuid, :'repository_id'::uuid,
+        :'repository_profile_id'::uuid, 1, :'profile_digest', null, null, null
+      );
+      update bakery.tasks
+         set current_run_id = :'run_id'::uuid, status = 'active'
+       where organization_id = :'organization_id'::uuid
+         and id = :'task_id'::uuid;
+      ${fixedStepsSql}
+      insert into bakery.event_clock (organization_id, stream, next_seq)
+      values (:'organization_id'::uuid, 'domain_events', 2);
+      insert into bakery.domain_events (
+        organization_id, organization_sequence, event_type, schema_version,
+        application_id, task_id, conversation_id, aggregate_id,
+        aggregate_version, payload, trace_id
+      ) values (
+        :'organization_id'::uuid, 1, 'run.requested', 1,
+        :'application_id'::uuid, :'task_id'::uuid, :'conversation_id'::uuid,
+        :'run_id'::uuid, 1, jsonb_build_object('runId', :'run_id'::uuid),
+        :'trace_id'
+      );
+      insert into bakery.outbox (
+        organization_id, event_id, destination, delivery_key
+      )
+      select organization_id, id, 'inngest', 'issue40-recovery-' || :'run_id'
+        from bakery.domain_events
+       where organization_id = :'organization_id'::uuid
+         and aggregate_id = :'run_id'::uuid
+         and event_type = 'run.requested';
+    `;
     const sql = `
       insert into bakery.principals (id, display_name, principal_type)
       values (:'principal_id'::uuid, 'Issue 40 recovery service', 'service');
@@ -599,42 +697,7 @@ export function createRealInngestStack(
          set active_version_id = :'workflow_version_id'::uuid
        where organization_id = :'organization_id'::uuid
          and id = :'workflow_id'::uuid;
-      insert into bakery.workflow_runs (
-        id, organization_id, task_id, workflow_version_id, requested_by,
-        status, snapshot, budget_limit_usd, application_id, repository_id, repository_profile_id,
-        repository_profile_revision, repository_profile_digest,
-        observation_id, observation_digest, base_sha
-      ) values (
-        :'run_id'::uuid, :'organization_id'::uuid, :'task_id'::uuid,
-        :'workflow_version_id'::uuid, :'principal_id'::uuid, 'running',
-        :'snapshot'::jsonb, '1.000000', :'application_id'::uuid, :'repository_id'::uuid,
-        :'repository_profile_id'::uuid, 1, :'profile_digest', null, null, null
-      );
-      update bakery.tasks
-         set current_run_id = :'run_id'::uuid, status = 'active'
-       where organization_id = :'organization_id'::uuid
-         and id = :'task_id'::uuid;
-      ${fixedStepsSql}
-      insert into bakery.event_clock (organization_id, stream, next_seq)
-      values (:'organization_id'::uuid, 'domain_events', 2);
-      insert into bakery.domain_events (
-        organization_id, organization_sequence, event_type, schema_version,
-        application_id, task_id, conversation_id, aggregate_id,
-        aggregate_version, payload, trace_id
-      ) values (
-        :'organization_id'::uuid, 1, 'run.requested', 1,
-        :'application_id'::uuid, :'task_id'::uuid, :'conversation_id'::uuid,
-        :'run_id'::uuid, 1, jsonb_build_object('runId', :'run_id'::uuid),
-        :'trace_id'
-      );
-      insert into bakery.outbox (
-        organization_id, event_id, destination, delivery_key
-      )
-      select organization_id, id, 'inngest', 'issue40-recovery-' || :'run_id'
-        from bakery.domain_events
-       where organization_id = :'organization_id'::uuid
-         and aggregate_id = :'run_id'::uuid
-         and event_type = 'run.requested';
+      ${runSql}
       insert into bakery.worker_enrollments (
         organization_id, principal_id, name, os, architecture,
         allowed_capabilities, slots, token_hash, expires_at
@@ -764,6 +827,9 @@ export function createRealInngestStack(
       organizationId,
       taskId,
       runId,
+      workflowVersionId,
+      applicationId,
+      repositoryId,
       requestDeliveryKey,
       steps,
       worker,
@@ -1087,37 +1153,67 @@ export function createRealInngestStack(
     await finishPlanJob(seed, claimed);
     return claimed.stepKey;
   };
-  const cancelRun = async (seed: SeededWorkflow): Promise<Response> => {
-    const email = `cancel-${crypto.randomUUID()}@example.test`;
-    const password = `Cancel-${crypto.randomUUID()}`;
-    const database = openPgDatabase(
-      `postgres://bakery:${env.BAKERY_LOCAL_BAKERY_PASSWORD}@127.0.0.1:${env.BAKERY_POSTGRES_PORT}/bakery`,
-    );
+  const ownerDatabaseUrl = () =>
+    `postgres://bakery:${env.BAKERY_LOCAL_BAKERY_PASSWORD}@127.0.0.1:${env.BAKERY_POSTGRES_PORT}/bakery`;
+  const withOwnerDatabase = async <T>(
+    body: (database: PgDatabase) => Promise<T>,
+  ): Promise<T> => {
+    const database = openPgDatabase(ownerDatabaseUrl());
     try {
-      await createSuperuser({
-        pgDatabase: database,
-        config: readRuntimeConfig({
-          BAKERY_ENV: "test",
-          BAKERY_APP_DATABASE_URL:
-            `postgres://bakery:${env.BAKERY_LOCAL_BAKERY_PASSWORD}@127.0.0.1:${env.BAKERY_POSTGRES_PORT}/bakery`,
-          BAKERY_PUBLIC_BASE_URL: serverUrl,
-          BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
-        }).auth!,
-      }, { email, displayName: "Cancel administrator", password });
+      return await body(database);
+    } finally {
+      await closePgDatabase(database);
+    }
+  };
+  // One administrator for the stack (a second superuser is refused), a member
+  // of each seeded organization it is asked about.
+  let administrator:
+    | { principalId: string; email: string; password: string }
+    | undefined;
+  const administratorOf = async (organizationId: string) =>
+    await withOwnerDatabase(async (database) => {
+      if (administrator === undefined) {
+        const email = `admin-${crypto.randomUUID()}@example.test`;
+        const password = `Admin-${crypto.randomUUID()}`;
+        await createSuperuser({
+          pgDatabase: database,
+          config: readRuntimeConfig({
+            BAKERY_ENV: "test",
+            BAKERY_APP_DATABASE_URL: ownerDatabaseUrl(),
+            BAKERY_PUBLIC_BASE_URL: serverUrl,
+            BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
+          }).auth!,
+        }, { email, displayName: "Real stack administrator", password });
+        const principal = await database.query<{ id: string }>(
+          `select principal.id
+             from bakery.principals principal
+             join public."user" provider_user
+               on provider_user.id = principal.provider_user_id
+            where provider_user.email = $1`,
+          [email],
+        );
+        const id = principal.rows[0]?.id;
+        if (id === undefined) {
+          throw new Error("ADMINISTRATOR_PRINCIPAL_MISSING");
+        }
+        administrator = { principalId: id, email, password };
+      }
       // The seeded organization is its own: the administrator joins it.
       await database.query(
         `insert into bakery.organization_memberships (id, organization_id, principal_id,
            role, status, joined_at, created_at, updated_at)
-         select $1, $2, principal.id, 'admin', 'active', clock_timestamp(),
+         select $1, $2, $3, 'admin', 'active', clock_timestamp(),
                 clock_timestamp(), clock_timestamp()
-           from bakery.principals principal
-           join public."user" provider_user on provider_user.id = principal.provider_user_id
-          where provider_user.email = $3`,
-        [crypto.randomUUID(), seed.organizationId, email],
+          where not exists (
+            select 1 from bakery.organization_memberships
+             where organization_id = $2 and principal_id = $3
+          )`,
+        [crypto.randomUUID(), organizationId, administrator.principalId],
       );
-    } finally {
-      await closePgDatabase(database);
-    }
+      return administrator;
+    });
+  const cancelRun = async (seed: SeededWorkflow): Promise<Response> => {
+    const { email, password } = await administratorOf(seed.organizationId);
     const response = await fetch(
       new Request(`${serverUrl}/api/auth/sign-in/email`, {
         method: "POST",
@@ -1142,6 +1238,253 @@ export function createRealInngestStack(
       body: JSON.stringify({ action: "cancel" }),
     });
   };
+  const seedAutomation = async (
+    seed: SeededWorkflow,
+    automation: AutomationSeed,
+  ): Promise<SeededAutomation> => {
+    const actor = await administratorOf(seed.organizationId);
+    const definitionId = crypto.randomUUID();
+    const versionId = crypto.randomUUID();
+    const schedule = automation.trigger.type === "schedule";
+    await withOwnerDatabase(async (database) => {
+      await database.query(
+        `insert into bakery.automation_definitions (id, organization_id, slug, name,
+           enabled, next_fire_at)
+         values ($1, $2, $3, 'Real stack automation', true,
+           case when $4::boolean
+             then coalesce($5::timestamptz, now() - interval '30 seconds') end)`,
+        [
+          definitionId,
+          seed.organizationId,
+          `real-stack-${definitionId}`,
+          schedule,
+          automation.nextFireAt?.toISOString() ?? null,
+        ],
+      );
+      await database.query(
+        `insert into bakery.automation_versions (
+           id, organization_id, automation_id, revision, trigger, workflow_version_id,
+           actor_id, inputs, misfire_policy, overlap_policy, digest, application_id,
+           repository_id, budget_limit_usd
+         ) values ($1, $2, $3, 1, $4::jsonb, $5, $6, '{}'::jsonb, $7, $8, $9, $10, $11, 1)`,
+        [
+          versionId,
+          seed.organizationId,
+          definitionId,
+          JSON.stringify(automation.trigger),
+          seed.workflowVersionId,
+          actor.principalId,
+          automation.misfirePolicy ?? "coalesce",
+          automation.overlapPolicy ?? "skip",
+          `digest-${versionId}`,
+          seed.applicationId,
+          seed.repositoryId,
+        ],
+      );
+      await database.query(
+        `update bakery.automation_definitions set active_version_id = $3
+          where organization_id = $1 and id = $2`,
+        [seed.organizationId, definitionId, versionId],
+      );
+    });
+    return { definitionId, versionId };
+  };
+  const readAutomationFirings = async (
+    automation: SeededAutomation,
+  ): Promise<readonly AutomationFiringState[]> =>
+    await withOwnerDatabase(async (database) =>
+      (await database.query<AutomationFiringState>(
+        `select firing.status, firing.pending, firing.skipped_count as "skippedCount",
+                to_char(firing.scheduled_at at time zone 'UTC',
+                  'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "scheduledAt",
+                firing.run_id as "runId", firing.failure_code as "failureCode",
+                firing.trigger_event_id as "triggerEventId"
+           from bakery.automation_firings firing
+           join bakery.automation_versions version
+             on version.organization_id = firing.organization_id
+            and version.id = firing.automation_version_id
+          where version.automation_id = $1
+          order by firing.scheduled_at, firing.id`,
+        [automation.definitionId],
+      )).rows
+    );
+  const setAutomationCursor = async (
+    automation: SeededAutomation,
+    at: Date,
+  ): Promise<void> => {
+    await withOwnerDatabase((database) =>
+      database.query(
+        `update bakery.automation_definitions set next_fire_at = $2 where id = $1`,
+        [automation.definitionId, at.toISOString()],
+      )
+    );
+  };
+  // The registration chain exists once per stack (one registration per provider).
+  let authority:
+    | {
+      registrationId: string;
+      installationId: string;
+      connectionId: string;
+      resourceId: string;
+      repositoryExternalId: string;
+    }
+    | undefined;
+  const seedEventRoute = async (
+    seed: SeededWorkflow,
+    event: { number: number; action: string },
+  ): Promise<SeededEventRoute> => {
+    const actor = await administratorOf(seed.organizationId);
+    return await withOwnerDatabase(async (database) => {
+      if (authority === undefined) {
+        const ids = {
+          registrationId: crypto.randomUUID(),
+          installationId: crypto.randomUUID(),
+          connectionId: crypto.randomUUID(),
+          resourceId: crypto.randomUUID(),
+          repositoryExternalId: "424242424",
+        };
+        const secrets = [crypto.randomUUID(), crypto.randomUUID()];
+        for (const [index, id] of secrets.entries()) {
+          await database.query(
+            `insert into bakery.secrets (id, name, provider, allowed_principals, allowed_actions)
+             values ($1, $2, 'github', '[]'::jsonb, '[]'::jsonb)`,
+            [id, `real stack secret ${index}`],
+          );
+        }
+        await database.query(
+          `insert into bakery.integration_app_registrations (
+             id, provider, external_app_id, slug, name, client_id, owner_login,
+             owner_id, owner_type, html_url, permissions, events, client_secret_id,
+             private_key_secret_id, status, registered_by
+           ) values ($1, 'github', 1, 'real-stack-app', 'Real stack app', 'Iv1.realstack',
+             'real-stack', 1, 'Organization', 'https://github.com/apps/real-stack-app',
+             '{}'::jsonb, '["issues"]'::jsonb, $2, $3, 'registered', $4)`,
+          [ids.registrationId, secrets[0], secrets[1], actor.principalId],
+        );
+        await database.query(
+          `insert into bakery.integration_installations (
+             id, provider, registration_id, external_authorization_id,
+             external_account_id, account_login, account_type, repository_selection,
+             granted_permissions, status
+           ) values ($1, 'github', $2, '98765431', '4241', 'real-stack', 'Organization',
+             'selected', '{"issues":"read"}'::jsonb, 'enabled')`,
+          [ids.installationId, ids.registrationId],
+        );
+        await database.query(
+          `insert into bakery.integration_connections (
+             id, organization_id, provider, installation_id,
+             external_authorization_id, external_account_id, label, adapter_version,
+             granted_permissions, status, health, created_by
+           ) values ($1, $2, 'github', $3, '98765431', '4241', 'real-stack',
+             'github@real-stack', '{"issues":"read"}'::jsonb, 'enabled', 'healthy', $4)`,
+          [
+            ids.connectionId,
+            seed.organizationId,
+            ids.installationId,
+            actor.principalId,
+          ],
+        );
+        await database.query(
+          `insert into bakery.integration_resources (
+             id, organization_id, connection_id, installation_id, kind, external_id,
+             display_name, selected, enabled, last_discovery_generation
+           ) values ($1, $2, $3, $4, 'repository', $5, 'real-stack/repository', true, true, 1)`,
+          [
+            ids.resourceId,
+            seed.organizationId,
+            ids.connectionId,
+            ids.installationId,
+            ids.repositoryExternalId,
+          ],
+        );
+        // The Bakery repository this resource resolves to: the same connection and provider id.
+        await database.query(
+          `update bakery.repositories
+              set integration_connection_id = $3, provider_repo_id = $4
+            where organization_id = $1 and id = $2`,
+          [
+            seed.organizationId,
+            seed.repositoryId,
+            ids.connectionId,
+            ids.repositoryExternalId,
+          ],
+        );
+        authority = ids;
+      }
+      const inboundEventId = crypto.randomUUID();
+      const routeId = crypto.randomUUID();
+      await database.query(
+        `insert into bakery.inbound_events (
+           id, provider, registration_id, external_delivery_id, payload_digest,
+           event_kind, event_action, installation_id, normalized_projection, status,
+           expires_at
+         ) values ($1, 'github', $2, $3, $4, 'issues', $5, $6, $7::jsonb, 'routed',
+           now() + interval '1 day')`,
+        [
+          inboundEventId,
+          authority.registrationId,
+          `delivery-${inboundEventId}`,
+          "a".repeat(64),
+          event.action,
+          authority.installationId,
+          JSON.stringify({
+            action: event.action,
+            installationId: 98765431,
+            repositoryId: Number(authority.repositoryExternalId),
+            number: event.number,
+            headSha: null,
+          }),
+        ],
+      );
+      await database.query(
+        `insert into bakery.inbound_event_routes (
+           id, inbound_event_id, organization_id, connection_id, installation_id,
+           resource_id, purpose, status
+         ) values ($1, $2, $3, $4, $5, $6, 'automation', 'pending')`,
+        [
+          routeId,
+          inboundEventId,
+          seed.organizationId,
+          authority.connectionId,
+          authority.installationId,
+          authority.resourceId,
+        ],
+      );
+      return { routeId, inboundEventId };
+    });
+  };
+  const sendIntakeEvent = async (route: SeededEventRoute): Promise<void> => {
+    const response = await fetch(`${inngestUrl}/e/${eventKey}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "bakery/intake.received.v1",
+        data: {
+          aggregateId: route.routeId,
+          payload: { inboundEventId: route.inboundEventId },
+        },
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(
+        `inngest event send failed: ${response.status} ${await response
+          .text()}`,
+      );
+    }
+    await response.arrayBuffer();
+  };
+  const readEventRoute = async (route: SeededEventRoute) =>
+    await withOwnerDatabase(async (database) => {
+      const row = (await database.query<
+        { status: string; outcomeCode: string | null; attempts: number }
+      >(
+        `select status, outcome_code as "outcomeCode", attempts
+           from bakery.inbound_event_routes where id = $1`,
+        [route.routeId],
+      )).rows[0];
+      if (row === undefined) throw new Error("EVENT_ROUTE_MISSING");
+      return row;
+    });
   const setStepAvailableAt = async (
     seed: SeededWorkflow,
     index: 0 | 1,
@@ -1487,6 +1830,12 @@ export function createRealInngestStack(
     finishPlanJob,
     completePlanJob,
     cancelRun,
+    seedAutomation,
+    readAutomationFirings,
+    setAutomationCursor,
+    seedEventRoute,
+    sendIntakeEvent,
+    readEventRoute,
     setStepAvailableAt,
     readWorkflowState,
     readEngineRegistration,

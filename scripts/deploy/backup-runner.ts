@@ -1,3 +1,4 @@
+import { readRunnerConfig } from "./backup-runner/config.ts";
 import type { Cutoff } from "../../apps/server/src/modules/backups/cutoff-rules.ts";
 import {
   ApiFatal,
@@ -88,33 +89,12 @@ export function exitCodeOf(outcome: RunOutcome): number {
   }
 }
 
-function readConfig(
-  env: RunnerOptions["env"],
-): { baseUrl: string; token: string } | string {
-  const baseUrl = env.BAKERY_API_URL ?? "";
-  const token = env.BAKERY_BACKUP_RUNNER_TOKEN ?? "";
-  let url: URL;
-  try {
-    url = new URL(baseUrl);
-  } catch {
-    return "BAKERY_API_URL must be the Bakery API address";
-  }
-  if (
-    (url.protocol !== "https:" && url.protocol !== "http:") || url.username ||
-    url.password || url.search || url.hash
-  ) return "BAKERY_API_URL must be an http(s) address without credentials";
-  if (token.length < 32) {
-    return "BAKERY_BACKUP_RUNNER_TOKEN is missing or too short";
-  }
-  return { baseUrl: url.origin + url.pathname.replace(/\/+$/, ""), token };
-}
-
 /** Runs one pass with real collaborators (or the test seams) and returns the exit code. */
 export async function runRunner(options: RunnerOptions): Promise<number> {
   const secrets = createSecrets();
   const log = (line: string) =>
     (options.log ?? ((l) => console.error(l)))(redact(line, secrets, 2000));
-  const config = readConfig(options.env);
+  const config = readRunnerConfig(options.env);
   if (typeof config === "string") {
     log(`backup runner: ${config}`);
     return EXIT.usage;

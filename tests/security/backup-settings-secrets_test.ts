@@ -99,6 +99,12 @@ Deno.test("the credential pair is in no response, audit row, stored plaintext or
     // The runner's own read releases the CURRENT pair, by design and to the
     // runner credential only; that response is not scanned, but the audit row
     // and every log line it caused are.
+    // Count what is already there: another file's fixture may have left runner
+    // reads behind in the shared database, and this test owns only its own.
+    const releasesBefore = (await o.f.pgDatabase.query<{ n: number }>(
+      `select count(*)::int as n from bakery.audit_events
+        where operation = 'backupRunner.settings'`,
+    )).rows[0]!.n;
     const credential = await o.issueCredential();
     const released = await o.runner(credential, "GET", runnerSettingsPath);
     assertEquals(released.status, 200);
@@ -110,7 +116,11 @@ Deno.test("the credential pair is in no response, audit row, stored plaintext or
       `select details::text as text from bakery.audit_events
         where operation = 'backupRunner.settings'`,
     );
-    assertEquals(runnerRows.rows.length, 1, "one release is one audit row");
+    assertEquals(
+      runnerRows.rows.length - releasesBefore,
+      1,
+      "one release is one audit row",
+    );
     const secrets = [
       accessKeyId,
       secretAccessKey,
