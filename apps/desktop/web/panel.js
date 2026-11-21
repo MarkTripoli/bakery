@@ -22,13 +22,15 @@ function detailBox(detail) {
       const box = el("div", "detail");
       box.append(
         el("span", "detail__label", "Server"),
-        el("span", "detail__value", detail.address),
+        el("span", "detail__value detail__value--address", detail.address),
       );
       return box;
     }
     case "address": {
       const box = el("div", "detail");
-      box.append(el("span", "detail__value", detail.address));
+      box.append(
+        el("span", "detail__value detail__value--address", detail.address),
+      );
       return box;
     }
     case "waiting": {
@@ -62,9 +64,140 @@ function detailBox(detail) {
       box.append(el("span", "detail__value", detail.text));
       return box;
     }
+    case "signed_in": {
+      // Who is signed in, then the server, as two boxes. Either of name and email may be missing.
+      const wrap = el("div", "detail-stack");
+      const who = el("div", "detail");
+      who.append(el("span", "detail__label", "Signed in as"));
+      if (detail.name) who.append(el("span", "detail__value", detail.name));
+      if (detail.email) {
+        who.append(
+          el(
+            "span",
+            detail.name ? "detail__label" : "detail__value",
+            detail.email,
+          ),
+        );
+      }
+      const server = el("div", "detail");
+      server.append(
+        el("span", "detail__label", "Server"),
+        el("span", "detail__value detail__value--address", detail.address),
+      );
+      wrap.append(who, server);
+      return wrap;
+    }
+    case "server_tried": {
+      const box = el("div", "detail");
+      box.append(
+        el("span", "detail__label", "Server"),
+        el("span", "detail__value detail__value--address", detail.address),
+        el(
+          "span",
+          "detail__label",
+          detail.at
+            ? detail.text.replace("{time}", formatTime(detail.at))
+            : detail.text,
+        ),
+      );
+      return box;
+    }
+    case "chooser":
+      return chooserNode(detail);
     default:
       return null;
   }
+}
+
+// What the person has picked and typed in the chooser. The app only sends where it starts and why it
+// stays open; typing is the page's own until Continue, so a status that arrives late never undoes it.
+let draft = { selected: "this_computer", typed: "" };
+let draftProblem = null;
+let chooserOpen = false;
+
+function chooserNode(detail) {
+  const entering = !chooserOpen;
+  const problemChanged = detail.problem !== draftProblem;
+  if (entering || problemChanged) {
+    draft = { selected: detail.selected, typed: detail.typed };
+  }
+  chooserOpen = true;
+  draftProblem = detail.problem;
+
+  const group = el("div", "chooser");
+  group.setAttribute("role", "radiogroup");
+  group.setAttribute("aria-labelledby", "panel-heading");
+
+  const option = (value, label) => {
+    const row = el("div", "chooser__option");
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "server-choice";
+    input.value = value;
+    input.id = `choice-${value}`;
+    input.checked = draft.selected === value;
+    input.addEventListener("change", () => {
+      draft.selected = value;
+      syncBox();
+    });
+    const text = el("label", "chooser__label", label);
+    text.htmlFor = input.id;
+    const head = el("div", "chooser__head");
+    head.append(input, text);
+    row.append(head);
+    return row;
+  };
+
+  const here = option("this_computer", "This computer");
+  const hereLine = el("div", "chooser__line");
+  hereLine.append(
+    el("span", "chooser__address", detail.this_computer_address),
+    el("span", "chooser__status", detail.this_computer_status ?? ""),
+  );
+  here.append(hereLine);
+
+  const other = option("another", "Another address");
+  const box = document.createElement("input");
+  box.type = "text";
+  box.id = "server-address";
+  box.className = "chooser__box";
+  box.value = draft.typed;
+  box.autocomplete = "off";
+  box.spellcheck = false;
+  box.setAttribute("aria-describedby", "server-address-note");
+  box.addEventListener("input", () => {
+    draft.typed = box.value;
+  });
+  const note = el(
+    "div",
+    detail.problem ? "chooser__problem" : "chooser__help",
+    detail.problem ?? detail.help,
+  );
+  note.id = "server-address-note";
+  if (detail.problem) {
+    note.setAttribute("role", "alert");
+    box.setAttribute("aria-invalid", "true");
+  }
+  const boxRow = el("div", "chooser__boxrow");
+  boxRow.append(box, note);
+  other.append(boxRow);
+
+  // The box is under the second option only while that option is the one chosen.
+  const syncBox = () => {
+    boxRow.hidden = draft.selected !== "another";
+  };
+  syncBox();
+
+  group.append(here, other);
+  return group;
+}
+
+/// Sends the chooser's choice and text to the app.
+async function continueChoosing() {
+  await tauri.core.invoke("choose_server", {
+    choice: draft.selected,
+    typed: draft.typed,
+  });
 }
 
 let current = null;
@@ -87,6 +220,10 @@ async function press(button) {
       button.label = "Copy the address";
       render(current, { keepFocus: true });
     }, 2000);
+    return;
+  }
+  if (button.id === "continue") {
+    await continueChoosing();
     return;
   }
   await tauri.core.invoke("press", { button: button.id });
@@ -134,6 +271,10 @@ export function render(view, { keepFocus = false } = {}) {
   rendered = fingerprint;
   current = view;
   root.replaceChildren();
+  if (view.window.kind !== "choose") {
+    chooserOpen = false;
+    draftProblem = null;
+  }
   if (!view.panel) {
     // The app itself: the web app's own pages arrive in a later slice.
     const node = el("section", "panel");
@@ -156,7 +297,16 @@ export function render(view, { keepFocus = false } = {}) {
     lastKey = key;
     // The primary button takes focus when a state appears; the heading while waiting.
     const primary = node.querySelector(".btn--primary");
-    (waiting || !primary ? heading : primary).focus();
+    const chosen = node.querySelector(".chooser input[type=radio]:checked");
+    const box = node.querySelector("#server-address[aria-invalid]");
+    // A chooser that stays open with a problem puts the cursor back in the marked box.
+    (view.window.kind === "choose" && box && !box.parentElement.hidden
+      ? box
+      : view.window.kind === "choose" && chosen
+      ? chosen
+      : waiting || !primary
+      ? heading
+      : primary).focus();
     // Each change is announced once.
     announce.textContent = view.panel.heading;
   } else if (keepFocus) {
