@@ -8,7 +8,10 @@
 -- attempt it made, with the diagnostics each one was refused for, so a version
 -- can be traced to the exact instructions and checks that produced it.
 --
--- Plain tables written by the one runner, inside the request's transaction.
+-- Plain tables written by the one runner in short transactions: generation,
+-- the typecheck and the preview hold no transaction. A run records the phase it
+-- is in and the version and install it has published but not yet previewed, so
+-- a run a crash left behind can be settled truthfully later.
 -- The boundary rail forbids CHECK constraints and triggers in new migrations;
 -- the runner validates statuses and bounds.
 
@@ -31,6 +34,11 @@ create table bakery.plugin_authoring_runs (
   plugin_version_id uuid,
   plugin_install_id uuid,
   failure jsonb,
+  phase text not null default 'generating',
+  pending_plugin_version_id uuid,
+  pending_plugin_install_id uuid,
+  pending_first_install boolean,
+  pending_state_digest text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   finished_at timestamptz,
@@ -105,5 +113,5 @@ create index plugin_authoring_events_run_idx
   on bakery.plugin_authoring_events (organization_id, plugin_authoring_run_id);
 
 grant select, insert, update on bakery.plugin_authoring_runs to bakery_app;
-grant select, insert on bakery.plugin_authoring_attempts to bakery_app;
+grant select, insert, update on bakery.plugin_authoring_attempts to bakery_app;
 grant select, insert on bakery.plugin_authoring_events to bakery_app;

@@ -116,7 +116,7 @@ export async function getPluginAuthoringRun(
     failure: (run.failure ?? null) as PluginAuthoringRun["failure"],
     attempts: attempts.rows.map((row) => ({
       attemptNumber: row.attempt_number,
-      outcome: row.outcome as "passed" | "failed",
+      outcome: row.outcome as PluginAuthoringRun["attempts"][number]["outcome"],
       filesDigest: row.files_digest,
       checkReport: (row.check_report ?? null) as PluginAuthoringRun[
         "attempts"
@@ -132,7 +132,7 @@ export async function getPluginAuthoringRun(
       createdAt: iso(row.created_at)!,
     })),
     events: events.rows.map((row) => ({
-      kind: row.kind as "rolled_back",
+      kind: row.kind as PluginAuthoringRun["events"][number]["kind"],
       detail: row.detail as PluginAuthoringRun["events"][number]["detail"],
       createdAt: iso(row.created_at)!,
     })),

@@ -7,6 +7,7 @@ import {
   runPluginJob,
 } from "../../apps/worker/src/plugin-job-runtime.ts";
 import type {
+  PluginAuthoringDependencies,
   PluginGenerator,
   PluginGeneratorInput,
   PreviewRunner,
@@ -292,7 +293,7 @@ export type AuthoringWorld = {
 
 /** A fixture whose app authors with this generator and preview runner. */
 export function withAuthoringFixture(
-  dependencies: { generator?: PluginGenerator; preview?: PreviewRunner },
+  dependencies: Omit<PluginAuthoringDependencies, "bundles">,
   run: (world: AuthoringWorld) => Promise<void>,
 ): Promise<void> {
   const store = memoryStore();
@@ -357,4 +358,43 @@ export async function stateOf(fixture: Fixture, installId: string) {
     [fixture.organizationId, installId],
   );
   return result.rows;
+}
+
+/** Makes a run look as if nobody has touched it for an hour. */
+export async function age(fixture: Fixture, runId: string): Promise<void> {
+  await fixture.pgDatabase.query(
+    `update bakery.plugin_authoring_runs
+        set updated_at = now() - interval '1 hour'
+      where organization_id = $1 and id = $2`,
+    [fixture.organizationId, runId],
+  );
+}
+
+/** Reads a run through the route, which settles it if it was interrupted. */
+export async function readRun(fixture: Fixture, runId: string) {
+  const response = await fixture.app.fetch(
+    new Request(
+      `${fixture.config.publicBaseUrl}/v1/plugin-authoring-runs/${runId}`,
+      {
+        headers: {
+          Origin: fixture.config.publicBaseUrl,
+          Cookie: fixture.adminCookie,
+          "Bakery-Organization-Id": fixture.organizationId,
+        },
+      },
+    ),
+  );
+  const text = await response.text();
+  assertEquals(response.status, 200, text);
+  return JSON.parse(text);
+}
+
+/** The newest run of this organization, for a request that crashed. */
+export async function latestRunId(fixture: Fixture): Promise<string> {
+  const result = await fixture.pgDatabase.query<{ id: string }>(
+    `select id from bakery.plugin_authoring_runs
+      where organization_id = $1 order by created_at desc limit 1`,
+    [fixture.organizationId],
+  );
+  return result.rows[0].id;
 }

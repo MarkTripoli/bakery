@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import {
+  HOST_OWNED_FILES,
   PLUGIN_AUTHORING_KIT_DIGEST,
   PLUGIN_AUTHORING_KIT_FILES,
 } from "@bakery/contracts/plugin-authoring-kit";
@@ -32,8 +33,11 @@ import {
   type PluginPackageFiles,
   readPluginBundle,
 } from "./checks.ts";
-import { createPreviewRelay, type PreviewRelay } from "./preview-relay.ts";
-import { HOST_OWNED_FILES } from "@bakery/contracts/plugin-authoring-kit";
+import {
+  createPreviewRelay,
+  type PreviewCall,
+  type PreviewRelay,
+} from "./preview-relay.ts";
 
 /**
  * Prompt-to-private-plugin authoring (#45, B14.04).
@@ -43,15 +47,24 @@ import { HOST_OWNED_FILES } from "@bakery/contracts/plugin-authoring-kit";
  * attempt; a package that fails is handed back with every diagnostic, up to the
  * attempt cap and the budget. A package that passes is published as a private
  * version, installed for that person (or moved onto their existing install),
- * and run once in a private preview through the same two state operations a
- * scheduled job has. Only a preview that returns a result finishes the run.
+ * and run once in a preview through the two state operations a scheduled job
+ * has. Only a preview that returns a result finishes the run.
  *
- * Everything happens in the request's transaction. Each publish-and-preview is
- * under a savepoint, so a version whose preview failed leaves nothing behind,
- * and a run that crashes part way leaves nothing published at all.
+ * Transactions are short and never span the slow parts. Generation, the
+ * typecheck and the preview hold no transaction and no connection; each write
+ * (the run row, an attempt, the publish-and-install, a compensation, the
+ * outcome) is its own transaction under the caller's live authority, and each
+ * preview state call is one more. A published version is previewed after its
+ * transaction commits, so a preview that fails is compensated explicitly: a new
+ * install is uninstalled and its package withdrawn, a revised install is rolled
+ * back to the version and state it left. The run row names what is published
+ * and not yet previewed, so a run a crash interrupts is settled the same way
+ * when it is next read (`settleInterruptedRun`).
  */
 
 export const PLUGIN_AUTHORING_MAX_ATTEMPTS = 3;
+/** A running run not touched for this long was interrupted. */
+export const PLUGIN_AUTHORING_STALE_AFTER_MS = 15 * 60 * 1000;
 
 export type PluginGeneratorInput = Readonly<{
   request: string;
@@ -96,11 +109,31 @@ export type PreviewRunner = Readonly<{
   ): Promise<PreviewOutcome>;
 }>;
 
+/** The points between transactions a fault can be injected at, in order. */
+export type AuthoringBoundary =
+  | "run_created"
+  | "attempt_recorded"
+  | "published";
+
 export type PluginAuthoringDependencies = Readonly<{
   generator?: PluginGenerator;
   preview?: PreviewRunner;
   bundles?: Pick<ScopedOrganizationBlobStore, "putIfAbsent" | "stat" | "read">;
+  /**
+   * Fault injection for recovery tests: called as each boundary is crossed.
+   * A throw ends the request there, exactly as a crash would.
+   */
+  boundary?: (name: AuthoringBoundary) => void | Promise<void>;
+  staleRunAfterMs?: number;
 }>;
+
+/**
+ * Runs `work` in one short transaction under the caller's live authority and
+ * commits it. The route supplies it; every write here goes through it.
+ */
+export type AuthoringTransaction = <T>(
+  work: (context: ActionContext) => Promise<T>,
+) => Promise<T>;
 
 export type PluginAuthoringRequest = Readonly<{
   request: string;
@@ -110,7 +143,13 @@ export type PluginAuthoringRequest = Readonly<{
   installId?: string;
 }>;
 
-type RunStatus = "running" | "succeeded" | "blocked" | "budget_exhausted";
+type RunStatus =
+  | "running"
+  | "succeeded"
+  | "unchanged"
+  | "blocked"
+  | "budget_exhausted"
+  | "interrupted";
 
 const sha256 = (text: string | Uint8Array) =>
   createHash("sha256").update(text).digest("hex");
@@ -130,7 +169,7 @@ function unavailable(): never {
   });
 }
 
-/** The state an install holds, as a digest of its rows in a fixed order. */
+/** The state an install holds, as a digest of its rows' content in a fixed order. */
 export async function stateDigest(
   transaction: PgTransactionClient,
   organizationId: string,
@@ -208,8 +247,7 @@ async function loadBaseInstall(
        join bakery.plugin_versions v
          on v.organization_id = i.organization_id
         and v.id = i.plugin_version_id
-      where i.organization_id = $1 and i.id = $2
-      for update of i`,
+      where i.organization_id = $1 and i.id = $2`,
     [organizationId, installId],
   );
   const row = result.rows[0];
@@ -260,46 +298,6 @@ async function loadBaseInstall(
   };
 }
 
-type AttemptRecord = Readonly<{
-  number: number;
-  outcome: "failed" | "passed";
-  filesDigest: string | null;
-  checkReport: unknown;
-  diagnostics: readonly unknown[];
-  costUsd: number;
-  versionId: string | null;
-  previewResult: unknown;
-}>;
-
-async function recordAttempt(
-  transaction: PgTransactionClient,
-  organizationId: string,
-  runId: string,
-  attempt: AttemptRecord,
-): Promise<void> {
-  await transaction.query(
-    `insert into bakery.plugin_authoring_attempts
-       (organization_id, plugin_authoring_run_id, attempt_number, outcome,
-        files_digest, check_report, diagnostics, cost_usd, plugin_version_id,
-        preview_result)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10::jsonb)`,
-    [
-      organizationId,
-      runId,
-      attempt.number,
-      attempt.outcome,
-      attempt.filesDigest,
-      attempt.checkReport === null ? null : JSON.stringify(attempt.checkReport),
-      JSON.stringify(attempt.diagnostics),
-      attempt.costUsd,
-      attempt.versionId,
-      attempt.previewResult === undefined
-        ? null
-        : JSON.stringify(attempt.previewResult),
-    ],
-  );
-}
-
 async function recordEvent(
   transaction: PgTransactionClient,
   organizationId: string,
@@ -321,7 +319,7 @@ async function finishRun(
   runId: string,
   outcome: Readonly<{
     status: RunStatus;
-    spentUsd: number;
+    spentUsd?: number;
     packageId?: string | null;
     versionId?: string | null;
     installId?: string | null;
@@ -330,15 +328,18 @@ async function finishRun(
 ): Promise<void> {
   await transaction.query(
     `update bakery.plugin_authoring_runs
-        set status = $3, spent_usd = $4, plugin_package_id = $5,
-            plugin_version_id = $6, plugin_install_id = $7,
-            failure = $8::jsonb, updated_at = now(), finished_at = now()
+        set status = $3, spent_usd = coalesce($4, spent_usd),
+            plugin_package_id = $5, plugin_version_id = $6,
+            plugin_install_id = $7, failure = $8::jsonb, phase = 'finished',
+            pending_plugin_version_id = null, pending_plugin_install_id = null,
+            pending_first_install = null, pending_state_digest = null,
+            updated_at = now(), finished_at = now()
       where organization_id = $1 and id = $2`,
     [
       organizationId,
       runId,
       outcome.status,
-      outcome.spentUsd,
+      outcome.spentUsd ?? null,
       outcome.packageId ?? null,
       outcome.versionId ?? null,
       outcome.installId ?? null,
@@ -346,20 +347,6 @@ async function finishRun(
     ],
   );
 }
-
-type PublishOutcome =
-  | Readonly<{
-    ok: true;
-    packageId: string;
-    versionId: string;
-    installId: string;
-    preview: unknown;
-  }>
-  | Readonly<{
-    ok: false;
-    diagnostics: PluginPackageDiagnostic[];
-    blocked?: unknown;
-  }>;
 
 const previewDiagnostic = (
   reason: string,
@@ -371,269 +358,171 @@ const previewDiagnostic = (
     message: detail === undefined ? reason : `${reason}: ${detail}`,
   });
 
-/** Runs one attempt's job (or migration) and says why it did not return. */
-async function preview(
-  deps: Required<Pick<PluginAuthoringDependencies, "preview">>,
-  transaction: PgTransactionClient,
-  input: Readonly<{
-    organizationId: string;
-    installId: string;
-    files: Readonly<Record<string, string>>;
-    manifest: PluginManifest;
-    mode: "run" | Readonly<{ migrateFrom: number }>;
-  }>,
-): Promise<PreviewOutcome> {
-  try {
-    return await deps.preview.run({
-      organizationId: input.organizationId,
-      installId: input.installId,
-      files: input.files,
-      mode: input.mode,
-      relay: createPreviewRelay(transaction, {
-        organizationId: input.organizationId,
-        installId: input.installId,
-        stateNamespaces: input.manifest.stateNamespaces,
-      }),
-    });
-  } catch (error) {
-    return {
-      ok: false,
-      reason: "preview_runtime_error",
-      detail: error instanceof Error ? error.message.slice(0, 500) : undefined,
-    };
+/** Thrown inside the publish transaction to roll it back on a refused move. */
+class MoveRefused extends Error {
+  constructor(readonly lastUpdateFailure: unknown) {
+    super("plugin_update_refused");
   }
 }
 
+/** What a run published and has not yet proven, as the run row records it. */
+type Pending = Readonly<{
+  runId: string;
+  versionId: string;
+  installId: string;
+  firstInstall: boolean;
+  packageId: string;
+  /** Digest of the install's state before the move (revisions only). */
+  stateDigestBefore: string | null;
+  /** The version a revision left (revisions only). */
+  previousVersionId: string | null;
+}>;
+
 /**
- * Publishes a passing package and proves it in a private preview, under a
- * savepoint. A preview that does not return a result rolls the savepoint back:
- * no package, version or install from this attempt survives it.
+ * Undoes a publish whose preview did not prove it, in one transaction.
+ *
+ * A new install is uninstalled, which revokes its grants, and its package (made
+ * by this run alone) is withdrawn so it cannot be installed again. A revised
+ * install is moved back to the version it left with that version's state
+ * restored (#34), and the state digest on each side is kept as evidence.
  */
-async function publishAndPreview(
+async function compensate(
   context: ActionContext,
-  deps: Required<PluginAuthoringDependencies>,
-  input: Readonly<{
-    runId: string;
-    attempt: number;
-    requestDigest: string;
-    modelId: string;
-    files: PluginPackageFiles;
-    manifest: PluginManifest;
-    sdkRange: string;
-    checkReport: unknown;
-    base: BaseInstall | null;
-  }>,
-): Promise<PublishOutcome> {
+  pending: Pending,
+  why: Readonly<{ kind: string; stage: string; reason: string }>,
+): Promise<void> {
   const { transaction, organizationId } = requireWorkTransaction(context);
-  const bundle = buildPluginBundle(input.files);
-  // The bytes go to the store first; a version row then proves they are there.
-  // Bytes whose version is rolled back are unreferenced and collectable.
-  await deps.bundles.putIfAbsent(organizationId, bundle.digest, bundle.bytes);
-  const savepoint = `plugin_authoring_${input.attempt}`;
-  await transaction.query(`savepoint ${savepoint}`);
-  const stateBefore = input.base === null
-    ? null
-    : await stateDigest(transaction, organizationId, input.base.id);
-  const failed = async (
-    diagnostics: PluginPackageDiagnostic[],
-    extra: { blocked?: unknown; rolledBack?: unknown } = {},
-  ): Promise<PublishOutcome> => {
-    await transaction.query(`rollback to savepoint ${savepoint}`);
-    if (extra.rolledBack !== undefined) {
-      await recordEvent(
-        transaction,
-        organizationId,
-        input.runId,
-        "rolled_back",
-        {
-          ...(extra.rolledBack as Record<string, unknown>),
-          stateDigestAfterRollback: await stateDigest(
-            transaction,
-            organizationId,
-            input.base!.id,
-          ),
-        },
-      );
-    }
-    return { ok: false, diagnostics, blocked: extra.blocked };
-  };
-
-  const packageId = input.base?.packageId ?? (await createPluginPackage(
-    context,
-    {
-      name: `${input.manifest.name}-${input.runId.slice(0, 8)}`,
-      displayName: input.manifest.name,
-      license: "UNLICENSED",
-      provenance: {
-        generatedBy: "plugin-authoring",
-        runId: input.runId,
-        modelId: input.modelId,
-        kitDigest: PLUGIN_AUTHORING_KIT_DIGEST,
-      },
-    },
-  )).id;
-  const version = await createPluginVersion(
-    context,
-    {
-      versionName: `authored-${input.runId.slice(0, 8)}-${input.attempt}`,
-      sdkRange: input.sdkRange,
-      manifest: JSON.parse(input.files["manifest.json"]),
-      bundleObjectRef: blobObjectKey(organizationId, bundle.digest),
-      bundleDigest: bundle.digest,
-      sourceEvidence: {
-        kind: "plugin-authoring",
-        requestDigest: input.requestDigest,
-        runId: input.runId,
-        attempt: input.attempt,
-      },
-      buildEvidence: {
-        checks: input.checkReport,
-        kitDigest: PLUGIN_AUTHORING_KIT_DIGEST,
-        sdkVersion: sdkVersionText(),
-        modelId: input.modelId,
-        runId: input.runId,
-      },
-    },
-    packageId,
-    { bundles: deps.bundles },
-  );
-
-  let installId: string;
-  if (input.base === null) {
-    // First authoring: a personal, private install for the caller only.
-    installId = (await createPluginInstall(context, {
-      packageId,
-      versionId: version.id,
-      scope: "personal",
-    })).id;
-  } else {
-    installId = input.base.id;
-    // Exactly the added capabilities are approved, and only because each is
-    // already inside what the request authorized (the authority check).
-    const moved = await updatePluginInstall(
+  if (pending.firstInstall) {
+    await updatePluginInstall(
       context,
-      {
-        versionId: version.id,
-        approveCapabilities: addedCapabilities(
-          input.base.manifest,
-          input.manifest,
-        ),
-      },
-      installId,
+      { status: "uninstalled" },
+      pending.installId,
     );
-    if (moved.pluginVersionId !== version.id) {
-      return await failed([], {
-        blocked: {
-          reason: "plugin_update_refused",
-          lastUpdateFailure: moved.lastUpdateFailure,
-        },
-      });
-    }
-  }
-
-  const files = { ...input.files, ...HOST_OWNED_FILES };
-  if (
-    input.base !== null &&
-    input.manifest.stateSchemaVersion > input.base.manifest.stateSchemaVersion
-  ) {
-    // The new version writes a newer shape: its migrate moves what the old
-    // one saved before the job runs on it.
-    const migrated = await preview(deps, transaction, {
-      organizationId,
-      installId,
-      files,
-      manifest: input.manifest,
-      mode: { migrateFrom: input.base.manifest.stateSchemaVersion },
+    await transaction.query(
+      `update bakery.plugin_packages
+          set listing_status = 'withdrawn', updated_at = now(),
+              version = version + 1
+        where organization_id = $1 and id = $2`,
+      [organizationId, pending.packageId],
+    );
+    await recordEvent(transaction, organizationId, pending.runId, why.kind, {
+      action: "uninstalled",
+      installId: pending.installId,
+      versionId: pending.versionId,
+      packageId: pending.packageId,
+      stage: why.stage,
+      reason: why.reason,
     });
-    if (!migrated.ok) {
-      return await failed(
-        [previewDiagnostic(`migrate ${migrated.reason}`, migrated.detail)],
-        {
-          rolledBack: await rollBackRevision(context, input.base, {
-            stateBefore: stateBefore!,
-            failedVersionId: version.id,
-            stage: "migrate",
-            reason: migrated.reason,
-          }),
-        },
-      );
-    }
+    return;
   }
-  const ran = await preview(deps, transaction, {
-    organizationId,
-    installId,
-    files,
-    manifest: input.manifest,
-    mode: "run",
-  });
-  if (!ran.ok) {
-    return await failed(
-      [previewDiagnostic(ran.reason, ran.detail)],
-      input.base === null ? {} : {
-        rolledBack: await rollBackRevision(context, input.base, {
-          stateBefore: stateBefore!,
-          failedVersionId: version.id,
-          stage: "preview",
-          reason: ran.reason,
-        }),
-      },
-    );
-  }
-  await transaction.query(`release savepoint ${savepoint}`);
-  return {
-    ok: true,
-    packageId,
-    versionId: version.id,
-    installId,
-    preview: ran.result,
-  };
-}
-
-/**
- * Puts a revised install back on the version it left, restoring its state the
- * way a person's rollback does (#34), and says what the state was on each side.
- */
-async function rollBackRevision(
-  context: ActionContext,
-  base: BaseInstall,
-  input: Readonly<{
-    stateBefore: string;
-    failedVersionId: string;
-    stage: "migrate" | "preview";
-    reason: string;
-  }>,
-): Promise<Record<string, unknown>> {
-  const { transaction, organizationId } = requireWorkTransaction(context);
   const restored = await rollbackPluginInstall(
     context,
-    base.id,
-    base.versionId,
+    pending.installId,
+    pending.previousVersionId!,
   );
-  return {
-    installId: base.id,
-    fromVersionId: input.failedVersionId,
-    toVersionId: base.versionId,
+  await recordEvent(transaction, organizationId, pending.runId, why.kind, {
+    action: "rolled_back",
+    installId: pending.installId,
+    fromVersionId: pending.versionId,
+    toVersionId: pending.previousVersionId,
     restoredVersionId: restored.pluginVersionId,
-    stage: input.stage,
-    reason: input.reason,
-    stateDigestBefore: input.stateBefore,
+    stage: why.stage,
+    reason: why.reason,
+    stateDigestBefore: pending.stateDigestBefore,
     stateDigestRestored: await stateDigest(
       transaction,
       organizationId,
-      base.id,
+      pending.installId,
     ),
-  };
+  });
+}
+
+/**
+ * Settles a run a crash left `running` and stale, under its author's authority.
+ * Whatever it had published and not proven is compensated, the run says
+ * `interrupted`, and an event names what was done. Answers whether it settled.
+ */
+export async function settleInterruptedRun(
+  context: ActionContext,
+  runId: string,
+  staleAfterMs: number = PLUGIN_AUTHORING_STALE_AFTER_MS,
+): Promise<boolean> {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const found = await transaction.query<{
+    phase: string;
+    pending_plugin_version_id: string | null;
+    pending_plugin_install_id: string | null;
+    pending_first_install: boolean | null;
+    pending_state_digest: string | null;
+    base_plugin_install_id: string | null;
+    actor_principal_id: string;
+  }>(
+    `select phase, pending_plugin_version_id, pending_plugin_install_id,
+            pending_first_install, pending_state_digest,
+            base_plugin_install_id, actor_principal_id
+       from bakery.plugin_authoring_runs
+      where organization_id = $1 and id = $2 and status = 'running'
+        and updated_at < now() - make_interval(secs => $3::double precision / 1000)
+      for update`,
+    [organizationId, runId, staleAfterMs],
+  );
+  const row = found.rows[0];
+  if (row === undefined || row.actor_principal_id !== principalId) {
+    return false;
+  }
+  if (
+    row.phase === "previewing" && row.pending_plugin_version_id !== null &&
+    row.pending_plugin_install_id !== null
+  ) {
+    const pending: Pending = {
+      runId,
+      versionId: row.pending_plugin_version_id,
+      installId: row.pending_plugin_install_id,
+      firstInstall: row.pending_first_install === true,
+      packageId: (await transaction.query<{ plugin_package_id: string }>(
+        `select plugin_package_id from bakery.plugin_versions
+          where organization_id = $1 and id = $2`,
+        [organizationId, row.pending_plugin_version_id],
+      )).rows[0].plugin_package_id,
+      stateDigestBefore: row.pending_state_digest,
+      previousVersionId: row.pending_first_install === true
+        ? null
+        : (await transaction.query<{ to_version: string }>(
+          `select detail->>'previousVersionId' as to_version
+             from bakery.plugin_authoring_events
+            where organization_id = $1 and plugin_authoring_run_id = $2
+              and kind = 'published'
+            order by created_at desc, id desc limit 1`,
+          [organizationId, runId],
+        )).rows[0].to_version,
+    };
+    await compensate(context, pending, {
+      kind: "interrupted",
+      stage: "preview",
+      reason: "run_interrupted",
+    });
+  } else {
+    await recordEvent(transaction, organizationId, runId, "interrupted", {
+      action: "none",
+      phase: row.phase,
+      reason: "run_interrupted",
+    });
+  }
+  await finishRun(transaction, organizationId, runId, {
+    status: "interrupted",
+    failure: { reason: "run_interrupted", phase: row.phase },
+  });
+  return true;
 }
 
 /** Runs one authoring request to an outcome and answers with the run's id. */
 export async function runPluginAuthoring(
-  context: ActionContext,
+  tx: AuthoringTransaction,
   deps: PluginAuthoringDependencies,
   request: PluginAuthoringRequest,
 ): Promise<string> {
-  const { transaction, organizationId, principalId } = requireWorkTransaction(
-    context,
-  );
   const { generator, preview: previewRunner, bundles } = deps;
   if (
     generator === undefined || previewRunner === undefined ||
@@ -648,40 +537,57 @@ export async function runPluginAuthoring(
       params: { reason: "plugin_authoring_attempts_out_of_range" },
     });
   }
+  const boundary = async (name: AuthoringBoundary) => {
+    await deps.boundary?.(name);
+  };
   // Built here, from the authorized request, and frozen. Nothing a generator
   // writes reaches it.
   const policy = freezeAuthoringPolicy(request.authorizedCapabilities);
-  const base = request.installId === undefined ? null : await loadBaseInstall(
-    transaction,
-    organizationId,
-    principalId,
-    request.installId,
-    bundles,
-  );
   const requestDigest = sha256(request.request);
-  const created = await transaction.query<{ id: string }>(
-    `insert into bakery.plugin_authoring_runs
-       (organization_id, actor_principal_id, status, request_text,
-        request_digest, authorized_capabilities, budget_usd, max_attempts,
-        kit_digest, sdk_version, model_id, base_plugin_install_id)
-     values ($1, $2, 'running', $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)
-     returning id`,
-    [
+
+  // Transaction 1: the run row.
+  const started = await tx(async (context) => {
+    const { transaction, organizationId, principalId } = requireWorkTransaction(
+      context,
+    );
+    const base = request.installId === undefined ? null : await loadBaseInstall(
+      transaction,
       organizationId,
       principalId,
-      request.request,
-      requestDigest,
-      JSON.stringify(policy.authorizedCapabilities),
-      request.budgetUsd,
-      request.maxAttempts,
-      PLUGIN_AUTHORING_KIT_DIGEST,
-      sdkVersionText(),
-      generator.modelId,
-      base?.id ?? null,
-    ],
-  );
-  const runId = created.rows[0].id;
-  const full = { generator, preview: previewRunner, bundles };
+      request.installId,
+      bundles,
+    );
+    const created = await transaction.query<{ id: string }>(
+      `insert into bakery.plugin_authoring_runs
+         (organization_id, actor_principal_id, status, request_text,
+          request_digest, authorized_capabilities, budget_usd, max_attempts,
+          kit_digest, sdk_version, model_id, base_plugin_install_id)
+       values ($1, $2, 'running', $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)
+       returning id`,
+      [
+        organizationId,
+        principalId,
+        request.request,
+        requestDigest,
+        JSON.stringify(policy.authorizedCapabilities),
+        request.budgetUsd,
+        request.maxAttempts,
+        PLUGIN_AUTHORING_KIT_DIGEST,
+        sdkVersionText(),
+        generator.modelId,
+        base?.id ?? null,
+      ],
+    );
+    return { runId: created.rows[0].id, base, organizationId };
+  });
+  const { runId, base, organizationId } = started;
+  await boundary("run_created");
+
+  const finish = (outcome: Parameters<typeof finishRun>[3]) =>
+    tx((context) => {
+      const { transaction } = requireWorkTransaction(context);
+      return finishRun(transaction, organizationId, runId, outcome);
+    });
 
   let spent = 0;
   let lastCost = 0;
@@ -689,111 +595,379 @@ export async function runPluginAuthoring(
   for (let attempt = 1; attempt <= request.maxAttempts; attempt++) {
     const estimate = generator.estimateCostUsd?.() ?? lastCost;
     if (usd(spent + estimate) > request.budgetUsd) {
-      await finishRun(transaction, organizationId, runId, {
+      await finish({
         status: "budget_exhausted",
         spentUsd: usd(spent),
         failure: { reason: "budget_exhausted", attempts: attempt - 1 },
       });
       return runId;
     }
-    let generated: PluginGeneratorOutput;
+
+    // No transaction: generation and every check, the typecheck included.
+    let files: PluginPackageFiles | null = null;
+    let diagnostics: readonly unknown[];
+    let report: unknown = null;
+    let filesDigest: string | null = null;
+    let checked: Awaited<ReturnType<typeof checkPluginPackage>> | null = null;
     try {
-      generated = await generator.generate({
+      const generated = await generator.generate({
         request: request.request,
         kit: PLUGIN_AUTHORING_KIT_FILES,
         ...(base === null ? {} : { current: base.files }),
         ...(previous === undefined ? {} : { previous }),
       });
+      lastCost = Math.max(0, generated.usage.costUsd);
+      spent += lastCost;
+      files = generated.files;
+      checked = await checkPluginPackage(files, policy);
+      diagnostics = checked.diagnostics;
+      report = checked.report;
+      filesDigest = checked.report.filesDigest;
     } catch (error) {
-      const diagnostics = [{
+      lastCost = 0;
+      diagnostics = [{
         check: "generator",
         code: "GENERATOR_FAILED",
         message: error instanceof Error ? error.message.slice(0, 500) : "",
       }];
-      await recordAttempt(transaction, organizationId, runId, {
-        number: attempt,
-        outcome: "failed",
-        filesDigest: null,
-        checkReport: null,
-        diagnostics,
-        costUsd: 0,
-        versionId: null,
-        previewResult: undefined,
-      });
-      continue;
     }
-    lastCost = Math.max(0, generated.usage.costUsd);
-    spent += lastCost;
-    const checked = await checkPluginPackage(generated.files, policy);
-    if (
-      !checked.ok || checked.manifest === null || checked.sdkRange === null
-    ) {
-      await recordAttempt(transaction, organizationId, runId, {
-        number: attempt,
-        outcome: "failed",
-        filesDigest: checked.report.filesDigest,
-        checkReport: checked.report,
-        diagnostics: checked.diagnostics,
-        costUsd: usd(lastCost),
-        versionId: null,
-        previewResult: undefined,
-      });
-      previous = { files: generated.files, diagnostics: checked.diagnostics };
-      continue;
-    }
-    const published = await publishAndPreview(context, full, {
-      runId,
-      attempt,
-      requestDigest,
-      modelId: generator.modelId,
-      files: generated.files,
-      manifest: checked.manifest,
-      sdkRange: checked.sdkRange,
-      checkReport: checked.report,
-      base,
+    const passedChecks = checked !== null && checked.ok &&
+      checked.manifest !== null && checked.sdkRange !== null;
+
+    // Transaction: the attempt and what the run has spent.
+    const cost = usd(lastCost);
+    await tx(async (context) => {
+      const { transaction } = requireWorkTransaction(context);
+      await transaction.query(
+        `insert into bakery.plugin_authoring_attempts
+           (organization_id, plugin_authoring_run_id, attempt_number, outcome,
+            files_digest, check_report, diagnostics, cost_usd)
+         values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8)`,
+        [
+          organizationId,
+          runId,
+          attempt,
+          passedChecks ? "checked" : "failed",
+          filesDigest,
+          report === null ? null : JSON.stringify(report),
+          JSON.stringify(diagnostics),
+          cost,
+        ],
+      );
+      await transaction.query(
+        `update bakery.plugin_authoring_runs
+            set spent_usd = $3, updated_at = now()
+          where organization_id = $1 and id = $2`,
+        [organizationId, runId, usd(spent)],
+      );
     });
-    if (!published.ok) {
-      await recordAttempt(transaction, organizationId, runId, {
-        number: attempt,
-        outcome: "failed",
-        filesDigest: checked.report.filesDigest,
-        checkReport: checked.report,
-        diagnostics: published.diagnostics,
-        costUsd: usd(lastCost),
-        versionId: null,
-        previewResult: undefined,
+    await boundary("attempt_recorded");
+    if (!passedChecks || files === null || checked === null) {
+      if (files !== null) {
+        previous = {
+          files,
+          diagnostics: diagnostics as PluginPackageDiagnostic[],
+        };
+      }
+      continue;
+    }
+    const manifest = checked.manifest!;
+    const settleAttempt = (
+      outcome: "passed" | "failed",
+      extra: {
+        diagnostics?: readonly unknown[];
+        versionId?: string;
+        preview?: unknown;
+      },
+    ) =>
+    async (context: ActionContext) => {
+      const { transaction } = requireWorkTransaction(context);
+      await transaction.query(
+        `update bakery.plugin_authoring_attempts
+              set outcome = $4,
+                  diagnostics = coalesce($5::jsonb, diagnostics),
+                  plugin_version_id = $6, preview_result = $7::jsonb
+            where organization_id = $1 and plugin_authoring_run_id = $2
+              and attempt_number = $3`,
+        [
+          organizationId,
+          runId,
+          attempt,
+          outcome,
+          extra.diagnostics === undefined
+            ? null
+            : JSON.stringify(extra.diagnostics),
+          extra.versionId ?? null,
+          extra.preview === undefined ? null : JSON.stringify(extra.preview),
+        ],
+      );
+    };
+
+    // The bytes go to the store with no transaction held. Bytes whose version
+    // never commits are unreferenced and collectable.
+    const bundle = buildPluginBundle(files);
+    await bundles.putIfAbsent(organizationId, bundle.digest, bundle.bytes);
+
+    // Transaction: publish and install (or move), or recognise a revision that
+    // changed nothing.
+    let published:
+      | Pending
+      | { unchanged: string }
+      | { refused: unknown };
+    try {
+      published = await tx(async (context) => {
+        const { transaction } = requireWorkTransaction(context);
+        if (base !== null) {
+          const same = await transaction.query<{ id: string }>(
+            `select id from bakery.plugin_versions
+              where organization_id = $1 and plugin_package_id = $2
+                and bundle_digest = $3`,
+            [organizationId, base.packageId, bundle.digest],
+          );
+          if (same.rows[0] !== undefined) {
+            // The same bytes are already a version of this package: a revision
+            // that changes nothing, not a second label for identical content.
+            await settleAttempt("passed", { versionId: same.rows[0].id })(
+              context,
+            );
+            await finishRun(transaction, organizationId, runId, {
+              status: "unchanged",
+              spentUsd: usd(spent),
+              packageId: base.packageId,
+              versionId: same.rows[0].id,
+              installId: base.id,
+            });
+            return { unchanged: same.rows[0].id };
+          }
+        }
+        const stateBefore = base === null
+          ? null
+          : await stateDigest(transaction, organizationId, base.id);
+        const packageId = base?.packageId ?? (await createPluginPackage(
+          context,
+          {
+            name: `${manifest.name}-${runId.slice(0, 8)}-${attempt}`,
+            displayName: manifest.name,
+            license: "UNLICENSED",
+            provenance: {
+              generatedBy: "plugin-authoring",
+              runId,
+              modelId: generator.modelId,
+              kitDigest: PLUGIN_AUTHORING_KIT_DIGEST,
+            },
+          },
+        )).id;
+        const version = await createPluginVersion(
+          context,
+          {
+            versionName: `authored-${runId.slice(0, 8)}-${attempt}`,
+            sdkRange: checked.sdkRange!,
+            manifest: JSON.parse(files!["manifest.json"]),
+            bundleObjectRef: blobObjectKey(organizationId, bundle.digest),
+            bundleDigest: bundle.digest,
+            sourceEvidence: {
+              kind: "plugin-authoring",
+              requestDigest,
+              runId,
+              attempt,
+            },
+            buildEvidence: {
+              checks: checked.report,
+              kitDigest: PLUGIN_AUTHORING_KIT_DIGEST,
+              sdkVersion: sdkVersionText(),
+              modelId: generator.modelId,
+              runId,
+            },
+          },
+          packageId,
+          { bundles },
+        );
+        let installId: string;
+        if (base === null) {
+          // First authoring: a personal, private install for the caller only.
+          installId = (await createPluginInstall(context, {
+            packageId,
+            versionId: version.id,
+            scope: "personal",
+          })).id;
+        } else {
+          installId = base.id;
+          // Exactly the added capabilities are approved, and only because each
+          // is already inside what the request authorized.
+          const moved = await updatePluginInstall(
+            context,
+            {
+              versionId: version.id,
+              approveCapabilities: addedCapabilities(base.manifest, manifest),
+            },
+            installId,
+          );
+          if (moved.pluginVersionId !== version.id) {
+            throw new MoveRefused(moved.lastUpdateFailure);
+          }
+        }
+        // The run says what it published and has not proven, and an event says
+        // why the install now points at an unpreviewed version, in the same
+        // transaction that made it so.
+        await transaction.query(
+          `update bakery.plugin_authoring_runs
+              set phase = 'previewing', pending_plugin_version_id = $3,
+                  pending_plugin_install_id = $4, pending_first_install = $5,
+                  pending_state_digest = $6, updated_at = now()
+            where organization_id = $1 and id = $2`,
+          [
+            organizationId,
+            runId,
+            version.id,
+            installId,
+            base === null,
+            stateBefore,
+          ],
+        );
+        await recordEvent(transaction, organizationId, runId, "published", {
+          versionId: version.id,
+          installId,
+          packageId,
+          previousVersionId: base?.versionId ?? null,
+          firstInstall: base === null,
+          stateDigestBefore: stateBefore,
+          previewed: false,
+        });
+        return {
+          runId,
+          versionId: version.id,
+          installId,
+          firstInstall: base === null,
+          packageId,
+          stateDigestBefore: stateBefore,
+          previousVersionId: base?.versionId ?? null,
+        };
       });
-      if (published.blocked !== undefined) {
+    } catch (error) {
+      if (!(error instanceof MoveRefused)) throw error;
+      published = { refused: error.lastUpdateFailure };
+    }
+    if ("unchanged" in published) return runId;
+    if ("refused" in published) {
+      const blocked = {
+        reason: "plugin_update_refused",
+        lastUpdateFailure: published.refused,
+      };
+      await tx(async (context) => {
+        await settleAttempt("failed", {})(context);
+        const { transaction } = requireWorkTransaction(context);
         await finishRun(transaction, organizationId, runId, {
           status: "blocked",
           spentUsd: usd(spent),
-          failure: published.blocked,
+          failure: blocked,
         });
-        return runId;
+      });
+      return runId;
+    }
+    const pending = published;
+    await boundary("published");
+
+    // No transaction: the preview. Each state call it makes is one short
+    // transaction of its own.
+    const relay: PreviewRelay = (call: PreviewCall) =>
+      tx((context) =>
+        createPreviewRelay(requireWorkTransaction(context).transaction, {
+          organizationId,
+          installId: pending.installId,
+          stateNamespaces: manifest.stateNamespaces,
+        })(call)
+      );
+    const runPreview = async (
+      mode: "run" | Readonly<{ migrateFrom: number }>,
+    ): Promise<PreviewOutcome> => {
+      try {
+        return await previewRunner.run({
+          organizationId,
+          installId: pending.installId,
+          files: { ...files!, ...HOST_OWNED_FILES },
+          mode,
+          relay,
+        });
+      } catch (error) {
+        return {
+          ok: false,
+          reason: "preview_runtime_error",
+          detail: error instanceof Error
+            ? error.message.slice(0, 500)
+            : undefined,
+        };
       }
-      previous = { files: generated.files, diagnostics: published.diagnostics };
+    };
+    let failed:
+      | { stage: string; outcome: PreviewOutcome & { ok: false } }
+      | null = null;
+    if (
+      base !== null &&
+      manifest.stateSchemaVersion > base.manifest.stateSchemaVersion
+    ) {
+      // The new version writes a newer shape: its migrate moves what the old
+      // one saved before the job runs on it.
+      const migrated = await runPreview({
+        migrateFrom: base.manifest.stateSchemaVersion,
+      });
+      if (!migrated.ok) failed = { stage: "migrate", outcome: migrated };
+    }
+    let ran: PreviewOutcome | null = null;
+    if (failed === null) {
+      ran = await runPreview("run");
+      if (!ran.ok) failed = { stage: "preview", outcome: ran };
+    }
+
+    if (failed !== null) {
+      const found = [
+        previewDiagnostic(
+          failed.stage === "migrate"
+            ? `migrate ${failed.outcome.reason}`
+            : failed.outcome.reason,
+          failed.outcome.detail,
+        ),
+      ];
+      // Transaction: compensate, and the attempt says why it failed.
+      await tx(async (context) => {
+        await compensate(context, pending, {
+          kind: pending.firstInstall ? "compensated" : "rolled_back",
+          stage: failed!.stage,
+          reason: failed!.outcome.reason,
+        });
+        await settleAttempt("failed", { diagnostics: found })(context);
+        const { transaction } = requireWorkTransaction(context);
+        await transaction.query(
+          `update bakery.plugin_authoring_runs
+              set phase = 'generating', pending_plugin_version_id = null,
+                  pending_plugin_install_id = null,
+                  pending_first_install = null, pending_state_digest = null,
+                  updated_at = now()
+            where organization_id = $1 and id = $2`,
+          [organizationId, runId],
+        );
+      });
+      previous = { files, diagnostics: found };
       continue;
     }
-    await recordAttempt(transaction, organizationId, runId, {
-      number: attempt,
-      outcome: "passed",
-      filesDigest: checked.report.filesDigest,
-      checkReport: checked.report,
-      diagnostics: [],
-      costUsd: usd(lastCost),
-      versionId: published.versionId,
-      previewResult: published.preview,
-    });
-    await finishRun(transaction, organizationId, runId, {
-      status: "succeeded",
-      spentUsd: usd(spent),
-      packageId: published.packageId,
-      versionId: published.versionId,
-      installId: published.installId,
+
+    // Transaction: the outcome.
+    await tx(async (context) => {
+      await settleAttempt("passed", {
+        versionId: pending.versionId,
+        preview: (ran as { result: unknown }).result,
+      })(context);
+      const { transaction } = requireWorkTransaction(context);
+      await finishRun(transaction, organizationId, runId, {
+        status: "succeeded",
+        spentUsd: usd(spent),
+        packageId: pending.packageId,
+        versionId: pending.versionId,
+        installId: pending.installId,
+      });
     });
     return runId;
   }
-  await finishRun(transaction, organizationId, runId, {
+  await finish({
     status: "blocked",
     spentUsd: usd(spent),
     failure: { reason: "attempts_exhausted", attempts: request.maxAttempts },

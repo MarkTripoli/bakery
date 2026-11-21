@@ -154,6 +154,27 @@ Deno.test("AC1: a counter plugin is authored, published privately, installed for
   });
 });
 
+Deno.test("a revision whose package is byte-identical is unchanged, not a crash", () => {
+  const generator = scriptedGenerator([counterPackage(), counterPackage()]);
+  const preview = previewRunner(localDenoRuntime());
+  return withAuthoringFixture({ generator, preview }, async ({ fixture }) => {
+    const first = await authored(fixture);
+    const versions = await count(fixture, "plugin_versions");
+    const state = await stateOf(fixture, first.pluginInstallId);
+    const again = await authored(fixture, {
+      installId: first.pluginInstallId,
+    });
+    assertEquals(again.status, "unchanged", JSON.stringify(again));
+    assertEquals(again.pluginVersionId, first.pluginVersionId);
+    assertEquals(again.pluginInstallId, first.pluginInstallId);
+    assertEquals(again.failure, null);
+    assertEquals(again.events, []);
+    assertEquals(await count(fixture, "plugin_versions"), versions);
+    assertEquals(await stateOf(fixture, first.pluginInstallId), state);
+    assertEquals(preview.results, [{ count: 1 }]);
+  });
+});
+
 Deno.test("AC2: a package that does not type-check is repaired on the next attempt", () => {
   const generator = scriptedGenerator([
     counterPackage({ "job.ts": TYPE_ERROR_JOB }),

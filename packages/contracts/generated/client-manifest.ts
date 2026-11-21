@@ -114138,10 +114138,12 @@ export const clientManifest = {
           "enum": [
             "running",
             "succeeded",
+            "unchanged",
             "blocked",
-            "budget_exhausted"
+            "budget_exhausted",
+            "interrupted"
           ],
-          "description": "succeeded when a version was published, previewed and installed; blocked when every attempt failed or a revision was refused, with nothing published; budget_exhausted when the next attempt would have gone over the budget."
+          "description": "running while the run works; succeeded when a version was published, previewed and installed; unchanged when a revision's package is byte-identical to a version the package already has, which pluginVersionId names and the install is not moved; blocked when every attempt failed or a revision was refused, with nothing left installed from it; budget_exhausted when the next attempt would have gone over the budget; interrupted when the run stopped without finishing (a crash) and was settled the next time it was read, with anything it had published and not previewed undone."
         },
         "request": {
           "type": "string",
@@ -114237,7 +114239,7 @@ export const clientManifest = {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "The private version the run published; null unless it succeeded."
+              "description": "The private version the run published, or for unchanged the existing version with identical bytes; null otherwise."
             },
             {
               "type": "null",
@@ -114252,7 +114254,7 @@ export const clientManifest = {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "The personal install now running that version; null unless the run succeeded."
+              "description": "The personal install now running that version; null unless the run succeeded or was unchanged."
             },
             {
               "type": "null",
@@ -114300,7 +114302,7 @@ export const clientManifest = {
                   "description": "JSON object value."
                 }
               ],
-              "description": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted or plugin_update_refused (with the install's lastUpdateFailure); null otherwise."
+              "description": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure) or run_interrupted (with the phase it stopped in); null otherwise."
             },
             {
               "type": "null",
@@ -114323,10 +114325,11 @@ export const clientManifest = {
               "outcome": {
                 "type": "string",
                 "enum": [
+                  "checked",
                   "passed",
                   "failed"
                 ],
-                "description": "passed when the package passed every check and its preview returned a result; failed otherwise."
+                "description": "checked while a package that passed every check awaits its preview; passed when its preview returned a result (or a revision matched an existing version); failed otherwise."
               },
               "filesDigest": {
                 "anyOf": [
@@ -114532,9 +114535,12 @@ export const clientManifest = {
               "kind": {
                 "type": "string",
                 "enum": [
-                  "rolled_back"
+                  "published",
+                  "compensated",
+                  "rolled_back",
+                  "interrupted"
                 ],
-                "description": "rolled_back when a revision's preview or state migration failed and the install was put back on the version it left."
+                "description": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone."
               },
               "detail": {
                 "anyOf": [
@@ -114573,7 +114579,7 @@ export const clientManifest = {
                     "description": "JSON object value."
                   }
                 ],
-                "description": "For rolled_back: the install, the version it left and returned to, the failing stage and reason, and the state digests before the revision, after the restore and after the rollback."
+                "description": "The install, versions and package involved, the stage and reason, and for a revision the state digest before the move and after the restore."
               },
               "createdAt": {
                 "type": "string",
@@ -114588,9 +114594,9 @@ export const clientManifest = {
               "createdAt"
             ],
             "additionalProperties": false,
-            "description": "Rollbacks the run performed, in order. Each array item follows this format."
+            "description": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption. Each array item follows this format."
           },
-          "description": "Rollbacks the run performed, in order."
+          "description": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption."
         },
         "createdAt": {
           "type": "string",

@@ -36543,7 +36543,7 @@
       ],
       "fieldTypes": {
         "attemptNumber": "integer",
-        "outcome": "enum(passed|failed)",
+        "outcome": "enum(checked|passed|failed)",
         "filesDigest": "string|null",
         "checkReport": "json|null",
         "diagnostics": "json[]",
@@ -36561,7 +36561,7 @@
       "description": "One package the generator wrote for an authoring run and what the checks and preview said about it.",
       "fieldDescriptions": {
         "attemptNumber": "The attempt's position in the run, from 1.",
-        "outcome": "passed when the package passed every check and its preview returned a result; failed otherwise.",
+        "outcome": "checked while a package that passed every check awaits its preview; passed when its preview returned a result (or a revision matched an existing version); failed otherwise.",
         "filesDigest": "SHA-256 over the generated files' paths and contents; null when the generator wrote nothing.",
         "checkReport": "Every check id in order with passed, failed or skipped and its finding count, the host SDK version and the files digest; null when the generator wrote nothing.",
         "diagnostics": "Each finding as {check, code, message, path?}: what the next attempt is told to fix. Empty for a passed attempt.",
@@ -36578,14 +36578,14 @@
         "createdAt"
       ],
       "fieldTypes": {
-        "kind": "enum(rolled_back)",
+        "kind": "enum(published|compensated|rolled_back|interrupted)",
         "detail": "json",
         "createdAt": "timestamp"
       },
       "description": "Something an authoring run did to an install besides publishing to it, kept as evidence.",
       "fieldDescriptions": {
-        "kind": "rolled_back when a revision's preview or state migration failed and the install was put back on the version it left.",
-        "detail": "For rolled_back: the install, the version it left and returned to, the failing stage and reason, and the state digests before the revision, after the restore and after the rollback.",
+        "kind": "published when a version was published and installed (or moved to) before its preview; compensated when a new install's preview failed and the install was uninstalled and its package withdrawn; rolled_back when a revision's preview or state migration failed and the install was put back on the version it left with that version's state; interrupted when a crashed run was settled and what it had left was undone.",
+        "detail": "The install, versions and package involved, the stage and reason, and for a revision the state digest before the move and after the restore.",
         "createdAt": "When it was recorded."
       }
     },
@@ -36619,7 +36619,7 @@
         "id": "uuid",
         "organizationId": "uuid",
         "actorPrincipalId": "uuid",
-        "status": "enum(running|succeeded|blocked|budget_exhausted)",
+        "status": "enum(running|succeeded|unchanged|blocked|budget_exhausted|interrupted)",
         "request": "string",
         "requestDigest": "string",
         "authorizedCapabilities": "enum(state.read|state.write|ui.page|ui.panel|commands.run|tools.invoke|jobs.schedule)[]",
@@ -36653,7 +36653,7 @@
         "id": "Stable UUID of this authoring run.",
         "organizationId": "UUID of the organization that owns this run.",
         "actorPrincipalId": "The person who asked for the plugin; only they can read the run.",
-        "status": "succeeded when a version was published, previewed and installed; blocked when every attempt failed or a revision was refused, with nothing published; budget_exhausted when the next attempt would have gone over the budget.",
+        "status": "running while the run works; succeeded when a version was published, previewed and installed; unchanged when a revision's package is byte-identical to a version the package already has, which pluginVersionId names and the install is not moved; blocked when every attempt failed or a revision was refused, with nothing left installed from it; budget_exhausted when the next attempt would have gone over the budget; interrupted when the run stopped without finishing (a crash) and was settled the next time it was read, with anything it had published and not previewed undone.",
         "request": "The request text as sent.",
         "requestDigest": "SHA-256 of the request text, the published version's source evidence.",
         "authorizedCapabilities": "The capabilities the request allowed, the only ones a package could ask for.",
@@ -36665,11 +36665,11 @@
         "modelId": "The generator's model id.",
         "basePluginInstallId": "The install a revision started from; null for a new plugin.",
         "pluginPackageId": "The package published to; null unless the run succeeded.",
-        "pluginVersionId": "The private version the run published; null unless it succeeded.",
-        "pluginInstallId": "The personal install now running that version; null unless the run succeeded.",
-        "failure": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted or plugin_update_refused (with the install's lastUpdateFailure); null otherwise.",
+        "pluginVersionId": "The private version the run published, or for unchanged the existing version with identical bytes; null otherwise.",
+        "pluginInstallId": "The personal install now running that version; null unless the run succeeded or was unchanged.",
+        "failure": "Why the run did not succeed: {reason, ...}, where reason is attempts_exhausted, budget_exhausted, plugin_update_refused (with the install's lastUpdateFailure) or run_interrupted (with the phase it stopped in); null otherwise.",
         "attempts": "Every attempt in order.",
-        "events": "Rollbacks the run performed, in order.",
+        "events": "What the run did to installs besides finishing, in order: each publish, and each compensation, rollback or interruption.",
         "createdAt": "When the run started.",
         "updatedAt": "When the run last changed.",
         "finishedAt": "When the run reached its outcome; null while running."

@@ -15,7 +15,12 @@ import {
   contractSchemas,
   OrganizationContextPolicy,
 } from "@bakery/contracts/contracts";
-import { createApiRouter, StandardError } from "@bakery/contracts/http";
+import {
+  createApiRouter,
+  problemResponse,
+  StandardError,
+} from "@bakery/contracts/http";
+import type { ActionContext } from "@bakery/contracts/action-registry";
 import type { PluginInstallCapability } from "@bakery/contracts/plugin-sdk";
 import { PostgresAuthorityRunner } from "../../auth/adapters/authority-postgres.ts";
 import { isOrganizationMember } from "../../auth/application/authorize.ts";
@@ -28,8 +33,10 @@ import { createPostgresCommandRunner } from "../../../platform/command-replay.ts
 import type { PgDatabase } from "../../../platform/database.ts";
 import { getPluginAuthoringRun } from "./read.ts";
 import {
+  type AuthoringTransaction,
   type PluginAuthoringDependencies,
   runPluginAuthoring,
+  settleInterruptedRun,
 } from "./runner.ts";
 
 /**
@@ -37,8 +44,14 @@ import {
  *
  * Starting a run is a member's own business, like a personal install: the run
  * installs only for the caller, and revises only the caller's own install, so
- * the floor is Developer and the handler applies the owner rule. No route lets
- * a caller set the checks' policy beyond the capabilities they authorize.
+ * the floor is Developer and the handler applies the owner rule.
+ *
+ * A run is long (generation, a typecheck, a preview), so its route does not
+ * run inside one action transaction. It is mounted ahead of the JSON router,
+ * like the page document read, and runs each of the run's short writes as its
+ * own transaction through the action's authority, so every write re-checks the
+ * caller's live membership and nothing holds a connection while code runs.
+ * Reading a run settles it first if a crash left it running and stale.
  */
 export function createPluginAuthoringRoutes(
   options: {
@@ -78,18 +91,10 @@ export function createPluginAuthoringRoutes(
       authorize: requireMember,
     },
     explicitIdempotency: "key",
-    handler: async (context, input) => {
-      const runId = await runPluginAuthoring(context, options, {
-        request: input.request,
-        authorizedCapabilities: input
-          .authorizedCapabilities as PluginInstallCapability[],
-        budgetUsd: Number(input.budgetUsd),
-        maxAttempts: input.maxAttempts,
-        ...(input.installId === undefined
-          ? {}
-          : { installId: input.installId }),
-      });
-      return await getPluginAuthoringRun(context, runId);
+    // Never reached: the route mounted ahead of the JSON router answers this
+    // path, running the action's authority once per short transaction.
+    handler: () => {
+      throw new StandardError({ code: "INTERNAL" });
     },
   });
   registry.register({
@@ -104,11 +109,62 @@ export function createPluginAuthoringRoutes(
       organizationContext: memberContext,
       authorize: requireMember,
     },
-    handler: (context) =>
-      getPluginAuthoringRun(context, context.params.id ?? ""),
+    handler: async (context) => {
+      const runId = context.params.id ?? "";
+      await settleInterruptedRun(context, runId, options.staleRunAfterMs);
+      return await getPluginAuthoringRun(context, runId);
+    },
   });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, pluginAuthoringImplementedActions);
+  const authority = new PostgresAuthorityRunner(options.database);
+  const createAction = registry.get(
+    PluginAuthoringImplementedAction.PluginAuthoringRunsCreate,
+  );
+  app.post("/v1/plugin-authoring-runs", async (context) => {
+    try {
+      let body: unknown;
+      try {
+        body = await context.req.json();
+      } catch {
+        throw new StandardError({ code: "MALFORMED_REQUEST" });
+      }
+      const input = contractSchemas.PluginAuthoringRunCreate.parse(body);
+      const base: ActionContext = {
+        request: context.req.raw,
+        params: {},
+        requestId: context.req.header("x-request-id") ?? crypto.randomUUID(),
+        traceId: context.req.header("x-trace-id") ?? crypto.randomUUID(),
+        signal: context.req.raw.signal,
+        ...createActionContext(context),
+      };
+      const tx: AuthoringTransaction = async <T>(
+        work: (authorized: ActionContext) => Promise<T>,
+      ) =>
+        await authority.run(createAction, base, input, async (authorized) => {
+          requireMember(authorized);
+          return await work(authorized);
+        }) as T;
+      const runId = await runPluginAuthoring(tx, options, {
+        request: input.request,
+        authorizedCapabilities: input
+          .authorizedCapabilities as PluginInstallCapability[],
+        budgetUsd: Number(input.budgetUsd),
+        maxAttempts: input.maxAttempts,
+        ...(input.installId === undefined
+          ? {}
+          : { installId: input.installId }),
+      });
+      const run = await tx((authorized) =>
+        getPluginAuthoringRun(authorized, runId)
+      );
+      return context.json(contractSchemas.PluginAuthoringRun.parse(run), 201);
+    } catch (error) {
+      return problemResponse(context, error, {
+        publicBaseUrl: options.publicBaseUrl,
+      });
+    }
+  });
   app.route(
     "/",
     createApiRouter({
