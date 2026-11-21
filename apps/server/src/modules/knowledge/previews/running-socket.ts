@@ -119,30 +119,19 @@ export async function proxyPreviewSocket(
   }
   upstream.binaryType = "arraybuffer";
 
-  // Frames that arrive before the browser's side exists are kept, in order.
-  const early: (string | ArrayBuffer)[] = [];
-  let forward: ((data: string | ArrayBuffer) => void) | null = null;
-  upstream.onmessage = (event) => {
-    if (forward) forward(event.data);
-    else early.push(event.data);
-  };
-
   const opened = await new Promise<boolean>((resolve) => {
-    const timer = setTimeout(() => resolve(false), options.timeoutMs);
-    const abort = () => resolve(false);
+    // Every way out clears the timer and removes the listener, once.
+    const timer = setTimeout(() => settle(false), options.timeoutMs);
+    const abort = () => settle(false);
+    const settle = (value: boolean) => {
+      clearTimeout(timer);
+      options.request.signal.removeEventListener("abort", abort);
+      resolve(value);
+    };
     options.request.signal.addEventListener("abort", abort, { once: true });
-    upstream.onopen = () => {
-      clearTimeout(timer);
-      resolve(true);
-    };
-    upstream.onerror = () => {
-      clearTimeout(timer);
-      resolve(false);
-    };
-    upstream.onclose = () => {
-      clearTimeout(timer);
-      resolve(false);
-    };
+    upstream.onopen = () => settle(true);
+    upstream.onerror = () => settle(false);
+    upstream.onclose = () => settle(false);
   });
   if (!opened) {
     closeQuietly(upstream, GOING_AWAY, "");
@@ -207,8 +196,9 @@ export async function proxyPreviewSocket(
     for (const data of waiting.splice(0)) send(browser, data);
     waitingBytes = 0;
   };
-  forward = toBrowser;
-  for (const data of early.splice(0)) forward(data);
+  // No frame can arrive between the app's socket opening and this line: the
+  // code after the open runs as a microtask, before the next frame is read.
+  upstream.onmessage = (event) => toBrowser(event.data);
   browser.onmessage = (event) => send(upstream, event.data);
   browser.onclose = (event) =>
     finish(sendableCloseCode(event.code), event.reason);

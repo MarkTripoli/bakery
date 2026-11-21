@@ -44,7 +44,7 @@ export type RunningPreviewHostDependencies = {
   readonly upstreamTimeoutMs?: number;
   /** How often an open socket asks again whether it may stay open. */
   readonly socketRecheckMs?: number;
-  /** Most sockets one preview may hold open at once. */
+  /** Most sockets one preview may hold open at once, counted in this server process. */
   readonly maxSocketsPerPreview?: number;
   /** Test seam replacing `Deno.upgradeWebSocket`. */
   readonly upgradeWebSocket?: PreviewSocketUpgrade;
@@ -326,7 +326,7 @@ export function createRunningPreviewHandler(
    * A WebSocket on the preview's own origin. Only a page of this same origin
    * may open one (a socket is not covered by the browser's cross-origin rules,
    * so the Origin header is the check), and only up to a fixed number per
-   * preview. It is re-checked while open: see `proxyPreviewSocket`.
+   * preview, in this server process. It is re-checked while open: see `proxyPreviewSocket`.
    */
   const socket = async (
     request: Request,
