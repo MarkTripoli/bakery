@@ -18,7 +18,6 @@ import {
 } from "./modules/work/migrations.ts";
 import { BAKERY_MIGRATION_SOURCES } from "./migration-sources.ts";
 import { runStoragePurgesTask } from "./platform/storage-purges-task.ts";
-import { runProbeRunnerTask } from "./platform/probe-runner-task.ts";
 import { AuthErrorCode } from "./modules/auth/domain/errors.ts";
 import {
   authEnvironmentNames,
@@ -172,6 +171,13 @@ const authConfig =
     : undefined;
 
 if (task === "probe-runner") {
+  // Imported here, not at the top: the entry point is loaded for every task,
+  // and this one pulls the object store in with it. A top-level import made
+  // `createsuperuser` read an AWS SDK variable it never declared, which is the
+  // access this rail exists to prevent.
+  const { runProbeRunnerTask } = await import(
+    "./platform/probe-runner-task.ts"
+  );
   console.log(JSON.stringify(await runProbeRunnerTask(databaseConfig.url)));
   Deno.exit(0);
 }
