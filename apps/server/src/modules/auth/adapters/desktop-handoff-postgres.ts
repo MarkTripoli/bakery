@@ -240,20 +240,16 @@ export async function redeemDesktopHandoff(
 export async function endHandedOffSessions(
   transaction: Pick<PgTransactionClient, "query">,
   desktopSessionIds: readonly string[],
-  options: { readonly keep?: string } = {},
 ): Promise<number> {
   if (desktopSessionIds.length === 0) return 0;
-  // `keep` is the caller's own session: "sign out other sessions" asked from
-  // a window keeps that window, even though its desktop sign-in ends.
   const ended = await transaction.query(
     `delete from public.session
       where id in (
         select browser_session_id from bakery.desktop_handoffs
          where desktop_session_id = any($1::uuid[])
            and browser_session_id is not null
-      )
-      and ($2::uuid is null or id <> $2::uuid)`,
-    [desktopSessionIds, options.keep ?? null],
+      )`,
+    [desktopSessionIds],
   );
   return ended.rowCount ?? 0;
 }
