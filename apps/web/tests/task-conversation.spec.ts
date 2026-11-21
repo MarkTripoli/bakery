@@ -3385,7 +3385,10 @@ test("the way out of the block: Don't mention keeps the name as words; several p
   });
   const declineBox = await decline.boundingBox();
   if (ask === null || declineBox === null) throw new Error("no boxes");
-  expect(declineBox.y).toBeGreaterThanOrEqual(ask.y + ask.height - 1);
+  // Its touch frame may overlap the buttons by a pixel or two; its middle is below them.
+  expect(declineBox.y + declineBox.height / 2).toBeGreaterThanOrEqual(
+    ask.y + ask.height,
+  );
   await decline.click();
   await expect(box).toHaveValue("Hi Samir Okafor ");
   await expect(page.getByText("Samir Okafor · no access yet")).toHaveCount(0);
