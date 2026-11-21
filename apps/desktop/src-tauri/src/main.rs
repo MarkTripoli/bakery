@@ -5,6 +5,7 @@ mod menu;
 mod net;
 mod shell;
 mod store;
+mod toast;
 
 use bakery_desktop_core::copy::{press, ButtonId, Press};
 use bakery_desktop_core::csp;
@@ -181,6 +182,16 @@ fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri::plugin::Builder::<tauri::Wry>::new("links")
         .on_navigation(move |webview, url| {
             let shell = webview.try_state::<Arc<Shell>>();
+            // A button in a notice asks for something by going to an address of its own, which the
+            // app answers and never loads. Only this run's nonce is answered.
+            if url.scheme() == toast::ACTION_SCHEME {
+                if let Some(shell) = &shell {
+                    if let Some((action, id)) = toast::parse_action(url, shell.action_nonce()) {
+                        shell.toast_action(action, id);
+                    }
+                }
+                return false;
+            }
             match navigation(&server, url.as_str()) {
                 Navigation::Stay => true,
                 Navigation::Browser => {

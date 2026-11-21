@@ -752,6 +752,17 @@ def phase_web_download():
         if extra:
             check(label + ": the file is saved there", wait_until(lambda: os.path.exists(os.path.join(drop, "bakery-probe.svg")), timeout=20))
             check(label + ": the app reports the save", wait_report(p, "download_finished", 1, timeout=20))
+            check(label + ": a notice says where it was saved",
+                  wait_report(p, "toast", 1, timeout=20)
+                  and [e["data"]["text"] for e in reports(p) if e["event"] == "toast"][-1] == "Saved bakery-probe.svg to downloads.",
+                  str([e["data"] for e in reports(p) if e["event"] == "toast"]))
+            # The notice is in the page, and its button reaches the app: pressed as a person would.
+            time.sleep(1)
+            eval_in_window(p, "for (const b of document.querySelectorAll('[data-bakery-toast] button')) "
+                              "{ if (b.textContent === 'Show in folder') b.click(); }")
+            check(label + ": its Show in folder button reaches the app",
+                  wait_report(p, "toast_action", 1, timeout=20)
+                  and [e["data"]["action"] for e in reports(p) if e["event"] == "toast_action"][0] == "show")
         else:
             # Without the harness, the system's save dialog opens and waits: nothing is written yet.
             time.sleep(6)

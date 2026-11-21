@@ -6,6 +6,7 @@
 use crate::shell::Shell;
 use bakery_desktop_core::csp::server_origins;
 use serde_json::json;
+use bakery_desktop_core::download::Failure;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::webview::DownloadEvent;
@@ -42,6 +43,9 @@ pub fn handler(server: String) -> impl Fn(Webview<Wry>, DownloadEvent<'_>) -> bo
                 if let Ok(dir) = std::env::var("BAKERY_DESKTOP_DOWNLOAD_TO") {
                     *destination = PathBuf::from(dir).join(&name);
                     report("download_started", json!({ "name": name, "dialog": false }));
+                    if let Some(shell) = &shell {
+                        shell.download_started(url.as_str(), &name);
+                    }
                     return true;
                 }
                 let start = webview.app_handle().path().download_dir().ok();
@@ -51,8 +55,19 @@ pub fn handler(server: String) -> impl Fn(Webview<Wry>, DownloadEvent<'_>) -> bo
                 }
                 match dialog.save_file() {
                     Some(chosen) => {
+                        // A folder that cannot be written to says so at once, and nothing is started.
+                        if !writable(&chosen) {
+                            if let Some(shell) = &shell {
+                                let id = shell.next_id();
+                                shell.save_failed(id, &name, url.as_str(), Failure::NoPermission);
+                            }
+                            return false;
+                        }
                         *destination = chosen;
                         report("download_started", json!({ "name": name, "dialog": true }));
+                        if let Some(shell) = &shell {
+                            shell.download_started(url.as_str(), &name);
+                        }
                         true
                     }
                     None => {
@@ -61,11 +76,24 @@ pub fn handler(server: String) -> impl Fn(Webview<Wry>, DownloadEvent<'_>) -> bo
                     }
                 }
             }
-            DownloadEvent::Finished { success, .. } => {
+            DownloadEvent::Finished { url, path, success } => {
                 report("download_finished", json!({ "success": success }));
+                if let Some(shell) = &shell {
+                    shell.download_finished(url.as_str(), path, success);
+                }
                 true
             }
             _ => true,
         }
     }
+}
+
+/// Whether a file can be made at the chosen place. A file that was not there is not left behind.
+fn writable(path: &std::path::Path) -> bool {
+    let existed = path.exists();
+    let ok = std::fs::OpenOptions::new().create(true).append(true).open(path).is_ok();
+    if ok && !existed {
+        let _ = std::fs::remove_file(path);
+    }
+    ok
 }

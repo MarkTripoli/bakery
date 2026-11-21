@@ -20,6 +20,8 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::menu::BakeryMenu;
+use crate::toast::{self, Tone, Toast};
+use bakery_desktop_core::download as saved_file;
 use bakery_desktop_core::link_dialog::LinkDialog;
 
 /// How long the server keeps a sign-in request open, and so how long the app waits for the answer.
@@ -83,12 +85,36 @@ pub struct Shell {
     /// What the window shows: the server's pages, or the app's own panels. `tried` is set once a
     /// handoff has been attempted for this sign-in, so a refusal is not asked again in a loop.
     window_page: Mutex<WindowPage>,
+    /// Made when the app starts: a notice's buttons carry it, so a page cannot ask for an action.
+    action_nonce: String,
+    toasts: Mutex<std::collections::HashMap<u64, ToastTarget>>,
+    downloads: Mutex<std::collections::HashMap<String, DownloadState>>,
+    next_toast: std::sync::atomic::AtomicU64,
+}
+
+/// What a notice's buttons act on.
+struct ToastTarget {
+    path: Option<PathBuf>,
+    retry_url: Option<String>,
+}
+
+struct DownloadState {
+    id: u64,
+    done: bool,
 }
 
 #[derive(Default)]
 struct WindowPage {
     on_server: bool,
     tried: bool,
+}
+
+/// A value a page cannot guess: the hasher's random seed is new for every process.
+fn random_nonce() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+    hasher.write_u64(SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(0));
+    format!("a{:016x}", hasher.finish())
 }
 
 const SETTINGS_FILE: &str = "settings.json";
@@ -182,6 +208,10 @@ impl Shell {
             pending_open: Mutex::new(None),
             menu: Mutex::new(None),
             window_page: Mutex::new(WindowPage::default()),
+            action_nonce: random_nonce(),
+            toasts: Mutex::new(Default::default()),
+            downloads: Mutex::new(Default::default()),
+            next_toast: std::sync::atomic::AtomicU64::new(1),
         })
     }
 
@@ -202,6 +232,134 @@ impl Shell {
     pub fn link_dialog_target(&self) -> Option<String> {
         let st = self.state.lock().unwrap();
         st.facts.link_dialog.as_ref().map(|d| d.full().to_string())
+    }
+
+
+    pub fn action_nonce(&self) -> &str {
+        &self.action_nonce
+    }
+
+    pub fn next_id(&self) -> u64 {
+        self.new_toast_id()
+    }
+
+    fn new_toast_id(&self) -> u64 {
+        self.next_toast.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Draws a notice in the page the window shows.
+    fn show_toast(&self, toast: Toast) {
+        let script = toast::show_script(&toast, &self.action_nonce);
+        let shown = self
+            .app
+            .get_webview_window("main")
+            .is_some_and(|w| w.eval(&script).is_ok());
+        self.report("toast", json!({ "text": toast.text, "shown": shown }));
+    }
+
+    /// A page offered a file from the connected server and the person chose where to put it.
+    pub fn download_started(self: &Arc<Self>, url: &str, name: &str) {
+        let id = self.new_toast_id();
+        self.downloads.lock().unwrap().insert(url.to_string(), DownloadState { id, done: false });
+        let shell = Arc::clone(self);
+        let (url, name) = (url.to_string(), name.to_string());
+        // Only a save that takes more than a second says so.
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(1));
+            let still_going = shell.downloads.lock().unwrap().get(&url).is_some_and(|d| !d.done);
+            if still_going {
+                shell.show_toast(Toast {
+                    id,
+                    tone: Tone::Information,
+                    text: saved_file::saving(&name),
+                    detail: None,
+                    tooltip: None,
+                    actions: vec![],
+                    goes_after: None,
+                });
+            }
+        });
+    }
+
+    /// The webview finished, or gave up on, a file.
+    pub fn download_finished(&self, url: &str, path: Option<PathBuf>, success: bool) {
+        let id = {
+            let mut downloads = self.downloads.lock().unwrap();
+            match downloads.get_mut(url) {
+                Some(d) => {
+                    d.done = true;
+                    d.id
+                }
+                None => return,
+            }
+        };
+        let name = path
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "The file".into());
+        if success {
+            let folder = path.as_ref().and_then(|p| p.parent()).map(|p| p.to_string_lossy().to_string());
+            self.toasts.lock().unwrap().insert(id, ToastTarget { path: path.clone(), retry_url: None });
+            self.show_toast(Toast {
+                id,
+                tone: Tone::Success,
+                text: saved_file::saved(&name, &folder.as_deref().map(saved_file::folder_name).unwrap_or_default()),
+                detail: None,
+                tooltip: folder,
+                actions: vec![(saved_file::SHOW_IN_FOLDER.into(), "show")],
+                goes_after: Some(saved_file::SAVED_NOTICE_SECONDS),
+            });
+        } else {
+            // The part file is deleted: nothing is kept.
+            if let Some(p) = &path {
+                let _ = std::fs::remove_file(p);
+            }
+            self.save_failed(id, &name, url, saved_file::Failure::Stopped);
+        }
+    }
+
+    /// An error notice that stays until closed, with the reason and a way to ask again.
+    pub fn save_failed(&self, id: u64, name: &str, url: &str, failure: saved_file::Failure) {
+        self.toasts.lock().unwrap().insert(id, ToastTarget { path: None, retry_url: Some(url.to_string()) });
+        self.show_toast(Toast {
+            id,
+            tone: Tone::Error,
+            text: saved_file::failure_title(name),
+            detail: Some(saved_file::failure_reason(failure).into()),
+            tooltip: None,
+            actions: vec![(saved_file::TRY_AGAIN.into(), "retry")],
+            goes_after: None,
+        });
+    }
+
+    /// A notice's button, already checked to carry this run's nonce.
+    pub fn toast_action(&self, action: &str, id: u64) {
+        let (path, retry) = {
+            let toasts = self.toasts.lock().unwrap();
+            match toasts.get(&id) {
+                Some(t) => (t.path.clone(), t.retry_url.clone()),
+                None => return,
+            }
+        };
+        match (action, path, retry) {
+            ("show", Some(path), _) => {
+                let _ = self.app.opener().reveal_item_in_dir(path);
+            }
+            ("retry", _, Some(url)) => {
+                // The same file again, through the same dialog: as the page's own link would.
+                let script = format!(
+                    "(() => {{ const a = document.createElement('a'); a.href = {}; a.download = ''; \
+                     document.body.appendChild(a); a.click(); a.remove(); }})();",
+                    serde_json::to_string(&url).unwrap_or_default()
+                );
+                if let Some(w) = self.app.get_webview_window("main") {
+                    let _ = w.eval(&script);
+                }
+            }
+            _ => {}
+        }
+        self.report("toast_action", json!({ "action": action }));
     }
 
     /// Whether an address, already a plain origin, is the server the app is connected to.

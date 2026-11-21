@@ -4,6 +4,7 @@ pub mod clock;
 pub mod compat;
 pub mod copy;
 pub mod csp;
+pub mod download;
 pub mod link_dialog;
 pub mod links;
 pub mod menu;
