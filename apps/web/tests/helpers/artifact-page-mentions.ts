@@ -58,6 +58,19 @@ test("typing @ in the comment box offers people to mention: a plain row, one mut
   });
   await expect(blocked).toHaveAttribute("aria-disabled", "true");
   await expect(list.getByText("Can't see this document")).toBeVisible();
+  // In a narrow picker the reason sits under the name, so the name keeps one line.
+  const picker = await list.boundingBox();
+  const name = blocked.getByText("Samir Okafor", { exact: true });
+  const reason = blocked.getByText("Can't see this document");
+  const nameBox = await name.boundingBox();
+  const reasonBox = await reason.boundingBox();
+  if (nameBox === null || reasonBox === null || picker === null) {
+    throw new Error("no boxes");
+  }
+  expect(nameBox.height).toBeLessThan(26);
+  if (picker.width <= 300) {
+    expect(reasonBox.y).toBeGreaterThanOrEqual(nameBox.y + nameBox.height - 1);
+  }
   await expect(
     page.getByText(
       "A comment only notifies. It never gives anyone access to the document.",

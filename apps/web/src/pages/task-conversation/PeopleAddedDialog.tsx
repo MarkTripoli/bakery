@@ -153,6 +153,7 @@ export function PeopleAddedDialog(
               <UI.DescriptionList>
                 {grants.data.map((grant) => (
                   <UI.DescriptionItem
+                    actionPlacement="below"
                     action={
                       <UI.Inline gap="compact">
                         {grant.sourceMessageId !== null

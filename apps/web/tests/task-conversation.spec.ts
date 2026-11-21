@@ -2847,6 +2847,12 @@ test("typing @ opens the people you can mention: quiet rows, one badge, one mute
       "A person who gets access can read and reply in this conversation only.",
     ),
   ).toBeVisible();
+  // The field's focus ring stays clear of the toolbar and its Send under it.
+  const field = await messageBox(page).boundingBox();
+  const send = await page.getByRole("button", { name: "Send", exact: true })
+    .boundingBox();
+  if (field === null || send === null) throw new Error("no boxes");
+  expect(send.y - (field.y + field.height)).toBeGreaterThanOrEqual(4);
   await page.mouse.move(700, 100);
   await still(page, "mentions-picker");
   await messageBox(page).fill("Hi @sa");
@@ -2948,6 +2954,10 @@ test("a refused mention writes nothing: the draft stays, the name turns red, Sen
   await expect(box).toHaveValue("Hi @Sam Patel ");
   await expect(page.getByRole("button", { name: "Send", exact: true }))
     .toBeDisabled();
+  // A refused person gains nothing: the chip is the name only and no line
+  // says Send gives them access.
+  await expect(page.getByText("Sam Patel · gets access")).toHaveCount(0);
+  await expect(page.getByText(/Sending gives Sam Patel access/)).toHaveCount(0);
   await page.mouse.move(700, 100);
   await still(page, "mentions-refused");
   await page.getByRole("button", { name: "Remove mention of Sam Patel" })
@@ -3061,6 +3071,15 @@ test("people a mention added: the link, the list, and taking access back after a
   ).toBeVisible();
   await expect(dialog.getByText("Sam Patel", { exact: true })).toBeVisible();
   await expect(dialog.getByText(/Mentioned by Ana Ruiz on /)).toBeVisible();
+  // On a phone the buttons sit under the text, not beside it.
+  const phone = (page.viewportSize()?.width ?? 1440) < 744;
+  const text = await dialog.getByText(/Mentioned by Ana Ruiz on /)
+    .boundingBox();
+  const remove = await dialog.getByRole("button", {
+    name: "Remove access for Sam Patel",
+  }).boundingBox();
+  if (text === null || remove === null) throw new Error("no boxes");
+  if (phone) expect(remove.y).toBeGreaterThanOrEqual(text.y + text.height - 1);
   await page.mouse.move(700, 100);
   await still(page, "mentions-added");
   await dialog.getByRole("button", { name: "Remove access for Sam Patel" })

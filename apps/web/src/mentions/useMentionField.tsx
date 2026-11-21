@@ -241,7 +241,10 @@ export function useMentionField(
   const refusedIds = new Set(
     refusals.map((entry) => entry.mention.principalId),
   );
-  const names = accessNames(mentions);
+  // A refused person gains nothing, so the access line leaves them out.
+  const names = accessNames(
+    mentions.filter((mention) => !refusedIds.has(mention.principalId)),
+  );
   const row = mentions.length === 0 && !(wanted && offline) ? null : (
     <>
       {mentions.length > 0
@@ -262,7 +265,7 @@ export function useMentionField(
                     ? "warning"
                     : "neutral"}
                 >
-                  {mention.gainsAccess
+                  {mention.gainsAccess && !refusedIds.has(mention.principalId)
                     ? translate("mentions.chip.gains", { name: mention.name })
                     : mention.name}
                 </UI.Badge>
