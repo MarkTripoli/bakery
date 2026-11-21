@@ -36,6 +36,7 @@ import {
   INSTALLATION_INTEGRATIONS_PATH,
   InstallationSettingsNavigation,
 } from "./InstallationSettingsNavigation.tsx";
+import { HeldBanner } from "./HeldBanner.tsx";
 import { OrganizationSettingsNavigation } from "./OrganizationSettingsNavigation.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import {
@@ -693,6 +694,7 @@ function ShellFrame() {
     (pathname === "/installation/monitoring" ||
       pathname.startsWith("/installation/monitoring/")) ||
     pathname === "/installation/usage" ||
+    pathname === "/installation/restore" ||
     pathname === INSTALLATION_INTEGRATIONS_PATH ||
     pathname === "/__fixtures__/installation/settings";
   const organizationSettings = ORGANIZATION_FIXTURE_PATHS.includes(pathname);
@@ -781,6 +783,7 @@ function ShellFrame() {
                 (pathname === "/installation/monitoring" ||
                   pathname.startsWith("/installation/monitoring/")) ||
                 pathname === "/installation/usage" ||
+                pathname === "/installation/restore" ||
                 pathname === INSTALLATION_INTEGRATIONS_PATH
               ? pathname
               : "/installation/settings"}
@@ -903,6 +906,7 @@ function ShellFrame() {
       )}
       variant={shellVariant}
     >
+      <HeldBanner pathname={pathname} />
       <StartupGate
         enabled={needsOrganization}
         failure={restore.failure}
