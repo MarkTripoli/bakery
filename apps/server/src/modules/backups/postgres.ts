@@ -157,6 +157,14 @@ export async function readBackupStatus(
     `select max(finished_at) as "finishedAt" from bakery.backup_runs
       where status = 'completed'`,
   );
+  // The cutoff of the newest completed backup that recorded one.
+  const cutoff = await transaction.query<{ cutoffAt: Date }>(
+    `select c.cutoff_at as "cutoffAt"
+       from bakery.backup_cutoffs c
+       join bakery.backup_runs r on r.id = c.run_id
+      where r.status = 'completed'
+      order by r.finished_at desc, r.id desc limit 1`,
+  );
   const credential = await transaction.query<{ lastUsedAt: Date | null }>(
     `select last_used_at as "lastUsedAt"
        from bakery.backup_runner_credentials where id = true`,
@@ -179,6 +187,7 @@ export async function readBackupStatus(
   return contractSchemas.BackupStatus.parse({
     state,
     lastGoodBackupAt: iso(lastGoodAt),
+    lastBackupCutoffAt: iso(cutoff.rows[0]?.cutoffAt ?? null),
     lastAttemptAt: iso(newest.rows[0]?.finishedAt ?? null),
     runningRunId: live ? heldRow.id : null,
     runningProgressPercent: live ? heldRow.progressPercent : null,
