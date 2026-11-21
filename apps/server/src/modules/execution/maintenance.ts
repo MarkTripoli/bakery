@@ -204,6 +204,51 @@ async function appendMaintenanceAudit(
   );
 }
 
+/**
+ * Revocation ends every unfinished operation on the host in the same
+ * transaction: the host has lost the authority to apply or report, so the
+ * operation becomes canceled with reason host_revoked and nothing lingers
+ * nonterminal.
+ */
+export async function cancelOpenMaintenanceOnRevoke(
+  transaction: MachineTransactionClient,
+  organizationId: string,
+  principalId: string,
+  workerHostId: string,
+  metadata: { requestId: string; traceId: string },
+): Promise<void> {
+  const updated = await transaction.query<OperationRow>(
+    `update bakery.worker_maintenance_operations
+     set phase = 'canceled', result = $3::jsonb,
+         updated_at = clock_timestamp(), version = version + 1
+     where organization_id = $1 and worker_host_id = $2
+       and phase <> all($4::text[])
+     returning ${OPERATION_COLUMNS}`,
+    [
+      organizationId,
+      workerHostId,
+      JSON.stringify({ reason: "host_revoked" }),
+      [...TERMINAL_PHASES],
+    ],
+  );
+  for (const row of updated.rows) {
+    await appendMaintenanceEvent(
+      transaction,
+      organizationId,
+      row,
+      metadata.traceId,
+    );
+    await appendMaintenanceAudit(transaction, {
+      organizationId,
+      principalId,
+      operation: "workerMaintenance.cancel",
+      row,
+      requestId: metadata.requestId,
+      traceId: metadata.traceId,
+    });
+  }
+}
+
 export async function createWorkerMaintenance(
   context: Context<{ Variables: AuthVariables }>,
   options: ExecutionRouteOptions,

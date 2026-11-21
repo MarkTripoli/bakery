@@ -5343,7 +5343,7 @@
       "action": "workers.list",
       "access": "Developer",
       "permission": "worker:read",
-      "input": "CursorQuery",
+      "input": "WorkerListQuery",
       "output": "Page<WorkerHost>",
       "event": "",
       "mcp": "bakery_workers_list",
@@ -5705,6 +5705,28 @@
       "event": "worker.updated",
       "mcp": null,
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/workers/{id}/archives",
+      "action": "workers.archive",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "IdPath",
+      "output": "WorkerHost",
+      "event": "worker.updated",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required; archiving an archived host returns its archived state",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",

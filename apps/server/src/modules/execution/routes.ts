@@ -9,6 +9,7 @@ import {
 } from "@bakery/persistence";
 import { claimJob } from "./claim.ts";
 import {
+  archiveWorker,
   cancelWorkerEnrollment,
   dispatchBlockers,
   getWorker,
@@ -264,6 +265,10 @@ export function createExecutionRoutes(
   app.post(
     "/v1/workers/:id/revocations",
     routeHandler(options, (context) => revokeWorker(context, options)),
+  );
+  app.post(
+    "/v1/workers/:id/archives",
+    routeHandler(options, (context) => archiveWorker(context, options)),
   );
   app.post(
     "/v1/workers/:id/maintenance",

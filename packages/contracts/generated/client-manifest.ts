@@ -5325,7 +5325,7 @@ export const clientManifest = {
       "action": "workers.list",
       "access": "Developer",
       "permission": "worker:read",
-      "input": "CursorQuery",
+      "input": "WorkerListQuery",
       "output": "Page<WorkerHost>",
       "event": "",
       "mcp": "bakery_workers_list",
@@ -5705,6 +5705,29 @@ export const clientManifest = {
       "event": "worker.updated",
       "mcp": "",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/workers/{id}/archives",
+      "action": "workers.archive",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "IdPath",
+      "output": "WorkerHost",
+      "event": "worker.updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; archiving an archived host returns its archived state",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -18976,6 +18999,7 @@ export const clientManifest = {
             "workerMaintenance.cancel",
             "workers.repairEnrollment",
             "workers.revoke",
+            "workers.archive",
             "modelProviderAccounts.list",
             "workerProviderBindings.list",
             "providerRoutes.list",
@@ -32957,6 +32981,30 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
     },
+    "WorkerListQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "Opaque continuation token from a previous page of the machine list, bound to the caller, organization and includeArchived choice; pass it back verbatim. WorkerListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Most machines returned in one page; defaults to 25 and cannot exceed 100. WorkerListQuery.limit must be at least 1. WorkerListQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "includeArchived": {
+          "description": "true also lists archived (revoked and retired) machines; omitted or false lists only machines that are not archived.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Page window for the machine list, with an explicit opt-in to include archived machines that are hidden by default."
+    },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -46610,6 +46658,7 @@ export const clientManifest = {
                   "workerMaintenance.cancel",
                   "workers.repairEnrollment",
                   "workers.revoke",
+                  "workers.archive",
                   "modelProviderAccounts.list",
                   "workerProviderBindings.list",
                   "providerRoutes.list",
@@ -48431,6 +48480,72 @@ export const clientManifest = {
                 "maximum": 9007199254740991,
                 "description": "Credential generation loaded by the worker host."
               },
+              "archivedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerHost.archivedAt may be null in this transport value."
+              },
+              "cleanup": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "not_requested",
+                      "unconfirmed",
+                      "confirmed"
+                    ],
+                    "description": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself."
+                  },
+                  "requestedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when revocation requested local cleanup; null when it was never requested."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkerHostCleanup.requestedAt may be null in this transport value."
+                  },
+                  "confirmedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkerHostCleanup.confirmedAt may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "state",
+                  "requestedAt",
+                  "confirmedAt"
+                ],
+                "additionalProperties": false,
+                "description": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -48462,12 +48577,14 @@ export const clientManifest = {
               "status",
               "lastHeartbeatAt",
               "credentialGeneration",
+              "archivedAt",
+              "cleanup",
               "createdAt",
               "updatedAt",
               "version"
             ],
             "additionalProperties": false,
-            "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response."
+            "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response. Revocation stops authority immediately but deleting or archiving the cloud record never claims the host was erased: cleanup stays unconfirmed until the host itself reports the Bakery-owned files it removed. archivedAt marks a revoked host hidden from the default machine list."
           },
           "description": "WorkerHost items in this cursor page. Page<WorkerHost>.items must contain at most 100 items."
         },
@@ -67819,6 +67936,7 @@ export const clientManifest = {
             "workerMaintenance.cancel",
             "workers.repairEnrollment",
             "workers.revoke",
+            "workers.archive",
             "modelProviderAccounts.list",
             "workerProviderBindings.list",
             "providerRoutes.list",
@@ -69340,6 +69458,72 @@ export const clientManifest = {
           "maximum": 9007199254740991,
           "description": "Credential generation loaded by the worker host."
         },
+        "archivedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkerHost.archivedAt may be null in this transport value."
+        },
+        "cleanup": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "not_requested",
+                "unconfirmed",
+                "confirmed"
+              ],
+              "description": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself."
+            },
+            "requestedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when revocation requested local cleanup; null when it was never requested."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkerHostCleanup.requestedAt may be null in this transport value."
+            },
+            "confirmedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkerHostCleanup.confirmedAt may be null in this transport value."
+            }
+          },
+          "required": [
+            "state",
+            "requestedAt",
+            "confirmedAt"
+          ],
+          "additionalProperties": false,
+          "description": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -69371,12 +69555,14 @@ export const clientManifest = {
         "status",
         "lastHeartbeatAt",
         "credentialGeneration",
+        "archivedAt",
+        "cleanup",
         "createdAt",
         "updatedAt",
         "version"
       ],
       "additionalProperties": false,
-      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response.",
+      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response. Revocation stops authority immediately but deleting or archiving the cloud record never claims the host was erased: cleanup stays unconfirmed until the host itself reports the Bakery-owned files it removed. archivedAt marks a revoked host hidden from the default machine list.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -73905,6 +74091,72 @@ export const clientManifest = {
                   "maximum": 9007199254740991,
                   "description": "Credential generation loaded by the worker host."
                 },
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "WorkerHost.archivedAt may be null in this transport value."
+                },
+                "cleanup": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "not_requested",
+                        "unconfirmed",
+                        "confirmed"
+                      ],
+                      "description": "not_requested, unconfirmed or confirmed; confirmed is set only from host evidence, never from the revoke or archive request itself."
+                    },
+                    "requestedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "UTC timestamp when revocation requested local cleanup; null when it was never requested."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "WorkerHostCleanup.requestedAt may be null in this transport value."
+                    },
+                    "confirmedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "UTC timestamp when the host reported removing its Bakery-owned files; null until that evidence arrives."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "WorkerHostCleanup.confirmedAt may be null in this transport value."
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "requestedAt",
+                    "confirmedAt"
+                  ],
+                  "additionalProperties": false,
+                  "description": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence."
+                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time",
@@ -73936,6 +74188,8 @@ export const clientManifest = {
                 "status",
                 "lastHeartbeatAt",
                 "credentialGeneration",
+                "archivedAt",
+                "cleanup",
                 "createdAt",
                 "updatedAt",
                 "version"

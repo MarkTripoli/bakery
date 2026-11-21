@@ -92,6 +92,41 @@ export async function cancelMaintenance(
   );
 }
 
+/** Admin revocation of one machine. */
+export async function revokeHost(
+  fixture: WorkerFixture,
+  hostId: string,
+  scope?: WorkerScope,
+): Promise<Response> {
+  return await adminRequest(fixture, `/v1/workers/${hostId}/revocations`, {}, {
+    idempotencyKey: crypto.randomUUID(),
+    scope,
+  });
+}
+
+/** Admin archive of one machine. */
+export async function archiveHost(
+  fixture: WorkerFixture,
+  hostId: string,
+  scope?: WorkerScope,
+): Promise<Response> {
+  return await adminRequest(fixture, `/v1/workers/${hostId}/archives`, {}, {
+    idempotencyKey: crypto.randomUUID(),
+    scope,
+  });
+}
+
+export type RetiredHost = {
+  id: string;
+  status: string;
+  archivedAt: string | null;
+  cleanup: {
+    state: string;
+    requestedAt: string | null;
+    confirmedAt: string | null;
+  };
+};
+
 /** A browser GET with the scope's session and organization header. */
 export async function readMaintenance(
   fixture: WorkerFixture,

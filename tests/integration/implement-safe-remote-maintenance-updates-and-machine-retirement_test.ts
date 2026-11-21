@@ -26,10 +26,12 @@ import {
 } from "../helpers/worker-execution.ts";
 import {
   claimAssignment,
+  heartbeatRequest,
   withWorkerFixture,
 } from "../helpers/worker-execution/scenarios.ts";
 import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-job.ts";
 import {
+  archiveHost,
   cancelMaintenance,
   createMaintenance,
   expireMaintenanceClock,
@@ -38,6 +40,8 @@ import {
   maintenancePhase,
   readMaintenance,
   reportMaintenanceInventory,
+  type RetiredHost,
+  revokeHost,
   sendMaintenanceReport,
   setFixtureRole,
 } from "../helpers/worker-maintenance.ts";
@@ -832,4 +836,154 @@ Deno.test("the worker's reported own release can be targeted by an Admin update"
     } finally {
       await rm(base, { recursive: true, force: true });
     }
+  }));
+
+// Slice C (AC3): offline revocation or archive revokes authority at once and
+// leaves host erasure explicitly unconfirmed.
+Deno.test("an offline revoke stops authority now and leaves cleanup unconfirmed", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-retire" });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    const operation = await queuedUpdate(fixture, hostId);
+    // The host went quiet long ago: it is offline at revocation.
+    await fixture.pgDatabase.query(
+      `update bakery.worker_hosts
+          set last_heartbeat_at = clock_timestamp() - interval '10 minutes'
+        where id = $1`,
+      [hostId],
+    );
+    const before = await readMaintenance(fixture, `/v1/workers/${hostId}`);
+    const fresh = await before.json() as RetiredHost & { connectivity: string };
+    assertEquals(fresh.connectivity, "offline");
+    assertEquals(fresh.cleanup, {
+      state: "not_requested",
+      requestedAt: null,
+      confirmedAt: null,
+    });
+
+    const revoked = await revokeHost(fixture, hostId);
+    assertEquals(revoked.status, 200);
+    const host = await revoked.json() as RetiredHost;
+    assertEquals(host.status, "revoked");
+    assertEquals(host.archivedAt, null);
+    assertEquals(host.cleanup.state, "unconfirmed");
+    assert(host.cleanup.requestedAt !== null);
+    assertEquals(host.cleanup.confirmedAt, null);
+
+    // The old credential is refused at once for claims and heartbeats.
+    await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    assertEquals(await claimStatus(fixture, worker), 403);
+    const heartbeat = await heartbeatRequest(fixture, worker);
+    assertEquals(heartbeat.status, 403);
+    await heartbeat.body?.cancel();
+
+    // The open maintenance operation is terminal, not left hanging.
+    const row = await maintenancePhase(fixture, operation.id);
+    assertEquals(row.phase, "canceled");
+    const result = await fixture.pgDatabase.query<{ result: unknown }>(
+      `select result from bakery.worker_maintenance_operations where id = $1`,
+      [operation.id],
+    );
+    assertEquals(result.rows[0]?.result, { reason: "host_revoked" });
+  }));
+
+Deno.test("archive needs a revoked host, is idempotent and keeps history", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-archive" });
+    const other = await registeredWorker(fixture, { name: "issue25-keep" });
+    const hostId = worker.registration.workerHostId;
+    await reportMaintenanceInventory(fixture, worker);
+    await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const assignment = await claimAssignment(fixture, worker);
+    const operation = await createMaintenance(fixture, hostId, {
+      verb: "verify",
+    });
+    const operationId = (await operation.json() as MaintenanceOperation).id;
+
+    const early = await archiveHost(fixture, hostId);
+    assertEquals(early.status, 409);
+    const problem = await early.json() as { code: string; reason?: string };
+    assertEquals(problem.code, "STATE_CONFLICT");
+    assertEquals(problem.reason, "not_revoked");
+
+    assertEquals((await revokeHost(fixture, hostId)).status, 200);
+    const archived = await archiveHost(fixture, hostId);
+    assertEquals(archived.status, 200);
+    const host = await archived.json() as RetiredHost & { version: number };
+    assert(host.archivedAt !== null);
+    assertEquals(host.cleanup.state, "unconfirmed");
+    const again = await archiveHost(fixture, hostId);
+    assertEquals(again.status, 200);
+    const replay = await again.json() as RetiredHost & { version: number };
+    assertEquals(replay.archivedAt, host.archivedAt);
+    assertEquals(replay.version, host.version);
+    const audits = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.audit_events
+        where operation = 'workers.archive' and resource_id = $1::text`,
+      [hostId],
+    );
+    assertEquals(audits.rows[0]?.count, "1");
+
+    // Hidden from the default list, present with the flag, readable by ID.
+    const listed = async (query: string) => {
+      const response = await readMaintenance(fixture, `/v1/workers${query}`);
+      assertEquals(response.status, 200);
+      const page = await response.json() as { items: { id: string }[] };
+      return page.items.map((item) => item.id);
+    };
+    const defaults = await listed("");
+    assert(!defaults.includes(hostId));
+    assert(defaults.includes(other.registration.workerHostId));
+    assert((await listed("?includeArchived=true")).includes(hostId));
+    assert(!(await listed("?includeArchived=false")).includes(hostId));
+    const malformed = await readMaintenance(
+      fixture,
+      "/v1/workers?includeArchived=yes",
+    );
+    assertEquals(malformed.status, 400);
+    await malformed.body?.cancel();
+    const got = await readMaintenance(fixture, `/v1/workers/${hostId}`);
+    assertEquals(got.status, 200);
+    assertEquals((await got.json() as RetiredHost).archivedAt, host.archivedAt);
+
+    // Every historical reference still points at the same host row.
+    const attempt = await fixture.pgDatabase.query<{ worker_host_id: string }>(
+      `select worker_host_id from bakery.job_attempts where id = $1`,
+      [assignment.attemptId],
+    );
+    assertEquals(attempt.rows[0]?.worker_host_id, hostId);
+    const history = await readMaintenance(
+      fixture,
+      `/v1/workers/${hostId}/maintenance/${operationId}`,
+    );
+    assertEquals(history.status, 200);
+    await history.body?.cancel();
+  }));
+
+Deno.test("the list cursor is bound to the includeArchived choice", () =>
+  withWorkerFixture(async (fixture) => {
+    for (const name of ["issue25-page-a", "issue25-page-b"]) {
+      await registeredWorker(fixture, { name });
+    }
+    const first = await readMaintenance(
+      fixture,
+      "/v1/workers?limit=1&includeArchived=true",
+    );
+    const page = await first.json() as { nextCursor: string | null };
+    assert(page.nextCursor !== null);
+    const switched = await readMaintenance(
+      fixture,
+      `/v1/workers?limit=1&cursor=${encodeURIComponent(page.nextCursor)}`,
+    );
+    assertEquals(switched.status, 400);
+    assertEquals(await problemCode(switched), "INVALID_CURSOR");
   }));

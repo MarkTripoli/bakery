@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "f5ec00f7de45132935cf369a5841a7b710f99c61"
+    "7ff69adbf5f71387997af40d3febc5760ca5a8a2"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:72801058163e0c9d7f8eefb0fbabdc15b7fc436355124e42ab17b78394aac147",
-  "reason": "#80 point-in-time P1a by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main f5ec00f7de45132935cf369a5841a7b710f99c61: backupPointInTime.get/put, the runner's WAL report, and BackupRunnerSettings gains a required pointInTimeEnabled. Main's own approval is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:6da4387e06fe3baf8453668e397561d7b4ac346ed9012201f9ea7409f987e74c",
+  "reason": "#25 slice C by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 7ff69adbf5f71387997af40d3febc5760ca5a8a2: workers.archive, WorkerHost.cleanup, archived hosts hidden by default. Main's own approval is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "f5ec00f7de45132935cf369a5841a7b710f99c61"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:72801058163e0c9d7f8eefb0fbabdc15b7fc436355124e42ab17b78394aac147",
+      "reason": "#80 point-in-time P1a by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main f5ec00f7de45132935cf369a5841a7b710f99c61: backupPointInTime.get/put, the runner's WAL report, and BackupRunnerSettings gains a required pointInTimeEnabled. Main's own approval is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
