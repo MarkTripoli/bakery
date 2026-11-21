@@ -161,8 +161,10 @@ export function Composer(
           >
             <UI.IconGlyph name="arrow" size="small" />
             {phase === "sending"
-              ? t("tasks.conversation.composer.sending")
-              : t("tasks.conversation.composer.send")}
+              ? mentionField.sendLabel !== null
+                ? t("mentions.offer.sending")
+                : t("tasks.conversation.composer.sending")
+              : mentionField.sendLabel ?? t("tasks.conversation.composer.send")}
           </UI.Button>
         )}
       footnote={

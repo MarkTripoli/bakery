@@ -1,5 +1,5 @@
 {
-  "revision": "f6362216ea2240a4e0414d694722c60ed17bfd9c2bfb581c22b1876dab368719",
+  "revision": "c0d6699045d5a5668dd460004d8c3a63db5de67b7a40de1d43053d2d0dcb9c96",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -21086,6 +21086,173 @@
           "rtl"
         ]
       }
+    },
+    {
+      "id": "ui.accessOffer",
+      "name": "AccessOffer",
+      "description": "The block under a message or comment that offers access to a mentioned person who has none: the question, what they would get and the way out; the chips above it are the only list of names.",
+      "level": "organism",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Organisms/AccessOffer",
+      "usage": {
+        "whenToUse": "Ask whether to give a mentioned person access, in the place the writer is already typing, so a missing access never stops the mention.",
+        "whenNotToUse": "Do not use for a refusal the writer cannot fix here, for a confirmation of a destructive action (AlertDialog), or as a notice with no choice in it (InlineNotice).",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy",
+          "ui.intentional-overflow"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "status",
+        "accessibleName": "none",
+        "keyboard": [
+          "Every button in the block is reached by Tab in reading order; the draft keeps its caret."
+        ],
+        "notes": "The block is a status region, so it is read once when it opens and the draft does not lose focus."
+      },
+      "tokens": [
+        "--border-default",
+        "--border-none",
+        "--color-border",
+        "--color-canvas",
+        "--color-control-border",
+        "--color-destructive",
+        "--color-destructive-surface",
+        "--color-fg",
+        "--color-fg-disabled",
+        "--color-fg-muted",
+        "--color-focus",
+        "--color-selection",
+        "--color-selection-surface",
+        "--color-status-neutral",
+        "--color-status-success",
+        "--color-status-success-surface",
+        "--color-status-warning",
+        "--color-status-warning-surface",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--focus-offset",
+        "--focus-width",
+        "--icon-stroke-compact",
+        "--radius-control",
+        "--radius-overlay",
+        "--radius-surface",
+        "--space-0",
+        "--space-0-5",
+        "--space-1",
+        "--space-1-5",
+        "--space-2",
+        "--space-2-5",
+        "--space-3",
+        "--space-4",
+        "--space-5",
+        "--space-6",
+        "--space-8",
+        "--target-coarse",
+        "--type-body",
+        "--type-caption",
+        "--type-control",
+        "--type-heading-subsection",
+        "--type-hint",
+        "--type-label",
+        "--type-meta",
+        "--type-notice",
+        "--type-time",
+        "--weight-medium",
+        "--weight-semibold"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default",
+        "busy"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises AccessOffer for one person, for several people with the line on how to leave someone out, and while sending.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default",
+            "busy"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.accessOffer.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.accessOffer.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.accessOffer.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine",
+          "desktop-dark-fine",
+          "system-dark",
+          "phone-light-coarse",
+          "phone-dark-coarse",
+          "rtl"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 73 (revision 3), not in Paper; the Paper manifests have no access offer."
     },
     {
       "id": "ui.mentionPicker",

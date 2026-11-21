@@ -1199,6 +1199,10 @@
   inline-size: 100%;
   margin: var(--space-0);
   min-block-size: calc(var(--space-6) - var(--space-0-5));
+  /* The field grows with what is typed, up to six lines, then scrolls inside. */
+  field-sizing: content;
+  max-block-size: calc(var(--space-6) * 6);
+  overflow-y: auto;
   padding: var(--space-0);
   resize: none;
 }
@@ -1757,7 +1761,7 @@
 @media (pointer: coarse) {
   /* A 44px touch target around the 22px field line, without moving layout. */
   .ui-message-composer__field textarea {
-    block-size: var(--target-coarse);
+    min-block-size: var(--target-coarse);
     margin-block: calc((var(--space-6) - var(--space-0-5) -
       var(--target-coarse)) / 2);
     padding-block: calc((var(--target-coarse) - var(--space-6) +
@@ -2784,5 +2788,42 @@ button.ui-activity-line__row:hover {
   }
   .ui-message-composer__field textarea:focus-visible {
     outline-offset: var(--focus-offset-inset);
+  }
+}
+
+/* Access offer (design-ux #73 revision 3): one block under "Will be notified"
+   that asks whether to give a mentioned person access. */
+.ui-access-offer {
+  align-items: flex-start;
+  background: var(--color-status-warning-surface);
+  border-radius: var(--radius-surface);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-3);
+}
+.ui-access-offer__question {
+  color: var(--color-fg);
+  font: var(--type-control);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-access-offer__detail {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-access-offer[data-state="busy"] {
+  opacity: 0.8;
+}
+
+/* Where the browser cannot size the field to its text, it starts three lines
+   tall, so a long draft is never cut to one line. */
+@supports not (field-sizing: content) {
+  .ui-message-composer__field textarea {
+    min-block-size: calc(var(--space-6) * 3);
   }
 }

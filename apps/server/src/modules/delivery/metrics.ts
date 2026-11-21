@@ -55,9 +55,29 @@ export const MetricKey = Object.freeze(
     ChangedLines: "prs.changedLines",
     CountedLines: "loc.changedLines",
     TaskLeadTime: "tasks.leadTimeHours",
+    DeploymentFrequency: "delivery.deploymentFrequency",
+    ChangeLeadTime: "delivery.changeLeadTimeHours",
+    ChangeFailRate: "delivery.changeFailRate",
+    FailedDeploymentRecovery: "delivery.failedDeploymentRecoveryHours",
+    DeploymentReworkRate: "delivery.deploymentReworkRate",
   } as const,
 );
 export type MetricKey = typeof MetricKey[keyof typeof MetricKey];
+
+/**
+ * The production delivery metrics (chapter 18, DORA). They count deployments
+ * and incidents, and Bakery records neither yet, so every answer is unknown
+ * with the reason `no_deploy_evidence`, never zero, until a deployment fact
+ * exists. Real deployment evidence waits on hosted deploys (owner directive
+ * 2026-11-11).
+ */
+export const PRODUCTION_DELIVERY_METRICS: ReadonlySet<MetricKey> = new Set([
+  MetricKey.DeploymentFrequency,
+  MetricKey.ChangeLeadTime,
+  MetricKey.ChangeFailRate,
+  MetricKey.FailedDeploymentRecovery,
+  MetricKey.DeploymentReworkRate,
+]);
 
 export type MissingReason =
   | "no_opened_time"
@@ -75,7 +95,13 @@ type Definition = Readonly<{
   unit: Unit;
   cohort: string;
   /** The provider time a pull request is placed at for this metric. */
-  placedBy: "opened" | "merged" | "closed" | "cutoff" | "delivered";
+  placedBy:
+    | "opened"
+    | "merged"
+    | "closed"
+    | "cutoff"
+    | "delivered"
+    | "deployed";
 }>;
 
 /**
@@ -134,6 +160,36 @@ export const METRIC_DEFINITIONS: Readonly<Record<MetricKey, Definition>> =
       cohort:
         "Tasks delivered in each period: from the first admitted run to the first merged pull request, else the last completed run",
       placedBy: "delivered",
+    },
+    [MetricKey.DeploymentFrequency]: {
+      unit: "count",
+      cohort:
+        "Successful production deployments of each application in each period",
+      placedBy: "deployed",
+    },
+    [MetricKey.ChangeLeadTime]: {
+      unit: "hours",
+      cohort:
+        "Mean commit to production deployment time of changes deployed in each period",
+      placedBy: "deployed",
+    },
+    [MetricKey.ChangeFailRate]: {
+      unit: "ratio",
+      cohort:
+        "Production deployments in each period that caused a failure needing remediation, over all deployments",
+      placedBy: "deployed",
+    },
+    [MetricKey.FailedDeploymentRecovery]: {
+      unit: "hours",
+      cohort:
+        "Mean time from a failed production deployment to its recovery, for failures recovered in each period",
+      placedBy: "deployed",
+    },
+    [MetricKey.DeploymentReworkRate]: {
+      unit: "ratio",
+      cohort:
+        "Unplanned production deployments made to fix an incident, over all deployments in each period",
+      placedBy: "deployed",
     },
   });
 
@@ -447,13 +503,37 @@ export type SeriesBody = {
   points: {
     at: string;
     value: number | null;
-    unknownReason: "no_records" | "no_known_values" | null;
+    unknownReason:
+      | "no_records"
+      | "no_known_values"
+      | "no_deploy_evidence"
+      | null;
   }[];
   sampleCount: number;
   missingCount: number;
   missingReasons: { reason: MissingReason; count: number }[];
   completeness: "complete" | "partial" | "unknown";
 };
+
+/**
+ * A production delivery metric's answer while no deployment is recorded:
+ * every point unknown for the same named reason, nothing sampled, nothing
+ * missing, completeness unknown.
+ */
+export function noDeployEvidence(window: MetricWindow): SeriesBody {
+  return {
+    points: Array.from({ length: window.buckets }, (_, index) => ({
+      at: new Date(window.from.getTime() + index * window.bucketMs)
+        .toISOString(),
+      value: null,
+      unknownReason: "no_deploy_evidence" as const,
+    })),
+    sampleCount: 0,
+    missingCount: 0,
+    missingReasons: [],
+    completeness: "unknown",
+  };
+}
 
 /** Buckets placements into points; mean for hours and ratio, sum otherwise. */
 export function aggregate(
@@ -802,7 +882,9 @@ export async function getMetricSeries(
   );
   const anyRead = repositories.some((r) => r.lastSyncAt !== null) ||
     anyRecords;
-  const body = aggregate(input.metric, placed, window, anyRead);
+  const body = PRODUCTION_DELIVERY_METRICS.has(input.metric)
+    ? noDeployEvidence(window)
+    : aggregate(input.metric, placed, window, anyRead);
   const synced = repositories.map((r) => r.lastSyncAt).filter((v) => v !== null)
     .sort();
   const definition = METRIC_DEFINITIONS[input.metric];
@@ -831,6 +913,10 @@ async function placementsFor(
 ): Promise<
   { placed: Placement[]; anyRecords: boolean; tasks: TaskTimeline[] | null }
 > {
+  if (PRODUCTION_DELIVERY_METRICS.has(input.metric)) {
+    // No deployment records exist to place; nothing is read.
+    return { placed: [], anyRecords: false, tasks: null };
+  }
   if (input.metric === MetricKey.TaskLeadTime) {
     let tasks: TaskTimeline[];
     try {
