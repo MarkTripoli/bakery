@@ -1,13 +1,16 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
+  ANA,
   batch,
   batchesFixture,
   batchId,
   extraRepositoryId,
   RUNNING,
   STOREFRONT,
+  taskOf,
   WEB,
 } from "./helpers/batches-fixture.ts";
+import { MOCK_PRINCIPAL_ID } from "./helpers/mock-session.ts";
 import { uuid } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
@@ -550,6 +553,135 @@ for (
         .click();
       await expect(banner(page)).toContainText("Choosing the next issue");
       expect(seen.actions.map((a) => a.action)).toEqual(["start-next"]);
+    });
+
+    test("a working batch waiting for the reader's approval says so, names who was asked and opens the task", async ({ page }) => {
+      const running = RUNNING();
+      await batchesFixture(page, {
+        batches: [batch({
+          ...running,
+          issues: running.issues.map((issue) => ({
+            position: issue.position,
+            number: Number(issue.issueNumber),
+            state: issue.state as "started",
+            costUsd: issue.costUsd,
+            ...(issue.reason === null ? {} : { reason: issue.reason }),
+          })),
+          elapsedSeconds: 3 * 3600 + 41 * 60,
+          spentUsd: "22.4000",
+          waitingOn: {
+            kind: "approval",
+            askedOf: [
+              { principalId: MOCK_PRINCIPAL_ID, displayName: "Mock Person" },
+              { principalId: ANA, displayName: "Ana Reyes" },
+            ],
+          },
+        })],
+      });
+      await page.goto(`/issues/batches/${running.id}`);
+      await expect(page.getByRole("heading", { level: 1 })).toContainText(
+        "Waiting for you",
+      );
+      await expect(banner(page)).toContainText(
+        "#421 is waiting for your approval",
+      );
+      await expect(banner(page)).toContainText(
+        "Asked 5 minutes ago, of you and Ana Reyes.",
+      );
+      await expect(banner(page)).toContainText(
+        "The batch carries on when it is approved. Time keeps counting while it waits.",
+      );
+      await expect(page.getByTestId("batch-meter-time")).toContainText(
+        "time spent paused or waiting included",
+      );
+      await expect(
+        page.locator("[data-batch-issue][data-selected]").or(
+          page.getByRole("listitem").filter({ hasText: "#421" }),
+        ).first(),
+      ).toContainText("Waiting");
+      await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
+      await still(page, "batch-waiting-approval");
+      await banner(page).getByRole("button", { name: "Open task" }).click();
+      await expect(page).toHaveURL(new RegExp(`/tasks/${taskOf(421)}$`));
+    });
+
+    test("a question put to no one by name says anyone on the task can answer, and the badge says someone", async ({ page }) => {
+      const running = RUNNING();
+      await batchesFixture(page, {
+        batches: [batch({
+          ...running,
+          issues: running.issues.map((issue) => ({
+            position: issue.position,
+            number: Number(issue.issueNumber),
+            state: issue.state as "started",
+            costUsd: issue.costUsd,
+            ...(issue.reason === null ? {} : { reason: issue.reason }),
+          })),
+          waitingOn: { kind: "question", askedOf: [] },
+        })],
+      });
+      await page.goto(`/issues/batches/${running.id}`);
+      await expect(page.getByRole("heading", { level: 1 })).toContainText(
+        "Waiting for someone",
+      );
+      await expect(banner(page)).toContainText("Bakery has a question on #421");
+      await expect(banner(page)).toContainText(
+        "Asked 5 minutes ago. Anyone working on the task can answer.",
+      );
+      await expect(banner(page)).toContainText(
+        "The batch carries on when it is answered.",
+      );
+      await still(page, "batch-waiting-question");
+    });
+
+    test("a paused batch keeps its banner and adds what #421 waits for; the list shows the badge and the issue", async ({ page }) => {
+      const running = RUNNING();
+      const issues = running.issues.map((issue) => ({
+        position: issue.position,
+        number: Number(issue.issueNumber),
+        state: issue.state as "started",
+        costUsd: issue.costUsd,
+        ...(issue.reason === null ? {} : { reason: issue.reason }),
+      }));
+      const asked = [{
+        principalId: MOCK_PRINCIPAL_ID,
+        displayName: "Mock Person",
+      }];
+      await batchesFixture(page, {
+        batches: [
+          batch({
+            id: batchId(1),
+            issues,
+            waitingOn: { kind: "approval", askedOf: asked },
+          }),
+          batch({
+            id: batchId(2),
+            state: "paused",
+            pauseReason: "paused_by_person",
+            pausedBy: ANA,
+            issues,
+            waitingOn: { kind: "approval", askedOf: asked },
+          }),
+        ],
+      });
+      await page.goto("/issues/batches");
+      const waiting = page.locator(`[data-batch-id="${batchId(1)}"]`);
+      await expect(waiting).toContainText("Waiting for you");
+      if (viewport.width > 743) {
+        await expect(waiting).toContainText("Waiting on #421");
+      }
+      await expect(page.locator(`[data-batch-id="${batchId(2)}"]`))
+        .toContainText("Paused");
+      await still(page, "batches-list-waiting");
+      await page.goto(`/issues/batches/${batchId(2)}`);
+      await expect(banner(page)).toContainText("Paused by Ana Reyes");
+      await expect(page.getByTestId("batch-banner-waiting")).toHaveText(
+        "#421 is waiting for your approval.",
+      );
+      await expect(page.getByRole("heading", { level: 1 })).toContainText(
+        "Paused",
+      );
     });
 
     test("a finished batch over its spend limit says so, shows the bar full and offers another batch", async ({ page }) => {
