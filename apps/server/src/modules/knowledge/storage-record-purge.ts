@@ -141,7 +141,7 @@ export async function completeStoragePurgeRequests(
   }
   const pending = await withPgTransaction(ownerDatabase, async (tx) => {
     // A backup holds the installation: nothing is purged until it lets go.
-    await assertNotQuiesced(tx);
+    await assertNotQuiesced(tx, "dispatch");
     // Fail closed before reading anything as a role that is not the owner.
     await requireOwner(tx);
     return (await tx.query<{ id: string }>(
@@ -156,7 +156,7 @@ export async function completeStoragePurgeRequests(
       ownerDatabase,
       async (tx) => {
         // The hold may begin between requests: each one checks again.
-        await assertNotQuiesced(tx);
+        await assertNotQuiesced(tx, "dispatch");
         return await completeRequest(tx, id);
       },
     );

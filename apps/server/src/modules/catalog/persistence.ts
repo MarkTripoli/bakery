@@ -529,7 +529,7 @@ export function createCatalogHandlers(
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
       // A backup holds the installation: no import starts until it lets go.
-      await assertNotQuiesced(transaction);
+      await assertNotQuiesced(transaction, "intake");
       requireCommandMetadata(context);
       const parsed = SkillImportAdmissionPersistenceSchema.safeParse(input);
       if (!parsed.success) invalidSourceInput(parsed.error);

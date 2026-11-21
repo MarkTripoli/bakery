@@ -87,6 +87,7 @@ import {
 import {
   browserSessionsList,
   browserSessionsRevoke,
+  browserSessionsRevokeCurrent,
   browserSessionsRevokeOthers,
   connectedClientsList,
   connectedClientsRevoke,
@@ -900,6 +901,20 @@ export function createAuthActionRegistry(
         OrganizationContextPolicy.AuthenticatedPrincipalScope,
     },
     handler: browserSessionsRevokeOthers,
+  }).register({
+    name: AuthImplementedAction.BrowserSessionsRevokeCurrent,
+    method: HttpMethod.Post,
+    path: "/v1/me/sessions/revoke-current",
+    input: contractSchemas.Empty,
+    output: contractSchemas.BrowserSessionRevocation,
+    successStatus: 200,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Authenticated,
+      organizationContext:
+        OrganizationContextPolicy.AuthenticatedPrincipalScope,
+    },
+    handler: browserSessionsRevokeCurrent,
   }).register({
     name: AuthImplementedAction.ConnectedClientsList,
     method: HttpMethod.Get,

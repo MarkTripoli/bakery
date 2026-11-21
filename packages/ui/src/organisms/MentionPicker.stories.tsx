@@ -21,7 +21,7 @@ export const Contract: StoryObj = {
         <Text>Rows</Text>
         <MentionPicker
           activeId="ana"
-          footer="A person who gets access can read and reply in this conversation only."
+          footer="You can give access when you send."
           label="People you can mention"
           listId="story-mention-rows"
           onChoose={noop}
@@ -30,9 +30,9 @@ export const Contract: StoryObj = {
             {
               id: "sam",
               name: "Sam Patel",
-              label: "Sam Patel, gets access on send",
+              label: "Sam Patel, no access yet",
               kind: "gains",
-              note: "Gets access on send",
+              note: "No access yet",
             },
             {
               id: "samir",

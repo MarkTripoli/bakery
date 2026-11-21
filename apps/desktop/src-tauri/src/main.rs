@@ -7,10 +7,12 @@ mod store;
 use bakery_desktop_core::copy::{press, ButtonId, Press};
 use bakery_desktop_core::csp;
 use bakery_desktop_core::platform::accept_callback;
-use bakery_desktop_core::session::Event;
+use bakery_desktop_core::session::{Event, ServerChoice};
+use bakery_desktop_core::settings::{resolve_server, Handoff, Settings};
 use bakery_desktop_core::view::View;
 use serde_json::json;
-use shell::Shell;
+use shell::{Shell, Startup};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{Manager, State};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -33,10 +35,58 @@ async fn press_button(
         Press::Shell(ButtonId::SetUpKeyring) => {
             let _ = app.opener().open_url(shell::KEYRING_HELP_URL, None::<&str>);
         }
+        Press::Shell(ButtonId::StartBakeryHelp) => {
+            let _ = app
+                .opener()
+                .open_url(shell::START_BAKERY_HELP_URL, None::<&str>);
+        }
         Press::Shell(ButtonId::QuitBakery) => app.exit(0),
-        Press::Shell(_) => {}
+        // The chooser's Continue sends the option and the text with `choose_server`.
+        Press::Chooser | Press::Shell(_) => {}
     }
     Ok(())
+}
+
+/// "Continue" in the chooser: what the person picked and typed.
+#[tauri::command]
+async fn choose_server(
+    shell: State<'_, Arc<Shell>>,
+    choice: ServerChoice,
+    typed: String,
+) -> Result<(), ()> {
+    shell
+        .inner()
+        .dispatch(Event::ChooserContinue { choice, typed })
+        .await;
+    Ok(())
+}
+
+/// Where the app keeps its small files: the server the person chose and the handoff a server change
+/// leaves for the next start. Nothing in them is secret.
+fn config_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("BAKERY_DESKTOP_CONFIG_DIR") {
+        return PathBuf::from(dir);
+    }
+    let home = || std::env::var("HOME").map(PathBuf::from).unwrap_or_default();
+    #[cfg(target_os = "windows")]
+    let base = std::env::var("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| home());
+    #[cfg(target_os = "macos")]
+    let base = home().join("Library").join("Application Support");
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let base = std::env::var("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| home().join(".config"));
+    base.join("bakery-desktop")
+}
+
+/// The handoff the last run left, read once and removed, so it never shows twice.
+fn take_handoff(dir: &std::path::Path) -> Option<Handoff> {
+    let path = dir.join(shell::HANDOFF_FILE);
+    let text = std::fs::read_to_string(&path).ok()?;
+    let _ = std::fs::remove_file(&path);
+    Handoff::parse(&text)
 }
 
 /// What the page found out when it tried things the policy must refuse. Only written to the report
@@ -96,7 +146,21 @@ fn main() {
         }
         return;
     }
-    let server = std::env::var("BAKERY_SERVER").unwrap_or_else(|_| "http://127.0.0.1:8000".into());
+    let config_dir = config_dir();
+    let settings = std::fs::read_to_string(config_dir.join("settings.json"))
+        .map(|text| Settings::parse(&text))
+        .unwrap_or_default();
+    let handoff = take_handoff(&config_dir);
+    // What the person chose in the app wins; `BAKERY_SERVER` is the setting before they choose.
+    let server = resolve_server(
+        settings.server.as_deref(),
+        std::env::var("BAKERY_SERVER").ok().as_deref(),
+    );
+    let startup = Startup {
+        config_dir,
+        settings,
+        handoff,
+    };
     let mut context = tauri::generate_context!();
     // The window may connect only to itself and to the one server configured, over HTTP and
     // WebSocket. The server is known only now, so the policy is built from it here.
@@ -113,16 +177,30 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_view,
             press_button,
+            choose_server,
             probe_result
         ])
         .setup(move |app| {
+            // After a server change the window comes back where it was.
+            let restored = startup.handoff.as_ref().and_then(|h| h.place);
+            if let (Some(place), Some(window)) = (restored, app.get_webview_window("main")) {
+                let _ = window.set_size(tauri::PhysicalSize::new(place.width, place.height));
+                let _ = window.set_position(tauri::PhysicalPosition::new(place.x, place.y));
+            }
             let shell = Shell::new(
                 app.handle().clone(),
                 server.clone(),
                 Arc::new(store::Keyring),
+                startup,
             );
             app.manage(Arc::clone(&shell));
             test_hooks(app, &shell, &server);
+            if let Some(place) = restored {
+                shell.report(
+                    "place_restored",
+                    json!({ "width": place.width, "height": place.height }),
+                );
+            }
             shell.report(
                 "app_started",
                 json!({ "os": std::env::consts::OS, "arch": std::env::consts::ARCH }),

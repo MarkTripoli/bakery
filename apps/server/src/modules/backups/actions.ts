@@ -40,6 +40,7 @@ import {
 } from "./postgres.ts";
 import { takeCutoff } from "./cutoff.ts";
 import { listBackupDrills, recordDrill } from "./drill.ts";
+import { getRestore, takeRestoreStep } from "./restore-release.ts";
 import { maintainRun } from "./maintenance.ts";
 import {
   type BackupSettingsDependencies,
@@ -102,6 +103,26 @@ function listDrills(
   );
 }
 
+/** installationRestore.get */
+function getInstallationRestore(context: ActionContext) {
+  const { context: value } = installationActor(context);
+  return getRestore(value.transaction);
+}
+
+/** installationRestore.step */
+function takeInstallationRestoreStep(
+  context: ActionContext,
+  input: { step: "intake" | "dispatch" | "workers"; confirmation: string },
+) {
+  const { context: value, actor } = installationActor(context);
+  return takeRestoreStep(
+    value.transaction,
+    value,
+    actor.subject.principalId,
+    input,
+  );
+}
+
 /** backups.status */
 function status(context: ActionContext): Promise<Status> {
   const { context: value } = installationActor(context);
@@ -147,6 +168,8 @@ async function issueCredential(context: ActionContext): Promise<Issued> {
 const ADMIN_ACTIONS = [
   Action.BackupsList,
   Action.BackupsDrillsList,
+  Action.InstallationRestoreGet,
+  Action.InstallationRestoreStep,
   Action.BackupsStatus,
   Action.BackupsStart,
   Action.BackupRunnerCredentialIssue,
@@ -191,6 +214,26 @@ export function createBackupActionRegistry(
     output: contractSchemas["Page<BackupDrill>"],
     policy: { ...policy, type: ActionKind.Query },
     handler: (context, input) => listDrills(context, input, secret),
+  }).register({
+    name: Action.InstallationRestoreGet,
+    method: HttpMethod.Get,
+    path: "/v1/installation/restore",
+    input: contractSchemas.Empty,
+    output: contractSchemas.InstallationRestore,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: getInstallationRestore,
+  }).register({
+    name: Action.InstallationRestoreStep,
+    method: HttpMethod.Post,
+    path: "/v1/installation/restore/steps",
+    input: contractSchemas.InstallationRestoreStep,
+    output: contractSchemas.InstallationRestore,
+    // Idempotency-Key is required. A browser session only, like the other
+    // installation settings: a restore step is never taken with a token.
+    explicitIdempotency: "key",
+    successStatus: 200,
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
+    handler: (context, input) => takeInstallationRestoreStep(context, input),
   }).register({
     name: Action.BackupsStatus,
     method: HttpMethod.Get,
@@ -508,6 +551,8 @@ export function createBackupRoutes(options: BackupRouteOptions) {
   app.use("/v1/installation/backup-offsite", options.browserSession);
   app.use("/v1/installation/backup-offsite/*", options.browserSession);
   app.use("/v1/installation/backup-runner/*", options.browserSession);
+  app.use("/v1/installation/restore", options.browserSession);
+  app.use("/v1/installation/restore/*", options.browserSession);
   app.route(
     "/",
     createApiRouter({
