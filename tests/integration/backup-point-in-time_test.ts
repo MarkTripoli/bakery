@@ -206,3 +206,28 @@ Deno.test("the stored window: a report while off leaves no trace, a stale one mo
     assertEquals(settings.pointInTimeEnabled, false);
   });
 });
+
+Deno.test("a late report cannot move the earliest bound back to a pruned base backup", async () => {
+  await withFixture(async (o) => {
+    const credential = await o.issueCredential();
+    await json(await put(o, true));
+    // B: newer, and its oldest base backup is T2 (T1 was pruned).
+    await json(
+      await o.runner(credential, "POST", WAL, {
+        latestArchivedAt: "2026-11-21T10:00:00.000Z",
+        earliestBaseBackupAt: "2026-11-21T03:00:00.000Z",
+        latestSegment: "000000010000000000000050",
+      }),
+    );
+    // A: delayed, older, still naming T1.
+    const late = await json(
+      await o.runner(credential, "POST", WAL, {
+        latestArchivedAt: "2026-11-21T09:00:00.000Z",
+        earliestBaseBackupAt: "2026-11-20T03:00:00.000Z",
+        latestSegment: "000000010000000000000048",
+      }),
+    );
+    assertEquals(late.earliestRestorableAt, "2026-11-21T03:00:00.000Z");
+    assertEquals(late.latestRestorableAt, "2026-11-21T10:00:00.000Z");
+  });
+});

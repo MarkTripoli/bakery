@@ -148,8 +148,9 @@ export async function putPointInTime(
 /**
  * The host runner's report of what it holds off-site: the start of the oldest
  * kept base backup and the newest WAL segment copied. Ignored while the switch
- * is off. A report never moves the newest bound backwards, so a late or
- * repeated report cannot shrink the window the page shows.
+ * is off. Only a report at least as new as the stored one moves the bounds,
+ * so a late or repeated report can neither shrink the window nor widen it back
+ * to a base backup that has since been pruned.
  */
 export async function recordWalReport(
   transaction: PgTransactionClient,
@@ -173,7 +174,9 @@ export async function recordWalReport(
   }
   await transaction.query(
     `update bakery.backup_point_in_time_settings
-        set earliest_restorable_at = $2,
+        set earliest_restorable_at = case
+              when latest_restorable_at is null or $3 >= latest_restorable_at
+              then $2 else earliest_restorable_at end,
             latest_restorable_at = greatest(latest_restorable_at, $3),
             latest_segment = case
               when latest_restorable_at is null or $3 >= latest_restorable_at
