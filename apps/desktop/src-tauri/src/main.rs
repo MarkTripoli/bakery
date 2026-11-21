@@ -7,7 +7,8 @@ mod store;
 
 use bakery_desktop_core::copy::{press, ButtonId, Press};
 use bakery_desktop_core::csp;
-use bakery_desktop_core::links::{navigation, open_target, Navigation};
+use bakery_desktop_core::link_dialog::LinkDialog;
+use bakery_desktop_core::links::{navigation, open_link, page_url, Navigation};
 use bakery_desktop_core::platform::accept_callback;
 use bakery_desktop_core::session::{Event, ServerChoice};
 use bakery_desktop_core::settings::{resolve_server, Handoff, Settings};
@@ -43,6 +44,16 @@ async fn press_button(
                 .open_url(shell::START_BAKERY_HELP_URL, None::<&str>);
         }
         Press::Shell(ButtonId::QuitBakery) => app.exit(0),
+        Press::Shell(ButtonId::Close) => shell.close_link_dialog(),
+        Press::Shell(ButtonId::OpenLinkInBrowser) => {
+            if let Some(target) = shell.link_dialog_target() {
+                if app.opener().open_url(&target, None::<&str>).is_ok() {
+                    shell.close_link_dialog();
+                } else {
+                    shell.show_link_dialog(LinkDialog::BrowserDidNotOpen { address: target });
+                }
+            }
+        }
         // The chooser's Continue sends the option and the text with `choose_server`.
         Press::Chooser | Press::Shell(_) => {}
     }
@@ -139,9 +150,23 @@ fn handle_link(shell: &Arc<Shell>, raw: &str) {
         });
         return;
     }
-    match open_target(raw) {
-        Ok(path) => shell.request_open(path),
-        Err(reason) => shell.report("link_refused", json!({ "reason": reason })),
+    match open_link(raw) {
+        Ok(link) => match link.server {
+            Some(other) if !shell.is_connected_to(&other) => {
+                match page_url(&other, &link.path) {
+                    Some(address) => shell.show_link_dialog(LinkDialog::OtherServer {
+                        server: other,
+                        link: address,
+                    }),
+                    None => shell.show_link_dialog(LinkDialog::CantOpen { link: raw.into() }),
+                }
+            }
+            _ => shell.request_open(link.path),
+        },
+        Err(reason) => {
+            shell.report("link_refused", json!({ "reason": reason }));
+            shell.show_link_dialog(LinkDialog::CantOpen { link: raw.into() });
+        }
     }
 }
 
@@ -161,6 +186,11 @@ fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
                         .is_ok();
                     if let Some(shell) = shell {
                         shell.report("link_to_browser", json!({ "opened": opened }));
+                        if !opened {
+                            shell.show_link_dialog(LinkDialog::BrowserDidNotOpen {
+                                address: url.to_string(),
+                            });
+                        }
                     }
                     false
                 }
@@ -175,9 +205,15 @@ fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
                     }
                     false
                 }
-                Navigation::Refuse { reason, .. } => {
+                Navigation::Refuse { scheme, reason } => {
                     if let Some(shell) = shell {
                         shell.report("link_refused", json!({ "reason": reason }));
+                        let link = url.to_string();
+                        shell.show_link_dialog(if scheme.is_empty() || scheme.starts_with("http") {
+                            LinkDialog::CantOpen { link }
+                        } else {
+                            LinkDialog::NotWeb { scheme, link }
+                        });
                     }
                     false
                 }

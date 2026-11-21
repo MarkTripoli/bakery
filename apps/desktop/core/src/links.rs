@@ -5,6 +5,7 @@
 //! to the system browser, or refuse it), and whether a `bakery://open` address from the operating
 //! system names a page of the connected server that the window may show.
 
+use crate::address::parse_server_address;
 use crate::csp::server_origins;
 use crate::platform::{ORIGIN_UNIX, ORIGIN_WINDOWS};
 use url::Url;
@@ -76,10 +77,20 @@ fn is_own_origin(server: &str, url: &Url) -> bool {
     own == ORIGIN_WINDOWS || server_origins(server).is_some_and(|(origin, _)| origin == own)
 }
 
+/// What a `bakery://open` link asks for.
+#[derive(Debug, PartialEq, Eq)]
+pub struct OpenLink {
+    /// The page: a path with its query, on the connected server.
+    pub path: String,
+    /// The server the link says it is for, as a plain origin, when it names one.
+    pub server: Option<String>,
+}
+
 /// The page an `open` link names, as a path with its query, or the reason it is refused. The form is
-/// `bakery://open?path=%2Fsome%2Fpage`. Only a path on the connected server is accepted: it starts
-/// with one slash, names no other host, climbs no directory and carries no control character.
-pub fn open_target(raw: &str) -> Result<String, &'static str> {
+/// `bakery://open?path=%2Fsome%2Fpage`, with an optional `server=https%3A%2F%2Fbakery.example.com`.
+/// Only a path on a server is accepted: it starts with one slash, names no other host, climbs no
+/// directory, carries no control character and is a page of the web app, never an API or a sign-in.
+pub fn open_link(raw: &str) -> Result<OpenLink, &'static str> {
     let Ok(url) = Url::parse(raw) else {
         return Err("not a url");
     };
@@ -91,7 +102,28 @@ pub fn open_target(raw: &str) -> Result<String, &'static str> {
     let (Some((_, path)), None) = (paths.next(), paths.next()) else {
         return Err("needs exactly one path");
     };
-    page_path(&path).map(str::to_string)
+    let mut servers = url.query_pairs().filter(|(k, _)| k == "server");
+    let server = match (servers.next(), servers.next()) {
+        (None, _) => None,
+        // What slice 4's chooser would accept: no login in it, and plain http only for this computer.
+        (Some((_, address)), None) => Some(
+            parse_server_address(&address)
+                .ok()
+                .and_then(|accepted| server_origins(&accepted))
+                .map(|(origin, _)| origin)
+                .ok_or("server is not an address the app accepts")?,
+        ),
+        _ => return Err("needs at most one server"),
+    };
+    Ok(OpenLink {
+        path: page_path(&path)?.to_string(),
+        server,
+    })
+}
+
+/// The page an `open` link names: `open_link` without the server.
+pub fn open_target(raw: &str) -> Result<String, &'static str> {
+    open_link(raw).map(|link| link.path)
 }
 
 fn page_path(path: &str) -> Result<&str, &'static str> {
@@ -256,6 +288,46 @@ mod tests {
             ("nonsense", "not a url"),
         ] {
             assert_eq!(open_target(raw), Err(why), "{raw}");
+        }
+    }
+
+    #[test]
+    fn an_open_link_may_name_the_server_it_is_for() {
+        let link = open_link("bakery://open?path=%2Ftasks%2F7&server=HTTPS%3A%2F%2FBakery.Example.com%2F")
+            .unwrap();
+        assert_eq!(link.path, "/tasks/7");
+        assert_eq!(link.server.as_deref(), Some("https://bakery.example.com"));
+        assert_eq!(open_link("bakery://open?path=%2F").unwrap().server, None);
+    }
+
+    #[test]
+    fn a_server_the_chooser_would_refuse_refuses_the_link() {
+        for bad in [
+            "javascript%3Aalert(1)",
+            "",
+            "https%3A%2F%2Fana%3Asecret%40a.example",
+            "http%3A%2F%2Fa.example",
+            "ftp%3A%2F%2Fa.example",
+        ] {
+            let raw = format!("bakery://open?path=%2F&server={bad}");
+            assert_eq!(open_link(&raw), Err("server is not an address the app accepts"), "{bad}");
+        }
+        assert_eq!(
+            open_link("bakery://open?path=%2F&server=https%3A%2F%2Fa.example&server=https%3A%2F%2Fb.example"),
+            Err("needs at most one server")
+        );
+    }
+
+    #[test]
+    fn a_server_the_chooser_would_accept_is_compared_by_its_origin() {
+        for (typed, origin) in [
+            ("https%3A%2F%2Fa.example%2Fsome%2Fpage", "https://a.example"),
+            ("A.Example", "https://a.example"),
+            ("https%3A%2F%2Fa.example%3A443%2F", "https://a.example"),
+            ("http%3A%2F%2F127.0.0.1%3A8000", "http://127.0.0.1:8000"),
+        ] {
+            let raw = format!("bakery://open?path=%2F&server={typed}");
+            assert_eq!(open_link(&raw).unwrap().server.as_deref(), Some(origin), "{typed}");
         }
     }
 

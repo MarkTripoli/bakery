@@ -20,6 +20,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::menu::BakeryMenu;
+use bakery_desktop_core::link_dialog::LinkDialog;
 
 /// How long the server keeps a sign-in request open, and so how long the app waits for the answer.
 const ATTEMPT_LIFETIME: Duration = Duration::from_secs(10 * 60);
@@ -176,6 +177,29 @@ impl Shell {
 
     /// A page of the server a `bakery://open` link named, already checked. It is kept, and the last
     /// one wins, until the window can show the server's pages.
+    /// Show a link's dialog over whatever the window shows. A newer one replaces an older one.
+    pub fn show_link_dialog(&self, dialog: LinkDialog) {
+        self.state.lock().unwrap().facts.link_dialog = Some(dialog);
+        self.push();
+    }
+
+    pub fn close_link_dialog(&self) {
+        self.state.lock().unwrap().facts.link_dialog = None;
+        self.push();
+    }
+
+    /// What the open dialog's "Open in your browser" opens.
+    pub fn link_dialog_target(&self) -> Option<String> {
+        let st = self.state.lock().unwrap();
+        st.facts.link_dialog.as_ref().map(|d| d.full().to_string())
+    }
+
+    /// Whether an address, already a plain origin, is the server the app is connected to.
+    pub fn is_connected_to(&self, origin: &str) -> bool {
+        bakery_desktop_core::csp::server_origins(&self.server)
+            .is_some_and(|(own, _)| own == origin)
+    }
+
     pub fn request_open(&self, path: String) {
         self.report("link_open_requested", json!({ "path": path }));
         *self.pending_open.lock().unwrap() = Some(path);
@@ -232,6 +256,7 @@ impl Shell {
                 "window": v.window,
                 "dialog": v.dialog,
                 "notice": v.panel.as_ref().and_then(|p| p.notice.clone()),
+                "link_dialog": v.link_dialog.as_ref().map(|d| d.kind),
             }),
         );
         let _ = self.app.emit("view", v);
