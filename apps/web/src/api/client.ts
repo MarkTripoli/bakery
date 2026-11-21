@@ -114,6 +114,11 @@ export type UserPreferencesUpdate = ClientInputMap["UserPreferencesUpdate"];
 export type InstallationCapabilities =
   ClientOutputMap["InstallationCapabilities"];
 export type InstallationSettings = ClientOutputMap["InstallationSettings"];
+/** The restore that holds the installation, and how far its ordered re-enable has got (#64 E3). */
+export type InstallationRestore = ClientOutputMap["InstallationRestore"];
+/** One step of the ordered re-enable, in the order they are taken. */
+export type InstallationRestoreStep =
+  ClientInputMap["InstallationRestoreStep"]["step"];
 /** What the installation-wide usage summary answers: figures and budgets. */
 export type UsageSummary = ClientOutputMap["UsageSummary"];
 /** Window and filters for that summary; all three are optional on the server. */
@@ -1427,6 +1432,19 @@ export type BakeryApiClient = {
       readonly query: MetricSourcesQuery;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<MetricSourcePage>>;
+  };
+  readonly installationRestore: {
+    /** `GET /v1/installation/restore`: the restore that holds the installation; RESTORE_NOT_HELD (409) when none does. */
+    readonly get: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<InstallationRestore>>;
+    /** `POST /v1/installation/restore/steps`: takes the next step with the typed backup name. Idempotency-Key is required; a browser session only. */
+    readonly step: (options: {
+      readonly step: InstallationRestoreStep;
+      readonly confirmation: string;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<InstallationRestore>>;
   };
   readonly installationSettings: {
     readonly get: (
@@ -4386,6 +4404,37 @@ export function createBakeryApiClient({
             data: await scoped(options.organizationId).actions[
               "metrics.sources"
             ](options.query, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    installationRestore: {
+      async get(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationRestore.get"]({}, {
+              signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async step(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationRestore.step"](
+              { step: options.step, confirmation: options.confirmation },
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
           };
         } catch (error) {
           return failed(error);
