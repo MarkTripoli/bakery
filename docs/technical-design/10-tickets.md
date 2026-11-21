@@ -175,7 +175,7 @@ Only publish fields allowed by the source's audience policy. A public ticket get
 
 Keep **execution phase**, **tracker state** and **sync health** separate. Planning/review/deployment are run phases, not a new competing task state machine. A successful run with an unsent comment is “completed · progress sync pending.” A blocked Jira transition cannot convert successful tests into failure or hide the pending tracker update.
 
-Define the completion policy per source: `merged`, `deployed_healthy` or `manual`. For code-only changes, merging with required evidence is a reasonable default; deployment workflows use healthy release evidence. GitHub closing keywords can close an issue when a linked PR merges into the default branch. Use them only when that matches the policy; otherwise use a non-closing reference and close through the broker after the required evidence. A closed unmerged PR is not successful completion. [Linking PRs and issues](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue).
+Define the completion policy per source: `task` (the run finished, for work that opens no pull request), `merged` (a registered pull request merged and none still open; a run that registered none, such as a docs or ops task, is delivered when it finishes), `deployed_healthy` or `manual` (a person confirms; it follows with its confirmation action). A planning-only request is delivered when its run finishes, whatever the source says. For code-only changes, merging with required evidence is a reasonable default; deployment workflows use healthy release evidence. GitHub closing keywords can close an issue when a linked PR merges into the default branch. Use them only when that matches the policy; otherwise use a non-closing reference and close through the broker after the required evidence. A closed unmerged PR is not successful completion. [Linking PRs and issues](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue).
 
 ## Delivery, duplication and reconciliation
 
@@ -284,7 +284,7 @@ Before shipping GitHub intake, prove these boundary cases in provider fixtures a
 
 Measure intake lag, time from an authorized request to dispatch, time waiting for information, readiness reversals after scope changes, progress-sync failures, retry counts and cost per completed ticket. Include rejected/blocked work in the denominator so a high apparent success rate cannot hide abandoned tickets. Keep deterministic delivery evidence separate from sampled model assessments of plan quality.
 
-The current map validates documentation structure and responsive rendering only. Source setup, readiness, admission and the poll and webhook functions are built and backed by fixtures. Live GitHub checks, the Tickets page and remote ticket creation remain to build.
+The current map validates documentation structure and responsive rendering only. Source setup, readiness, admission and the poll and webhook functions are built and backed by fixtures. Live GitHub checks, the Tickets page and the route for remote ticket creation remain to build. The GitHub actions the route will use exist and run through the effect ledger: `github.issue.create` (found again by its effect marker after a lost response, never posted twice), and `github.issue.labels.add` and `github.issue.label.remove`, which name only Bakery's own labels so a person's labels stay.
 
 ## Label routing to multiple repositories (#31)
 

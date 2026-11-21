@@ -1404,6 +1404,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.sealedFrame.contract.desktop-light-fine",
+      "catalogId": "ui.sealedFrame",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sealedframe--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.providerMark.contract.desktop-light-fine",
       "catalogId": "ui.providerMark",
       "requiredCaseId": "contract",

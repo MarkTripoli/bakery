@@ -15,8 +15,13 @@ import {
   readExchangeableGrantOwner,
   readRunningSession,
   ROUTE_KEY_PATTERN,
+  type RunningSession,
 } from "./running-store.ts";
 import type { RunningPreviewReauthorizer } from "./running-authority.ts";
+import {
+  type PreviewSocketUpgrade,
+  proxyPreviewSocket,
+} from "./running-socket.ts";
 
 export type RunningPreviewHostDependencies = {
   readonly database: PgDatabase;
@@ -37,10 +42,18 @@ export type RunningPreviewHostDependencies = {
   readonly reauthorize: RunningPreviewReauthorizer;
   /** Longest a proxied request may take before the app is reported as silent. */
   readonly upstreamTimeoutMs?: number;
+  /** How often an open socket asks again whether it may stay open. */
+  readonly socketRecheckMs?: number;
+  /** Most sockets one preview may hold open at once, counted in this server process. */
+  readonly maxSocketsPerPreview?: number;
+  /** Test seam replacing `Deno.upgradeWebSocket`. */
+  readonly upgradeWebSocket?: PreviewSocketUpgrade;
 };
 
 const DEFAULT_UPSTREAM_HOST = "127.0.0.1";
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 30_000;
+const DEFAULT_SOCKET_RECHECK_MS = 5_000;
+const DEFAULT_MAX_SOCKETS_PER_PREVIEW = 32;
 
 /** A paragraph: plain words, with the name of a button set in bold. */
 type Paragraph = string | readonly (string | { readonly strong: string })[];
@@ -238,6 +251,30 @@ export function createRunningPreviewHandler(
   const upstreamHost = dependencies.upstreamHost ?? DEFAULT_UPSTREAM_HOST;
   const timeoutMs = dependencies.upstreamTimeoutMs ??
     DEFAULT_UPSTREAM_TIMEOUT_MS;
+  const recheckMs = dependencies.socketRecheckMs ?? DEFAULT_SOCKET_RECHECK_MS;
+  const maxSockets = dependencies.maxSocketsPerPreview ??
+    DEFAULT_MAX_SOCKETS_PER_PREVIEW;
+  const upgradeWebSocket = dependencies.upgradeWebSocket ??
+    ((request, options) => Deno.upgradeWebSocket(request, options));
+  const openSockets = new Map<string, number>();
+  const previewScheme = new URL(dependencies.previewOrigin).protocol;
+
+  /** What the app is sent: the request's own headers, minus the ones the proxy owns. */
+  const forwardedHeaders = (request: Request): Headers => {
+    const headers = new Headers();
+    for (const [name, value] of request.headers) {
+      const lower = name.toLowerCase();
+      if (HOP_BY_HOP.has(lower) || NEVER_FORWARDED.has(lower)) continue;
+      if (lower === "cookie") continue;
+      headers.set(name, value);
+    }
+    const appCookies = withoutPreviewCookie(
+      request.headers.get("cookie"),
+      runningPreviewCookieName(dependencies.previewOrigin),
+    );
+    if (appCookies) headers.set("cookie", appCookies);
+    return headers;
+  };
 
   const exchange = async (request: Request, routeKey: string) => {
     if (!exchangeComesFromApp(request, appOrigin)) return ended();
@@ -285,6 +322,68 @@ export function createRunningPreviewHandler(
     return new Response(null, { status: 303, headers });
   };
 
+  /**
+   * A WebSocket on the preview's own origin. Only a page of this same origin
+   * may open one (a socket is not covered by the browser's cross-origin rules,
+   * so the Origin header is the check), and only up to a fixed number per
+   * preview, in this server process. It is re-checked while open: see `proxyPreviewSocket`.
+   */
+  const socket = async (
+    request: Request,
+    routeKey: string,
+    cookie: string,
+    session: RunningSession,
+  ): Promise<Response> => {
+    if (
+      request.headers.get("upgrade")?.toLowerCase() !== "websocket" ||
+      request.method !== "GET" ||
+      request.headers.get("origin") !==
+        `${previewScheme}//${new URL(request.url).host}`
+    ) return ended();
+    const open = openSockets.get(session.previewId) ?? 0;
+    if (open >= maxSockets) return ended();
+    openSockets.set(session.previewId, open + 1);
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      const left = (openSockets.get(session.previewId) ?? 1) - 1;
+      if (left <= 0) openSockets.delete(session.previewId);
+      else openSockets.set(session.previewId, left);
+    };
+    const url = new URL(request.url);
+    const target = new URL(`ws://${upstreamHost}:${session.upstreamPort}`);
+    target.pathname = url.pathname;
+    target.search = url.search;
+    try {
+      return await proxyPreviewSocket({
+        request,
+        target,
+        headers: forwardedHeaders(request),
+        timeoutMs,
+        recheckMs,
+        upgradeWebSocket,
+        unreachable: silent,
+        onEnd: release,
+        stillAllowed: async () => {
+          const again = await readRunningSession(
+            dependencies.database,
+            routeKey,
+            cookie,
+          );
+          return again !== null && await dependencies.reauthorize(
+            again.organizationId,
+            again.principalId,
+            AbortSignal.timeout(timeoutMs),
+          );
+        },
+      });
+    } catch (error) {
+      release();
+      throw error;
+    }
+  };
+
   const proxy = async (request: Request, routeKey: string) => {
     const url = new URL(request.url);
     const cookie = readRunningPreviewCookie(
@@ -305,8 +404,9 @@ export function createRunningPreviewHandler(
         request.signal,
       )
     ) return ended();
-    // A WebSocket upgrade is a separate slice; it is refused, never half-served.
-    if (request.headers.get("upgrade") !== null) return ended();
+    if (request.headers.get("upgrade") !== null) {
+      return await socket(request, routeKey, cookie, session);
+    }
 
     const base = new URL(`http://${upstreamHost}:${session.upstreamPort}`);
     const target = new URL(base);
@@ -315,18 +415,7 @@ export function createRunningPreviewHandler(
     // The host and port are fixed by configuration and the registered record.
     if (target.origin !== base.origin) return ended();
 
-    const headers = new Headers();
-    for (const [name, value] of request.headers) {
-      const lower = name.toLowerCase();
-      if (HOP_BY_HOP.has(lower) || NEVER_FORWARDED.has(lower)) continue;
-      if (lower === "cookie") continue;
-      headers.set(name, value);
-    }
-    const appCookies = withoutPreviewCookie(
-      request.headers.get("cookie"),
-      runningPreviewCookieName(dependencies.previewOrigin),
-    );
-    if (appCookies) headers.set("cookie", appCookies);
+    const headers = forwardedHeaders(request);
     headers.set("accept-encoding", "identity");
 
     let upstream: Response;

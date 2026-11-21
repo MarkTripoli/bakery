@@ -33,6 +33,11 @@ async function json(response: Response, status = 200): Promise<Json> {
 const put = (o: BackupSettingsFixture, enabled: boolean, version?: number) =>
   o.admin("PUT", PATH, { enabled }, { keyed: true, version });
 
+const row = async (o: BackupSettingsFixture) =>
+  (await o.f.pgDatabase.query(
+    "select enabled, version, earliest_restorable_at, latest_restorable_at, latest_segment, reported_at from bakery.backup_point_in_time_settings",
+  )).rows as Json[];
+
 const report = {
   latestArchivedAt: "2026-11-21T09:59:00.000Z",
   earliestBaseBackupAt: "2026-11-20T03:00:00.000Z",
@@ -141,5 +146,63 @@ Deno.test("a member who is not an installation administrator cannot read or set 
           .status,
       ),
     );
+  });
+});
+
+Deno.test("the stored window: a report while off leaves no trace, a stale one moves nothing, off clears the columns", async () => {
+  await withFixture(async (o) => {
+    const credential = await o.issueCredential();
+    // Saved off: a report must be ignored, also after turning on again.
+    await json(await put(o, false));
+    await json(await o.runner(credential, "POST", WAL, report));
+    let r = (await row(o))[0] as Json;
+    assertEquals([
+      r.latest_restorable_at,
+      r.earliest_restorable_at,
+      r.reported_at,
+    ], [null, null, null]);
+    const on = await json(await put(o, true, 1));
+    assertEquals([on.earliestRestorableAt, on.latestRestorableAt], [
+      null,
+      null,
+    ]);
+    // On: window, then a stale report: the newest bound and segment stay.
+    await json(await o.runner(credential, "POST", WAL, report));
+    await json(
+      await o.runner(credential, "POST", WAL, {
+        ...report,
+        latestArchivedAt: "2026-11-21T08:00:00.000Z",
+        latestSegment: "000000010000000000000010",
+      }),
+    );
+    r = (await row(o))[0] as Json;
+    assertEquals(r.latest_segment, "000000010000000000000042");
+    assertEquals(
+      new Date(r.latest_restorable_at as string).toISOString(),
+      report.latestArchivedAt,
+    );
+    // A newer report moves both.
+    const newer = await json(
+      await o.runner(credential, "POST", WAL, {
+        ...report,
+        latestArchivedAt: "2026-11-21T10:30:00.000Z",
+        latestSegment: "000000010000000000000050",
+      }),
+    );
+    assertEquals(newer.latestRestorableAt, "2026-11-21T10:30:00.000Z");
+    r = (await row(o))[0] as Json;
+    assertEquals(r.latest_segment, "000000010000000000000050");
+    // Off clears the stored columns, not only the projection.
+    await json(await put(o, false, 2));
+    r = (await row(o))[0] as Json;
+    assertEquals([
+      r.earliest_restorable_at,
+      r.latest_restorable_at,
+      r.latest_segment,
+    ], [null, null, null]);
+    const settings = await json(
+      await o.runner(credential, "GET", runnerSettingsPath),
+    );
+    assertEquals(settings.pointInTimeEnabled, false);
   });
 });
