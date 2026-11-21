@@ -5637,9 +5637,10 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
           },
-          "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name."
+          "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name. Control characters are refused."
         },
         {
           "name": "os",
@@ -5656,9 +5657,10 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 100
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
           },
-          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture."
+          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture. Control characters are refused."
         },
         {
           "name": "capabilities",
@@ -14500,18 +14502,20 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 100
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
           },
-          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems."
+          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control characters are refused."
         },
         {
           "name": "hostname",
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
           },
-          "description": "The machine's own host name; shown as its name when the Admin left the name empty."
+          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control characters are refused."
         }
       ],
       "rules": [
@@ -14538,18 +14542,20 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 100
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
           },
-          "description": "Processor the machine reports, such as arm64 or x86_64."
+          "description": "Processor the machine reports, such as arm64 or x86_64. Control characters are refused."
         },
         {
           "name": "hostname",
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
           },
-          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it."
+          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control characters are refused."
         }
       ],
       "rules": [

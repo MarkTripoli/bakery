@@ -33115,12 +33115,14 @@ export const clientManifest = {
         "architecture": {
           "type": "string",
           "maxLength": 100,
-          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. WorkerLinkCodeInspect.architecture must contain at most 100 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control characters are refused. WorkerLinkCodeInspect.architecture must contain at most 100 characters. WorkerLinkCodeInspect.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
         },
         "hostname": {
           "type": "string",
           "maxLength": 200,
-          "description": "The machine's own host name; shown as its name when the Admin left the name empty. WorkerLinkCodeInspect.hostname must contain at most 200 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control characters are refused. WorkerLinkCodeInspect.hostname must contain at most 200 characters. WorkerLinkCodeInspect.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
         }
       },
       "required": [
@@ -33147,12 +33149,14 @@ export const clientManifest = {
         "architecture": {
           "type": "string",
           "maxLength": 100,
-          "description": "Processor the machine reports, such as arm64 or x86_64. WorkerLinkRequestCreate.architecture must contain at most 100 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+          "description": "Processor the machine reports, such as arm64 or x86_64. Control characters are refused. WorkerLinkRequestCreate.architecture must contain at most 100 characters. WorkerLinkRequestCreate.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
         },
         "hostname": {
           "type": "string",
           "maxLength": 200,
-          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. WorkerLinkRequestCreate.hostname must contain at most 200 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control characters are refused. WorkerLinkRequestCreate.hostname must contain at most 200 characters. WorkerLinkRequestCreate.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
         }
       },
       "required": [

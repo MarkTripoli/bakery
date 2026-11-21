@@ -561,3 +561,86 @@ Deno.test("a machine name with control characters is refused at approve and enro
     });
     assertEquals(fine.status, 200, await fine.clone().text());
   }));
+
+const CONTROL_TEXT = ["\u001b[31m", "a\nb", "\u0000"];
+
+Deno.test("a machine cannot put control characters in front of an Admin", () =>
+  withWorkerFixture(async (fixture) => {
+    const requestRows = async () =>
+      (await fixture.pgDatabase.query<{ n: number }>(
+        "select count(*)::int as n from bakery.worker_link_requests",
+      )).rows[0]!.n;
+    const before = await requestRows();
+    for (const bad of CONTROL_TEXT) {
+      for (const field of ["hostname", "architecture"] as const) {
+        await clearLinkRateLimits(fixture);
+        const created = await publicPost(fixture, "/v1/worker/link-requests", {
+          ...MACHINE,
+          [field]: field === "hostname" ? `box${bad}` : `arm64${bad}`,
+        });
+        assertEquals(
+          created.status,
+          422,
+          `create ${field} ${JSON.stringify(bad)}`,
+        );
+      }
+    }
+    assertEquals(await requestRows(), before, "nothing was stored");
+
+    await clearLinkRateLimits(fixture);
+    const { enrollmentId, linkCode } = await enrollForLink(fixture);
+    for (const bad of CONTROL_TEXT) {
+      await clearLinkRateLimits(fixture);
+      assertEquals(
+        (await inspect(fixture, linkCode, { hostname: `box${bad}` })).status,
+        422,
+      );
+      assertEquals(
+        (await inspect(fixture, linkCode, { architecture: `arm64${bad}` }))
+          .status,
+        422,
+      );
+      assertEquals(
+        (await registerWithLinkCode(fixture, linkCode, workerCredential(), {
+          name: `box${bad}`,
+        })).status,
+        422,
+      );
+      assertEquals(
+        (await registerWithLinkCode(fixture, linkCode, workerCredential(), {
+          architecture: `arm64${bad}`,
+        })).status,
+        422,
+      );
+    }
+    const enrollment = await fixture.pgDatabase.query<{ consumed: boolean }>(
+      "select consumed_at is not null as consumed from bakery.worker_enrollments where id = $1",
+      [enrollmentId],
+    );
+    assertEquals(enrollment.rows[0]!.consumed, false, "the code is unused");
+
+    // With create refusing such a host name, an approval that leaves the name
+    // empty stores only the clean host name the machine reported.
+    await clearLinkRateLimits(fixture);
+    const request = await createRequest(fixture);
+    const approved = await approve(fixture, request.requestId, {
+      slots: 1,
+      capabilities: ["git"],
+      name: "",
+    });
+    assertEquals(approved.status, 200, await approved.clone().text());
+    const stored = await fixture.pgDatabase.query<{ name: string }>(
+      `select e.name from bakery.worker_link_requests r
+       join bakery.worker_enrollments e on e.id = r.enrollment_id
+       where r.id = $1`,
+      [request.requestId],
+    );
+    assertEquals(stored.rows[0]!.name, MACHINE.hostname);
+    assertEquals(
+      [...stored.rows[0]!.name].some((character) => {
+        const code = character.charCodeAt(0);
+        return code < 0x20 || code === 0x7f;
+      }),
+      false,
+    );
+  }));

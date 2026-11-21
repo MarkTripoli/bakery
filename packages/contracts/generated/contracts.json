@@ -63811,7 +63811,8 @@
             "name": {
               "type": "string",
               "maxLength": 200,
-              "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name. WorkerRegistration.name must contain at most 200 characters."
+              "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+              "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name. Control characters are refused. WorkerRegistration.name must contain at most 200 characters. WorkerRegistration.name must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
             },
             "os": {
               "type": "string",
@@ -63824,7 +63825,8 @@
             "architecture": {
               "type": "string",
               "maxLength": 100,
-              "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture. WorkerRegistration.architecture must contain at most 100 characters."
+              "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+              "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture. Control characters are refused. WorkerRegistration.architecture must contain at most 100 characters. WorkerRegistration.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
             },
             "capabilities": {
               "description": "Capabilities this worker is requesting; each one must already be present in the enrollment's allowed-capabilities set or registration is rejected. WorkerRegistration.capabilities must contain at most 32000 UTF-8 bytes.",
@@ -82235,12 +82237,14 @@
             "architecture": {
               "type": "string",
               "maxLength": 100,
-              "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. WorkerLinkCodeInspect.architecture must contain at most 100 characters."
+              "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+              "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control characters are refused. WorkerLinkCodeInspect.architecture must contain at most 100 characters. WorkerLinkCodeInspect.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
             },
             "hostname": {
               "type": "string",
               "maxLength": 200,
-              "description": "The machine's own host name; shown as its name when the Admin left the name empty. WorkerLinkCodeInspect.hostname must contain at most 200 characters."
+              "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+              "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control characters are refused. WorkerLinkCodeInspect.hostname must contain at most 200 characters. WorkerLinkCodeInspect.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
             }
           },
           "required": [
@@ -82267,12 +82271,14 @@
             "architecture": {
               "type": "string",
               "maxLength": 100,
-              "description": "Processor the machine reports, such as arm64 or x86_64. WorkerLinkRequestCreate.architecture must contain at most 100 characters."
+              "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+              "description": "Processor the machine reports, such as arm64 or x86_64. Control characters are refused. WorkerLinkRequestCreate.architecture must contain at most 100 characters. WorkerLinkRequestCreate.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
             },
             "hostname": {
               "type": "string",
               "maxLength": 200,
-              "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. WorkerLinkRequestCreate.hostname must contain at most 200 characters."
+              "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+              "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control characters are refused. WorkerLinkRequestCreate.hostname must contain at most 200 characters. WorkerLinkRequestCreate.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
             }
           },
           "required": [
@@ -272540,7 +272546,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:f244e99e79e9d4bf2976ff8e7a6e23bd8a916e169baed3c8d201b0c2ac6fd769",
+  "compatibilityDigest": "sha256:3d57a8c18b86154b61ff12667ed32e809967e3c060beff422d9da409b6a4f14d",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -286370,7 +286376,8 @@
         "name": {
           "type": "string",
           "maxLength": 200,
-          "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name. WorkerRegistration.name must contain at most 200 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+          "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name. Control characters are refused. WorkerRegistration.name must contain at most 200 characters. WorkerRegistration.name must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
         },
         "os": {
           "type": "string",
@@ -286383,7 +286390,8 @@
         "architecture": {
           "type": "string",
           "maxLength": 100,
-          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture. WorkerRegistration.architecture must contain at most 100 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture. Control characters are refused. WorkerRegistration.architecture must contain at most 100 characters. WorkerRegistration.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
         },
         "capabilities": {
           "description": "Capabilities this worker is requesting; each one must already be present in the enrollment's allowed-capabilities set or registration is rejected. WorkerRegistration.capabilities must contain at most 32000 UTF-8 bytes.",
@@ -304852,12 +304860,14 @@
         "architecture": {
           "type": "string",
           "maxLength": 100,
-          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. WorkerLinkCodeInspect.architecture must contain at most 100 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control characters are refused. WorkerLinkCodeInspect.architecture must contain at most 100 characters. WorkerLinkCodeInspect.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
         },
         "hostname": {
           "type": "string",
           "maxLength": 200,
-          "description": "The machine's own host name; shown as its name when the Admin left the name empty. WorkerLinkCodeInspect.hostname must contain at most 200 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control characters are refused. WorkerLinkCodeInspect.hostname must contain at most 200 characters. WorkerLinkCodeInspect.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
         }
       },
       "required": [
@@ -304884,12 +304894,14 @@
         "architecture": {
           "type": "string",
           "maxLength": 100,
-          "description": "Processor the machine reports, such as arm64 or x86_64. WorkerLinkRequestCreate.architecture must contain at most 100 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+          "description": "Processor the machine reports, such as arm64 or x86_64. Control characters are refused. WorkerLinkRequestCreate.architecture must contain at most 100 characters. WorkerLinkRequestCreate.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
         },
         "hostname": {
           "type": "string",
           "maxLength": 200,
-          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. WorkerLinkRequestCreate.hostname must contain at most 200 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control characters are refused. WorkerLinkRequestCreate.hostname must contain at most 200 characters. WorkerLinkRequestCreate.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
         }
       },
       "required": [
