@@ -11,6 +11,7 @@ import json
 import os
 import re
 import socket
+import shutil
 import subprocess
 import sys
 import threading
@@ -103,10 +104,17 @@ def stop_app():
         try:
             app.wait(10)
         except Exception:
+            print("NOTE the app did not end within ten seconds and was killed", flush=True)
             app.kill()
+            try:
+                app.wait(5)
+            except Exception:
+                pass
     app = None
     # A server change restarts the app as a new process this harness did not start: end it too.
     subprocess.run(["pkill", "-f", BIN], capture_output=True)
+    # The next start must not meet the old one's single-instance name on the session bus.
+    time.sleep(2)
 
 
 def press(path, button):
@@ -153,6 +161,21 @@ def desktop_sessions():
     """How many sign-ins the app holds on the server, as the person's Active sessions list shows them."""
     req = urllib.request.Request(SERVER + "/v1/me/sessions", headers={"cookie": session_cookie()})
     return urllib.request.urlopen(req).read().decode().count("Bakery app")
+
+
+def settled_sessions(quiet=3, timeout=30):
+    """The app's sign-in count once it has stopped changing for `quiet` seconds. The window asks for a
+    browser session of its own as soon as it is signed in, and that session carries the same label."""
+    end = time.time() + timeout
+    value, since = desktop_sessions(), time.time()
+    while time.time() < end:
+        time.sleep(0.5)
+        now = desktop_sessions()
+        if now != value:
+            value, since = now, time.time()
+        elif time.time() - since >= quiet:
+            break
+    return value
 
 
 def last_window(path):
@@ -217,8 +240,8 @@ def request_id_of(url):
     return urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["request"][0]
 
 
-def stored():
-    r = subprocess.run(["secret-tool", "lookup", "service", SERVICE, "username", USER],
+def stored(user=None):
+    r = subprocess.run(["secret-tool", "lookup", "service", SERVICE, "username", user or USER],
                        capture_output=True, text=True)
     return r.stdout.strip() if r.returncode == 0 else ""
 
@@ -233,8 +256,8 @@ def wait_until(condition, timeout=10):
     return condition()
 
 
-def clear_store():
-    subprocess.run(["secret-tool", "clear", "service", SERVICE, "username", USER], capture_output=True)
+def clear_store(user=None):
+    subprocess.run(["secret-tool", "clear", "service", SERVICE, "username", user or USER], capture_output=True)
 
 
 def server_flag(name):
@@ -303,6 +326,8 @@ def phase_cold_sign_in():
         return
     deliver(link)
     check("[cold] the app finishes and opens the app window", wait_window(p, "app") is not None)
+    check("[cold] once signed in the window goes to the server's page by a one-use code",
+          wait_report(p, "server_page_opened", 1) and not any(e["event"] == "handoff_failed" for e in reports(p)))
     order = [v[0] for v in views(p)]
     check("[cold] the windows came in the designed order",
           order[:3] == ["sign_in", "waiting", "browser_did_not_open"] and order[-1] == "app", " > ".join(order))
@@ -466,7 +491,9 @@ def phase_sign_out():
     clear_store()
     start_app(p)
     check("[sign out] the app signs in", sign_in_to_app(p, "[sign out]"))
-    before, secret = desktop_sessions(), stored()
+    check("[sign out] the window opens the server's page, which asks for a session of its own",
+          wait_report(p, "server_page_opened", 1, timeout=40))
+    before, secret = settled_sessions(), stored()
     check("[sign out] the signed-in window offers Sign out", secret.startswith("bkd_"))
     press(p, "sign_out")
     check("[sign out] the sign-in panel comes back under the signed-out notice",
@@ -474,7 +501,8 @@ def phase_sign_out():
     window = (last_window(p) or {}).get("window", {})
     check("[sign out] and says the server ended the sign-in", window.get("ended_on_server") is True, str(window))
     check("[sign out] it is gone from this computer", wait_until(lambda: stored() == ""))
-    check("[sign out] the server no longer lists it", desktop_sessions() == before - 1, f"{before} before, {desktop_sessions()} after")
+    check("[sign out] the server lists fewer app sign-ins",
+          wait_until(lambda: desktop_sessions() < before, timeout=20), f"{before} before, {desktop_sessions()} after")
     check("[sign out] the sign-in the app held is refused", bearer_status(secret) == 401)
     check("[sign out] it appears in no report, log or file", leaked(secret) is None)
 
@@ -601,11 +629,283 @@ def phase_silent_server_then_back():
     stop_app()
 
 
+def wait_report(path, event, count, timeout=20):
+    """True once the app has reported the event at least `count` times."""
+    end = time.time() + timeout
+    while time.time() < end:
+        if sum(1 for e in reports(path) if e["event"] == event) >= count:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def phase_open_links():
+    p = os.path.join(OUT, "k-links")
+    clear_store()
+    start_app(p)
+    deliver("bakery://open?path=%2Ftasks%2F7%3Ftab%3Dfiles")
+    check("[links] an open link naming a page of the server is accepted with that path",
+          wait_report(p, "link_open_requested", 1)
+          and [e["data"]["path"] for e in reports(p) if e["event"] == "link_open_requested"] == ["/tasks/7?tab=files"])
+    bad = ["bakery://open?path=%2F%2Fevil.test", "bakery://open?path=https%3A%2F%2Fevil.test",
+           "bakery://open?path=%2Fa%2F..%2Fb", "bakery://open?path=%2Fa&path=%2Fb", "bakery://open",
+           "bakery://open/extra?path=%2Fa"]
+    for link in bad:
+        deliver(link)
+    check("[links] every address that is not a plain page of the server is refused",
+          wait_report(p, "link_refused", len(bad)))
+    shown = [e["data"].get("link_dialog") for e in reports(p) if e["event"] == "view"]
+    check("[links] a refused address asks for no page and shows the can't-open dialog over the window",
+          sum(1 for e in reports(p) if e["event"] == "link_open_requested") == 1 and "cant_open" in shown, str(shown))
+    notices = [e["data"].get("notice") for e in reports(p) if e["event"] == "view"]
+    check("[links] signed out, a page link asks for a sign-in on the sign-in panel",
+          "Sign in to open the page from your link." in notices, str(notices))
+    check("[links] a link that is not a sign-in answer leaves the window as it was",
+          stored() == "" and views(p)[-1][0] == "sign_in", str(views(p)))
+    stop_app()
+
+
+def eval_in_window(path, script):
+    """Runs a script in the app's window, as a person acting in the page would."""
+    tmp = os.path.join(path, "cmd", "tmp-eval")
+    with open(tmp, "w") as f:
+        f.write(script)
+    os.rename(tmp, os.path.join(path, "cmd", "eval-" + str(int(time.time() * 1000))))
+
+
+def page_loads(path):
+    return [(e["data"].get("host"), e["data"].get("path")) for e in reports(path) if e["event"] == "page_loaded"]
+
+
+def phase_web_pages():
+    """With the built web app on the connected server's own address: a real page opens after sign-in,
+    and signing out in the web ends the app's sign-in."""
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web:
+        print("SKIP the web phase: no built web app (run with E2E_WEB=1)", flush=True)
+        return
+    host = web.split("//", 1)[1].split(":")[0]
+    p = os.path.join(OUT, "m-web")
+    clear_store()
+    clear_store(web)
+    # A run cannot press the system's dialog, so it answers in advance: Copy the link.
+    start_app(p, server=web, extra={"BAKERY_DESKTOP_DIALOG_ANSWER": "Copy the link"})
+    assert wait_window(p, "sign_in") is not None
+    # A page link that arrives while nobody is signed in is kept, and opens after the sign-in.
+    deliver("bakery://open?path=%2Fissues")
+    check("[web] a page link while signed out is kept and the panel says why",
+          wait_report(p, "link_open_requested", 1)
+          and "Sign in to open the page from your link." in [e["data"].get("notice") for e in reports(p) if e["event"] == "view"])
+    url = sign_in_to_waiting(p, "[web]")
+    if not url:
+        return
+    deliver(confirm(request_id_of(url), session_cookie()))
+    check("[web] the app finishes and opens the server's page", wait_report(p, "server_page_opened", 1, timeout=40))
+    check("[web] it opens the page the link named, not the start page",
+          [e["data"]["path"] for e in reports(p) if e["event"] == "server_page_opened"][:1] == ["/issues"])
+    end = time.time() + 40
+    while time.time() < end and not any(h == host and not (pth or "").startswith("/sign-in") for h, pth in page_loads(p)):
+        time.sleep(1)
+    loads = page_loads(p)
+    check("[web] a real page of the web app loads, signed in (not the sign-in page)",
+          any(h == host and not (pth or "").startswith("/sign-in") for h, pth in loads), str(loads[-4:]))
+    check("[web] the sign-in was saved for the web address", stored(web).startswith("bkd_"), "before sign-out")
+    check("[web] the window's one-use code is in no report",
+          not any("handoff" in json.dumps(e) and "code=" in json.dumps(e) for e in reports(p)))
+    # Over a server's page a refused link is the system's own dialog, never drawn in the window.
+    deliver("bakery://open?path=%2Fv1%2Ftasks")
+    check("[web] over a server page a refused link brings up the system's dialog",
+          wait_report(p, "system_dialog", 1, timeout=20)
+          and [e["data"]["kind"] for e in reports(p) if e["event"] == "system_dialog"][-1] == "cant_open")
+    check("[web] its Copy the link button copies and closes it",
+          wait_report(p, "system_dialog_answer", 1, timeout=20)
+          and [e["data"]["button"] for e in reports(p) if e["event"] == "system_dialog_answer"][-1] == "copy_link")
+    check("[web] nothing was drawn in the window for it",
+          all(e["data"].get("link_dialog") is None for e in reports(p) if e["event"] == "view" and e["data"]["window"].get("kind") == "app"))
+    # The web's own Sign out: a full navigation to the web's sign-out page, as its link does.
+    eval_in_window(p, "location.assign('/sign-out')")
+    check("[web] signing out in the web ends the app's sign-in and returns to the sign-in panel",
+          wait_report(p, "web_sign_out_seen", 1, timeout=40) and wait_window(p, "signed_out", timeout=40) is not None,
+          str(views(p)[-3:]))
+    check("[web] the saved sign-in is gone", stored(web) == "")
+    check("[web] the window is back on the app's own panel", wait_report(p, "panels_shown", 1, timeout=20))
+    stop_app()
+
+
+def phase_web_download():
+    """Builder question 5: a file a page offers is saved only where the person says, never silently
+    into the folder the app was started from. A run cannot answer the system's dialog, so it is run
+    twice: once with the harness choosing a folder in place of the dialog, and once as a person would
+    meet it, where the dialog must open and nothing may be written before it is answered."""
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web:
+        return
+    drop = os.path.join(OUT, "downloads")
+    os.makedirs(drop, exist_ok=True)
+    probe = ("const a=document.createElement('a');a.href='/favicon.svg';a.download='bakery-probe.svg';"
+             "document.body.appendChild(a);a.click()")
+    for label, extra in (("[download] with a folder chosen", {"BAKERY_DESKTOP_DOWNLOAD_TO": drop}),
+                         ("[download] with the dialog cancelled", {"BAKERY_DESKTOP_DOWNLOAD_TO": "-"}),
+                         ("[download] with the dialog", {})):
+        p = os.path.join(OUT, "n-download-" + label.split("with ")[1].replace(" ", "-"))
+        clear_store(web)
+        if os.path.exists(os.path.join(drop, "bakery-probe.svg")):
+            os.remove(os.path.join(drop, "bakery-probe.svg"))
+        start_app(p, server=web, extra=extra)
+        url = sign_in_to_waiting(p, label)
+        if not url:
+            return
+        deliver(confirm(request_id_of(url), session_cookie()))
+        if not wait_report(p, "server_page_opened", 1, timeout=40):
+            check(label + ": the server's page opens", False)
+            stop_app()
+            continue
+        time.sleep(3)
+        eval_in_window(p, probe)
+        incoming = os.path.join("/tmp", f"bakery-incoming-{app.pid}")
+        if extra.get("BAKERY_DESKTOP_DOWNLOAD_TO") == drop:
+            check(label + ": the file is saved there", wait_until(lambda: os.path.exists(os.path.join(drop, "bakery-probe.svg")), timeout=20))
+            check(label + ": the app reports the save", wait_report(p, "download_saved", 1, timeout=20))
+            check(label + ": a notice says where it was saved",
+                  wait_report(p, "toast", 1, timeout=20)
+                  and [e["data"]["text"] for e in reports(p) if e["event"] == "toast"][-1] == "Saved bakery-probe.svg to downloads.",
+                  str([e["data"] for e in reports(p) if e["event"] == "toast"]))
+            # The notice is in the page, and its button reaches the app: pressed as a person would.
+            time.sleep(1)
+            eval_in_window(p, "for (const b of document.querySelectorAll('[data-bakery-toast] button')) "
+                              "{ if (b.textContent === 'Show in folder') b.click(); }")
+            check(label + ": its Show in folder button reaches the app",
+                  wait_report(p, "toast_action", 1, timeout=20)
+                  and [e["data"]["action"] for e in reports(p) if e["event"] == "toast_action"][0] == "show")
+            # A page without this run's nonce asks for nothing: the same address with a wrong nonce
+            # changes nothing and shows nothing. (Other addresses are refused by the core's tests.)
+            eval_in_window(p, "location.href = 'bakery-action://wrong/show/1'")
+            time.sleep(4)
+            check(label + ": an action address without the nonce is refused",
+                  sum(1 for e in reports(p) if e["event"] == "toast_action") == 1
+                  and not any(e["event"] == "view" and e["data"].get("link_dialog") for e in reports(p)))
+        elif extra:
+            check(label + ": the app reports it cancelled", wait_report(p, "download_cancelled", 1, timeout=20))
+            time.sleep(1)
+            check(label + ": nothing was written anywhere, not even where the file came in",
+                  not os.path.exists(os.path.join(drop, "bakery-probe.svg")) and not os.path.exists("/work/bakery-probe.svg")
+                  and not [f for f in os.listdir(incoming)] if os.path.isdir(incoming) else True,
+                  str(os.listdir(incoming)) if os.path.isdir(incoming) else "no incoming folder")
+            check(label + ": and no notice was shown",
+                  not any(e["event"] == "toast" for e in reports(p)))
+        else:
+            # Without the harness the system's save dialog opens and waits for the person: the file has
+            # come in to the app's own folder and nowhere else, and nothing is reported as saved.
+            time.sleep(6)
+            check(label + ": nothing was written where the person has not chosen",
+                  not os.path.exists("/work/bakery-probe.svg") and not os.path.exists(os.path.join(drop, "bakery-probe.svg"))
+                  and not any(e["event"] in ("download_saved", "toast") for e in reports(p)))
+            check(label + ": the file waits in the app's own folder",
+                  os.path.isdir(incoming) and any(f.endswith("bakery-probe.svg") for f in os.listdir(incoming)),
+                  str(os.listdir(incoming)) if os.path.isdir(incoming) else "no incoming folder")
+        stop_app()
+
+
+def shot(name):
+    """The whole screen as it is now, for the stills a state needs that the app's own preview cannot show
+    (a notice or a system dialog over the server's page). The screen is a file the virtual display keeps
+    in the X dump format, so no screenshot tool is needed. The container has no window manager."""
+    os.makedirs(os.path.join(OUT, "shots"), exist_ok=True)
+    xwd = os.path.join(OUT, "shots", name + ".xwd")
+    png = os.path.join(OUT, "shots", name + ".png")
+    shutil.copyfile("/tmp/xfb/Xvfb_screen0", xwd)
+    done = subprocess.run(["python3", "/app/e2e/xwd2png.py", xwd, png], capture_output=True, text=True).stdout.strip()
+    try:
+        os.remove(xwd)
+    except OSError:
+        pass
+    print(f"SHOT {name}: {done}", flush=True)
+
+
+def phase_web_shots():
+    """With E2E_SHOTS=1: screenshots of what the app draws over a server page, light and dark: the saved,
+    saving, failed and cannot-save notices, the system's save dialog and the four link dialogs."""
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web or not os.environ.get("E2E_SHOTS"):
+        return
+    drop = os.path.join(OUT, "shots-downloads")
+    os.makedirs(drop, exist_ok=True)
+    probe = ("const a=document.createElement('a');a.href='/favicon.svg';a.download='bakery-probe.svg';"
+             "document.body.appendChild(a);a.click()")
+    for theme in ("light", "dark"):
+        env = {"GTK_THEME": "Adwaita:dark" if theme == "dark" else "Adwaita"}
+        p = os.path.join(OUT, "o-shots-" + theme + "-signin")
+        clear_store(web)
+        start_app(p, server=web, extra=env)
+        url = sign_in_to_waiting(p, f"[shots {theme}]")
+        if not url:
+            return
+        deliver(confirm(request_id_of(url), session_cookie()))
+        if not wait_report(p, "server_page_opened", 1, timeout=40):
+            check(f"[shots {theme}] the server's page opens", False)
+            stop_app()
+            continue
+        stop_app()  # the sign-in stays saved: every shot below starts signed in
+        cases = [
+            ("toast-saved", dict(env, BAKERY_DESKTOP_DOWNLOAD_TO=drop), "saved"),
+            ("toast-saving", env, "toast-saving"),
+            ("toast-failed", env, "toast-failed"),
+            ("toast-no-permission", env, "toast-nopermission"),
+            ("save-dialog", env, "download"),
+            ("dialog-cant-open", env, "bakery://open?path=%2Fv1%2Ftasks"),
+            ("dialog-not-web", env, "file"),
+            ("dialog-other-server", env, "bakery://open?path=%2Ftasks&server=https%3A%2F%2Fother.example"),
+            ("dialog-browser-did-not-open", env, "browser"),
+        ]
+        for name, case_env, how in cases:
+            if os.environ.get("E2E_SHOT_ONLY") and os.environ["E2E_SHOT_ONLY"] not in name:
+                continue
+            p = os.path.join(OUT, f"o-shots-{theme}-{name}")
+            start_app(p, server=web, extra=case_env)
+            ok = wait_report(p, "server_page_opened", 1, timeout=40)
+            time.sleep(4)
+            if not ok:
+                check(f"[shots {theme}] {name}: the server's page opens", False)
+                stop_app()
+                continue
+            if how == "saved":
+                if os.path.exists(os.path.join(drop, "bakery-probe.svg")):
+                    os.remove(os.path.join(drop, "bakery-probe.svg"))
+                eval_in_window(p, probe)
+                wait_report(p, "toast", 1, timeout=20)
+                time.sleep(1)
+            elif how.startswith("toast-"):
+                open(os.path.join(p, "cmd", how), "w").close()
+                wait_report(p, "toast", 1, timeout=20)
+                time.sleep(1)
+            elif how == "download":
+                eval_in_window(p, probe)
+                time.sleep(4)
+            elif how.startswith("bakery://"):
+                deliver(how)
+                wait_report(p, "system_dialog", 1, timeout=20)
+                time.sleep(2)
+            elif how == "file":
+                eval_in_window(p, "location.href = 'file:///etc/hostname'")
+                wait_report(p, "system_dialog", 1, timeout=20)
+                time.sleep(2)
+            elif how == "browser":
+                eval_in_window(p, "location.href = 'https://example.org/docs'")
+                wait_report(p, "system_dialog", 1, timeout=20)
+                time.sleep(2)
+            shot(f"{name}-{theme}")
+            stop_app()
+
+
 def main():
     print(f"server {SERVER}", flush=True)
+    only = [s for s in os.environ.get("E2E_PHASES", "").split(",") if s]
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
                   phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling,
-                  phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back):
+                  phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back,
+                  phase_open_links, phase_web_pages, phase_web_download, phase_web_shots):
+        if only and not any(s in phase.__name__ for s in only):
+            continue
         try:
             phase()
         except Exception as e:  # a phase that breaks is a failed check, not a silent skip

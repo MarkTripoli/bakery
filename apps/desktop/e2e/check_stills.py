@@ -13,7 +13,7 @@ def margins(path):
     """The empty space left and right of the panel, read from the picture itself.
 
     The picture is the PNG this harness wrote (filter 0 rows). The canvas colour is the pixel at the
-    top left; the panel starts at the first column with any other colour and ends at the last.
+    bottom left (below the menu bar); the panel starts at the first column with any other colour and ends at the last.
     """
     data = open(path, "rb").read()
     width, height = struct.unpack(">II", data[16:24])
@@ -27,16 +27,30 @@ def margins(path):
     raw = zlib.decompress(idat)
     stride = 1 + 3 * width
     rows = [raw[y * stride + 1:(y + 1) * stride] for y in range(height)]
-    canvas = rows[0][:3]
+    # The window has a menu bar across the top (the Bakery menu). The canvas colour is the pixel at the
+    # bottom left, which is always margin, and the picture is read from the first row that has it.
+    canvas = rows[-1][:3]
+    rows = rows[next((i for i, r in enumerate(rows) if r[:3] == canvas), 0):]
     left, right = width, -1
+    # A panel taller than the window scrolls, and its thin scroll bar sits in the last few columns:
+    # it is not part of the panel, so those columns are left out.
+    usable = width - 8
     for row in rows:
-        for x in range(width):
+        for x in range(usable):
             if row[x * 3:x * 3 + 3] != canvas:
                 left = min(left, x)
                 right = max(right, x)
     # A panel taller than the window must start at the top and scroll: the top row is still canvas,
     # because the panel starts below the margin. A panel centred past the top edge has no canvas row.
-    top_is_canvas = rows[0] == canvas * width
+    # Right under the menu bar the panel may begin at once, with only its border row showing: that
+    # row is the canvas and the border's one colour (with a little corner smoothing), never the
+    # panel's own surface and text, which a cut-off panel would show.
+    first = rows[0][:usable * 3]
+    counts = {}
+    for i in range(0, len(first), 3):
+        if first[i:i + 3] != canvas:
+            counts[first[i:i + 3]] = counts.get(first[i:i + 3], 0) + 1
+    top_is_canvas = not counts or max(counts.values()) >= 0.8 * sum(counts.values())
     return left, width - 1 - right, top_is_canvas
 
 
@@ -57,7 +71,8 @@ for state, size, theme, result in rows:
     if abs(left - right) > 2:
         failures.append(f"{name}: the panel is not centred (left {left}, right {right})")
     # Under 480 wide the panel fills the window less 16 on each side; at the default size it is 420 wide.
-    want = 16 if int(size.split("x")[0]) < 480 else (int(size.split("x")[0]) - 420) // 2
+    panel = 460 if state in ("link-cant-open", "link-not-web", "link-other-server", "link-browser-did-not-open") else 420
+    want = 16 if int(size.split("x")[0]) < 480 else (int(size.split("x")[0]) - panel) // 2
     if abs(left - want) > 2:
         failures.append(f"{name}: margin is {left}, the design says {want}")
     value = float(brightness)

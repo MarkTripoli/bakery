@@ -1,12 +1,17 @@
 //! The Bakery desktop app: the Tauri shell around `bakery-desktop-core` (#77, slice 3).
 
+mod download;
+mod menu;
 mod net;
 mod shell;
 mod store;
+mod toast;
 mod update;
 
 use bakery_desktop_core::copy::{press, ButtonId, Press};
 use bakery_desktop_core::csp;
+use bakery_desktop_core::link_dialog::LinkDialog;
+use bakery_desktop_core::links::{navigation, open_link, page_url, Navigation};
 use bakery_desktop_core::platform::accept_callback;
 use bakery_desktop_core::session::{Event, ServerChoice};
 use bakery_desktop_core::settings::{resolve_server, Handoff, Settings};
@@ -42,6 +47,16 @@ async fn press_button(
                 .open_url(shell::START_BAKERY_HELP_URL, None::<&str>);
         }
         Press::Shell(ButtonId::QuitBakery) => app.exit(0),
+        Press::Shell(ButtonId::Close) => shell.close_link_dialog(),
+        Press::Shell(ButtonId::OpenLinkInBrowser) => {
+            if let Some(target) = shell.link_dialog_target() {
+                if app.opener().open_url(&target, None::<&str>).is_ok() {
+                    shell.close_link_dialog();
+                } else {
+                    shell.show_link_dialog(LinkDialog::BrowserDidNotOpen { address: target });
+                }
+            }
+        }
         // The chooser's Continue sends the option and the text with `choose_server`.
         Press::Chooser | Press::Shell(_) => {}
     }
@@ -136,15 +151,113 @@ fn test_hooks(app: &tauri::App, shell: &Arc<Shell>, server: &str) {
     }
 }
 
-/// A `bakery://` address the operating system handed over. Only a sign-in answer is acted on.
+/// A `bakery://` address the operating system handed over: a sign-in answer, or a page to open.
 fn handle_link(shell: &Arc<Shell>, raw: &str) {
     shell.report("link", json!({ "received": true }));
+    shell.bring_to_front();
     if let Ok(code) = accept_callback(raw) {
         let shell = Arc::clone(shell);
         tauri::async_runtime::spawn(async move {
             shell.dispatch(Event::CallbackReceived { code }).await;
         });
+        return;
     }
+    match open_link(raw) {
+        Ok(link) => match link.server {
+            Some(other) if !shell.is_connected_to(&other) => match page_url(&other, &link.path) {
+                Some(address) => shell.show_link_dialog(LinkDialog::OtherServer {
+                    server: other,
+                    link: address,
+                }),
+                None => shell.show_link_dialog(LinkDialog::CantOpen { link: raw.into() }),
+            },
+            _ => {
+                let shell = Arc::clone(shell);
+                tauri::async_runtime::spawn(async move { shell.open_link(link.path).await });
+            }
+        },
+        Err(reason) => {
+            shell.report("link_refused", json!({ "reason": reason }));
+            shell.show_link_dialog(LinkDialog::CantOpen { link: raw.into() });
+        }
+    }
+}
+
+/// Every link the window is about to follow: the connected server's pages and the app's own stay,
+/// another web address goes to the system browser, and nothing else is followed.
+fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    tauri::plugin::Builder::<tauri::Wry>::new("links")
+        .on_navigation(move |webview, url| {
+            let shell = webview.try_state::<Arc<Shell>>();
+            // A button in a notice asks for something by going to an address of its own, which the
+            // app answers and never loads. Only this run's nonce is answered.
+            if url.scheme() == toast::ACTION_SCHEME {
+                if let Some(shell) = &shell {
+                    if let Some((action, id)) = toast::parse_action(url, shell.action_nonce()) {
+                        shell.toast_action(&action, id);
+                    }
+                }
+                return false;
+            }
+            match navigation(&server, url.as_str()) {
+                Navigation::Stay => true,
+                Navigation::Browser => {
+                    let opened = webview
+                        .app_handle()
+                        .opener()
+                        .open_url(url.as_str(), None::<&str>)
+                        .is_ok();
+                    if let Some(shell) = shell {
+                        shell.report("link_to_browser", json!({ "opened": opened }));
+                        if !opened {
+                            shell.show_link_dialog(LinkDialog::BrowserDidNotOpen {
+                                address: url.to_string(),
+                            });
+                        }
+                    }
+                    false
+                }
+                Navigation::System => {
+                    let opened = webview
+                        .app_handle()
+                        .opener()
+                        .open_url(url.as_str(), None::<&str>)
+                        .is_ok();
+                    if let Some(shell) = shell {
+                        shell.report("link_to_system", json!({ "opened": opened }));
+                    }
+                    false
+                }
+                Navigation::Refuse { scheme, reason } => {
+                    if let Some(shell) = shell {
+                        shell.report("link_refused", json!({ "reason": reason }));
+                        let link = url.to_string();
+                        shell.show_link_dialog(
+                            if scheme.is_empty() || scheme.starts_with("http") {
+                                LinkDialog::CantOpen { link }
+                            } else {
+                                LinkDialog::NotWeb { scheme, link }
+                            },
+                        );
+                    }
+                    false
+                }
+            }
+        })
+        .on_page_load(|webview, payload| {
+            if !matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                return;
+            }
+            let url = payload.url();
+            if let Some(shell) = webview.try_state::<Arc<Shell>>() {
+                // Where the window is, never the query: a one-use code travels in it.
+                shell.report(
+                    "page_loaded",
+                    json!({ "host": url.host_str(), "path": url.path() }),
+                );
+            }
+        })
+        .build()
 }
 
 fn main() {
@@ -184,6 +297,29 @@ fn main() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(links_plugin(server.clone()))
+        .on_menu_event(|app, event| {
+            let Some(shell) = app.try_state::<Arc<Shell>>() else {
+                return;
+            };
+            let shell = Arc::clone(&shell);
+            match event.id().as_ref() {
+                "use_different_server" => {
+                    tauri::async_runtime::spawn(async move {
+                        shell.dispatch(Event::UseDifferentServer).await
+                    });
+                }
+                "sign_out" => {
+                    tauri::async_runtime::spawn(async move {
+                        shell.dispatch(Event::SignOutPressed).await
+                    });
+                }
+                "quit" => app.exit(0),
+                _ => {}
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_view,
             press_button,
@@ -191,6 +327,18 @@ fn main() {
             probe_result
         ])
         .setup(move |app| {
+            // The window is made here, not by the configuration, so that a file a page offers can be
+            // saved where the person chooses.
+            let window_config = app
+                .config()
+                .app
+                .windows
+                .first()
+                .cloned()
+                .expect("a window in the configuration");
+            tauri::WebviewWindowBuilder::from_config(app.handle(), &window_config)?
+                .on_download(download::handler(server.clone()))
+                .build()?;
             // After a server change the window comes back where it was.
             let restored = startup.handoff.as_ref().and_then(|h| h.place);
             if let (Some(place), Some(window)) = (restored, app.get_webview_window("main")) {
@@ -204,6 +352,7 @@ fn main() {
                 startup,
             );
             app.manage(Arc::clone(&shell));
+            shell.install_menu();
             test_hooks(app, &shell, &server);
             if let Some(place) = restored {
                 shell.report(

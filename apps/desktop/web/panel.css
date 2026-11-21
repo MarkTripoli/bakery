@@ -339,3 +339,9 @@ body {
     min-block-size: 44px;
   }
 }
+
+/* A link's dialog (design-ux, #77 slice 5): 460 wide over the dimmed window; narrower windows fill
+   the width less 16 each side, as the panel does, and the buttons stack. */
+.panel--dialog {
+  inline-size: min(460px, calc(100% - var(--space-8)));
+}

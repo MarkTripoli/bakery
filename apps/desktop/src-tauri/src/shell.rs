@@ -19,6 +19,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::menu::BakeryMenu;
+use crate::toast::{self, Toast, Tone};
+use bakery_desktop_core::download as saved_file;
+use bakery_desktop_core::link_dialog::LinkDialog;
+
 /// How long the server keeps a sign-in request open, and so how long the app waits for the answer.
 const ATTEMPT_LIFETIME: Duration = Duration::from_secs(10 * 60);
 
@@ -72,6 +77,52 @@ pub struct Shell {
     handoff: Option<Handoff>,
     /// How long a silent server is left before it is asked again.
     retry_after: Duration,
+    /// A page of the server a `bakery://open` link asked for, kept until the window can show the
+    /// server's pages (the desktop session handoff, #77 slice 5).
+    pending_open: Mutex<Option<String>>,
+    /// The Bakery menu, kept in step with the view.
+    menu: Mutex<Option<BakeryMenu>>,
+    /// What the window shows: the server's pages, or the app's own panels. `tried` is set once a
+    /// handoff has been attempted for this sign-in, so a refusal is not asked again in a loop.
+    window_page: Mutex<WindowPage>,
+    /// Made when the app starts: a notice's buttons carry it, so a page cannot ask for an action.
+    action_nonce: String,
+    toasts: Mutex<std::collections::HashMap<u64, ToastTarget>>,
+    downloads: Mutex<std::collections::HashMap<String, DownloadState>>,
+    next_toast: std::sync::atomic::AtomicU64,
+}
+
+/// What a notice's buttons act on.
+struct ToastTarget {
+    path: Option<PathBuf>,
+    retry_url: Option<String>,
+}
+
+struct DownloadState {
+    id: u64,
+    done: bool,
+    name: String,
+    /// Where the webview wrote the file while it came in: a private folder of the app's own.
+    temp: PathBuf,
+}
+
+#[derive(Default)]
+struct WindowPage {
+    on_server: bool,
+    tried: bool,
+}
+
+/// A value a page cannot guess: the hasher's random seed is new for every process.
+fn random_nonce() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+    hasher.write_u64(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0),
+    );
+    format!("a{:016x}", hasher.finish())
 }
 
 const SETTINGS_FILE: &str = "settings.json";
@@ -162,7 +213,386 @@ impl Shell {
             settings: startup.settings,
             handoff: startup.handoff,
             retry_after,
+            pending_open: Mutex::new(None),
+            menu: Mutex::new(None),
+            window_page: Mutex::new(WindowPage::default()),
+            action_nonce: random_nonce(),
+            toasts: Mutex::new(Default::default()),
+            downloads: Mutex::new(Default::default()),
+            next_toast: std::sync::atomic::AtomicU64::new(1),
         })
+    }
+
+    /// A page of the server a `bakery://open` link named, already checked. It is kept, and the last
+    /// Show a link's dialog over whatever the window shows. A newer one replaces an older one. Over the
+    /// server's pages, which the app cannot draw inside, it is the system's own message dialog with the
+    /// same words and button names; over the app's own panels it is drawn in the window.
+    pub fn show_link_dialog(self: &Arc<Self>, dialog: LinkDialog) {
+        if self.window_page.lock().unwrap().on_server {
+            self.system_link_dialog(dialog);
+            return;
+        }
+        self.state.lock().unwrap().facts.link_dialog = Some(dialog);
+        self.push();
+    }
+
+    fn system_link_dialog(self: &Arc<Self>, dialog: LinkDialog) {
+        let view = bakery_desktop_core::link_dialog::view(&dialog, &self.server);
+        self.report("system_dialog", json!({ "kind": view.kind }));
+        let mut message = view.text.join("\n\n");
+        message.push_str("\n\n");
+        if let Some(label) = &view.box_label {
+            message.push_str(label);
+            message.push(' ');
+        }
+        message.push_str(&view.shown);
+        let primary = view.buttons.iter().find(|b| b.primary).cloned();
+        let other = view.buttons.iter().find(|b| !b.primary).cloned();
+        let (Some(primary), Some(other)) = (primary, other) else {
+            return;
+        };
+        // Harness only: an answer chosen in advance in place of a person, because a run cannot press
+        // the system's dialog.
+        if let Ok(label) = std::env::var("BAKERY_DESKTOP_DIALOG_ANSWER") {
+            let pressed = view.buttons.iter().find(|b| b.label == label).map(|b| b.id);
+            self.answer_system_dialog(&dialog, pressed);
+            return;
+        }
+        // Two buttons, the design's names, never a bare "OK". The plugin shows it without blocking the
+        // window, and the answer comes back to this closure.
+        use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+        // On Linux the dialog reads its text as a format string, so a `%` in a link (every encoded
+        // address has them) would be eaten: it is doubled there, and left alone elsewhere.
+        #[cfg(target_os = "linux")]
+        let message = message.replace('%', "%%");
+        let shell = Arc::clone(self);
+        self.report("system_dialog_opening", json!({ "kind": view.kind }));
+        self.app
+            .dialog()
+            .message(message)
+            .title(view.title.clone())
+            .kind(MessageDialogKind::Info)
+            .buttons(MessageDialogButtons::OkCancelCustom(
+                primary.label.clone(),
+                other.label.clone(),
+            ))
+            .show(move |ok| {
+                shell.answer_system_dialog(&dialog, Some(if ok { primary.id } else { other.id }));
+            });
+    }
+
+    /// What a pressed button of a system dialog does. Copy copies the whole text and closes it.
+    fn answer_system_dialog(
+        self: &Arc<Self>,
+        dialog: &LinkDialog,
+        pressed: Option<bakery_desktop_core::copy::ButtonId>,
+    ) {
+        use bakery_desktop_core::copy::ButtonId;
+        self.report("system_dialog_answer", json!({ "button": pressed }));
+        match pressed {
+            Some(ButtonId::CopyLink) => {
+                use tauri_plugin_clipboard_manager::ClipboardExt;
+                let _ = self.app.clipboard().write_text(dialog.full().to_string());
+            }
+            Some(ButtonId::OpenLinkInBrowser) => {
+                let target = dialog.full().to_string();
+                if self.app.opener().open_url(&target, None::<&str>).is_err() {
+                    self.show_link_dialog(LinkDialog::BrowserDidNotOpen { address: target });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn close_link_dialog(&self) {
+        self.state.lock().unwrap().facts.link_dialog = None;
+        self.push();
+    }
+
+    /// What the open dialog's "Open in your browser" opens.
+    pub fn link_dialog_target(&self) -> Option<String> {
+        let st = self.state.lock().unwrap();
+        st.facts.link_dialog.as_ref().map(|d| d.full().to_string())
+    }
+
+    pub fn action_nonce(&self) -> &str {
+        &self.action_nonce
+    }
+
+    pub fn next_id(&self) -> u64 {
+        self.new_toast_id()
+    }
+
+    fn new_toast_id(&self) -> u64 {
+        self.next_toast
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Draws a notice in the page the window shows.
+    fn show_toast(&self, toast: Toast) {
+        let script = toast::show_script(&toast, &self.action_nonce);
+        let shown = self
+            .app
+            .get_webview_window("main")
+            .is_some_and(|w| w.eval(&script).is_ok());
+        self.report("toast", json!({ "text": toast.text, "shown": shown }));
+    }
+
+    /// A notice with sample words, for the stills of the states a run cannot wait for.
+    pub fn preview_toast(&self, kind: &str) {
+        let id = self.new_toast_id();
+        match kind {
+            "saving" => self.show_toast(Toast {
+                id,
+                tone: Tone::Information,
+                text: saved_file::saving("quarterly-report.pdf"),
+                detail: None,
+                tooltip: None,
+                actions: vec![],
+                goes_after: None,
+            }),
+            "failed" => self.save_failed(
+                id,
+                "quarterly-report.pdf",
+                "/files/quarterly-report.pdf",
+                saved_file::Failure::Stopped,
+            ),
+            "nopermission" => self.save_failed(
+                id,
+                "quarterly-report.pdf",
+                "/files/quarterly-report.pdf",
+                saved_file::Failure::NoPermission,
+            ),
+            _ => {}
+        }
+    }
+
+    /// A page offered a file from the connected server and the person chose where to put it.
+    pub fn download_started(self: &Arc<Self>, url: &str, name: &str, temp: PathBuf) {
+        let id = self.new_toast_id();
+        self.downloads.lock().unwrap().insert(
+            url.to_string(),
+            DownloadState {
+                id,
+                done: false,
+                name: name.to_string(),
+                temp,
+            },
+        );
+        let shell = Arc::clone(self);
+        let (url, name) = (url.to_string(), name.to_string());
+        // Only a save that takes more than a second says so.
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(1));
+            let still_going = shell
+                .downloads
+                .lock()
+                .unwrap()
+                .get(&url)
+                .is_some_and(|d| !d.done);
+            if still_going {
+                shell.show_toast(Toast {
+                    id,
+                    tone: Tone::Information,
+                    text: saved_file::saving(&name),
+                    detail: None,
+                    tooltip: None,
+                    actions: vec![],
+                    goes_after: None,
+                });
+            }
+        });
+    }
+
+    /// The webview finished, or gave up on, a file. The file came in to a private folder of the app's
+    /// own; only now is the person asked where to keep it, and nothing is written anywhere else.
+    pub fn download_finished(self: &Arc<Self>, url: &str, success: bool) {
+        let (id, name, temp) = {
+            let mut downloads = self.downloads.lock().unwrap();
+            match downloads.get_mut(url) {
+                Some(d) => {
+                    d.done = true;
+                    (d.id, d.name.clone(), d.temp.clone())
+                }
+                None => return,
+            }
+        };
+        if !success {
+            // The part file is deleted: nothing is kept.
+            let gone = saved_file::discard_partial(&temp);
+            self.report("partial_file", json!({ "removed": gone }));
+            self.save_failed(id, &name, url, saved_file::Failure::Stopped);
+            return;
+        }
+        // Harness only: a folder chosen in advance, in place of the dialog a run cannot answer.
+        if let Ok(dir) = std::env::var("BAKERY_DESKTOP_DOWNLOAD_TO") {
+            if dir == "-" {
+                // ... or the dialog cancelled: nothing is kept and nothing is said.
+                let _ = saved_file::discard_partial(&temp);
+                self.report("download_cancelled", json!({ "name": name }));
+                return;
+            }
+            self.keep_download(id, &name, url, &temp, PathBuf::from(dir).join(&name));
+            return;
+        }
+        use tauri_plugin_dialog::DialogExt;
+        let mut dialog = self.app.dialog().file().set_file_name(&name);
+        if let Ok(dir) = self.app.path().download_dir() {
+            dialog = dialog.set_directory(dir);
+        }
+        let shell = Arc::clone(self);
+        let (url, name) = (url.to_string(), name.clone());
+        dialog.save_file(
+            move |chosen| match chosen.and_then(|c| c.into_path().ok()) {
+                Some(path) => shell.keep_download(id, &name, &url, &temp, path),
+                None => {
+                    // Cancelled or closed: nothing is written, nothing is said.
+                    let _ = saved_file::discard_partial(&temp);
+                    shell.report("download_cancelled", json!({ "name": name }));
+                }
+            },
+        );
+    }
+
+    /// Moves a finished file from the app's private folder to where the person chose.
+    fn keep_download(&self, id: u64, name: &str, url: &str, temp: &std::path::Path, to: PathBuf) {
+        let moved = std::fs::rename(temp, &to).or_else(|_| {
+            // Another disk: copy, then remove the original.
+            std::fs::copy(temp, &to)
+                .map(|_| ())
+                .and_then(|_| std::fs::remove_file(temp))
+        });
+        match moved {
+            Ok(()) => {
+                let folder = to.parent().map(|p| p.to_string_lossy().to_string());
+                self.toasts.lock().unwrap().insert(
+                    id,
+                    ToastTarget {
+                        path: Some(to.clone()),
+                        retry_url: None,
+                    },
+                );
+                self.show_toast(Toast {
+                    id,
+                    tone: Tone::Success,
+                    text: saved_file::saved(
+                        name,
+                        &folder
+                            .as_deref()
+                            .map(saved_file::folder_name)
+                            .unwrap_or_default(),
+                    ),
+                    detail: None,
+                    tooltip: folder,
+                    actions: vec![(saved_file::SHOW_IN_FOLDER.into(), "show")],
+                    goes_after: Some(saved_file::SAVED_NOTICE_SECONDS),
+                });
+                self.report("download_saved", json!({ "name": name }));
+            }
+            Err(error) => {
+                let _ = saved_file::discard_partial(temp);
+                let _ = saved_file::discard_partial(&to);
+                let why = match error.kind() {
+                    std::io::ErrorKind::PermissionDenied => saved_file::Failure::NoPermission,
+                    std::io::ErrorKind::StorageFull => saved_file::Failure::DiskFull,
+                    _ => saved_file::Failure::Stopped,
+                };
+                self.save_failed(id, name, url, why);
+            }
+        }
+    }
+
+    /// An error notice that stays until closed, with the reason and a way to ask again.
+    pub fn save_failed(&self, id: u64, name: &str, url: &str, failure: saved_file::Failure) {
+        self.toasts.lock().unwrap().insert(
+            id,
+            ToastTarget {
+                path: None,
+                retry_url: Some(url.to_string()),
+            },
+        );
+        self.show_toast(Toast {
+            id,
+            tone: Tone::Error,
+            text: saved_file::failure_title(name),
+            detail: Some(saved_file::failure_reason(failure).into()),
+            tooltip: None,
+            actions: vec![(saved_file::TRY_AGAIN.into(), "retry")],
+            goes_after: None,
+        });
+    }
+
+    /// A notice's button, already checked to carry this run's nonce.
+    pub fn toast_action(&self, action: &str, id: u64) {
+        let (path, retry) = {
+            let toasts = self.toasts.lock().unwrap();
+            match toasts.get(&id) {
+                Some(t) => (t.path.clone(), t.retry_url.clone()),
+                None => return,
+            }
+        };
+        match (action, path, retry) {
+            ("show", Some(path), _) => {
+                let _ = self.app.opener().reveal_item_in_dir(path);
+            }
+            ("retry", _, Some(url)) => {
+                // The same file again, through the same dialog: as the page's own link would.
+                let script = format!(
+                    "(() => {{ const a = document.createElement('a'); a.href = {}; a.download = ''; \
+                     document.body.appendChild(a); a.click(); a.remove(); }})();",
+                    serde_json::to_string(&url).unwrap_or_default()
+                );
+                if let Some(w) = self.app.get_webview_window("main") {
+                    let _ = w.eval(&script);
+                }
+            }
+            _ => {}
+        }
+        self.report("toast_action", json!({ "action": action }));
+    }
+
+    /// Whether an address, already a plain origin, is the server the app is connected to.
+    pub fn is_connected_to(&self, origin: &str) -> bool {
+        bakery_desktop_core::csp::server_origins(&self.server).is_some_and(|(own, _)| own == origin)
+    }
+
+    /// A page of the server a `bakery://open` link named, already checked. Signed in with the
+    /// server's pages showing, it opens at once; otherwise it is kept, the newest replacing an older
+    /// one, until a sign-in shows the server's pages. Signed out, the sign-in panel says why it waits.
+    pub async fn open_link(self: &Arc<Self>, path: String) {
+        self.report("link_open_requested", json!({ "path": path }));
+        let (signed_in, credential) = {
+            let st = self.state.lock().unwrap();
+            (st.session.is_signed_in(), st.credential.clone())
+        };
+        let on_server = self.window_page.lock().unwrap().on_server;
+        if signed_in && on_server {
+            if let Some(credential) = credential {
+                if let Some(code) = self.client.create_handoff(&credential, &path).await {
+                    let url = format!(
+                        "{}/api/desktop/handoff?code={code}",
+                        self.server.trim_end_matches('/')
+                    );
+                    if self.navigate(&url) {
+                        self.report("server_page_opened", json!({ "path": path }));
+                        return;
+                    }
+                }
+                self.report("handoff_failed", json!({}));
+            }
+            return;
+        }
+        *self.pending_open.lock().unwrap() = Some(path);
+        self.dispatch(Event::OpenLinkArrived).await;
+    }
+
+    /// Brings the window forward: every link that reaches the app does, as the design says.
+    pub fn bring_to_front(&self) {
+        if let Some(window) = self.app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
     }
 
     /// A line in the report file, if one is set. Names and states only: never a secret.
@@ -183,7 +613,24 @@ impl Shell {
         view(&st.session, &st.facts)
     }
 
+    /// Install the Bakery menu and keep it in step from now on.
+    pub fn install_menu(&self) {
+        let model = self.menu_model();
+        match BakeryMenu::install(&self.app, &model) {
+            Ok(menu) => *self.menu.lock().unwrap() = Some(menu),
+            Err(_) => self.report("menu_failed", json!({})),
+        }
+    }
+
+    fn menu_model(&self) -> bakery_desktop_core::menu::Model {
+        let st = self.state.lock().unwrap();
+        bakery_desktop_core::menu::model(st.session.shown_server(), st.session.is_signed_in())
+    }
+
     fn push(&self) {
+        if let Some(menu) = &*self.menu.lock().unwrap() {
+            menu.update(&self.menu_model());
+        }
         let v = self.current_view();
         {
             let mut last = self.last_view.lock().unwrap();
@@ -199,6 +646,7 @@ impl Shell {
                 "window": v.window,
                 "dialog": v.dialog,
                 "notice": v.panel.as_ref().and_then(|p| p.notice.clone()),
+                "link_dialog": v.link_dialog.as_ref().map(|d| d.kind),
             }),
         );
         let _ = self.app.emit("view", v);
@@ -238,6 +686,7 @@ impl Shell {
                 Standing::Unknown => {}
             }
         }
+        self.sync_window().await;
     }
 
     /// What `fresh` needs from startup, rebuilt from the fields kept for it.
@@ -257,6 +706,10 @@ impl Shell {
         }
         let mut queue = VecDeque::from([event]);
         while let Some(event) = queue.pop_front() {
+            // A link kept for after sign-in is dropped when the person signs out on purpose.
+            if matches!(event, Event::SignOutPressed) {
+                *self.pending_open.lock().unwrap() = None;
+            }
             let effects = {
                 let mut st = self.state.lock().unwrap();
                 let (next, effects) = step(st.session.clone(), event);
@@ -269,6 +722,100 @@ impl Shell {
                     queue.push_back(follow_up);
                 }
             }
+        }
+        self.sync_window().await;
+    }
+
+    /// Keeps the window on the right page: the server's pages while someone is signed in, the app's
+    /// own panels at every other time. The sign-in's one-use code is asked for here and used at once.
+    pub async fn sync_window(self: &Arc<Self>) {
+        if self.previewing {
+            return;
+        }
+        let (signed_in, credential) = {
+            let st = self.state.lock().unwrap();
+            (st.session.is_signed_in(), st.credential.clone())
+        };
+        let (on_server, tried) = {
+            let page = self.window_page.lock().unwrap();
+            (page.on_server, page.tried)
+        };
+        if signed_in && !on_server && !tried {
+            self.window_page.lock().unwrap().tried = true;
+            let Some(credential) = credential else { return };
+            let path = self
+                .pending_open
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| "/".into());
+            match self.client.create_handoff(&credential, &path).await {
+                Some(code) => {
+                    let url = format!(
+                        "{}/api/desktop/handoff?code={code}",
+                        self.server.trim_end_matches('/')
+                    );
+                    if self.navigate(&url) {
+                        self.window_page.lock().unwrap().on_server = true;
+                        self.report("server_page_opened", json!({ "path": path }));
+                        let shell = Arc::clone(self);
+                        std::thread::spawn(move || shell.watch_server_page());
+                    }
+                }
+                None => {
+                    // The signed-in panel stays; the page is asked for again at the next sign-in.
+                    self.report("handoff_failed", json!({}));
+                }
+            }
+        } else if !signed_in {
+            let was_on_server = {
+                let mut page = self.window_page.lock().unwrap();
+                page.tried = false;
+                std::mem::replace(&mut page.on_server, false)
+            };
+            if was_on_server {
+                let origin = bakery_desktop_core::platform::web_view_origin(std::env::consts::OS);
+                self.navigate(&format!("{origin}/"));
+                self.report("panels_shown", json!({}));
+            }
+        }
+    }
+
+    /// While the server's pages are in the window, watches which page it is on. The web's own Sign
+    /// out, or a sign-in page after a good page was shown, means the person signed out of the web:
+    /// the app ends its own sign-in the same way slice 4's Sign out does. The pages cannot talk to
+    /// the app, and a route change inside the page is not a navigation, so the address is read.
+    fn watch_server_page(self: Arc<Self>) {
+        let mut shown_a_page = false;
+        loop {
+            std::thread::sleep(Duration::from_millis(700));
+            if !self.window_page.lock().unwrap().on_server {
+                return;
+            }
+            let Some(window) = self.app.get_webview_window("main") else {
+                return;
+            };
+            let Ok(url) = window.url() else { continue };
+            let path = url.path();
+            let sign_in_or_out =
+                path == "/sign-in" || path.starts_with("/sign-in/") || path == "/sign-out";
+            if !sign_in_or_out {
+                shown_a_page = true;
+            } else if shown_a_page {
+                self.report("web_sign_out_seen", json!({}));
+                tauri::async_runtime::block_on(self.dispatch(Event::SignOutPressed));
+                return;
+            }
+        }
+    }
+
+    fn navigate(&self, url: &str) -> bool {
+        let Some(window) = self.app.get_webview_window("main") else {
+            return false;
+        };
+        match url.parse() {
+            Ok(parsed) => window.navigate(parsed).is_ok(),
+            Err(_) => false,
         }
     }
 
@@ -505,6 +1052,25 @@ impl Shell {
                                 })
                                 .await;
                         }
+                        continue;
+                    }
+                    // `toast-saving` or `toast-failed`: shows that notice with sample words, for the
+                    // stills of states a run cannot wait for. Harness only.
+                    if let Some(kind) = name.strip_prefix("toast-") {
+                        let _ = std::fs::remove_file(entry.path());
+                        shell.preview_toast(kind);
+                        continue;
+                    }
+                    // `eval-<anything>`: the file's text runs in the window, as a person's click would
+                    // act in a page. Harness only.
+                    if name.starts_with("eval-") {
+                        let script = std::fs::read_to_string(entry.path()).unwrap_or_default();
+                        let _ = std::fs::remove_file(entry.path());
+                        let ran = shell
+                            .app
+                            .get_webview_window("main")
+                            .is_some_and(|w| w.eval(&script).is_ok());
+                        shell.report("command", json!({ "eval": ran }));
                         continue;
                     }
                     let Some(id) = name.strip_prefix("press-") else {

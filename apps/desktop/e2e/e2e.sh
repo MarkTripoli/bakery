@@ -35,6 +35,7 @@ cleanup() {
   touch "$OUT/done"
   [ -n "$WATCH_PID" ] && kill "$WATCH_PID" 2>/dev/null
   stop_server
+  [ -f "$OUT/web.pid" ] && kill -- -"$(cat "$OUT/web.pid")" 2>/dev/null
   docker rm -fv "$STACK-pg" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -91,6 +92,20 @@ start_server() {
 }
 start_server || exit 4
 
+# With E2E_WEB=1 the built web app is served on a port of its own, proxying the API to the server, so
+# the app's window can load real web pages from one origin (the connected server for the web phases).
+WEB=""
+if [ -n "${E2E_WEB:-}" ]; then
+  WEBP=$(node -e 'const n=require("net");const a=n.createServer();a.listen(0,"127.0.0.1",()=>{console.log(a.address().port);a.close()})')
+  (cd "$REPO/apps/web" && BAKERY_ENV=test pnpm build >"$OUT/web-build.log" 2>&1) || { echo "web build failed"; exit 5; }
+  (cd "$REPO/apps/web" && exec setsid env BAKERY_ENV=test BAKERY_WEB_HOST=127.0.0.1 BAKERY_WEB_PORT=$WEBP \
+    BAKERY_SERVER_HOST=127.0.0.1 BAKERY_SERVER_PORT=$SERVER pnpm exec vite preview >>"$OUT/web.log" 2>&1 9>&-) &
+  echo $! > "$OUT/web.pid"
+  for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$WEBP/" >/dev/null 2>&1 && break; sleep 1; done
+  curl -fsS "http://127.0.0.1:$WEBP/health/ready" >/dev/null 2>&1 || { echo "web preview did not become ready"; exit 6; }
+  WEB="http://127.0.0.1:$WEBP"
+fi
+
 EMAIL="e2e-admin@example.test"; PASSWORD="E2e-Admin-Passw0rd-1"
 WEB_AUTH_SEED_PASSWORD="$PASSWORD" deno run --allow-env --allow-net --allow-read \
   tests/helpers/web-auth-seed.ts "$EMAIL" 2>&1 | tail -1 | cut -c1-100
@@ -109,7 +124,7 @@ WATCH_PID=$!
 
 docker run --rm --network host -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
   -v "$APP:/app:ro" -v "$OUT:/out" -v "$CACHE/target-desktop:/cache/target-desktop:ro" \
-  -e HOME=/tmp/e2ehome -e OUT=/out -e BAKERY_SERVER="http://127.0.0.1:$SERVER" \
+  -e HOME=/tmp/e2ehome -e OUT=/out -e BAKERY_SERVER="http://127.0.0.1:$SERVER" -e BAKERY_WEB="$WEB" -e E2E_SHOTS="${E2E_SHOTS:-}" -e E2E_PHASES="${E2E_PHASES:-}" -e E2E_SHOT_ONLY="${E2E_SHOT_ONLY:-}" \
   -e SEED_EMAIL="$EMAIL" -e SEED_PASSWORD="$PASSWORD" \
   "$IMAGE" bash /app/e2e/scenario.sh 2>&1 | tee "$OUT/scenario.log"
 RC=${PIPESTATUS[0]}

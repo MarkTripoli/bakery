@@ -100,6 +100,8 @@ pub enum Mismatch {
 pub enum Notice {
     /// "Bakery now uses {address}."
     Switched { address: String },
+    /// "Sign in to open the page from your link."
+    SignInForLink,
 }
 
 /// What the person sees.
@@ -345,6 +347,9 @@ impl Session {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
+    /// A `bakery://open` link arrived that names a page. Signed out, the sign-in panel says why it is
+    /// waiting; in every other state nothing changes on screen and the link is kept by the app.
+    OpenLinkArrived,
     /// "Sign in with your browser".
     SignInPressed,
     RequestStarted {
@@ -498,6 +503,9 @@ pub fn step(session: Session, event: Event) -> (Session, Vec<Effect>) {
     use Event as E;
     use Phase as P;
     match (session.phase.clone(), event) {
+        (P::SignedOut, E::OpenLinkArrived) if session.window == Window::SignIn => {
+            (session.with_notice(Notice::SignInForLink), vec![])
+        }
         (P::SignedOut, E::SignInPressed) => (
             session.with(P::Starting, session.window.clone()),
             vec![Effect::StartRequest],
@@ -1822,6 +1830,37 @@ mod server_tests {
             .is_some());
         assert!(step(carried.clone(), E::SignInPressed).0.notice().is_none());
         assert!(step(carried, E::UseDifferentServer).0.notice().is_none());
+    }
+
+    #[test]
+    fn a_link_while_signed_out_asks_for_a_sign_in_and_changes_nothing_else() {
+        let (after, effects) = step(signed_out(), E::OpenLinkArrived);
+        assert_eq!(after.notice(), Some(&Notice::SignInForLink));
+        assert_eq!(after.window(), signed_out().window());
+        assert!(effects.is_empty());
+        // The next action takes the notice with it, like every notice.
+        assert!(step(after, E::SignInPressed).0.notice().is_none());
+    }
+
+    #[test]
+    fn a_link_in_any_other_state_changes_nothing_on_screen() {
+        let waiting = run(
+            signed_out(),
+            vec![
+                E::SignInPressed,
+                E::RequestStarted {
+                    id: "r".into(),
+                    confirm_url: "u".into(),
+                    expires_at: None,
+                },
+            ],
+        )
+        .0;
+        for before in [waiting, Session::start(true).on_server(SERVER)] {
+            let (after, effects) = step(before.clone(), E::OpenLinkArrived);
+            assert_eq!(after, before);
+            assert!(effects.is_empty());
+        }
     }
 
     #[test]
