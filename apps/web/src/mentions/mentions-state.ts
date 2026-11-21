@@ -50,19 +50,24 @@ export function insertMention(
   };
 }
 
-/** Whether the text still carries the `@Name` that was inserted for a person. */
-function carries(text: string, mention: Mention): boolean {
+/** Where the `@Name` inserted for a person stands in the text, as a whole word; -1 when it is gone. */
+function find(text: string, mention: Mention): number {
   const token = `@${mention.name}`;
   let from = 0;
   for (;;) {
     const found = text.indexOf(token, from);
-    if (found < 0) return false;
+    if (found < 0) return -1;
     const end = found + token.length;
     const startsWord = found === 0 || /\s/.test(text[found - 1]);
     const endsWord = end === text.length || !/[\p{L}\p{N}]/u.test(text[end]);
-    if (startsWord && endsWord) return true;
+    if (startsWord && endsWord) return found;
     from = found + 1;
   }
+}
+
+/** Whether the text still carries the `@Name` that was inserted for a person. */
+function carries(text: string, mention: Mention): boolean {
+  return find(text, mention) >= 0;
 }
 
 /** Editing the inserted name removes its chip: only the people still named in the text stay. */
@@ -73,12 +78,15 @@ export function reconcile(
   return mentions.filter((mention) => carries(text, mention));
 }
 
-/** The text without a person's `@Name` (and the space after it), for removing a chip. */
+/**
+ * The text without a person's `@Name` (and the space after it), for removing a
+ * chip. It cuts the whole word the chip stands for, never the start of a longer
+ * name such as `@Samir` when the chip is `@Sam`.
+ */
 export function withoutMention(text: string, mention: Mention): string {
-  const token = `@${mention.name}`;
-  const at = text.indexOf(token);
+  const at = find(text, mention);
   if (at < 0) return text;
-  const end = at + token.length;
+  const end = at + mention.name.length + 1;
   return text.slice(0, at) + text.slice(text[end] === " " ? end + 1 : end);
 }
 

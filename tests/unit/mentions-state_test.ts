@@ -137,3 +137,22 @@ Deno.test("a refusal names the mentions by place and code, and other failures na
   );
   assertEquals(refusalsOf({ kind: "network" }), []);
 });
+
+Deno.test("removing a chip cuts its own word, not the start of a longer name", () => {
+  const sam: Mention = { principalId: "p2", name: "Sam", gainsAccess: false };
+  assertEquals(
+    withoutMention("Hi @Samir and @Sam ok", sam),
+    "Hi @Samir and ok",
+  );
+  assertEquals(withoutMention("@Sam", sam), "");
+  assertEquals(withoutMention("Hi @Samir", sam), "Hi @Samir");
+  const patel: Mention = {
+    principalId: "p3",
+    name: "Sam Patel",
+    gainsAccess: false,
+  };
+  assertEquals(
+    withoutMention("@Sam Patelson, @Sam Patel!", patel),
+    "@Sam Patelson, !",
+  );
+});
