@@ -1066,7 +1066,13 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 20
           },
-          "description": "Principal ids of the people this comment @-mentions, in the order they appear. Each distinct non-self person who can read the artifact's comment thread is notified once. A comment never widens access: someone who cannot read the thread is refused with UNPROCESSABLE naming the mention by index, and nothing is written."
+          "description": "Principal ids of the people this comment @-mentions, in the order they appear. Each distinct non-self person who can read the artifact's comment thread is notified once. Someone who cannot read the thread is refused with UNPROCESSABLE naming the mention by index and nothing is written, unless accessLevel is sent and the writer may share."
+        },
+        {
+          "name": "accessLevel",
+          "type": "enum(read_comment|edit)",
+          "required": false,
+          "description": "Send it to give every mentioned person who cannot yet read this document that level of access, in the same transaction as the comment: read_comment (read and comment) or edit (also publish versions). Omit it and such a mention is refused. Needs the writer's own sharing authority (artifact:share); without it the mention is refused with mention_share_forbidden and nothing is written."
         }
       ],
       "rules": [
@@ -12403,6 +12409,81 @@ const transportSchemas = {
         "Keyset pagination ordered by display name then principal id; the cursor is bound to the route scope and the query text."
       ],
       "description": "Server-side search for people the writer may @-mention in one conversation (a task chat) or one artifact comment thread, bounded and cursor paged."
+    },
+    "ArtifactAccessGrantCreate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Artifact (document) the person is given access to; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "The person to give access to: an active human member of this organization."
+        },
+        {
+          "name": "level",
+          "type": "enum(read_comment|edit)",
+          "required": false,
+          "description": "What the person may do: read_comment (read the document and comment on it, the default) or edit (also publish new versions of it)."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key required. Needs the caller's own sharing authority (artifact:share); a person who holds only a grant cannot reshare. The same level for someone who already has a live grant returns that grant unchanged; a different level changes it; a revoked grant is renewed. Audited. Never changes inherited access."
+      ],
+      "description": "Gives one person direct access to one document at a level, without a comment. A mention does the same in the comment's own transaction."
+    },
+    "ArtifactAccessRevoke": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Artifact (document) whose direct grant is removed; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "Person whose direct access to the document is removed."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key and If-Match required; If-Match is the grant version the caller last saw and a stale version fails with PRECONDITION_FAILED. Needs the caller's own sharing authority (artifact:share). Removes only the direct grant; inherited access is untouched. The person's unread mention notifications for this document are withdrawn in the same transaction. Audited."
+      ],
+      "description": "Removes one person's direct access to one document under compare-and-set on the grant version; the Undo of a mention that gave access."
+    },
+    "ArtifactAccessQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of document access; it is bound to the same scope, principal and organization and is rejected anywhere else."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum grants per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Keyset pagination ordered by grant time then id; the cursor is bound to the document in the route."
+      ],
+      "description": "Lists the live direct grants on one document, oldest first, bounded and cursor paged."
     },
     "ConversationAccessQuery": {
       "fields": [
@@ -32929,7 +33010,7 @@ const transportSchemas = {
       ],
       "description": "One person's direct, mention-granted access to one conversation, with who granted it and from which message."
     },
-    "ConversationSharer": {
+    "AccessSharer": {
       "fields": [
         "principalId",
         "displayName"
@@ -32947,14 +33028,14 @@ const transportSchemas = {
         "principalId": "The person who may give access.",
         "displayName": "Their current display name; never an email address."
       },
-      "description": "One person who may give someone access to a conversation or a document."
+      "description": "One person who may give someone access to a conversation or a document: their id and display name only."
     },
     "ConversationSharers": {
       "fields": [
         "items"
       ],
       "fieldTypes": {
-        "items": "ConversationSharer[]"
+        "items": "AccessSharer[]"
       },
       "fieldDescriptions": {
         "items": "Up to three active people in the reader's organization whose role may share the conversation, its author first when the author is one of them, then by display name. Empty when nobody may."
@@ -32963,6 +33044,85 @@ const transportSchemas = {
         "Names only people in the reader's own organization; nothing else about them is returned."
       ],
       "description": "Who can give access to one conversation: up to three people, so a writer who may not share can ask one of them. It grants nothing."
+    },
+    "ArtifactSharers": {
+      "fields": [
+        "items"
+      ],
+      "fieldTypes": {
+        "items": "AccessSharer[]"
+      },
+      "fieldDescriptions": {
+        "items": "Up to three active people in the reader's organization whose role may share documents, the document's author first when the author is one of them, then by display name. Empty when nobody may."
+      },
+      "rules": [
+        "Names only people in the reader's own organization; nothing else about them is returned."
+      ],
+      "description": "Who can give access to one document: up to three people, so a writer who may not share can ask one of them. It grants nothing."
+    },
+    "ArtifactAccessGrant": {
+      "fields": [
+        "id",
+        "artifactId",
+        "principalId",
+        "displayName",
+        "level",
+        "grantedById",
+        "grantedByName",
+        "sourceCommentId",
+        "grantedAt",
+        "revokedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "artifactId": "uuid",
+        "principalId": "uuid",
+        "displayName": "string",
+        "level": "enum(read_comment|edit)",
+        "grantedById": "uuid",
+        "grantedByName": "string",
+        "sourceCommentId": "uuid|null",
+        "grantedAt": "timestamp",
+        "revokedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "sourceCommentId",
+        "revokedAt"
+      ],
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        },
+        "grantedByName": {
+          "maxLength": 200
+        },
+        "version": {
+          "min": 1
+        }
+      },
+      "fieldDescriptions": {
+        "id": "Stable UUID of this grant record.",
+        "artifactId": "The one document this grant opens; it never reaches the task, its other documents or its conversation.",
+        "principalId": "The person who holds the grant.",
+        "displayName": "The holder's current display name; never an email address.",
+        "level": "read_comment: read the document and comment on it. edit: also publish new versions of it.",
+        "grantedById": "Who gave the access most recently.",
+        "grantedByName": "The granting person's current display name.",
+        "sourceCommentId": "The comment whose mention created or renewed the grant, or null when it was given directly or that comment is gone.",
+        "grantedAt": "When the grant was created or last renewed.",
+        "revokedAt": "When the grant was removed, or null while it is live.",
+        "version": "Compare-and-set version; send it as If-Match to revoke."
+      },
+      "rules": [
+        "A direct grant gives access to this one document only: no task, repository, agent or resharing rights."
+      ],
+      "description": "One person's direct access to one document, with its level, who gave it and from which comment."
+    },
+    "Page<ArtifactAccessGrant>": {
+      "pageOf": "ArtifactAccessGrant",
+      "description": "Cursor page of live direct grants on one document, oldest first. `nextCursor: null` marks the last page."
     },
     "Page<ConversationAccessGrant>": {
       "pageOf": "ConversationAccessGrant",
@@ -37217,6 +37377,18 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation that one person's direct access to a conversation was granted by a mention or revoked; clients re-read conversationAccess.list. It carries no message content."
+    },
+    "artifacts.access_changed": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer",
+        "artifactId": "uuid",
+        "principalId": "uuid",
+        "active": "boolean"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation that one person's direct access to a document was granted, changed or revoked; clients re-read artifactAccess.list. It carries no document content."
     },
     "skillUseGrant.created": {
       "schemaVersion": 1,

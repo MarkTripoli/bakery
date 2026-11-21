@@ -82,7 +82,13 @@ export function createNotificationHandlers(secret: string) {
       const id = context.params.id;
       if (!id) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       const row = await readNotification(transaction, scope, id);
-      return await resolveNotificationTarget(transaction, scope, row);
+      // How the target was reached is the server's business; the contract
+      // carries only where to go.
+      const { viaDocumentGrant: _viaGrant, ...target } =
+        await resolveNotificationTarget(transaction, scope, row) as
+          & Awaited<ReturnType<typeof resolveNotificationTarget>>
+          & { viaDocumentGrant?: true };
+      return target;
     },
 
     async setRead(context: ActionContext, input: unknown) {

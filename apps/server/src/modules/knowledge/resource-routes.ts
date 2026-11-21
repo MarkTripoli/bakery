@@ -99,6 +99,7 @@ import {
 } from "./blob-upload-handlers.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { registerCommentActions } from "./comments/routes.ts";
+import { registerArtifactAccessActions } from "./artifact-access.ts";
 import { extractArtifactVersion } from "./extraction.ts";
 import { buildContextPack } from "./context-packs.ts";
 import {
@@ -775,6 +776,7 @@ export function createArtifactActions(
     });
   registerStorageActions(registry, options.secret, options.blobStore);
   registerCommentActions(registry, options.secret, options.blobStore);
+  registerArtifactAccessActions(registry, options.secret);
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     ...artifactImplementedActions,
