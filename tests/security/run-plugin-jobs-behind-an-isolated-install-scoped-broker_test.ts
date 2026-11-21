@@ -422,7 +422,14 @@ Deno.test("one request id runs its effect once even while the first call is stil
       args: {},
     });
   const first = broker.call({ token, installId: INSTALL, body: body(1) });
+  // The second call starts only once the first effect is running; the broker
+  // checks the token asynchronously, so starting both together races.
+  for (let waited = 0; runs < 1; waited++) {
+    assert(waited < 500, "the first effect never started");
+    await new Promise((resolve) => setTimeout(resolve, 2));
+  }
   const second = broker.call({ token, installId: INSTALL, body: body(2) });
+  // Let the second call reach the running request before it is released.
   await new Promise((resolve) => setTimeout(resolve, 20));
   release();
   assertEquals(await first, {
