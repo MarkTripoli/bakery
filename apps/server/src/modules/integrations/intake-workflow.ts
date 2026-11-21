@@ -199,7 +199,7 @@ async function claimRoute(
     // A backup holds the installation: leave the route as it is, unclaimed and
     // with no attempt counted, so a long hold cannot use up its attempts. The
     // recovery sweep resends it once the hold ends.
-    if (await isQuiesced(transaction)) {
+    if (await isQuiesced(transaction, "intake")) {
       return ended({ kind: "skipped", reason: "quiesced" });
     }
     const found = await transaction.query<ClaimRow>(

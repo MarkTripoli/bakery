@@ -2835,16 +2835,16 @@ test("typing @ opens the people you can mention: quiet rows, one badge, one mute
   await expect(list.getByRole("option", { name: "Ana Ruiz", exact: true }))
     .toBeVisible();
   await expect(
-    list.getByRole("option", { name: "Sam Patel, gets access on send" }),
+    list.getByRole("option", { name: "Sam Patel, no access yet" }),
   ).toBeVisible();
-  await expect(list.getByText("Gets access on send")).toBeVisible();
+  await expect(list.getByText("No access yet")).toBeVisible();
   const blocked = list.getByRole("option", {
     name: "Samir Okafor, you can't add them here",
   });
   await expect(blocked).toHaveAttribute("aria-disabled", "true");
   await expect(
     page.getByText(
-      "A person who gets access can read and reply in this conversation only.",
+      "You can give access when you send.",
     ),
   ).toBeVisible();
   // The field's focus ring stays clear of the toolbar and its Send under it.
@@ -2864,19 +2864,26 @@ test("typing @ opens the people you can mention: quiet rows, one badge, one mute
 test("choosing a person writes @Name, shows who will be notified and what Send gives, and sends mentions", async ({ page }) => {
   const state = await open(page);
   await messageBox(page).fill("Hi @sa");
-  await page.getByRole("option", { name: "Sam Patel, gets access on send" })
+  await page.getByRole("option", { name: "Sam Patel, no access yet" })
     .click();
   await expect(messageBox(page)).toHaveValue("Hi @Sam Patel ");
-  await expect(page.getByText("Sam Patel · gets access")).toBeVisible();
+  await expect(page.getByText("Sam Patel · no access yet")).toBeVisible();
+  await expect(
+    page.getByText("Sam Patel can't see this conversation. Give them access?"),
+  ).toBeVisible();
   await expect(
     page.getByText(
-      "Sending gives Sam Patel access to read and reply in this conversation, and nothing else.",
+      "They will be able to read and reply in this conversation. Nothing else in the task is shared. This is the only access a mention can give here.",
     ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Don't mention Sam Patel" }),
   ).toBeVisible();
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await page.mouse.move(700, 100);
   await still(page, "mentions-ready");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Give access and send", exact: true })
+    .click();
   await expect.poll(() => state.sent.length).toBe(1);
   expect(state.sent[0].body).toMatchObject({
     body: "Hi @Sam Patel",
@@ -2944,9 +2951,10 @@ test("a refused mention writes nothing: the draft stays, the name turns red, Sen
   await open(page, state);
   const box = messageBox(page);
   await box.fill("Hi @sa");
-  await page.getByRole("option", { name: "Sam Patel, gets access on send" })
+  await page.getByRole("option", { name: "Sam Patel, no access yet" })
     .click();
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Give access and send", exact: true })
+    .click();
   const alert = page.getByRole("alert").filter({ hasText: "Not sent." });
   await expect(alert).toHaveText(
     "Not sent. You can't give Sam Patel access to this conversation. Remove the mention, or ask someone who can share it.",
@@ -2956,8 +2964,8 @@ test("a refused mention writes nothing: the draft stays, the name turns red, Sen
     .toBeDisabled();
   // A refused person gains nothing: the chip is the name only and no line
   // says Send gives them access.
-  await expect(page.getByText("Sam Patel · gets access")).toHaveCount(0);
-  await expect(page.getByText(/Sending gives Sam Patel access/)).toHaveCount(0);
+  await expect(page.getByText("Sam Patel · no access yet")).toHaveCount(0);
+  await expect(page.getByText(/Give them access\?/)).toHaveCount(0);
   await page.mouse.move(700, 100);
   await still(page, "mentions-refused");
   await page.getByRole("button", { name: "Remove mention of Sam Patel" })
@@ -2977,9 +2985,10 @@ test("the other refusals use their own sentence, and several are counted", async
   await open(page, state);
   const box = messageBox(page);
   await box.fill("@sa");
-  await page.getByRole("option", { name: "Sam Patel, gets access on send" })
+  await page.getByRole("option", { name: "Sam Patel, no access yet" })
     .click();
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Give access and send", exact: true })
+    .click();
   await expect(page.getByRole("alert").filter({ hasText: "Not sent." }))
     .toHaveText(
       "Not sent. Sam Patel is no longer a member of Fixture Org. Remove the mention.",
@@ -3000,9 +3009,10 @@ test("the other refusals use their own sentence, and several are counted", async
     .click();
   await box.press("End");
   await box.pressSequentially("@sa");
-  await page.getByRole("option", { name: "Sam Patel, gets access on send" })
+  await page.getByRole("option", { name: "Sam Patel, no access yet" })
     .click();
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Give access and send", exact: true })
+    .click();
   await expect(page.getByRole("alert").filter({ hasText: "Not sent." }))
     .toHaveText(
       "Not sent. 2 people can't be mentioned. Remove the red names to send.",
@@ -3039,6 +3049,104 @@ test("no one found, a failed read with Try again, and the limit of 20 people", a
   await expect(
     page.getByText("You can mention up to 20 people in one message."),
   ).toBeVisible();
+});
+
+const NO_ACCESS = [
+  "Ana Ruiz",
+  "Sam Patel",
+  "Lee Wu",
+  "Kim Oh",
+  "Dana Lee",
+  "Omar Haddad",
+];
+const noAccessWorld = () =>
+  world({
+    candidates: NO_ACCESS.map((displayName, index) => ({
+      principalId: `00000000-0000-4000-8000-0000000000d${index}`,
+      displayName,
+      hasAccess: false,
+      gainsAccessOnSend: true,
+    })),
+  });
+
+for (const count of [3, 6]) {
+  test(`${count} people without access: one question that counts them, the chips are the only list`, async ({ page }) => {
+    await open(page, noAccessWorld());
+    const box = messageBox(page);
+    for (const name of NO_ACCESS.slice(0, count)) {
+      await box.press("End");
+      await box.pressSequentially(`@${name.slice(0, 3)}`);
+      await page.getByRole("option", { name: `${name}, no access yet` })
+        .click();
+    }
+    await expect(
+      page.getByText(
+        `${count} people can't see this conversation. Give them access?`,
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText("To leave someone out, remove their name above."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: `Give access to ${count} people and send`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    // The chips name everyone; the offer lists no one a second time.
+    await expect(page.getByRole("button", { name: /^Remove mention of / }))
+      .toHaveCount(count);
+    const offer = page.getByRole("status").filter({
+      hasText: "Give them access?",
+    });
+    await expect(offer.getByRole("button")).toHaveCount(0);
+    // The draft field grows with its text: nothing of it is cut off.
+    const clipped = await box.evaluate((el) =>
+      el.scrollHeight - el.clientHeight
+    );
+    expect(clipped, "the draft field clips its text").toBeLessThanOrEqual(1);
+    await page.mouse.move(700, 100);
+    await still(page, `mentions-several${count}`);
+  });
+}
+
+test("while the access is being given and the message sent, the offer cannot be changed", async ({ page }) => {
+  const state = world();
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  state.sendReply = async (route) => {
+    await gate;
+    await route.fulfill({ status: 201, json: message(41, "user", "Hi") });
+  };
+  await open(page, state);
+  const box = messageBox(page);
+  await box.fill("Hi @sa");
+  await page.getByRole("option", { name: "Sam Patel, no access yet" }).click();
+  await page.getByRole("button", { name: "Give access and send", exact: true })
+    .click();
+  // The block is read-only: "Don't mention" would rewrite a draft already sent.
+  await expect(page.getByRole("button", { name: "Don't mention Sam Patel" }))
+    .toBeDisabled();
+  release();
+  await expect.poll(() => state.sent.length).toBe(1);
+});
+
+test("not mentioning someone keeps the name as words and drops the chip and the offer", async ({ page }) => {
+  await open(page);
+  const box = messageBox(page);
+  await box.fill("Hi @sa");
+  await page.getByRole("option", { name: "Sam Patel, no access yet" }).click();
+  await expect(box).toHaveValue("Hi @Sam Patel ");
+  await page.getByRole("button", { name: "Don't mention Sam Patel" }).click();
+  await expect(box).toHaveValue("Hi Sam Patel ");
+  await expect(page.getByText("Sam Patel · no access yet")).toHaveCount(0);
+  await expect(page.getByText(/Give them access\?/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Send", exact: true }))
+    .toBeVisible();
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-declined");
 });
 
 test("people a mention added: the link, the list, and taking access back after asking", async ({ page }) => {

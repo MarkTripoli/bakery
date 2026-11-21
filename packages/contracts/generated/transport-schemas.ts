@@ -236,6 +236,26 @@ const transportSchemas = {
       "retryable": false,
       "slug": "installation-restoring"
     },
+    "RESTORE_NOT_HELD": {
+      "status": 409,
+      "retryable": false,
+      "slug": "restore-not-held"
+    },
+    "RESTORE_CONFIRMATION_MISMATCH": {
+      "status": 422,
+      "retryable": false,
+      "slug": "restore-confirmation-mismatch"
+    },
+    "RESTORE_STEP_OUT_OF_ORDER": {
+      "status": 409,
+      "retryable": false,
+      "slug": "restore-step-out-of-order"
+    },
+    "RESTORE_STEP_ALREADY_TAKEN": {
+      "status": 409,
+      "retryable": false,
+      "slug": "restore-step-already-taken"
+    },
     "SNAPSHOT_SCOPE_TOO_LARGE": {
       "status": 413,
       "retryable": false,
@@ -2894,9 +2914,14 @@ const transportSchemas = {
             "prs.turnaroundHours",
             "prs.changedLines",
             "loc.changedLines",
-            "tasks.leadTimeHours"
+            "tasks.leadTimeHours",
+            "delivery.deploymentFrequency",
+            "delivery.changeLeadTimeHours",
+            "delivery.changeFailRate",
+            "delivery.failedDeploymentRecoveryHours",
+            "delivery.deploymentReworkRate"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
         },
         {
           "name": "from",
@@ -13643,9 +13668,14 @@ const transportSchemas = {
             "prs.turnaroundHours",
             "prs.changedLines",
             "loc.changedLines",
-            "tasks.leadTimeHours"
+            "tasks.leadTimeHours",
+            "delivery.deploymentFrequency",
+            "delivery.changeLeadTimeHours",
+            "delivery.changeFailRate",
+            "delivery.failedDeploymentRecoveryHours",
+            "delivery.deploymentReworkRate"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
         },
         {
           "name": "from",
@@ -14141,6 +14171,38 @@ const transportSchemas = {
           "description": "The organization whose storage tree holds the file. A caller must send the organization it is already acting in; it is stated rather than inferred so a file id from elsewhere cannot be probed by accident."
         }
       ]
+    },
+    "InstallationRestoreStep": {
+      "fields": [
+        {
+          "name": "step",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "intake",
+            "dispatch",
+            "workers"
+          ],
+          "description": "The step to take. Steps are taken in order: intake, then dispatch, then workers."
+        },
+        {
+          "name": "confirmation",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "description": "The name of the backup that was restored, typed exactly as the restore record shows it."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session and permission backup:manage; access tokens are refused. Idempotency-Key is required.",
+        "The confirmation must equal the restored backup's name (422 RESTORE_CONFIRMATION_MISMATCH otherwise); nothing changes on a refusal.",
+        "No unreleased restore: 409 RESTORE_NOT_HELD. A step after the next one: 409 RESTORE_STEP_OUT_OF_ORDER. A step already taken: 409 RESTORE_STEP_ALREADY_TAKEN.",
+        "The workers step also releases the restore: every door is open and the hold ends."
+      ],
+      "description": "One step of the ordered re-enable of a restored installation, with the typed confirmation that names the restored backup."
     },
     "BackupDrillReport": {
       "fields": [
@@ -26433,13 +26495,13 @@ const transportSchemas = {
       "fieldTypes": {
         "at": "timestamp",
         "value": "number|null",
-        "unknownReason": "enum(no_records|no_known_values)|null"
+        "unknownReason": "enum(no_records|no_known_values|no_deploy_evidence)|null"
       },
       "description": "One bucket of a metric time series: the bucket's start in UTC and its value, or null when no pull request in the bucket had a known value (unknown, not zero).",
       "fieldDescriptions": {
         "at": "UTC start of the bucket.",
         "value": "Value for the bucket in the series unit; null means unknown and must be shown as missing, not as zero.",
-        "unknownReason": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; null when value is known."
+        "unknownReason": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; no_deploy_evidence for a production delivery metric while Bakery records no deployment; null when value is known."
       },
       "nullableFields": [
         "value",
@@ -35916,6 +35978,62 @@ const transportSchemas = {
         "code": "Why a probe refused to describe the bytes, in words a reader can act on: too large, timed out, ran out of memory, unreadable, malformed, or the sandbox was unavailable. The last two are limits of this probe rather than defects in the file. Null when a description exists.",
         "limit": "The byte limit the probe hit, when the code names one, so a reader can say how far over the file is instead of merely that it is too large.",
         "probedAt": "When the answer was recorded, so a reader can say how fresh it is. Null when nobody has probed the file."
+      }
+    },
+    "InstallationRestore": {
+      "fields": [
+        "id",
+        "backupName",
+        "cutoffAt",
+        "restoredAt",
+        "effectsHeld",
+        "attemptsQuarantined",
+        "jobsAwaitingReconciliation",
+        "workersRevoked",
+        "intakeEnabledAt",
+        "dispatchEnabledAt",
+        "workersEnabledAt",
+        "releasedAt",
+        "nextStep"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "backupName": "string",
+        "cutoffAt": "timestamp|null",
+        "restoredAt": "timestamp",
+        "effectsHeld": "integer",
+        "attemptsQuarantined": "integer",
+        "jobsAwaitingReconciliation": "integer",
+        "workersRevoked": "integer",
+        "intakeEnabledAt": "timestamp|null",
+        "dispatchEnabledAt": "timestamp|null",
+        "workersEnabledAt": "timestamp|null",
+        "releasedAt": "timestamp|null",
+        "nextStep": "enum(intake|dispatch|workers)|null"
+      },
+      "nullableFields": [
+        "cutoffAt",
+        "intakeEnabledAt",
+        "dispatchEnabledAt",
+        "workersEnabledAt",
+        "releasedAt",
+        "nextStep"
+      ],
+      "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown.",
+      "fieldDescriptions": {
+        "id": "The restore's id.",
+        "backupName": "The directory name of the backup that was restored; it is the confirmation to type.",
+        "cutoffAt": "The database-clock cutoff the restored set recorded; null when it recorded none.",
+        "restoredAt": "When the restore fence ran, on the database clock.",
+        "effectsHeld": "External effects that were prepared or submitted and are now held as uncertain.",
+        "attemptsQuarantined": "Worker attempts that were running and are now quarantined.",
+        "jobsAwaitingReconciliation": "Jobs those attempts belong to, now waiting for reconciliation.",
+        "workersRevoked": "Worker hosts that were revoked and must be enrolled again.",
+        "intakeEnabledAt": "When intake was re-enabled; null until then.",
+        "dispatchEnabledAt": "When dispatch was re-enabled; null until then.",
+        "workersEnabledAt": "When workers were re-enabled; null until then.",
+        "releasedAt": "When the restore was released; null while it holds the installation.",
+        "nextStep": "The step to take next; null once released."
       }
     },
     "BackupDrill": {
