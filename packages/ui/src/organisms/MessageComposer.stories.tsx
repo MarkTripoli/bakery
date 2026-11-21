@@ -50,18 +50,8 @@ const render = (state: "default" | "sending" | "disabled") => (
   />
 );
 
-export const Contract: StoryObj = {
-  render: () => (
-    <>
-      {render("default")}
-      {render("sending")}
-      {render("disabled")}
-    </>
-  ),
-};
-
 /** The mention row between the field and the toolbar, and the picker hung above the box. */
-export const WithMentions: StoryObj = {
+const WithMentions: StoryObj = {
   render: () => (
     <MessageComposer
       aria-label="Message this task (with mentions)"
@@ -100,5 +90,16 @@ export const WithMentions: StoryObj = {
         </Button>
       }
     />
+  ),
+};
+
+export const Contract: StoryObj = {
+  render: (args, context) => (
+    <>
+      {render("default")}
+      {render("sending")}
+      {render("disabled")}
+      {WithMentions.render?.(args, context)}
+    </>
   ),
 };
