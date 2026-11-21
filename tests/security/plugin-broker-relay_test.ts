@@ -314,3 +314,95 @@ Deno.test("a chunked body with no declared length is cut off at the cap, not buf
     assertEquals(rec.seen, []);
   }, { pluginBrokerOperations: [rec.operation] });
 });
+
+Deno.test("a job keeps what its version asked for: a capability added by an update is not its own", () => {
+  const read = recorder();
+  const wrote: string[] = [];
+  const write = {
+    name: "state.write",
+    run: () => {
+      wrote.push("written");
+      return Promise.resolve({ ok: true });
+    },
+  };
+  return withPluginFixture(async (fixture, store) => {
+    const first = await publishWithPages(
+      fixture,
+      store,
+      { name: "nightly-helper", requestedCapabilities: ["state.read"] },
+      { "jobs/nightly.js": "export default () => 1;\n" },
+    );
+    assertEquals(first.response.status, 201, await first.response.text());
+    const installId = await install(fixture, first);
+    const second = await publishWithPages(
+      fixture,
+      store,
+      {
+        name: "nightly-helper",
+        requestedCapabilities: ["state.read", "state.write"],
+      },
+      { "jobs/nightly.js": "export default () => 2;\n" },
+      first.packageId,
+    );
+    assertEquals(second.response.status, 201, await second.response.text());
+
+    // A job admitted under the first version, which never asked to write.
+    const admit = async (versionId: string) => {
+      const worker = await registeredWorker(fixture, { capabilities: CAPS });
+      await seedEligibleJob(
+        fixture.pgDatabase,
+        fixture.organizationId,
+        fixture.principalId,
+        {
+          action: "plugin.job",
+          capabilities: ["plugin.job.contained"],
+          input: { installId, versionId, entry: "jobs/nightly.js" },
+        },
+      );
+      const assignment = await claimAssignment(fixture, worker, {
+        capabilities: CAPS,
+        supportedActions: ["plugin.job"],
+      });
+      return { worker, assignment };
+    };
+    const before = await admit(first.versionId);
+    const update = await call(fixture, `/v1/plugin-installs/${installId}`, {
+      method: "PATCH",
+      body: {
+        versionId: second.versionId,
+        approveCapabilities: ["state.write"],
+      },
+    });
+    assertEquals(update.status, 200, await update.clone().text());
+    assertEquals((await update.json()).pluginVersionId, second.versionId);
+
+    // The install holds state.write now; the job admitted before it does not.
+    const denied = await relay(
+      fixture,
+      before.worker,
+      before.assignment,
+      request(1, { operation: "state.write", args: {} }),
+    );
+    assertEquals((await denied.json()).denial, "not_granted");
+    assertEquals(wrote, []);
+    // What its own version asked for still works.
+    const allowed = await relay(
+      fixture,
+      before.worker,
+      before.assignment,
+      request(2),
+    );
+    assertEquals((await allowed.json()).ok, true);
+
+    // A job admitted under the new version may write.
+    const after = await admit(second.versionId);
+    const written = await relay(
+      fixture,
+      after.worker,
+      after.assignment,
+      request(1, { operation: "state.write", args: {} }),
+    );
+    assertEquals((await written.json()).ok, true);
+    assertEquals(wrote, ["written"]);
+  }, { pluginBrokerOperations: [read.operation, write] });
+});
