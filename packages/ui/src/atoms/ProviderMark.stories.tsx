@@ -12,6 +12,7 @@ const PROVIDERS = [
   ["sentry", "Sentry"],
   ["github", "GitHub"],
   ["linear", "Linear"],
+  // The whole file, uncropped, drawn at twice the size: it overflows its slot.
   ["openai", "OpenAI"],
   ["openrouter", "OpenRouter"],
   // No agreed mark yet: each gets the letter tile.

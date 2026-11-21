@@ -333,6 +333,23 @@
   block-size: calc(var(--space-6) + var(--space-0-5));
   inline-size: calc(var(--space-6) + var(--space-0-5));
 }
+/* A vendor file that carries its own clear space (OpenAI): the whole file is
+   drawn at twice the art size and overflows the slot, centred, so the glyph
+   reads at the normal size. The slot keeps its size; the overflow is
+   transparent clear space and takes no pointer events. */
+.ui-provider-mark[data-clear-space="true"] {
+  overflow: visible;
+  pointer-events: none;
+}
+.ui-provider-mark[data-clear-space="true"] .ui-provider-mark__art {
+  block-size: calc(var(--space-5) * 2);
+  flex: none;
+  inline-size: calc(var(--space-5) * 2);
+}
+.ui-provider-mark--header[data-clear-space="true"] .ui-provider-mark__art {
+  block-size: calc((var(--space-6) + var(--space-0-5)) * 2);
+  inline-size: calc((var(--space-6) + var(--space-0-5)) * 2);
+}
 .ui-provider-mark__tile {
   align-items: center;
   background: var(--color-surface-subtle);
