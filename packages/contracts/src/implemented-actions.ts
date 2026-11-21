@@ -533,6 +533,7 @@ export const workflowImplementedActions = Object.freeze(
 export const BatchImplementedAction = Object.freeze(
   {
     BatchesList: "batches.list",
+    BatchesStartable: "batches.startable",
     BatchesGet: "batches.get",
     BatchesCreate: "batches.create",
     BatchesPause: "batches.pause",
