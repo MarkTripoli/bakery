@@ -32,6 +32,10 @@ import { agentFileWriteFor, refuseAgentPath } from "./agent-file-guard.ts";
 import { sha256Bytes } from "./bytes.ts";
 import { enqueueProbeSubject } from "./probe-runner.ts";
 import {
+  attemptVersionProvenance,
+  type VersionProvenance,
+} from "./version-provenance.ts";
+import {
   type CursorBinding,
   decodeCursor,
   encodeCursor,
@@ -549,6 +553,8 @@ async function appendVersion(
     entry: Row;
     bytes: FileBytes;
     limits: StorageLimits;
+    /** The agent step that produced the version; null for a person's. */
+    provenance: VersionProvenance | null;
   },
 ): Promise<string> {
   const revision = await tx.query<{ next: number }>(
@@ -561,8 +567,10 @@ async function appendVersion(
   const inserted = await tx.query<{ id: string }>(
     "insert into bakery.storage_file_versions" +
       " (organization_id, entry_id, revision, blob_id, content, sha256," +
-      " size_bytes, media_type, author_id)" +
-      " values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id",
+      " size_bytes, media_type, author_id, run_id, run_step_id, attempt_id," +
+      " agent_session_id, acting_for_principal_id)" +
+      " values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)" +
+      " returning id",
     [
       input.organizationId,
       input.entry.id,
@@ -573,6 +581,11 @@ async function appendVersion(
       input.bytes.sizeBytes,
       input.bytes.mediaType,
       input.principalId,
+      input.provenance?.runId ?? null,
+      input.provenance?.runStepId ?? null,
+      input.provenance?.attemptId ?? null,
+      input.provenance?.agentSessionId ?? null,
+      input.provenance?.actingForPrincipalId ?? null,
     ],
   );
   // A blob-backed version is asked about once however many versions share the
@@ -980,6 +993,17 @@ export async function putStorageFile(context: ActionContext, input: PutInput) {
     entry,
     bytes,
     limits,
+    // An agent's write records the step that made it, from this call's
+    // attempt and session; a person's own write records none.
+    provenance: agent === null ? null : await attemptVersionProvenance(
+      tx,
+      organizationId,
+      agent.attemptId,
+      {
+        agentSessionId: agent.agentSessionId,
+        actingForPrincipalId: principalId,
+      },
+    ),
   });
   await audit(tx, context, {
     organizationId,
@@ -1169,6 +1193,17 @@ export async function copyStorageEntry(
     entry,
     bytes,
     limits,
+    // An agent's write records the step that made it, from this call's
+    // attempt and session; a person's own write records none.
+    provenance: agent === null ? null : await attemptVersionProvenance(
+      tx,
+      organizationId,
+      agent.attemptId,
+      {
+        agentSessionId: agent.agentSessionId,
+        actingForPrincipalId: principalId,
+      },
+    ),
   });
   await audit(tx, context, {
     organizationId,

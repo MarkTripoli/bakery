@@ -1,5 +1,5 @@
 {
-  "revision": "c47890ab1c7c5960c05a7b447002e6040c5c0d4602d058f8d30cde33fdb5e26b",
+  "revision": "b4783fbc54fff2574b4552c64b139a56a1f27f329596059033975c29caa1afaf",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -20055,7 +20055,9 @@
         "default"
       ],
       "states": [
-        "default"
+        "ok",
+        "warning",
+        "paused"
       ],
       "themes": [
         "light",
@@ -20085,7 +20087,9 @@
             "default"
           ],
           "states": [
-            "default"
+            "ok",
+            "warning",
+            "paused"
           ],
           "baselineIds": []
         }

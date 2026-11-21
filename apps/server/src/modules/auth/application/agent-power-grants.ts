@@ -1,6 +1,7 @@
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "../../../platform/database.ts";
+import { assignedAgentSessionSql } from "@bakery/persistence/claims";
 import {
   type ActionAttribution,
   attributeAction,
@@ -32,6 +33,22 @@ export const AgentPower = Object.freeze(
      * labelled steered and does not count as independent.
      */
     SteerReviewer: "steer_reviewer",
+    /**
+     * Write comments on documents and drafts from a session, as the person the
+     * run is for. The call is still judged as that person; the power only
+     * offers the tools, and a revoked grant stops the next call.
+     */
+    Comment: "comment",
+    /**
+     * Edit work items (title, description and the other task fields a person
+     * edits) from a session, as the person the run is for.
+     */
+    EditWork: "edit_work",
+    /**
+     * Draft a connection from a session: a personal one with no secret that
+     * stays off until the person it acts for completes and enables it.
+     */
+    DraftConnection: "draft_connection",
   } as const,
 );
 export type AgentPower = typeof AgentPower[keyof typeof AgentPower];
@@ -88,16 +105,8 @@ export async function attemptOrigin(
   }>(
     `select run.id as "runId", run.task_id as "taskId",
             version.workflow_id as "workflowId",
-            (
-              select session.id
-                from bakery.agent_sessions as session
-               where session.organization_id = job.organization_id
-                 and session.run_step_id = job.run_step_id
-               -- The newest session of the step: a retried attempt opens a new
-               -- one, so the earliest would name an earlier attempt's session.
-               order by session.created_at desc, session.id desc
-               limit 1
-            ) as "agentSessionId"
+            -- The session the attempt's claim handed it, not a later one.
+            ${assignedAgentSessionSql("job")} as "agentSessionId"
        from bakery.job_attempts as attempt
        join bakery.jobs as job
          on job.organization_id = attempt.organization_id
