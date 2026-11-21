@@ -36,6 +36,8 @@ export const IDS = {
   everyState: uuid(109),
   /** Unmeasured results in two states: Not run and Stopped. */
   twoStates: uuid(110),
+  /** More than one page of errors, then unscored results (only with `manyErrors`). */
+  manyErrors: uuid(111),
 } as const;
 
 const CASES = [
@@ -149,6 +151,10 @@ export type EvaluationsOptions = {
   empty?: boolean;
   /** Add this many finished runs after the usual ones, to fill more than a page. */
   extra?: number;
+  /** Add a run with 60 errors and 5 unscored results: two pages of errors, then the rest. */
+  manyErrors?: boolean;
+  /** Reading the sets of test cases answers this status, so no set is known. */
+  datasetsStatus?: number;
   /** The first Stop is refused with 412 after someone else already changed the run. */
   conflictOnce?: boolean;
   /** Reading the run list answers this status. */
@@ -296,6 +302,21 @@ export async function evaluationsFixture(
         blockers: [],
       },
     }),
+    ...(options.manyErrors === true
+      ? [
+        run(IDS.manyErrors, 10, {
+          state: "completed_with_errors",
+          requiredCount: 65,
+          measuredCount: 0,
+          counts: { ...ZERO, error: 60, unscored: 5 },
+          gate: {
+            decision: "cannot_be_judged",
+            rule: "at least 80% of required results pass",
+            blockers: [],
+          },
+        }),
+      ]
+      : []),
     ...Array.from(
       { length: options.extra ?? 0 },
       (_, index) => run(uuid(1000 + index), 10 + index, {}),
@@ -398,16 +419,21 @@ export async function evaluationsFixture(
   await page.route(
     (url) => url.pathname === "/v1/evaluation-datasets",
     (route) =>
-      json(route, {
-        items: [{
-          id: IDS.dataset,
-          name: "Support questions",
-          cases: CASES.map((entry) => ({ caseId: entry.id, caseRevision: 1 })),
-          digest: "sha256:aaaa",
-          createdAt: "2026-11-01T09:00:00.000Z",
-        }],
-        nextCursor: null,
-      }),
+      options.datasetsStatus !== undefined
+        ? problem(route, options.datasetsStatus, "SERVER_ERROR")
+        : json(route, {
+          items: [{
+            id: IDS.dataset,
+            name: "Support questions",
+            cases: CASES.map((entry) => ({
+              caseId: entry.id,
+              caseRevision: 1,
+            })),
+            digest: "sha256:aaaa",
+            createdAt: "2026-11-01T09:00:00.000Z",
+          }],
+          nextCursor: null,
+        }),
   );
   await page.route(
     (url) => url.pathname === "/v1/evaluation-cases",

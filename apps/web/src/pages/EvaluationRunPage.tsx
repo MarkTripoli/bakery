@@ -134,6 +134,10 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
     ...evaluationResultsQueryOptions(api, scope, batchId, wanted[0], live),
     enabled: ready,
   });
+  // The second state is read only once the first has no more pages, so errors
+  // come first and "Show more" never lands rows between ones already on screen.
+  // A read that has not answered yet has no next page either, hence isSuccess.
+  const firstDone = firstRead.isSuccess && !firstRead.hasNextPage;
   const secondRead = useInfiniteQuery({
     ...evaluationResultsQueryOptions(
       api,
@@ -142,7 +146,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
       wanted[1] ?? "unscored",
       live,
     ),
-    enabled: ready && wanted.length > 1,
+    enabled: ready && wanted.length > 1 && firstDone,
   });
   const reads = wanted.length > 1 ? [firstRead, secondRead] : [firstRead];
   const results = {
@@ -150,7 +154,8 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
       read.data?.pages.flatMap((page) => page.items) ?? []
     ),
     isError: reads.some((read) => read.isError),
-    isPending: reads.some((read) => read.isPending),
+    // The second read waits on the first, so only the first can hold the page back.
+    isPending: firstRead.isPending,
     hasNextPage: reads.some((read) => read.hasNextPage),
     isFetchingNextPage: reads.some((read) => read.isFetchingNextPage),
     fetchNextPage: () => {
@@ -294,7 +299,6 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
   const scorerName = (id: string) =>
     batch.scorers.find((scorer) => scorer.scorerId === id)?.slug ??
       id.slice(0, 8);
-  const caseCount = dataset?.cases.length ?? groups.length;
   const baseline = batch.baseline === null
     ? null
     : words(pinTitle(batch.baseline, names));
@@ -476,12 +480,19 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
               ))}
             </UI.Inline>
             <UI.Text variant="muted">
-              {translate("library.evaluation.results.summary", {
-                measured: batch.measuredCount,
-                required: batch.requiredCount,
-                cases: caseCount,
-                scorers: batch.scorers.length,
-              })}
+              {dataset === undefined
+                // Without the set there is no test case count to give: the
+                // groups on screen change with the filter and "Show more".
+                ? translate("library.evaluation.results.summaryUnknownSet", {
+                  measured: batch.measuredCount,
+                  required: batch.requiredCount,
+                })
+                : translate("library.evaluation.results.summary", {
+                  measured: batch.measuredCount,
+                  required: batch.requiredCount,
+                  cases: dataset.cases.length,
+                  scorers: batch.scorers.length,
+                })}
             </UI.Text>
             {chips.length > 0
               ? (

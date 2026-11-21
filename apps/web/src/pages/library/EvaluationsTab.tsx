@@ -39,13 +39,20 @@ export function EvaluationsTab() {
     const words = pinTitle(run.candidate, names);
     return translate(words.key, words.values);
   };
-  const line = (run: EvaluationBatch) =>
-    translate("library.evaluations.rowLine", {
-      set: names.datasets.get(run.datasetId)?.name ??
-        translate("library.evaluations.set.unknown"),
-      count: names.datasets.get(run.datasetId)?.cases.length ?? 0,
-      started: when(run.createdAt),
-    });
+  const line = (run: EvaluationBatch) => {
+    const dataset = names.datasets.get(run.datasetId);
+    // An unknown set has no test case count to state, so its row leaves it out.
+    return dataset === undefined
+      ? translate("library.evaluations.rowLineUnknownSet", {
+        set: translate("library.evaluations.set.unknown"),
+        started: when(run.createdAt),
+      })
+      : translate("library.evaluations.rowLine", {
+        set: dataset.name,
+        count: dataset.cases.length,
+        started: when(run.createdAt),
+      });
+  };
   const open = (run: EvaluationBatch) =>
     void navigate({
       to: "/library/evaluations/$batchId",

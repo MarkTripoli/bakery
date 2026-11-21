@@ -404,6 +404,45 @@ for (
       await failing.close();
     });
 
+    test("Not scored reads every page of errors before it reads the unscored ones", async ({ page }) => {
+      const fixture = await evaluationsFixture(page, { manyErrors: true });
+      await page.goto(run(IDS.manyErrors));
+      const results = () =>
+        fixture.seen.filter((entry) =>
+          entry.path.endsWith("/results") && entry.method === "GET"
+        ).map((entry) => new URLSearchParams(entry.search).get("state"));
+      await page.getByRole("radio", { name: /65$/ }).check();
+      await expect.poll(results).toContain("error");
+      // The first page of errors is on screen and nothing unscored was asked for.
+      await expect(page.getByRole("button", { name: "Show more" }))
+        .toBeVisible();
+      expect(results()).not.toContain("unscored");
+      await page.getByRole("button", { name: "Show more" }).click();
+      await expect.poll(results).toContain("unscored");
+      // The errors were read to the end first: the second page of errors came
+      // before the first page of unscored results.
+      const asked = results().filter((state) => state !== null);
+      expect(asked.indexOf("unscored")).toBeGreaterThan(
+        asked.lastIndexOf("error"),
+      );
+    });
+
+    test("a run whose set is not known gives no test case count", async ({ page }) => {
+      await evaluationsFixture(page, { datasetsStatus: 503 });
+      await page.goto(run(IDS.gaps));
+      await expect(
+        page.getByText(
+          "7 of 10 measured. The six counts always add up to 10.",
+        ),
+      ).toBeVisible();
+      await expect(page.getByText(/test cases?, each by/)).toHaveCount(0);
+      await page.goto(LIST);
+      await expect(page.getByText(/A set of test cases · /).first())
+        .toBeVisible();
+      await expect(page.getByText(/A set of test cases, \d+ test case/))
+        .toHaveCount(0);
+    });
+
     test("a running run reads again on its own and its counts change in place", async ({ page }) => {
       test.setTimeout(laneBudgetMs(60_000));
       const fixture = await evaluationsFixture(page);
