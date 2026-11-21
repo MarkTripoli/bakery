@@ -1523,6 +1523,11 @@
   margin-block: calc((var(--space-5) - var(--target-coarse)) / 2);
   min-block-size: var(--target-coarse);
 }
+/* A title that may wrap: no touch frame with negative margins, which would pull the next line up under it. */
+.ui-stacked-row[data-title-lines="wrap"] .ui-link {
+  margin-block: var(--space-0);
+  min-block-size: var(--space-0);
+}
 .ui-stacked-row .ui-link,
 .ui-data-table--ruled .ui-link {
   text-decoration: none;

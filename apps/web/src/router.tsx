@@ -30,6 +30,9 @@ import {
 import { TasksPage } from "./pages/TasksPage.tsx";
 import { IssuePage } from "./pages/IssuePage.tsx";
 import { ProjectsPage } from "./pages/ProjectsPage.tsx";
+import { BatchesListPage } from "./pages/BatchesListPage.tsx";
+import { BatchPage } from "./pages/BatchPage.tsx";
+import { BatchStartPage } from "./pages/BatchStartPage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
 import { IssueSettingsListPage } from "./pages/IssueSettingsListPage.tsx";
 import { IssueSettingsPage } from "./pages/IssueSettingsPage.tsx";
@@ -38,6 +41,7 @@ import { FilesPage } from "./pages/FilesPage.tsx";
 import { FileVersionPage } from "./pages/FileVersionPage.tsx";
 import { folderPathOf } from "./pages/files/files-state.ts";
 import { AgentPage } from "./pages/AgentPage.tsx";
+import { EvaluationRunPage } from "./pages/EvaluationRunPage.tsx";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
@@ -345,6 +349,20 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "library-evaluation",
+    path: "/library/evaluations/$batchId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
     id: "issues",
     path: "/issues",
     classification: "production",
@@ -355,6 +373,43 @@ export const routeCoverage = [
       "error",
       "forbidden",
       "offline",
+    ],
+  },
+  {
+    id: "batches",
+    path: "/issues/batches",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
+    id: "batch-new",
+    path: "/issues/batches/new",
+    classification: "production",
+    states: [
+      "ready",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
+    id: "batch-detail",
+    path: "/issues/batches/$batchId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
     ],
   },
   {
@@ -1254,6 +1309,47 @@ const issuesRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const batchesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues/batches",
+  // `?repository=<id>` narrows the list to one repository.
+  validateSearch: (search: Record<string, unknown>) => ({
+    repository:
+      typeof search.repository === "string" && search.repository !== ""
+        ? search.repository
+        : undefined,
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: BatchesListPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const batchNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues/batches/new",
+  // `?repository=<id>` preselects the repository.
+  validateSearch: (search: Record<string, unknown>) => ({
+    repository:
+      typeof search.repository === "string" && search.repository !== ""
+        ? search.repository
+        : undefined,
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: BatchStartPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const batchDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues/batches/$batchId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <BatchPage batchId={batchDetailRoute.useParams().batchId} />,
+  errorComponent: ProtectedRouteError,
+});
+
 const issueDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/issues/$issueId",
@@ -1378,8 +1474,9 @@ const libraryRoute = createRoute({
   // `?tab=agents` opens the Agents list; Workflows is the page itself.
   validateSearch: (
     search: Record<string, unknown>,
-  ): { tab?: "agents" | "memory"; fact?: string } => {
+  ): { tab?: "agents" | "memory" | "evaluations"; fact?: string } => {
     if (search.tab === "agents") return { tab: "agents" };
+    if (search.tab === "evaluations") return { tab: "evaluations" };
     if (search.tab !== "memory") return {};
     // An open fact is only meaningful on the Memory tab.
     return typeof search.fact === "string" && search.fact !== ""
@@ -1432,6 +1529,17 @@ const agentRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <AgentPage agentId={agentRoute.useParams().agentId} />,
+  errorComponent: ProtectedRouteError,
+});
+
+const evaluationRunRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/evaluations/$batchId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <EvaluationRunPage batchId={evaluationRunRoute.useParams().batchId} />
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -2549,6 +2657,9 @@ const routeTree = rootRoute.addChildren([
   issueDetailRoute,
   issueSettingsRoute,
   issueSettingsDetailRoute,
+  batchesRoute,
+  batchNewRoute,
+  batchDetailRoute,
   machinesRoute,
   filesRoute,
   fileVersionRoute,
@@ -2558,6 +2669,7 @@ const routeTree = rootRoute.addChildren([
   workflowEditorRoute,
   builtInWorkflowRoute,
   agentRoute,
+  evaluationRunRoute,
   machineNewRoute,
   machineDetailRoute,
   statusRoute,

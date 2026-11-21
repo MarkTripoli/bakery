@@ -21,6 +21,8 @@ import type {
   ArtifactStorageResponse,
   ArtifactVersionListResponse,
   BakeryApiClient,
+  BatchListResponse,
+  BatchResponse,
   BrowserSessionList,
   CheckRunListResponse,
   ConnectedClientList,
@@ -31,6 +33,11 @@ import type {
   DispatchBlockersResponse,
   EffectiveAccess,
   EnrollmentStatus,
+  EvaluationAttempt,
+  EvaluationBatch,
+  EvaluationBatchPage,
+  EvaluationBatchResultPage,
+  EvaluationResultState,
   ExternalTicketListResponse,
   ExternalTicketResponse,
   FileFactPage,
@@ -2001,6 +2008,39 @@ export function repositoriesListQueryOptions(
   });
 }
 
+/**
+ * Every repository of the organization, collected 100 at a time up to a bound (as the Projects
+ * lists do), for pages that must name any repository a record points at.
+ */
+export function repositoriesAllQueryOptions(
+  client: Pick<BakeryApiClient, "listRepositories">,
+  scope: ApiScope,
+) {
+  return queryOptions<RepositoryListResponse["items"], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "repositories.all", {}),
+    queryFn: async ({ signal }) => {
+      const items: RepositoryListResponse["items"] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < PROJECTS_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listRepositories({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) break;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 export function repositoryQueryOptions(
   client: Pick<BakeryApiClient, "getRepository">,
   scope: ApiScope,
@@ -3279,6 +3319,71 @@ export function connectionRepositoriesQueryOptions(
   });
 }
 
+/** One page of batches, newest first; `repositoryId` narrows to one repository. */
+export function batchesListQueryOptions(
+  client: Pick<BakeryApiClient, "batches">,
+  scope: ApiScope,
+  filter: { readonly repositoryId: string | null; readonly limit: number },
+) {
+  return infiniteQueryOptions<
+    BatchListResponse,
+    ApiFailure,
+    { pages: BatchListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "batches.list", filter),
+    initialPageParam: null,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.batches.list({
+          organizationId: requireOrganization(scope),
+          ...(filter.repositoryId === null
+            ? {}
+            : { repositoryId: filter.repositoryId }),
+          cursor: pageParam ?? undefined,
+          limit: filter.limit,
+          signal,
+        }),
+      ),
+    getNextPageParam: (last) => last.nextCursor,
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * One batch. While it is live and the tab is showing, it is read again every
+ * ten seconds so the page follows the supervisor; a finished batch is read once.
+ */
+export function batchQueryOptions(
+  client: Pick<BakeryApiClient, "batches">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<BatchResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "batches.get", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.batches.get({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
+    refetchInterval: (query) => {
+      const state = query.state.data?.state;
+      return state === undefined || state === "finished" ||
+          state === "stopped"
+        ? false
+        : 10_000;
+    },
+    refetchIntervalInBackground: false,
+    retry: retryNetworkOnce,
+  });
+}
+
 /** One repository's issue settings, by id. */
 export function ticketSourceQueryOptions(
   client: Pick<BakeryApiClient, "tickets">,
@@ -3768,6 +3873,149 @@ export function telemetryDestinationQueryOptions(
     refetchInterval: 15_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** A run still moving reads again this often (design-ux #75, revision 4: no event exists, so the page polls). */
+export const EVALUATION_POLL_MS = 10_000;
+
+/** Whether a run is still waiting or running, so its page keeps reading. */
+export function evaluationBatchIsLive(
+  state: EvaluationBatch["state"] | undefined,
+): boolean {
+  return state === "queued" || state === "running";
+}
+
+/** The runs of the organization, newest first, a page at a time; it reads again while any listed run is live. */
+export function evaluationBatchesQueryOptions(
+  client: Pick<BakeryApiClient, "listEvaluationBatches">,
+  scope: ApiScope,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    EvaluationBatchPage,
+    ApiFailure,
+    { pages: EvaluationBatchPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "evaluationBatches.list", { limit }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listEvaluationBatches({
+          organizationId: requireOrganization(scope),
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    refetchInterval: (query) =>
+      query.state.data?.pages.some((page) =>
+          page.items.some((run) => evaluationBatchIsLive(run.state))
+        )
+        ? EVALUATION_POLL_MS
+        : false,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One run with its counts and gate; it reads again every ten seconds while the run is live. */
+export function evaluationBatchQueryOptions(
+  client: Pick<BakeryApiClient, "getEvaluationBatch">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<EvaluationBatch, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "evaluationBatches.one", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getEvaluationBatch({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
+    refetchInterval: (query) =>
+      evaluationBatchIsLive(query.state.data?.state)
+        ? EVALUATION_POLL_MS
+        : false,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The results of one run, optionally in one state, fifty at a time; live runs read again with their page. */
+export function evaluationResultsQueryOptions(
+  client: Pick<BakeryApiClient, "listEvaluationResults">,
+  scope: ApiScope,
+  id: string,
+  state: EvaluationResultState | undefined,
+  live: boolean,
+  limit = 50,
+) {
+  return infiniteQueryOptions<
+    EvaluationBatchResultPage,
+    ApiFailure,
+    { pages: EvaluationBatchResultPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "evaluationBatchResults.list", {
+      id,
+      state: state ?? null,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listEvaluationResults({
+          organizationId: requireOrganization(scope),
+          id,
+          ...(state === undefined ? {} : { state }),
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
+    refetchInterval: live ? EVALUATION_POLL_MS : false,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The attempts behind one result (a few pages at most), newest first. */
+export function evaluationAttemptsQueryOptions(
+  client: Pick<BakeryApiClient, "listEvaluationAttempts">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<EvaluationAttempt[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "evaluationAttempts.list", { id }),
+    queryFn: async ({ signal }) => {
+      const items: EvaluationAttempt[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listEvaluationAttempts({
+            organizationId: requireOrganization(scope),
+            id,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId) && id !== "",
     retry: retryNetworkOnce,
   });
 }

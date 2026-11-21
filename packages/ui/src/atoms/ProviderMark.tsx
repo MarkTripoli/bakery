@@ -25,7 +25,9 @@ export type ProviderMarkProps =
  * every provider so names start at one x. The vendor file is never recoloured:
  * the light file shows on a light surface and the dark file on a dark one. A
  * provider with no mark, or one the registry does not know, gets a letter
- * tile. Never a link, never larger than Bakery's own mark.
+ * tile. Never a link, and its glyph never reads larger than Bakery's own mark:
+ * a file with its own clear space is drawn at twice the size and overflows the
+ * slot, so the slot, and the x where names start, stay the same.
  */
 export function ProviderMark(
   { provider, name, size = "row", standalone = false, ...props }:
@@ -65,6 +67,7 @@ export function ProviderMark(
       {...label}
       {...props}
       data-provider={provider}
+      data-clear-space={files?.clearSpace === true ? "true" : undefined}
       data-state={files === undefined ? "tile" : "mark"}
       data-ui-component="providerMark"
       data-variant={size}

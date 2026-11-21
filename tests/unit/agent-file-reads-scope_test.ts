@@ -17,6 +17,7 @@ import {
   readsOnlyInputs,
   resolveStepFiles,
   SEALED_STEP_FILES,
+  sealedByDefault,
   WORKFLOW_FILE_READ_AREAS,
   WORKFLOW_FILE_WRITE_AREAS,
   WorkflowStepFilesSchema,
@@ -187,6 +188,74 @@ Deno.test("compiler: sealed: false leaves the defaults and the digest alone", as
   const narrowedNode = narrowed.document.steps[0];
   assert(narrowedNode && narrowedNode.kind === "action");
   assertEquals(narrowedNode.files?.read, ["inputs", "shared"]);
+});
+
+/** An evaluation.check step's input, as a batch hands it over. */
+const checkInput = {
+  evaluationResultId: "0195f000-0000-7000-8000-0000000000f1",
+  outputArtifactVersionId: "0195f000-0000-7000-8000-0000000000f2",
+  check: { kind: "contains", config: { substring: "ok" } },
+};
+
+Deno.test("compiler: an evaluation step is sealed by default (O53)", async () => {
+  for (
+    const uses of ["evaluation.check", "evaluation.sample", "evaluation.score"]
+  ) {
+    assert(sealedByDefault(uses), uses);
+  }
+  for (
+    const uses of ["workflow.noop", "harness.implement", "review.independent"]
+  ) {
+    assert(!sealedByDefault(uses), uses);
+  }
+  assert(!sealedByDefault("no.such.action"));
+  const evaluation = await compile([
+    step({ uses: "evaluation.check", with: checkInput }),
+  ]);
+  assert(
+    evaluation.ok,
+    JSON.stringify(evaluation.ok ? [] : evaluation.diagnostics),
+  );
+  const node = evaluation.document.steps[0];
+  assert(node && node.kind === "action");
+  assertEquals(node.files, { read: ["inputs"], write: ["outputs"] });
+  assertEquals(evaluation.plan.steps[0]?.files, {
+    read: ["inputs"],
+    write: ["outputs"],
+  });
+  // The default and the explicit sugar are the same plan and digest.
+  const sugar = await compile([
+    step({ uses: "evaluation.check", with: checkInput, sealed: true }),
+  ]);
+  assert(sugar.ok);
+  assertEquals(sugar.digest, evaluation.digest);
+});
+
+Deno.test("compiler: an evaluation step's own files section or sealed: false wins over the default", async () => {
+  const opened = await compile([
+    step({ uses: "evaluation.check", with: checkInput, sealed: false }),
+  ]);
+  assert(opened.ok, JSON.stringify(opened.ok ? [] : opened.diagnostics));
+  const openedNode = opened.document.steps[0];
+  assert(openedNode && openedNode.kind === "action");
+  assertEquals(openedNode.files, undefined);
+  const explicit = await compile([
+    step({
+      uses: "evaluation.check",
+      with: checkInput,
+      files: { read: ["inputs", "shared"], write: ["outputs"] },
+    }),
+  ]);
+  assert(explicit.ok, JSON.stringify(explicit.ok ? [] : explicit.diagnostics));
+  const explicitNode = explicit.document.steps[0];
+  assert(explicitNode && explicitNode.kind === "action");
+  assertEquals(explicitNode.files?.read, ["inputs", "shared"]);
+  // Any other step keeps the defaults when it authors neither.
+  const plain = await compile([step()]);
+  assert(plain.ok);
+  const plainNode = plain.document.steps[0];
+  assert(plainNode && plainNode.kind === "action");
+  assertEquals(plainNode.files, undefined);
 });
 
 Deno.test("compiler: sealed with a conflicting files section is refused by name", async () => {
