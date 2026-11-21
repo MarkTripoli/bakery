@@ -167,3 +167,119 @@ Deno.test("AC: an artifact published by a worker appears in the tree under its w
     await authFixture.close();
   }
 });
+
+Deno.test("#448 S8a: a published version names the session and attempt that published it, not the step's later session", async () => {
+  const authFixture = await openAuthFixture();
+  const admin = await seedWorkerAdminIdentity(authFixture);
+  try {
+    const scope = await createWorkerScope(authFixture, "version-provenance", {
+      email: admin.email,
+      principalId: admin.principalId,
+      adminCookie: admin.cookie,
+    });
+    const fixture: WorkerFixture = {
+      ...authFixture,
+      ...scope,
+      releaseFixture: () => {},
+      workerHostIds: [],
+    };
+    try {
+      const worker = await registeredWorker(fixture);
+      const job = await seedFundedModelJob(
+        fixture.pgDatabase,
+        fixture.organizationId,
+        fixture.principalId,
+      );
+      const assignment = await claimAssignment(fixture, worker);
+      // The session that is the step's newest when the attempt publishes.
+      const publishing = (await fixture.pgDatabase.query<{ id: string }>(
+        `select id from bakery.agent_sessions
+          where organization_id = $1 and run_step_id = $2
+          order by created_at desc, id desc limit 1`,
+        [fixture.organizationId, job.runStepId],
+      )).rows[0];
+      assert(publishing, "the step has a session when it publishes");
+      const form = new FormData();
+      form.set("leaseToken", assignment.leaseToken);
+      form.set("fence", assignment.fence);
+      form.set("workerSessionId", worker.registration.workerSessionId);
+      form.set(
+        "workerSessionGeneration",
+        String(worker.registration.workerSessionGeneration),
+      );
+      form.set("artifactType", "patch");
+      form.set("name", "Provenance.txt");
+      form.set("contentType", "text/plain");
+      form.set("metadata", "{}");
+      form.set("runStepId", job.runStepId);
+      form.set("stepKey", "worker");
+      form.set("content", new File(["published once"], "provenance.txt"));
+      const response = await fixture.app.fetch(
+        new Request(
+          `${fixture.config.publicBaseUrl}/v1/worker/attempts/${assignment.attemptId}/artifacts`,
+          {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${worker.credential}`,
+              "idempotency-key": `provenance-${crypto.randomUUID()}`,
+              "X-Bakery-Worker-Protocol-Version": "2",
+            },
+            body: form,
+          },
+        ),
+      );
+      assertEquals(response.status, 201, await response.clone().text());
+      // A later session opens on the same step (a retry or a continuation).
+      const later = (await fixture.pgDatabase.query<{ id: string }>(
+        `insert into bakery.agent_sessions (organization_id, run_step_id,
+           conversation_id, agent_version_id, harness, status, created_at)
+         select organization_id, run_step_id, conversation_id,
+                agent_version_id, harness, 'active', now() + interval '1 hour'
+           from bakery.agent_sessions where organization_id = $1 and id = $2
+         returning id`,
+        [fixture.organizationId, publishing.id],
+      )).rows[0];
+      assert(later.id !== publishing.id);
+      const entry = (await fixture.pgDatabase.query<{ id: string }>(
+        `select entry.id from bakery.storage_entries entry
+           join bakery.artifacts artifact
+             on artifact.organization_id = entry.organization_id
+            and artifact.id = entry.artifact_id
+          where entry.organization_id = $1 and artifact.task_id = $2
+            and artifact.name = 'Provenance.txt'`,
+        [fixture.organizationId, job.taskId],
+      )).rows[0];
+      assert(entry, "the published artifact has a storage entry");
+      const read = await fixture.app.fetch(
+        new Request(
+          `${fixture.config.publicBaseUrl}/v1/storage/files/${entry.id}/versions`,
+          {
+            headers: {
+              Origin: fixture.config.publicBaseUrl,
+              "Bakery-Organization-Id": fixture.organizationId,
+              Cookie: fixture.adminCookie,
+            },
+          },
+        ),
+      );
+      const body = await read.text();
+      assertEquals(read.status, 200, body);
+      const [version] = (JSON.parse(body) as {
+        items: Record<string, unknown>[];
+      }).items;
+      assertEquals(version.makerKind, "step");
+      assertEquals(version.stepId, job.runStepId);
+      assertEquals(version.runId, job.runId);
+      assertEquals(version.attemptId, assignment.attemptId);
+      // The old read picked the step's newest session, which is now the later
+      // one; the recorded provenance names the one that published.
+      assertEquals(version.sessionId, publishing.id);
+      assert(version.actingForPrincipalId !== null);
+    } finally {
+      await closeWorkerScope(fixture, fixture);
+    }
+  } finally {
+    await cleanupAuthFixture(authFixture.pgDatabase, [admin.email]);
+    await authFixture.close();
+  }
+});
