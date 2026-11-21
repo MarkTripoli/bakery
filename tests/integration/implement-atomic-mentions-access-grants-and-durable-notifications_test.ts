@@ -366,8 +366,9 @@ Deno.test("a send racing the recipient's removal or the sender's demotion is all
         }
         if (change === "recipient") {
           // Whatever the order, a removed member reads nothing through a grant.
-          assert(
-            (await w.read(newcomer, chat)).status >= 400,
+          assertEquals(
+            (await w.read(newcomer, chat)).status,
+            404,
             "a removed recipient cannot read",
           );
         }
@@ -609,33 +610,79 @@ Deno.test("a cursor pages without repeats, and another organization's scope reac
     assertEquals(new Set(seen), new Set(made.map((item) => item.id)));
 
     // A cursor issued in this organization, and an id from it, mean nothing
-    // under another organization's scope.
+    // under a second organization the same person is a member of.
     const other = crypto.randomUUID();
-    const first: { nextCursor: string } = await body(
-      await inbox(fixture, "GET", "/v1/notifications?limit=2"),
-      200,
+    const now = new Date();
+    await fixture.pgDatabase.query(
+      `insert into bakery.organizations (
+         id, name, slug, metadata, created_at, updated_at, version
+       ) values ($1, 'Second Inbox Org', $2, '{}'::jsonb, $3, $3, 1)`,
+      [other, `second-inbox-${other}`, now],
     );
-    const crossList = await inbox(
-      fixture,
-      "GET",
-      `/v1/notifications?limit=2&cursor=${
-        encodeURIComponent(first.nextCursor)
-      }`,
-      { organizationId: other },
-    );
-    assert(
-      crossList.status >= 400,
-      "no list under an organization I am not in",
-    );
-    await crossList.body?.cancel();
-    const crossRead = await inbox(
-      fixture,
-      "GET",
-      `/v1/notifications/${made[0]!.id}`,
-      { organizationId: other },
-    );
-    assert(crossRead.status >= 400, "an id grants nothing in another scope");
-    await crossRead.body?.cancel();
+    try {
+      await fixture.pgDatabase.query(
+        `insert into bakery.organization_memberships (
+           id, organization_id, principal_id, role, status, joined_at,
+           created_at, updated_at, version
+         ) values ($1, $2, $3, 'admin', 'active', $4, $4, $4, 1)`,
+        [crypto.randomUUID(), other, fixture.principalId, now],
+      );
+      const first: { nextCursor: string } = await body(
+        await inbox(fixture, "GET", "/v1/notifications?limit=2"),
+        200,
+      );
+      const crossList = await inbox(
+        fixture,
+        "GET",
+        `/v1/notifications?limit=2&cursor=${
+          encodeURIComponent(first.nextCursor)
+        }`,
+        { organizationId: other },
+      );
+      const crossText = await crossList.text();
+      assertEquals(
+        crossList.status,
+        400,
+        "the first organization's cursor is refused under the second: " +
+          crossText,
+      );
+      assert(crossText.includes("invalid-cursor"), crossText);
+      for (const item of made) {
+        assert(
+          !crossText.includes(item.id),
+          "none of the first organization's rows",
+        );
+      }
+      const crossRead = await inbox(
+        fixture,
+        "GET",
+        `/v1/notifications/${made[0]!.id}`,
+        { organizationId: other },
+      );
+      assertEquals(
+        crossRead.status,
+        404,
+        "an id from the first organization is not found in the second",
+      );
+      await crossRead.body?.cancel();
+      // Under the second organization the person's own inbox is empty.
+      const empty = await body<{ items: Row[] }>(
+        await inbox(fixture, "GET", "/v1/notifications?limit=50", {
+          organizationId: other,
+        }),
+        200,
+      );
+      assertEquals(empty.items, []);
+    } finally {
+      await fixture.pgDatabase.query(
+        "delete from bakery.organization_memberships where organization_id = $1",
+        [other],
+      );
+      await fixture.pgDatabase.query(
+        "delete from bakery.organizations where id = $1",
+        [other],
+      );
+    }
   } finally {
     await fixture.close();
   }
