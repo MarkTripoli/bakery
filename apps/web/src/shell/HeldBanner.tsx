@@ -32,32 +32,36 @@ export function HeldBanner({ pathname }: { readonly pathname: string }) {
   ).data != null;
   if (!held || pathname === RESTORE_PATH) return null;
   return (
-    <UI.InlineNotice
-      action={administrator
-        ? (
-          <UI.Button
-            onClick={() => void navigate({ to: RESTORE_PATH })}
-            variant="secondary"
-          >
-            {translate("shell.states.heldAction")}
-          </UI.Button>
-        )
-        : undefined}
-      data-ui-region="restore-held"
-      layout="bar"
-      role="status"
-      tone="warning"
-    >
-      <UI.Stack gap="tight">
-        <UI.Text>{translate("shell.states.heldTitle")}</UI.Text>
-        <UI.Text variant="muted">
-          {translate(
-            administrator
-              ? "shell.states.heldAdministrator"
-              : "shell.states.heldMember",
-          )}
-        </UI.Text>
-      </UI.Stack>
-    </UI.InlineNotice>
+    <>
+      <UI.InlineNotice
+        action={administrator
+          ? (
+            <UI.Button
+              onClick={() => void navigate({ to: RESTORE_PATH })}
+              variant="secondary"
+            >
+              {translate("shell.states.heldAction")}
+            </UI.Button>
+          )
+          : undefined}
+        data-ui-region="restore-held"
+        layout="bar"
+        role="status"
+        tone="warning"
+      >
+        <UI.Stack gap="tight">
+          <UI.Text>{translate("shell.states.heldTitle")}</UI.Text>
+          <UI.Text variant="muted">
+            {translate(
+              administrator
+                ? "shell.states.heldAdministrator"
+                : "shell.states.heldMember",
+            )}
+          </UI.Text>
+        </UI.Stack>
+      </UI.InlineNotice>
+      {/* Room between the banner and the page under it. */}
+      <UI.Spacer />
+    </>
   );
 }

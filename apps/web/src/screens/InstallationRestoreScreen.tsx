@@ -303,15 +303,17 @@ function Steps(
                       </UI.Checkbox>
                     )
                     : null}
-                  <UI.Text>
-                    {translate("installation.restore.confirm.name", {
-                      name: restore.backupName,
-                    })}
-                  </UI.Text>
-                  <CopyValueButton
-                    label={translate("installation.restore.confirm.copy")}
-                    value={restore.backupName}
-                  />
+                  <UI.Inline gap="compact">
+                    <UI.Text>
+                      {translate("installation.restore.confirm.name", {
+                        name: restore.backupName,
+                      })}
+                    </UI.Text>
+                    <CopyValueButton
+                      label={translate("installation.restore.confirm.copy")}
+                      value={restore.backupName}
+                    />
+                  </UI.Inline>
                   <UI.Field
                     error={problem?.kind === "mismatch"
                       ? translate("installation.restore.problem.mismatch")
