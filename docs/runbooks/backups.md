@@ -67,8 +67,11 @@ exclusion; a key id without its file (or the reverse) makes the backup
 incomplete.
 
 The references list is read at the same moment as the database dump but not in
-the same transaction, so a write in between can leave it a little newer than the
-dump. Slice B of #64 (a maintenance state) makes the snapshot exact.
+the same transaction. A backup taken by the runner holds the installation first
+(see "While a backup is taken" below), so no new write is admitted in between and
+the list matches the dump up to the limits stated there. The daily
+`bakery-backup.timer` does not hold the installation, so for it the list can be
+a little newer than the dump.
 
 ## The age key
 
@@ -196,6 +199,7 @@ A failed backup keeps a stable code and the runner's plain-text detail:
 | `destination_refused`     | only ever the cause of a `not_copied` backup (below): the off-site destination said no. |
 | `destination_unreachable` | only ever the cause of a `not_copied` backup (below): no answer, or an unverifiable copy.                                                       |
 | `incomplete_set`          | the finished set was missing a state store, or did not match its manifest, so it is **not a recoverable backup** and was not kept as `latest`. The detail names the store (for example `redis: store_not_captured`) or the cause `manifest_builder_missing` (below). Fix that and take another backup. |
+| `drain_timeout`           | the installation did not go quiet within 10 minutes, so **no backup was taken** and the installation was released. The detail counts what was still in flight (worker attempts and open transactions). See "While a backup is taken" below. |
 | `runner_error`            | anything else: `journalctl -u bakery-backup-runner` has the script's last lines.                                                               |
 
 ### Taken, but not copied off-site (`not_copied`)
@@ -227,7 +231,138 @@ shows in `systemctl --failed` and the journal says plainly
 `was taken but NOT copied off-site (<cause>)`. Retention after such a run prunes
 the **local** sets only; off-site sets are left alone until a copy succeeds.
 
+## While a backup is taken: the installation is held
+
+A consistent snapshot needs the installation to stand still. After the runner
+claims a backup it **holds the installation** (the maintenance switch), waits for
+it to go quiet, takes the backup, and lets go with its final report.
+
+| state | meaning |
+| ----- | ------- |
+| `off` | normal; nothing is held |
+| `draining` | held: new work is refused, work already in flight is finishing |
+| `quiesced` | held and quiet: nothing the server can see is still running; the snapshot is taken now |
+
+The status shows it as `maintenanceState` and `maintenanceSince`.
+
+**What is refused while held.** These entry points answer a retryable
+`503 INSTALLATION_QUIESCED` with a `Retry-After` header (at most 30 seconds, and
+never longer than what is left of the hold) and change nothing:
+
+- starting a run (`runs.create`, `automations.run`) and starting a skill import
+  (`skills.import`);
+- importing an artifact version (`artifactVersions.import`);
+- a worker's claim for new work (`worker.claim`): the worker treats the 503 as a
+  temporary fault, backs off, and keeps renewing the lease of any attempt it
+  already holds;
+- collection and storage purges: the scheduled purge skips the round quietly.
+
+**What is accepted and waits.** A GitHub webhook delivery (`intake.webhook`) is
+**not** refused. GitHub does not redeliver a delivery that got a 503, and Bakery
+does not ask it to, so a refusal would lose the event. The delivery is accepted
+and stored as usual, with its routes. While the installation is held the two
+route consumers (tickets and pull requests, and automations) leave a route
+exactly as it is: not claimed, no attempt counted, no firing started. The
+recovery sweep resends a route that has waited a minute, so a stored delivery is
+processed about a minute or two after the hold ends. A hold of any length cannot
+use up a route's ten attempts.
+
+One limit: a delivery accepted during the hold is stored while the backup is
+taken, so whether that backup contains it depends on when it arrived relative to
+the dump. Restoring that backup can lack a delivery GitHub already saw
+acknowledged, and GitHub will not send it again.
+
+Everything else keeps working: reads, the administrator's backup routes, the
+runner's routes, and attempts already running.
+
+**What "quiet" means, and what it does not.** The server reports `quiesced` only
+when all of this is true: no worker job attempt is leased, running or canceling
+with an unexpired lease; no other open database transaction of the server's role
+began before the hold; and the hold has lasted at least 5 seconds (the settle
+window, which covers a write that passed the check just before the hold began).
+It **cannot see** Inngest or Redis engine steps, work a worker does without a
+lease, a transaction of another database role, or a transaction that began before
+the hold and stays open past the settle window. An attempt whose lease has lapsed
+is not waited for: the lease rule already fences it. The references list of a
+backup (slice A) is read while the hold is on, so it matches the dump.
+
+**The hold always ends.** It is lease-bound: it lasts only as long as the claim's
+lease (5 minutes), and every running report from the runner extends both. A
+terminal report (completed, failed or a drain timeout) lets go at once. If the
+runner dies, the hold lapses within 5 minutes with **no action from anyone**; a
+lapsed hold reads as `off` everywhere. A lapse runs no code, so it is written to
+the audit trail (`backupRunner.maintenance.exit`, outcome `lease_expired`) the
+next time the runner enters.
+
+**`drain_timeout`.** The runner waits up to 10 minutes for the installation to go
+quiet. If work is still in flight it reports `failed` with `drain_timeout`, takes
+no backup, and the installation is released. The detail says how many worker
+attempts and open transactions were still running. Fix: find the long-running
+attempts (`GET /v1/workers`), let them finish or cancel them, or set the workers
+to draining, then ask for another backup.
+
+**Audit.** Entering and leaving are audited as `backupRunner.maintenance.enter`
+and `backupRunner.maintenance.exit` with the runner credential's generation, the
+run id and the outcome, never a token or a key.
+
+## The cutoff: what may have happened after the backup
+
+A backup is a picture of one moment. If you restore it, things may already have
+happened **after** that moment that the backup knows nothing about: a pull request
+merged, a message posted. A restore must never do such a thing a second time, so
+every backup records its **cutoff**: when the picture was taken, and which external
+effects could still reach a provider at that moment.
+
+**Where it comes from.** Once the installation is held and quiet, and before any
+dump starts, the runner asks the server for the cutoff (`backupRunner.cutoff`). The
+server answers with its own **database clock** at that instant and a **census** of
+the effects still `prepared`, `submitted` or `uncertain` (effects already
+`confirmed` or `failed` are settled and are not counted). It records the answer
+once per run: asking again returns the same cutoff. The record is written before
+the dumps, so it is inside the dump it describes. The runner hands the same value to
+`backup.sh`, which writes it into `manifest.json` (format 2) as
+`cutoff: {at, source: "database", effects: {...}}`.
+
+**What the census holds.** Counts by status (`prepared`, `submitted`, `uncertain`),
+counts by operation name (a name the code did not define counts as `other`), and
+one SHA-256 over the sorted ids of those effects. It holds no id, no target and no
+argument: a restored database can be checked against it without the ids leaving it.
+
+**What the cutoff proves, and what it does not.** It proves the installation was
+held and quiet at `at`, so everything in the dumps was read at or after it and the
+effects counted were the ones unsettled then. It does not prove what any
+unsettled effect did at the provider: that is exactly what a restore must treat as
+unknown. The administrator's status shows `lastBackupCutoffAt`, the cutoff of the
+newest completed backup that recorded one.
+
+**A backup no runner took (the weaker cutoff).** The daily `bakery-backup.timer`,
+or `backup.sh` run by hand, has no quiet moment and no server to ask. Its manifest
+records the **host clock** when the script started, marked `source: "host-clock"`,
+with no census. The set is complete, but a restore that must know what may have
+happened afterwards refuses it (`verify --require-database-cutoff` reports
+`cutoff_not_database`). A set from before cutoffs (manifest format 1) is the same:
+readable, but with no cutoff at all.
+
+**When it goes wrong.** If the server cannot give the cutoff (it is no longer
+quiesced for this run, or it is unreachable), the runner reports `failed` with
+`runner_error` and takes no backup. If the finished set's manifest does not carry
+exactly the cutoff the server recorded, the runner reports `failed` with
+`incomplete_set`. A cutoff passed to `backup.sh` that is not valid fails the build
+with `BACKUP_INCOMPLETE` and nothing is moved into place.
+
+**What a restore will do with it (slice E).** Every effect still `prepared`,
+`submitted` or `uncertain` in the restored data is treated as having an unknown
+outcome and is blocked for reconciliation, never re-sent. The library function
+`unknownOutcomeEffects` (cutoff time plus the restored effect rows) lists them, and
+flags as an anomaly any effect changed after the cutoff, which a dump taken while
+quiet cannot contain. `compareCensus` checks a restored database against the census
+a backup recorded; the restore drill (slice D) uses it.
+
 ## What the runner does when something goes wrong
+
+The order of a pass is: claim, hold the installation, wait for quiet, read
+the settings (only now, so an idle minute reads nothing), take the backup, copy
+off-site, send the final report, which lets go.
 
 - **The API cannot be reached** on a claim: the pass exits 3 and the next minute
   tries again.

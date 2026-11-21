@@ -520,16 +520,108 @@ Deno.test("the status schema accepts the not_copied word and still refuses unkno
   const status = {
     state: "not_copied",
     lastGoodBackupAt: "2026-11-20T11:59:59.000Z",
+    // The cutoff of the newest completed backup that recorded one (slice C).
+    lastBackupCutoffAt: "2026-11-20T11:58:00.000Z",
     lastAttemptAt: "2026-11-20T11:59:59.000Z",
     runningRunId: null,
     runningProgressPercent: null,
     waitingRunId: null,
     runnerConfigured: true,
     runnerLastUsedAt: null,
+    maintenanceState: "off",
+    maintenanceSince: null,
   };
   assertEquals(contractSchemas.BackupStatus.parse(status).state, "not_copied");
+  // The cutoff may be absent (no completed backup recorded one), never a non-time.
+  assert(
+    contractSchemas.BackupStatus.safeParse({
+      ...status,
+      lastBackupCutoffAt: null,
+    })
+      .success,
+  );
+  assert(
+    !contractSchemas.BackupStatus.safeParse({
+      ...status,
+      lastBackupCutoffAt: "soon",
+    }).success,
+  );
   assert(
     !contractSchemas.BackupStatus.safeParse({ ...status, state: "amber" })
+      .success,
+  );
+  // The maintenance fields (#64 slice B): the three words, a time only while
+  // held, and nothing else.
+  for (const maintenanceState of ["off", "draining", "quiesced"]) {
+    assert(
+      contractSchemas.BackupStatus.safeParse({ ...status, maintenanceState })
+        .success,
+      maintenanceState,
+    );
+  }
+  assert(
+    contractSchemas.BackupStatus.safeParse({
+      ...status,
+      maintenanceState: "draining",
+      maintenanceSince: "2026-11-20T12:00:00.000Z",
+    }).success,
+  );
+  assert(
+    !contractSchemas.BackupStatus.safeParse({
+      ...status,
+      maintenanceState: "paused",
+    }).success,
+  );
+});
+
+Deno.test("drain_timeout is a failure cause: accepted on a failed report, refused on every other", () => {
+  assertReportShape({
+    sequence: 2,
+    status: "failed",
+    failureCode: "drain_timeout",
+    failureDetail: "The installation did not go quiet within the window.",
+  });
+  // A drain timeout means no backup was taken: it never rides a completed
+  // report (that is only for a backup taken but not copied off-site).
+  assertThrows(() =>
+    assertReportShape({
+      sequence: 3,
+      status: "completed",
+      sizeBytes: "10",
+      locations: ["server-host"],
+      failureCode: "drain_timeout",
+    })
+  );
+  assertThrows(() =>
+    assertReportShape({
+      sequence: 1,
+      status: "running",
+      progressPercent: 5,
+      failureCode: "drain_timeout",
+    })
+  );
+});
+
+Deno.test("the maintenance request and answer have their own strict shapes", () => {
+  const request = contractSchemas.BackupRunMaintenance;
+  assert(request.safeParse({ leaseToken: "a".repeat(43) }).success);
+  assert(!request.safeParse({}).success);
+  assert(!request.safeParse({ leaseToken: "short" }).success);
+  // No field for anything but the lease token: no bytes, no key material.
+  assert(
+    !request.safeParse({ leaseToken: "a".repeat(43), extra: "x" }).success,
+  );
+  const answer = {
+    state: "draining",
+    runId: "00000000-0000-4000-8000-000000000001",
+    leaseExpiresAt: "2026-11-20T12:05:00.000Z",
+    liveAttempts: 2,
+    openTransactions: 0,
+    retryAfterSeconds: 2,
+  };
+  assert(contractSchemas.BackupMaintenance.safeParse(answer).success);
+  assert(
+    !contractSchemas.BackupMaintenance.safeParse({ ...answer, state: "x" })
       .success,
   );
 });

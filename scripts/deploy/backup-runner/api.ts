@@ -1,4 +1,5 @@
 import { redact, type Secrets } from "./redact.ts";
+import type { CutoffView } from "./cutoff.ts";
 
 /** Failure causes the server accepts on a failed report (the closed set). */
 export type FailureCode =
@@ -7,6 +8,7 @@ export type FailureCode =
   | "destination_unreachable"
   | "key_missing"
   | "incomplete_set"
+  | "drain_timeout"
   | "runner_error";
 
 export type ReportBody = {
@@ -26,6 +28,16 @@ export type Claim =
     readonly leaseToken: string;
     readonly leaseExpiresAt: string;
   };
+
+/** Where the installation stands for the backup this runner holds. */
+export type Maintenance = {
+  readonly state: "off" | "draining" | "quiesced";
+  readonly runId: string;
+  readonly leaseExpiresAt: string;
+  readonly liveAttempts: number;
+  readonly openTransactions: number;
+  readonly retryAfterSeconds: number;
+};
 
 export type RunnerSettings = {
   readonly scheduleEnabled: boolean;
@@ -71,6 +83,27 @@ export class ApiUnavailable extends Error {
 export type RunnerApi = {
   claim(signal?: AbortSignal): Promise<Claim>;
   settings(signal?: AbortSignal): Promise<RunnerSettings>;
+  /**
+   * Holds the installation for the claimed run and says whether it is quiet.
+   * The first call enters maintenance (new work is refused from then on); each
+   * later call re-checks the drain. Safe to repeat.
+   */
+  maintain(
+    runId: string,
+    leaseToken: string,
+    signal?: AbortSignal,
+  ): Promise<Maintenance>;
+  /**
+   * Asks for the cutoff of the claimed run: the database clock at the moment
+   * the installation is quiet, with a census of unsettled effects. Only valid
+   * while the run holds the installation quiesced; asking again returns the
+   * same cutoff.
+   */
+  cutoff(
+    runId: string,
+    leaseToken: string,
+    signal?: AbortSignal,
+  ): Promise<CutoffView>;
   /** Sends one report; retries the SAME sequence and body on a network error or 5xx. */
   report(
     runId: string,
@@ -203,6 +236,54 @@ export function createRunnerApi(options: ApiOptions): RunnerApi {
       );
       await assertOk(response);
       return await response.json() as RunnerSettings;
+    },
+
+    async maintain(runId, leaseToken, signal) {
+      const response = await request(
+        "POST",
+        `/v1/backup-runner/runs/${runId}/maintenance`,
+        { leaseToken },
+        signal,
+      );
+      if (response.ok) return await response.json() as Maintenance;
+      const problem = await problemOf(response);
+      if (response.status >= 500 || response.status === 429) {
+        throw new ApiUnavailable(`status ${response.status}`);
+      }
+      if (response.status === 409) {
+        const reason = problem.reason ?? problem.code ?? "conflict";
+        // The claim is gone: stop. Anything else (another run holds the
+        // installation) is a refusal the runner reports as its own failure.
+        if (reason === "lease_expired" || reason === "run_not_claimed") {
+          throw new LeaseLost(reason);
+        }
+        throw new ApiFatal(409, reason);
+      }
+      throw new ApiFatal(response.status, problem.code ?? "UNKNOWN");
+    },
+
+    async cutoff(runId, leaseToken, signal) {
+      const response = await request(
+        "POST",
+        `/v1/backup-runner/runs/${runId}/cutoff`,
+        { leaseToken },
+        signal,
+      );
+      if (response.ok) return await response.json() as CutoffView;
+      const problem = await problemOf(response);
+      if (response.status >= 500 || response.status === 429) {
+        throw new ApiUnavailable(`status ${response.status}`);
+      }
+      if (response.status === 409) {
+        const reason = problem.reason ?? problem.code ?? "conflict";
+        // The claim is gone: stop. Anything else (the installation is not
+        // quiesced for this run) is a refusal the runner reports as its own.
+        if (reason === "lease_expired" || reason === "run_not_claimed") {
+          throw new LeaseLost(reason);
+        }
+        throw new ApiFatal(409, reason);
+      }
+      throw new ApiFatal(response.status, problem.code ?? "UNKNOWN");
     },
 
     async report(runId, leaseToken, sequence, body, signal) {

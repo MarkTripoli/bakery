@@ -1,13 +1,43 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "9b12290a55eb704fba052859cb447538a905b8db"
+    "0b0c2706c99f2cd499937ac5f17797ff3bfde891"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:cf4c74a76008b30a040dc12607d479f6f88cc46c7d7952c4b5bbb481f9f56036",
-  "reason": "#70 chooser server re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 9b12290a55eb704fba052859cb447538a905b8db, onto the #70 slice 2 head 1bf2a8f2: RouteContinuationOffer drops estimatedIncrementalCost and lists only usable targets, gaining unavailable (counts per reason, per harness, and up to 20 open route names); RouteContinuationTarget drops eligible and ineligibleReason and gains providerName, modelName, priced and estimatedIncrementalCost; RouteContinuationSource gains providerName and modelName. The #70 slice 2 approval is kept unchanged first below, then this PR's previous one.",
+  "targetCompatibilityDigest": "sha256:d9303f6d7ee363e5d86ef3d73e065c016ce3fe6516c3020232fb0306c074bf0e",
+  "reason": "#70 chooser server re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 0b0c2706c99f2cd499937ac5f17797ff3bfde891, onto the #70 slice 2 head 1bf2a8f2: RouteContinuationOffer drops estimatedIncrementalCost and lists only usable targets, gaining unavailable (counts per reason, per harness, and up to 20 open route names); RouteContinuationTarget drops eligible and ineligibleReason and gains providerName, modelName, priced and estimatedIncrementalCost; RouteContinuationSource gains providerName and modelName. Main's own approval is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "76b0d8e448facf07eef4c78af3e77386ebadab2c"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1cf004af3771a81ff0bf65260951658a68ad86256ac348a92f3a29fe91d3f759",
+      "reason": "#64 slice C cutoff re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 76b0d8e448facf07eef4c78af3e77386ebadab2c: BackupStatus gains lastBackupCutoffAt, required (the cutoff record of the last backup); the runner route backupRunner.cutoff is new, with BackupRunCutoff, BackupCutoff and BackupCutoffOperation. The digest follows the tree when main moved again (#808 merged); my previous approval on the earlier main is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "35f272370446c45c9e1f79177a3836a7d1903a2b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:6be79e65f8d6390329197e6eeb666584a52b9104710badda9373f31cf33eb4ad",
+      "reason": "#64 slice C cutoff re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 35f272370446c45c9e1f79177a3836a7d1903a2b: BackupStatus gains lastBackupCutoffAt, required (the cutoff record of the last backup); the runner route backupRunner.cutoff is new, with BackupRunCutoff, BackupCutoff and BackupCutoffOperation. Main's own approval is displaced, kept unchanged."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "e321e76af1ce1933149b3345d832e98295ccc364"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8e68e8856af05cf093594afce7f54f58b31f1ee7e41065c23fcfeea17847cd05",
+      "reason": "#64 slice B quiesce re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main e321e76af1ce1933149b3345d832e98295ccc364: BackupStatus gains maintenanceState and maintenanceSince, both required (the installation maintenance switch a backup holds); the retryable 503 INSTALLATION_QUIESCED is added to the errors of five actions that start or change work, and the runner route backupRunner.maintain is new. A webhook delivery is accepted during a hold, so intake.webhook does not list it. Main's own approval is displaced, kept unchanged."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

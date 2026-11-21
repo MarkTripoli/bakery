@@ -798,7 +798,8 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "IDEMPOTENCY_IN_FLIGHT"
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INSTALLATION_QUIESCED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2666,7 +2667,8 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "INSTALLATION_QUIESCED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2814,7 +2816,8 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "INSTALLATION_QUIESCED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -6274,6 +6277,29 @@ export const clientManifest = {
     },
     {
       "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/artifact-versions/{id}/probe",
+      "action": "artifactVersions.probe",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "IdPath",
+      "output": "ArtifactProbeAnswer",
+      "event": "",
+      "mcp": "bakery_artifactVersions_probe",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "ARTIFACT_CONTENT_EXPIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Artifacts",
       "method": "POST",
       "path": "/v1/artifacts/{id}/versions/import",
       "action": "artifactVersions.import",
@@ -6296,7 +6322,8 @@ export const clientManifest = {
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
         "DEPENDENCY_UNAVAILABLE",
-        "DEPENDENCY_TIMEOUT"
+        "DEPENDENCY_TIMEOUT",
+        "INSTALLATION_QUIESCED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -8619,6 +8646,56 @@ export const clientManifest = {
     },
     {
       "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/runs/{id}/maintenance",
+      "action": "backupRunner.maintain",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupRunMaintenance",
+      "output": "BackupMaintenance",
+      "event": "",
+      "mcp": "",
+      "idempotency": "safe to repeat: the first ask holds the installation, later asks only check the drain",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/runs/{id}/cutoff",
+      "action": "backupRunner.cutoff",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupRunCutoff",
+      "output": "BackupCutoff",
+      "event": "",
+      "mcp": "",
+      "idempotency": "safe to repeat: the first ask records the cutoff, later asks return the same one",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Backup runner protocol",
       "method": "GET",
       "path": "/v1/backup-runner/settings",
       "action": "backupRunner.settings",
@@ -9529,6 +9606,28 @@ export const clientManifest = {
       ],
       "organizationContext": "required_authenticated_context",
       "organizationIdQuery": "organizationId",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/files/{id}/probe",
+      "action": "storageFiles.probe",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "StorageFileProbeQuery",
+      "output": "ArtifactProbeAnswer",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -18338,6 +18437,7 @@ export const clientManifest = {
             "artifactVersions.list",
             "artifactVersions.create",
             "artifactVersions.content",
+            "artifactVersions.probe",
             "artifactVersions.import",
             "artifactVersions.extract",
             "contextPacks.build",
@@ -18449,6 +18549,8 @@ export const clientManifest = {
             "backupOffsite.verify",
             "backupRunner.claim",
             "backupRunner.report",
+            "backupRunner.maintain",
+            "backupRunner.cutoff",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -18483,6 +18585,7 @@ export const clientManifest = {
             "storageFileUses.list",
             "storageFiles.byVersion",
             "storageFiles.content",
+            "storageFiles.probe",
             "storageTrash.list",
             "storageSettings.get",
             "storageSettings.put",
@@ -26993,7 +27096,7 @@ export const clientManifest = {
           }
         },
         "failureCode": {
-          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report. A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site.",
+          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report (drain_timeout when the installation did not go quiet in time for the snapshot). A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site.",
           "type": "string",
           "enum": [
             "disk_full",
@@ -27001,6 +27104,7 @@ export const clientManifest = {
             "destination_unreachable",
             "key_missing",
             "incomplete_set",
+            "drain_timeout",
             "runner_error"
           ]
         },
@@ -27715,7 +27819,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 2147483647,
-          "description": "Draft epoch observed with the source checkpoint; a suggestion from any other epoch is refused with reason draft_moved_on. DraftSuggestionCreate.epoch must be at least 1. DraftSuggestionCreate.epoch must be at most 2147483647."
+          "description": "Draft epoch observed with the source checkpoint. A suggestion from a closed epoch is recorded as no_longer_fits with reason draft_moved_on, so offline words are kept for a person to apply; one from an epoch that does not exist yet is refused with draft_moved_on. DraftSuggestionCreate.epoch must be at least 1. DraftSuggestionCreate.epoch must be at most 2147483647."
         },
         "sourceCheckpointId": {
           "type": "string",
@@ -31051,6 +31155,40 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of a batch's results in case order, optionally one state."
     },
+    "BackupRunMaintenance": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "leaseToken": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 128,
+          "description": "Proof that the runner still holds the claim on this backup run, returned once by the claim. Any other token is refused, and a request after the lease has lapsed answers 409 STATE_CONFLICT. BackupRunMaintenance.leaseToken must contain at least 32 characters. BackupRunMaintenance.leaseToken must contain at most 128 characters."
+        }
+      },
+      "required": [
+        "leaseToken"
+      ],
+      "additionalProperties": false,
+      "description": "The runner asks to hold the installation for the backup it has claimed, and keeps asking until the installation is quiet. The first ask enters maintenance, which stops new work from being admitted; each later ask checks whether everything in flight has finished. Asking again while it holds is safe and changes nothing."
+    },
+    "BackupRunCutoff": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "leaseToken": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 128,
+          "description": "Proof that the runner still holds the claim on this backup run, returned once by the claim. Any other token is refused, and a request after the lease has lapsed answers 409 STATE_CONFLICT. BackupRunCutoff.leaseToken must contain at least 32 characters. BackupRunCutoff.leaseToken must contain at most 128 characters."
+        }
+      },
+      "required": [
+        "leaseToken"
+      ],
+      "additionalProperties": false,
+      "description": "The runner asks for the cutoff of the backup it has claimed: the database clock at the moment the installation is quiet, with a census of the external effects that could still reach a provider. It is only answered while the run holds the installation quiesced, otherwise 409 STATE_CONFLICT not_quiesced. Asking again for the same run returns the same cutoff."
+    },
     "AlertChannelCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -31465,6 +31603,227 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Reverts the Bakery Files writes the agent of one workflow step made, across all of the step's attempts, newest first and in one transaction (chapter 25 section 17.6, O48): a file or folder the step created goes to trash, a new version gives way to the version before it, a move is moved back and a trashed entry is restored. Writes that leave Bakery are external effects and are not covered."
+    },
+    "ArtifactProbeAnswer": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "described",
+                "refused"
+              ],
+              "description": "Whether a probe described these bytes, refused to, or nobody has asked. Null is the third case and is not a refusal: a client that reads null must say the file has not been checked and must not warn about it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.status may be null in this transport value."
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "What the bytes are, judged from their signature rather than from the file's name or declared type: image, video, audio, pdf, text, archive, or unknown when nothing was recognised. Unknown is honest; it is not the same as a file that failed to parse."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.kind may be null in this transport value."
+        },
+        "mediaType": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The media type the bytes themselves support, which can differ from the type recorded at write time. When it does, this one is what the bytes are, and a client deciding how to render should use it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.mediaType may be null in this transport value."
+        },
+        "byteLength": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The number of bytes the probe measured, which is what the content route checks stored bytes against before serving them. A disagreement is reported as a mismatch, never as a shorter or longer file."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.byteLength may be null in this transport value."
+        },
+        "width": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Image width in pixels, when the probe can read the format. Null for everything that is not an image."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.width may be null in this transport value."
+        },
+        "height": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Image height in pixels, on the same terms as width. Together with width it lets a page reserve the right space before the image arrives, so nothing shifts when it does."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.height may be null in this transport value."
+        },
+        "durationMs": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How long audio or video plays, in whole milliseconds, when the container states it. A browser reports zero until it has loaded the media, so this is the only honest length a player can show beforehand. Null means either not measured or not that kind of file, so do not present it as zero seconds."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.durationMs may be null in this transport value."
+        },
+        "lineCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Lines in a text file, counted from the bytes. A file with no line breaks counts as one line; null means the file is not text or the probe did not measure it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.lineCount may be null in this transport value."
+        },
+        "utf8": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Whether a text file decodes as strict UTF-8. False means the bytes are text of some other encoding, which a reader must not render as an empty or ruined file."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.utf8 may be null in this transport value."
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why a probe refused to describe the bytes, in words a reader can act on: too large, timed out, ran out of memory, unreadable, malformed, or the sandbox was unavailable. The last two are limits of this probe rather than defects in the file. Null when a description exists."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.code may be null in this transport value."
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The byte limit the probe hit, when the code names one, so a reader can say how far over the file is instead of merely that it is too large."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.limit may be null in this transport value."
+        },
+        "probedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "When the answer was recorded, so a reader can say how fresh it is. Null when nobody has probed the file."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactProbeAnswer.probedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "status",
+        "kind",
+        "mediaType",
+        "byteLength",
+        "width",
+        "height",
+        "durationMs",
+        "lineCount",
+        "utf8",
+        "code",
+        "limit",
+        "probedAt"
+      ],
+      "additionalProperties": false,
+      "description": "What a sandboxed probe learned about one stored file's bytes, or that nobody has asked yet. `status` says which: `described` means a probe read the bytes and every field below is what it found, `refused` means a probe read enough to say why it will not describe them, and no answer at all means the file has never been probed, which a client must show as unchecked rather than as unreadable. Every field that a given kind does not have is null rather than zero: a PNG has no duration, and calling that zero seconds would be a lie about the file."
+    },
+    "StorageFileProbeQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Which version's bytes to describe, by its revision number from storageFileVersions.list; omit it for the file's current version. Use it to ask about a version a link pinned, so the answer describes the bytes that link will show rather than whatever is current now. StorageFileProbeQuery.revision must be at least 1. StorageFileProbeQuery.revision must be at most 999999999.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999999999
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The organization whose storage tree holds the file. A caller must send the organization it is already acting in; it is stated rather than inferred so a file id from elsewhere cannot be probed by accident."
+        }
+      },
+      "required": [
+        "organizationId"
+      ],
+      "additionalProperties": false,
+      "description": "Ask for the measured facts about one storage file, optionally as of one numbered version. Name the organization explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -45159,6 +45518,7 @@ export const clientManifest = {
                   "artifactVersions.list",
                   "artifactVersions.create",
                   "artifactVersions.content",
+                  "artifactVersions.probe",
                   "artifactVersions.import",
                   "artifactVersions.extract",
                   "contextPacks.build",
@@ -45270,6 +45630,8 @@ export const clientManifest = {
                   "backupOffsite.verify",
                   "backupRunner.claim",
                   "backupRunner.report",
+                  "backupRunner.maintain",
+                  "backupRunner.cutoff",
                   "backupRunner.settings",
                   "telemetryDestinations.list",
                   "telemetryDestinations.get",
@@ -45304,6 +45666,7 @@ export const clientManifest = {
                   "storageFileUses.list",
                   "storageFiles.byVersion",
                   "storageFiles.content",
+                  "storageFiles.probe",
                   "storageTrash.list",
                   "storageSettings.get",
                   "storageSettings.put",
@@ -65625,6 +65988,7 @@ export const clientManifest = {
             "artifactVersions.list",
             "artifactVersions.create",
             "artifactVersions.content",
+            "artifactVersions.probe",
             "artifactVersions.import",
             "artifactVersions.extract",
             "contextPacks.build",
@@ -65736,6 +66100,8 @@ export const clientManifest = {
             "backupOffsite.verify",
             "backupRunner.claim",
             "backupRunner.report",
+            "backupRunner.maintain",
+            "backupRunner.cutoff",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -65770,6 +66136,7 @@ export const clientManifest = {
             "storageFileUses.list",
             "storageFiles.byVersion",
             "storageFiles.content",
+            "storageFiles.probe",
             "storageTrash.list",
             "storageSettings.get",
             "storageSettings.put",
@@ -90180,9 +90547,10 @@ export const clientManifest = {
                 "destination_unreachable",
                 "key_missing",
                 "incomplete_set",
+                "drain_timeout",
                 "runner_error"
               ],
-              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+              "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), drain_timeout (the installation did not go quiet in time for the snapshot, so no backup was taken and the installation was released), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
             },
             {
               "type": "null",
@@ -90389,9 +90757,10 @@ export const clientManifest = {
                       "destination_unreachable",
                       "key_missing",
                       "incomplete_set",
+                      "drain_timeout",
                       "runner_error"
                     ],
-                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
+                    "description": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), drain_timeout (the installation did not go quiet in time for the snapshot, so no backup was taken and the installation was released), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise."
                   },
                   {
                     "type": "null",
@@ -90518,6 +90887,21 @@ export const clientManifest = {
           ],
           "description": "BackupStatus.lastGoodBackupAt may be null in this transport value."
         },
+        "lastBackupCutoffAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The database-clock cutoff of the newest completed backup that recorded one: the moment its snapshot began, so a restore of it knows what may have happened afterwards; null when no completed backup has recorded a cutoff."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupStatus.lastBackupCutoffAt may be null in this transport value."
+        },
         "lastAttemptAt": {
           "anyOf": [
             {
@@ -90596,17 +90980,44 @@ export const clientManifest = {
             }
           ],
           "description": "BackupStatus.runnerLastUsedAt may be null in this transport value."
+        },
+        "maintenanceState": {
+          "type": "string",
+          "enum": [
+            "off",
+            "draining",
+            "quiesced"
+          ],
+          "description": "off normally; draining or quiesced while a backup holds the installation and new work is refused with 503 INSTALLATION_QUIESCED. A hold whose lease has lapsed reads as off."
+        },
+        "maintenanceSince": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the current hold began, or null when the installation is not held."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupStatus.maintenanceSince may be null in this transport value."
         }
       },
       "required": [
         "state",
         "lastGoodBackupAt",
+        "lastBackupCutoffAt",
         "lastAttemptAt",
         "runningRunId",
         "runningProgressPercent",
         "waitingRunId",
         "runnerConfigured",
-        "runnerLastUsedAt"
+        "runnerLastUsedAt",
+        "maintenanceState",
+        "maintenanceSince"
       ],
       "additionalProperties": false,
       "description": "The one answer to whether this installation is protected: a state word, the last good backup, the run in progress and whether a host runner has been set up and has been heard from."
@@ -108170,6 +108581,146 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The comparison of two batches. An incompatible pair is refused with one reason and carries no measures; a compatible pair never returns a change where a side has no measurement."
+    },
+    "BackupMaintenance": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "off",
+            "draining",
+            "quiesced"
+          ],
+          "description": "draining while the installation refuses new work and waits for work in flight; quiesced when nothing the check can see is left and the settle window has passed; off only if the hold has already ended."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The backup run that holds the installation."
+        },
+        "leaseExpiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the hold ends on its own unless the run reports again before then."
+        },
+        "liveAttempts": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Worker job attempts that are leased, running or canceling with an unexpired lease."
+        },
+        "openTransactions": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Other database transactions of the server role that began before the hold and are still open."
+        },
+        "retryAfterSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Whole seconds to wait before asking again; 0 when quiesced."
+        }
+      },
+      "required": [
+        "state",
+        "runId",
+        "leaseExpiresAt",
+        "liveAttempts",
+        "openTransactions",
+        "retryAfterSeconds"
+      ],
+      "additionalProperties": false,
+      "description": "Where the installation stands for the backup run that holds it: draining while work already in flight finishes, quiesced once nothing is left and the snapshot may be taken. The counts are everything the check can see and nothing more."
+    },
+    "BackupCutoff": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The backup run this cutoff belongs to."
+        },
+        "cutoffAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "The database clock at the moment the installation was quiet and the snapshot began. Everything after it is not in the backup."
+        },
+        "effectsTotal": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "External effects still prepared, submitted or uncertain at the cutoff; effects already confirmed or failed are not counted."
+        },
+        "effectsPrepared": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Effects committed locally that may or may not have been sent at the cutoff."
+        },
+        "effectsSubmitted": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Effects sent to a provider whose answer was not yet known at the cutoff."
+        },
+        "effectsUncertain": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Effects whose outcome was lost and awaited reconciliation at the cutoff."
+        },
+        "effectsByOperation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The operation name the code defines for the effect, such as an integration action; other when the stored name is not of that shape."
+              },
+              "count": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Effects with that operation name that were prepared, submitted or uncertain at the cutoff."
+              }
+            },
+            "required": [
+              "operation",
+              "count"
+            ],
+            "additionalProperties": false,
+            "description": "The same effects counted by operation name, sorted by name; a name outside the code-defined shape counts as other. Each array item follows this format."
+          },
+          "description": "The same effects counted by operation name, sorted by name; a name outside the code-defined shape counts as other."
+        },
+        "effectsDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 hex of the sorted ids of those effects, one per line, so a restored database can be checked against the cutoff without the ids leaving it."
+        }
+      },
+      "required": [
+        "runId",
+        "cutoffAt",
+        "effectsTotal",
+        "effectsPrepared",
+        "effectsSubmitted",
+        "effectsUncertain",
+        "effectsByOperation",
+        "effectsDigest"
+      ],
+      "additionalProperties": false,
+      "description": "When the snapshot of a backup run began, taken from the database clock while the installation was quiet, and how many external effects could still reach a provider at that moment. Counts and a digest only: nothing about any effect's content."
     },
     "AlertChannel": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

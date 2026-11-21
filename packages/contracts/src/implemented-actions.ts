@@ -631,6 +631,7 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactVersionsImport: "artifactVersions.import",
     ArtifactVersionsExtract: "artifactVersions.extract",
     ArtifactVersionsContent: "artifactVersions.content",
+    ArtifactVersionsProbe: "artifactVersions.probe",
     ArtifactPreviewsCreate: "artifactPreviews.create",
     ArtifactPreviewsRevoke: "artifactPreviews.revoke",
     ArtifactPreviewsAvailability: "artifactPreviews.availability",
@@ -722,6 +723,8 @@ export const BackupImplementedAction = Object.freeze(
     BackupRunnerSettings: "backupRunner.settings",
     BackupRunnerClaim: "backupRunner.claim",
     BackupRunnerReport: "backupRunner.report",
+    BackupRunnerMaintain: "backupRunner.maintain",
+    BackupRunnerCutoff: "backupRunner.cutoff",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const backupImplementedActions = Object.freeze(
@@ -798,6 +801,7 @@ export const StorageImplementedAction = Object.freeze(
     StorageFileVersionsList: "storageFileVersions.list",
     StorageFileUsesList: "storageFileUses.list",
     StorageFilesContent: "storageFiles.content",
+    StorageFilesProbe: "storageFiles.probe",
     StorageFilesByVersion: "storageFiles.byVersion",
     StorageFilesPin: "storageFiles.pin",
   } as const satisfies Record<string, CatalogActionName>,

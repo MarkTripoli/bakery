@@ -1,8 +1,11 @@
+import type { Cutoff } from "../../../apps/server/src/modules/backups/cutoff-rules.ts";
+import { cutoffFromView } from "./cutoff.ts";
 import {
   ApiFatal,
   ApiUnavailable,
   type FailureCode,
   LeaseLost,
+  type Maintenance,
   type ReportBody,
   ReportUndelivered,
   type RunnerApi,
@@ -42,7 +45,7 @@ export type RunnerDeps = {
   readonly api: RunnerApi;
   readonly secrets: Secrets;
   /** Takes the backup on this host; throws StepError. */
-  readonly backup: (signal: AbortSignal) => Promise<Artifact>;
+  readonly backup: (signal: AbortSignal, cutoff: Cutoff) => Promise<Artifact>;
   /** Reads what to upload to from the settings; null when there is no off-site copy. Throws OffsiteError. */
   readonly offsite: (settings: RunnerSettings) => Offsite | null;
   /** Uploads and verifies the set; throws OffsiteError. */
@@ -62,9 +65,20 @@ export type RunnerDeps = {
   readonly log: (line: string) => void;
   /** How often a running report is sent while a long step runs; the lease is 300 seconds. */
   readonly heartbeatMs?: number;
+  /** How long to wait for the installation to go quiet before giving up. */
+  readonly drainTimeoutMs?: number;
+  /** Milliseconds now; tests inject a clock that the injected sleep advances. */
+  readonly now?: () => number;
 };
 
 export const HEARTBEAT_MS = 120_000;
+/** The longest the runner waits for work in flight to finish before it gives up. */
+export const DRAIN_TIMEOUT_MS = 10 * 60_000;
+/** Bounds on how long the runner sleeps between two drain checks. */
+const DRAIN_POLL_MIN_MS = 1_000;
+const DRAIN_POLL_MAX_MS = 30_000;
+/** How long to wait after the server could not be reached before asking again. */
+const DRAIN_RETRY_MS = 5_000;
 
 /** The only causes the server accepts on a completed report: the off-site copy failed. */
 export type NotCopiedCode = "destination_refused" | "destination_unreachable";
@@ -83,6 +97,7 @@ export function notCopiedCode(code: FailureCode): NotCopiedCode {
 /** Progress points: reported, never lowered. */
 const PROGRESS = {
   claimed: 0,
+  quiet: 3,
   settings: 5,
   backedUp: 60,
   uploadSpan: 35,
@@ -205,6 +220,65 @@ export async function runOnce(deps: RunnerDeps): Promise<RunOutcome> {
   try {
     await reporter.running(PROGRESS.claimed);
 
+    // Hold the installation and wait for it to go quiet before anything else:
+    // no snapshot is taken while work is still in flight. Entering stops the
+    // server admitting new work; each later ask re-checks the drain. Every way
+    // out of here ends in a terminal report, which lets go; if the runner dies
+    // instead, the hold lapses with the claim.
+    const drainTimeoutMs = deps.drainTimeoutMs ?? DRAIN_TIMEOUT_MS;
+    const now = deps.now ?? Date.now;
+    const drainStartedAt = now();
+    for (;;) {
+      let view: Maintenance | null = null;
+      try {
+        view = await deps.api.maintain(runId, leaseToken, work.signal);
+      } catch (error) {
+        if (fatal !== null) return await finish();
+        if (error instanceof ApiFatal) {
+          return await fail(
+            "runner_error",
+            `The runner could not hold the installation for the snapshot. ${
+              describe(error, deps.secrets)
+            }`,
+          );
+        }
+        if (!(error instanceof ApiUnavailable)) throw error;
+        // The server could not be reached: ask again inside the same window.
+        if (now() - drainStartedAt >= drainTimeoutMs) {
+          return await fail(
+            "runner_error",
+            `The runner could not reach the server to hold the installation. ${
+              describe(error, deps.secrets)
+            }`,
+          );
+        }
+        await deps.sleep(DRAIN_RETRY_MS, work.signal);
+        if (fatal !== null) return await finish();
+        continue;
+      }
+      if (fatal !== null) return await finish();
+      if (view.state === "quiesced") break;
+      if (now() - drainStartedAt >= drainTimeoutMs) {
+        return await fail(
+          "drain_timeout",
+          `The installation did not go quiet within ${
+            Math.round(drainTimeoutMs / 60_000)
+          } minutes: ${view.liveAttempts} worker attempts and ${view.openTransactions} open transactions were still in flight. No backup was taken.`,
+        );
+      }
+      await deps.sleep(
+        Math.min(
+          DRAIN_POLL_MAX_MS,
+          Math.max(DRAIN_POLL_MIN_MS, view.retryAfterSeconds * 1000),
+        ),
+        work.signal,
+      );
+      if (fatal !== null) return await finish();
+    }
+    // Progress only moves up; the next report carries it, so a quiet
+    // installation adds no extra report of its own.
+    reporter.progress = Math.max(reporter.progress, PROGRESS.quiet);
+
     let settings: RunnerSettings;
     try {
       settings = await deps.api.settings(work.signal);
@@ -229,9 +303,29 @@ export async function runOnce(deps: RunnerDeps): Promise<RunOutcome> {
     }
     await reporter.running(PROGRESS.settings);
 
+    // The cutoff comes AFTER the installation is quiet and BEFORE the dumps
+    // start, from the database clock: it is the moment everything in the set was
+    // read at or after, and the census of effects still unsettled then.
+    let cutoff: Cutoff;
+    try {
+      cutoff = cutoffFromView(
+        await deps.api.cutoff(runId, leaseToken, work.signal),
+      );
+    } catch (error) {
+      if (error instanceof ApiFatal || error instanceof ApiUnavailable) {
+        return await fail(
+          "runner_error",
+          `The runner could not record the cutoff. No backup was taken. ${
+            describe(error, deps.secrets)
+          }`,
+        );
+      }
+      throw error;
+    }
+
     let artifact: Artifact;
     try {
-      artifact = await deps.backup(work.signal);
+      artifact = await deps.backup(work.signal, cutoff);
     } catch (error) {
       if (fatal !== null) return await finish();
       if (error instanceof StepError) {

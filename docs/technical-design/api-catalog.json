@@ -807,7 +807,8 @@
         "PRECONDITION_FAILED",
         "PRECONDITION_REQUIRED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "IDEMPOTENCY_IN_FLIGHT"
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INSTALLATION_QUIESCED"
       ]
     },
     {
@@ -2645,7 +2646,8 @@
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "INSTALLATION_QUIESCED"
       ]
     },
     {
@@ -2787,7 +2789,8 @@
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "SCOPE_REQUIRED",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "INSTALLATION_QUIESCED"
       ]
     },
     {
@@ -6178,7 +6181,8 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "INSTALLATION_QUIESCED"
       ]
     },
     {
@@ -6626,6 +6630,28 @@
     },
     {
       "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/artifact-versions/{id}/probe",
+      "action": "artifactVersions.probe",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "IdPath",
+      "output": "ArtifactProbeAnswer",
+      "event": "",
+      "mcp": "bakery_artifactVersions_probe",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "ARTIFACT_CONTENT_EXPIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Artifacts",
       "method": "POST",
       "path": "/v1/artifacts/{id}/versions/import",
       "action": "artifactVersions.import",
@@ -6648,7 +6674,8 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT",
         "DEPENDENCY_UNAVAILABLE",
-        "DEPENDENCY_TIMEOUT"
+        "DEPENDENCY_TIMEOUT",
+        "INSTALLATION_QUIESCED"
       ],
       "organizationContext": "required_authenticated_context"
     },
@@ -9219,6 +9246,52 @@
     },
     {
       "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/runs/{id}/maintenance",
+      "action": "backupRunner.maintain",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupRunMaintenance",
+      "output": "BackupMaintenance",
+      "event": "",
+      "mcp": null,
+      "idempotency": "safe to repeat: the first ask holds the installation, later asks only check the drain",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/runs/{id}/cutoff",
+      "action": "backupRunner.cutoff",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupRunCutoff",
+      "output": "BackupCutoff",
+      "event": "",
+      "mcp": null,
+      "idempotency": "safe to repeat: the first ask records the cutoff, later asks return the same one",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Backup runner protocol",
       "method": "GET",
       "path": "/v1/backup-runner/settings",
       "action": "backupRunner.settings",
@@ -10094,6 +10167,27 @@
         "UNPROCESSABLE",
         "ARTIFACT_CONTENT_EXPIRED",
         "RANGE_NOT_SATISFIABLE"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/files/{id}/probe",
+      "action": "storageFiles.probe",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "StorageFileProbeQuery",
+      "output": "ArtifactProbeAnswer",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND"
       ]
     },
     {

@@ -22,6 +22,8 @@ export type ApiProblem = {
   reason?: string;
   /** Stable `code` of each reported issue, in order, e.g. a probe outcome. */
   issueCodes?: readonly string[];
+  /** Each reported issue's field path (a JSON Pointer) and plain message, bounded. */
+  issues?: readonly { readonly path: string; readonly message: string }[];
 };
 
 export class ApiProblemError extends Error {
@@ -32,7 +34,18 @@ export class ApiProblemError extends Error {
   }
 }
 
-export type ApiTransportErrorKind = "network" | "aborted" | "protocol";
+export type ApiTransportErrorKind =
+  | "network"
+  | "aborted"
+  | "protocol"
+  /**
+   * The bytes that arrived do not hash to the digest the record claims for them.
+   *
+   * Its own kind because it is the one transport failure a screen can explain to a
+   * person: something is wrong with the file, not with the connection, and Bakery
+   * must show the mismatch state rather than a generic error (#437).
+   */
+  | "digest-mismatch";
 
 export class ApiTransportError extends Error {
   override readonly name = "ApiTransportError";
@@ -548,6 +561,21 @@ async function parseJsonResponse(response: Response): Promise<unknown> {
   }
 }
 
+/** The path and message of each issue, for showing under the field it names. */
+function issueMessages(
+  issues: unknown,
+): readonly { readonly path: string; readonly message: string }[] | undefined {
+  if (!Array.isArray(issues)) return undefined;
+  const found = issues.slice(0, 20).flatMap((issue) =>
+    isObject(issue) && typeof issue.path === "string" &&
+      issue.path.length <= 200 && typeof issue.message === "string" &&
+      issue.message.length > 0 && issue.message.length <= 300
+      ? [{ path: issue.path, message: issue.message }]
+      : []
+  );
+  return found.length > 0 ? found : undefined;
+}
+
 function issueCodes(issues: unknown): readonly string[] | undefined {
   if (!Array.isArray(issues)) return undefined;
   const codes = issues.slice(0, 8).flatMap((issue) =>
@@ -619,6 +647,9 @@ function safeProblem(value: unknown): ApiProblem | undefined {
     ...(typeof declared.reason === "string" ? { reason: declared.reason } : {}),
     ...(issueCodes(declared.issues)
       ? { issueCodes: issueCodes(declared.issues) }
+      : {}),
+    ...(issueMessages(declared.issues)
+      ? { issues: issueMessages(declared.issues) }
       : {}),
   };
 }

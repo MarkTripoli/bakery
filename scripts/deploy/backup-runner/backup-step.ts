@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { Cutoff } from "../../../apps/server/src/modules/backups/cutoff-rules.ts";
 import type { FailureCode } from "./api.ts";
 import { describeProblems, verifyBackupDirectory } from "./manifest.ts";
 import { redact, type Secrets } from "./redact.ts";
@@ -91,6 +92,13 @@ export async function readArtifact(
 }
 
 export type BackupStepOptions = {
+  /**
+   * The database cutoff the runner took while the installation was quiet. It
+   * reaches the script as one non-secret JSON value, and the set's manifest
+   * must come back carrying exactly this cutoff. Left out for a run no
+   * quiet-moment cutoff exists for (the script then records the host clock).
+   */
+  readonly cutoff?: Cutoff;
   /** The script to run; production passes BACKUP_SCRIPT. */
   readonly script: string;
   readonly root: string;
@@ -115,6 +123,11 @@ export async function runBackupScript(
   let child: Deno.ChildProcess;
   try {
     child = new Deno.Command(options.script, {
+      // Merged into the inherited environment: the one added variable is the
+      // cutoff, which is not a secret.
+      env: options.cutoff
+        ? { BAKERY_BACKUP_CUTOFF: JSON.stringify(options.cutoff) }
+        : undefined,
       stdin: "null",
       stdout: "piped",
       stderr: "piped",
@@ -186,6 +199,21 @@ export async function runBackupScript(
   // manifest again before the set may be reported as a backup. A set missing a
   // declared store (or with no manifest at all) is not a recoverable backup.
   const verification = await verifyBackupDirectory(artifact.directory);
+  // The set must carry the cutoff the server recorded, not some other moment:
+  // a restore trusts it to say what may have happened after the backup.
+  if (verification.complete && options.cutoff !== undefined) {
+    const recorded = verification.cutoff;
+    if (
+      recorded?.source !== "database" ||
+      recorded.at !== options.cutoff.at ||
+      recorded.effects?.digest !== options.cutoff.effects?.digest
+    ) {
+      throw new StepError(
+        "incomplete_set",
+        "The backup set does not carry the cutoff the server recorded for this run, so it cannot say what may have happened after it.",
+      );
+    }
+  }
   if (!verification.complete) {
     throw new StepError(
       "incomplete_set",

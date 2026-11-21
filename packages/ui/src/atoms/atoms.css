@@ -307,3 +307,47 @@
     padding-inline: var(--space-4);
   }
 }
+
+/* A provider's mark: a fixed square slot, so every name starts at one x. The
+   art is the vendor's own file and is only ever scaled to fit. */
+.ui-provider-mark {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+}
+.ui-provider-mark--row {
+  block-size: var(--space-6);
+  inline-size: var(--space-6);
+}
+.ui-provider-mark--header {
+  block-size: var(--space-8);
+  inline-size: var(--space-8);
+}
+.ui-provider-mark__art {
+  block-size: var(--space-5);
+  inline-size: var(--space-5);
+  object-fit: contain;
+}
+.ui-provider-mark--header .ui-provider-mark__art {
+  block-size: calc(var(--space-6) + var(--space-0-5));
+  inline-size: calc(var(--space-6) + var(--space-0-5));
+}
+.ui-provider-mark__tile {
+  align-items: center;
+  background: var(--color-surface-subtle);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  box-sizing: border-box;
+  color: var(--color-fg);
+  display: inline-flex;
+  font: var(--type-label);
+  justify-content: center;
+  block-size: 100%;
+  inline-size: 100%;
+}
+/* In a heading the mark leads the name, on the name's own line. */
+.ui-heading .ui-provider-mark {
+  margin-inline-end: var(--space-3);
+  vertical-align: middle;
+}

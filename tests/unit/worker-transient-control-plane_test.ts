@@ -488,3 +488,70 @@ Deno.test({
     });
   },
 });
+
+Deno.test("a 503 INSTALLATION_QUIESCED is a transient fault: the worker waits, it does not stop (#64)", () => {
+  assert(isTransientControlPlaneFailure(
+    new WorkerRequestError("INSTALLATION_QUIESCED", 503, true),
+  ));
+  // Even if a proxy strips the retryable flag, a 5xx is still transient.
+  assert(isTransientControlPlaneFailure(
+    new WorkerRequestError("INSTALLATION_QUIESCED", 503, false),
+  ));
+});
+
+Deno.test({
+  name:
+    "a claim answered 503 INSTALLATION_QUIESCED is retried with one bounded line each and never stops the worker",
+  ...NO_SANITIZE,
+  fn: async () => {
+    await withDirectory(async (directory) => {
+      const workerHostId = crypto.randomUUID();
+      let claims = 0;
+      let supervisor: WorkerSupervisor | undefined;
+      const quiesced = () =>
+        protocolResponse({
+          code: "INSTALLATION_QUIESCED",
+          retryable: true,
+          status: 503,
+          retryAfterSeconds: 7,
+          detail: "secret-canary",
+        }, { status: 503 });
+      const { output } = await captureConsole(async () => {
+        supervisor = await registeredSupervisor(directory, (input) => {
+          const path = new URL(String(input)).pathname;
+          if (path.endsWith("/heartbeat")) {
+            return heartbeatResponse(workerHostId);
+          }
+          if (path.endsWith("/claims")) {
+            claims += 1;
+            if (claims >= 4) {
+              queueMicrotask(() => supervisor?.requestStop("TEST_COMPLETE"));
+            }
+            // The installation is held for three asks, then it lets go.
+            return claims <= 3
+              ? quiesced()
+              : protocolEmptyResponse({ status: 204 });
+          }
+          throw new Error(`UNEXPECTED_WORKER_PATH:${path}`);
+        }, workerHostId);
+        await supervisor.run();
+      });
+      assert(supervisor !== undefined);
+      // It kept asking, and it never gave up: no fatal reason.
+      assertEquals(supervisor!.fatalReason, null);
+      assert(claims >= 4);
+      const retryLines = output.warnings.filter((line) =>
+        line.includes("control_plane_retry")
+      );
+      assert(retryLines.length >= 3, `${retryLines.length} retry lines`);
+      for (const line of retryLines.slice(0, 3)) {
+        const parsed = JSON.parse(line);
+        assertEquals(parsed.route, "claim");
+        assertEquals(parsed.code, "INSTALLATION_QUIESCED");
+        assertEquals(parsed.status, 503);
+        // The retry line never carries problem detail.
+        assert(!line.includes("secret-canary"));
+      }
+    });
+  },
+});

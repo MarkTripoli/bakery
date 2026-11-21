@@ -38,6 +38,8 @@ import {
   reportRun,
   requestBackup,
 } from "./postgres.ts";
+import { takeCutoff } from "./cutoff.ts";
+import { maintainRun } from "./maintenance.ts";
 import {
   type BackupSettingsDependencies,
   checkRunnerDestination,
@@ -350,9 +352,93 @@ export function createBackupRunnerRoutes(
         contractSchemas.BackupRunReport,
       );
       return withPgTransaction(options.database, async (transaction) => {
-        await authenticateRunner(transaction, context.req.raw.headers);
-        const run = await reportRun(transaction, runId.toLowerCase(), report);
+        const runner = await authenticateRunner(
+          transaction,
+          context.req.raw.headers,
+        );
+        const run = await reportRun(transaction, runId.toLowerCase(), report, {
+          generation: runner.generation,
+          requestId: crypto.randomUUID(),
+          traceId: crypto.randomUUID(),
+        });
         return noStoreJson(run, 200);
+      });
+    }),
+  );
+  // The runner holds the installation for the run it claimed, then asks again
+  // until nothing is left in flight: new work is refused from the first ask.
+  app.post(
+    "/v1/backup-runner/runs/:id/maintenance",
+    guarded(async (context) => {
+      const runId = context.req.param("id") ?? "";
+      if (!UUID.test(runId)) {
+        throw new StandardError({ code: "MALFORMED_REQUEST" });
+      }
+      // Authenticate before reading the body, like the report route.
+      await withPgTransaction(
+        options.database,
+        (transaction) =>
+          authenticateRunner(transaction, context.req.raw.headers),
+      );
+      const input = await parseContract(
+        context,
+        contractSchemas.BackupRunMaintenance,
+      );
+      return withPgTransaction(options.database, async (transaction) => {
+        const runner = await authenticateRunner(
+          transaction,
+          context.req.raw.headers,
+        );
+        const view = await maintainRun(
+          transaction,
+          runId.toLowerCase(),
+          input.leaseToken,
+          {
+            generation: runner.generation,
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          },
+        );
+        return noStoreJson(view, 200);
+      });
+    }),
+  );
+  // The cutoff of the backup this runner holds: the database clock at the
+  // moment the installation is quiet, with a census of unsettled effects. Only
+  // answered while the run holds the installation quiesced.
+  app.post(
+    "/v1/backup-runner/runs/:id/cutoff",
+    guarded(async (context) => {
+      const runId = context.req.param("id") ?? "";
+      if (!UUID.test(runId)) {
+        throw new StandardError({ code: "MALFORMED_REQUEST" });
+      }
+      // Authenticate before reading the body, like the report route.
+      await withPgTransaction(
+        options.database,
+        (transaction) =>
+          authenticateRunner(transaction, context.req.raw.headers),
+      );
+      const input = await parseContract(
+        context,
+        contractSchemas.BackupRunCutoff,
+      );
+      return withPgTransaction(options.database, async (transaction) => {
+        const runner = await authenticateRunner(
+          transaction,
+          context.req.raw.headers,
+        );
+        const view = await takeCutoff(
+          transaction,
+          runId.toLowerCase(),
+          input.leaseToken,
+          {
+            generation: runner.generation,
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          },
+        );
+        return noStoreJson(view, 200);
       });
     }),
   );

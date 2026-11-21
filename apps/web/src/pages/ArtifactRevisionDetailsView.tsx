@@ -7,6 +7,7 @@ import type {
   ArtifactVersionResponse,
 } from "../api/client.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { formatFileSize } from "./file-size.ts";
 import { isExtractableMediaType } from "./artifact-media.ts";
 
 function displayValue(
@@ -109,6 +110,15 @@ export function ArtifactRevisionDetailsView(
   }: ArtifactRevisionDetailsProps,
 ) {
   const { translate, locale, timeZone: dateTimeZone } = useI18n();
+  // The header must use the same formatter as the facts line under the preview:
+  // "317705 bytes" above "310.3 KB" is one file described two ways (#437). The
+  // translator's keys are a closed union, so the formatter takes the cast the
+  // Files panel already uses.
+  const t = (key: string, values?: Record<string, string | number>) =>
+    (translate as (id: string, v?: Record<string, string | number>) => string)(
+      key,
+      values,
+    );
   const taskId = artifact.taskId;
   const metadata = selectedVersion === null
     ? null
@@ -216,13 +226,10 @@ export function ArtifactRevisionDetailsView(
                       : undefined}
                     aria-pressed={version.id === selectedVersion.id}
                     data-testid={`artifact-version-${version.revision}`}
-                    description={translate(
-                      "artifact.retrieval.versionSummary",
-                      {
-                        mediaType: version.mediaType,
-                        size: version.sizeBytes,
-                      },
-                    )}
+                    description={t("artifact.retrieval.versionSummary", {
+                      mediaType: version.mediaType,
+                      size: formatFileSize(version.sizeBytes, locale, t),
+                    })}
                     onSelect={() => onSelectVersion(version.id)}
                     title={translate("artifact.retrieval.versionLabel", {
                       revision: version.revision,
@@ -263,9 +270,7 @@ export function ArtifactRevisionDetailsView(
                   selectedVersion.runStepId,
                   translate("artifact.retrieval.notAvailable"),
                 )}
-                size={translate("artifact.retrieval.sizeValue", {
-                  size: selectedVersion.sizeBytes,
-                })}
+                size={formatFileSize(selectedVersion.sizeBytes, locale, t)}
                 version={String(selectedVersion.revision)}
               />
               <UI.DescriptionList>
