@@ -38,6 +38,12 @@ import {
   workerShutdownReceiptPath,
 } from "./shutdown-receipt.ts";
 import { acquireStateLock, ensurePrivateDirectory } from "./storage.ts";
+import type { PluginJobDeps } from "./plugin-job-executor.ts";
+import {
+  jobCommand,
+  PLUGIN_JOB_CAPABILITY,
+  selectPluginRuntime,
+} from "./plugin-job-select.ts";
 import {
   WorkerShutdownQuiescenceError,
   WorkerSupervisor,
@@ -136,8 +142,83 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
           workerSessionGeneration: String(assignment.workerSessionGeneration),
         });
       };
+    // Plugin jobs run only where a containment runtime proved its boundary just
+    // now. Off unless an operator enables a runtime; an enabled runtime that
+    // fails its probe leaves the capability unadvertised and logs why.
+    const pluginEnv = {
+      BAKERY_PLUGIN_JOBS_DOCKER: optionalEnvironmentValue(
+        "BAKERY_PLUGIN_JOBS_DOCKER",
+      ),
+      BAKERY_PLUGIN_JOBS_BWRAP: optionalEnvironmentValue(
+        "BAKERY_PLUGIN_JOBS_BWRAP",
+      ),
+      BAKERY_PLUGIN_JOB_IMAGE: optionalEnvironmentValue(
+        "BAKERY_PLUGIN_JOB_IMAGE",
+      ),
+      BAKERY_PLUGIN_JOB_COMMAND: optionalEnvironmentValue(
+        "BAKERY_PLUGIN_JOB_COMMAND",
+      ),
+    };
+    const pluginRuntime = options.executor
+      ? { kind: "none", reasons: [] } as const
+      : await selectPluginRuntime(pluginEnv);
+    if (pluginRuntime.kind === "selected") {
+      if (!config.capabilities.includes(PLUGIN_JOB_CAPABILITY)) {
+        config.capabilities.push(PLUGIN_JOB_CAPABILITY);
+      }
+    } else if (pluginRuntime.reasons.length > 0) {
+      console.warn(JSON.stringify({
+        component: "worker",
+        event: "plugin_jobs_unavailable",
+        reasons: pluginRuntime.reasons,
+      }));
+    }
+    const pluginJobFor = pluginRuntime.kind === "selected"
+      ? (assignment: JobAssignment): PluginJobDeps => {
+        if (
+          assignment.workerSessionId === undefined ||
+          assignment.workerSessionGeneration === undefined
+        ) throw new Error("PLUGIN_JOB_SESSION_MISSING");
+        const proof = {
+          leaseToken: assignment.leaseToken,
+          fence: String(assignment.fence),
+          workerSessionId: assignment.workerSessionId,
+          workerSessionGeneration: String(assignment.workerSessionGeneration),
+        };
+        return {
+          runtime: pluginRuntime.runtime,
+          codeParent: `${config.stateDir}/plugin-jobs`,
+          command: (entry) => jobCommand(pluginEnv, entry),
+          fetchFiles: async (signal) =>
+            (await client.getPluginJobFiles(
+              assignment.attemptId,
+              proof,
+              signal,
+            ))
+              .value,
+          relay: async (call, signal) => {
+            const answer = (await client.callPluginBroker(
+              assignment.attemptId,
+              proof,
+              call,
+              signal,
+            )).value;
+            return answer.ok
+              ? { ok: true as const, result: answer.result }
+              : { ok: false as const, denial: answer.denial };
+          },
+        };
+      }
+      : undefined;
+    if (pluginJobFor) {
+      await Deno.mkdir(`${config.stateDir}/plugin-jobs`, {
+        recursive: true,
+        mode: 0o700,
+      });
+    }
     const nativeExecutor = options.executor ?? createNativeExecutor({
       publishArtifactFor,
+      pluginJobFor,
       cgroupRoot: config.nativeCgroupRoot,
       stateDir: config.stateDir,
       supervisorSecretPaths: [

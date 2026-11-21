@@ -80,6 +80,63 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   ).join("");
 }
 
+/** What proves a worker holds an attempt: its lease token, fence and session. */
+export type AttemptProof = {
+  leaseToken: string;
+  fence: string;
+  workerSessionId: string;
+  workerSessionGeneration: string;
+};
+
+function attemptProofHeaders(proof: AttemptProof): Record<string, string> {
+  return {
+    "X-Worker-Lease-Token": proof.leaseToken,
+    "X-Worker-Fence": proof.fence,
+    "X-Worker-Session-Id": proof.workerSessionId,
+    "X-Worker-Session-Generation": proof.workerSessionGeneration,
+  };
+}
+
+const PluginJobFilesSchema = z.object({
+  bundleDigest: z.string().regex(/^[0-9a-f]{64}$/).describe(
+    "Lowercase SHA-256 digest of the install's pinned bundle archive.",
+  ),
+  entry: z.string().min(1).max(500).describe(
+    "The path inside the bundle that the job was admitted to run.",
+  ),
+  files: z.array(
+    z.object({
+      path: z.string().min(1).max(500).describe(
+        "A file's path inside the bundle.",
+      ),
+      contentBase64: z.string().describe("The file's bytes, base64 encoded."),
+    }).strict().describe("One file of the install's bundle."),
+  ).min(1).max(256).describe("Every file of the bundle the job may read."),
+}).strict().describe(
+  "The code the server hands one leased plugin job attempt.",
+);
+export type PluginJobFiles = z.output<typeof PluginJobFilesSchema>;
+
+const PluginBrokerWireSchema = z.object({
+  ok: z.boolean().describe("True when the broker ran the operation."),
+  result: z.unknown().describe("The operation's result; null when refused."),
+  replayed: z.boolean().nullable().describe(
+    "True when the request id had already run; null when refused.",
+  ),
+  denial: z.string().min(1).max(64).nullable().describe(
+    "Why the broker refused; null when it ran the operation.",
+  ),
+}).strict().refine(
+  (wire) =>
+    wire.ok
+      ? wire.denial === null && wire.replayed !== null
+      : wire.denial !== null,
+  "exactly one of result and denial is set",
+).describe("The broker's answer to one relayed plugin job request.");
+export type PluginBrokerOutcome =
+  | { ok: true; result: unknown; replayed: boolean }
+  | { ok: false; denial: string };
+
 export type Fetcher = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -1285,6 +1342,78 @@ export class WorkerApiClient {
         "WORKER_RESPONSE_ASSIGNMENT_INVALID",
       ),
       replayed: response.replayed,
+    };
+  }
+
+  /**
+   * The files of the install a `plugin.job` attempt runs (#29). The server
+   * decides which install and entry from the job it wrote; the lease token,
+   * fence and session only prove this worker holds the attempt.
+   */
+  async getPluginJobFiles(
+    attemptId: string,
+    proof: AttemptProof,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<PluginJobFiles>> {
+    const response = await this.request<unknown>(
+      "GET",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/plugin-job-files`,
+      {
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+        headers: attemptProofHeaders(proof),
+      },
+    );
+    return parseResponseEnvelope(
+      PluginJobFilesSchema,
+      response,
+      "WORKER_RESPONSE_PLUGIN_JOB_FILES_INVALID",
+    );
+  }
+
+  /**
+   * Relays one request from a contained plugin job to the server's broker. The
+   * job has no network and no token; the server builds the claims from the
+   * attempt and answers with a result or a typed denial.
+   */
+  async callPluginBroker(
+    attemptId: string,
+    proof: AttemptProof,
+    call: {
+      requestId: string;
+      sequence: number;
+      operation: string;
+      args: Readonly<Record<string, unknown>>;
+    },
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<PluginBrokerOutcome>> {
+    const response = await this.request<unknown>(
+      "POST",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/plugin-broker`,
+      {
+        body: call,
+        idempotencyKey: call.requestId,
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+        headers: attemptProofHeaders(proof),
+      },
+    );
+    const wire = parseResponseEnvelope(
+      PluginBrokerWireSchema,
+      response,
+      "WORKER_RESPONSE_PLUGIN_BROKER_INVALID",
+    );
+    return {
+      replayed: wire.replayed,
+      value: wire.value.ok
+        ? {
+          ok: true as const,
+          result: wire.value.result,
+          replayed: wire.value.replayed === true,
+        }
+        : { ok: false as const, denial: wire.value.denial ?? "unknown" },
     };
   }
 
