@@ -9472,6 +9472,62 @@
     {
       "group": "Installation administration",
       "method": "GET",
+      "path": "/v1/installation/restore",
+      "action": "installationRestore.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "InstallationRestore",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESTORE_NOT_HELD",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/restore/steps",
+      "action": "installationRestore.step",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "InstallationRestoreStep",
+      "output": "InstallationRestore",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESTORE_NOT_HELD",
+        "RESTORE_CONFIRMATION_MISMATCH",
+        "RESTORE_STEP_OUT_OF_ORDER",
+        "RESTORE_STEP_ALREADY_TAKEN",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
       "path": "/v1/installation/backups/status",
       "action": "backups.status",
       "access": "Installation administrator",
@@ -14254,6 +14310,8 @@
     "backups.status",
     "backups.start",
     "backups.drills.list",
+    "installationRestore.get",
+    "installationRestore.step",
     "backupRunnerCredential.issue",
     "backupSchedule.get",
     "backupSchedule.put",
@@ -33797,9 +33855,14 @@
                   "prs.turnaroundHours",
                   "prs.changedLines",
                   "loc.changedLines",
-                  "tasks.leadTimeHours"
+                  "tasks.leadTimeHours",
+                  "delivery.deploymentFrequency",
+                  "delivery.changeLeadTimeHours",
+                  "delivery.changeFailRate",
+                  "delivery.failedDeploymentRecoveryHours",
+                  "delivery.deploymentReworkRate"
                 ],
-                "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+                "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
               }
             },
             {
@@ -33907,9 +33970,14 @@
                   "prs.turnaroundHours",
                   "prs.changedLines",
                   "loc.changedLines",
-                  "tasks.leadTimeHours"
+                  "tasks.leadTimeHours",
+                  "delivery.deploymentFrequency",
+                  "delivery.changeLeadTimeHours",
+                  "delivery.changeFailRate",
+                  "delivery.failedDeploymentRecoveryHours",
+                  "delivery.deploymentReworkRate"
                 ],
-                "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+                "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
               }
             },
             {
@@ -38272,6 +38340,76 @@
             },
             "500": {
               "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/installation/restore": {
+        "get": {
+          "operationId": "installationRestore.get",
+          "parameters": [],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InstallationRestore"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/installation/restore/steps": {
+        "post": {
+          "operationId": "installationRestore.step",
+          "parameters": [],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InstallationRestore"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationRestoreStep"
+                }
+              }
             }
           }
         }
@@ -55958,9 +56096,14 @@
                 "prs.turnaroundHours",
                 "prs.changedLines",
                 "loc.changedLines",
-                "tasks.leadTimeHours"
+                "tasks.leadTimeHours",
+                "delivery.deploymentFrequency",
+                "delivery.changeLeadTimeHours",
+                "delivery.changeFailRate",
+                "delivery.failedDeploymentRecoveryHours",
+                "delivery.deploymentReworkRate"
               ],
-              "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+              "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
             },
             "from": {
               "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -56460,6 +56603,8 @@
                 "skillStorageSettings.verify",
                 "backups.list",
                 "backups.drills.list",
+                "installationRestore.get",
+                "installationRestore.step",
                 "backups.status",
                 "backups.start",
                 "backupRunnerCredential.issue",
@@ -78993,9 +79138,14 @@
                 "prs.turnaroundHours",
                 "prs.changedLines",
                 "loc.changedLines",
-                "tasks.leadTimeHours"
+                "tasks.leadTimeHours",
+                "delivery.deploymentFrequency",
+                "delivery.changeLeadTimeHours",
+                "delivery.changeFailRate",
+                "delivery.failedDeploymentRecoveryHours",
+                "delivery.deploymentReworkRate"
               ],
-              "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+              "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
             },
             "from": {
               "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -80687,6 +80837,33 @@
           ],
           "additionalProperties": false,
           "description": "Ask for the measured facts about one storage file, optionally as of one numbered version. Name the organization explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing."
+        },
+        "InstallationRestoreStep": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "step": {
+              "type": "string",
+              "enum": [
+                "intake",
+                "dispatch",
+                "workers"
+              ],
+              "description": "The step to take. Steps are taken in order: intake, then dispatch, then workers."
+            },
+            "confirmation": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "The name of the backup that was restored, typed exactly as the restore record shows it. InstallationRestoreStep.confirmation must contain at least 1 characters. InstallationRestoreStep.confirmation must contain at most 128 characters."
+            }
+          },
+          "required": [
+            "step",
+            "confirmation"
+          ],
+          "additionalProperties": false,
+          "description": "One step of the ordered re-enable of a restored installation, with the typed confirmation that names the restored backup."
         },
         "BackupDrillReport": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -106865,6 +107042,8 @@
                 "skillStorageSettings.verify",
                 "backups.list",
                 "backups.drills.list",
+                "installationRestore.get",
+                "installationRestore.step",
                 "backups.status",
                 "backups.start",
                 "backupRunnerCredential.issue",
@@ -107524,6 +107703,8 @@
                 "skillStorageSettings.verify",
                 "backups.list",
                 "backups.drills.list",
+                "installationRestore.get",
+                "installationRestore.step",
                 "backups.status",
                 "backups.start",
                 "backupRunnerCredential.issue",
@@ -108183,6 +108364,8 @@
                 "skillStorageSettings.verify",
                 "backups.list",
                 "backups.drills.list",
+                "installationRestore.get",
+                "installationRestore.step",
                 "backups.status",
                 "backups.start",
                 "backupRunnerCredential.issue",
@@ -153772,6 +153955,8 @@
                       "skillStorageSettings.verify",
                       "backups.list",
                       "backups.drills.list",
+                      "installationRestore.get",
+                      "installationRestore.step",
                       "backups.status",
                       "backups.start",
                       "backupRunnerCredential.issue",
@@ -172831,9 +173016,10 @@
                         "type": "string",
                         "enum": [
                           "no_records",
-                          "no_known_values"
+                          "no_known_values",
+                          "no_deploy_evidence"
                         ],
-                        "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; null when value is known."
+                        "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; no_deploy_evidence for a production delivery metric while Bakery records no deployment; null when value is known."
                       },
                       {
                         "type": "null",
@@ -220330,9 +220516,10 @@
                   "type": "string",
                   "enum": [
                     "no_records",
-                    "no_known_values"
+                    "no_known_values",
+                    "no_deploy_evidence"
                   ],
-                  "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; null when value is known."
+                  "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; no_deploy_evidence for a production delivery metric while Bakery records no deployment; null when value is known."
                 },
                 {
                   "type": "null",
@@ -266960,6 +267147,163 @@
           "additionalProperties": false,
           "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert."
         },
+        "InstallationRestore": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The restore's id."
+            },
+            "backupName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The directory name of the backup that was restored; it is the confirmation to type."
+            },
+            "cutoffAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "The database-clock cutoff the restored set recorded; null when it recorded none."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationRestore.cutoffAt may be null in this transport value."
+            },
+            "restoredAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the restore fence ran, on the database clock."
+            },
+            "effectsHeld": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "External effects that were prepared or submitted and are now held as uncertain."
+            },
+            "attemptsQuarantined": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Worker attempts that were running and are now quarantined."
+            },
+            "jobsAwaitingReconciliation": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Jobs those attempts belong to, now waiting for reconciliation."
+            },
+            "workersRevoked": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Worker hosts that were revoked and must be enrolled again."
+            },
+            "intakeEnabledAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When intake was re-enabled; null until then."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationRestore.intakeEnabledAt may be null in this transport value."
+            },
+            "dispatchEnabledAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When dispatch was re-enabled; null until then."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationRestore.dispatchEnabledAt may be null in this transport value."
+            },
+            "workersEnabledAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When workers were re-enabled; null until then."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationRestore.workersEnabledAt may be null in this transport value."
+            },
+            "releasedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the restore was released; null while it holds the installation."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationRestore.releasedAt may be null in this transport value."
+            },
+            "nextStep": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "intake",
+                    "dispatch",
+                    "workers"
+                  ],
+                  "description": "The step to take next; null once released."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "InstallationRestore.nextStep may be null in this transport value."
+            }
+          },
+          "required": [
+            "id",
+            "backupName",
+            "cutoffAt",
+            "restoredAt",
+            "effectsHeld",
+            "attemptsQuarantined",
+            "jobsAwaitingReconciliation",
+            "workersRevoked",
+            "intakeEnabledAt",
+            "dispatchEnabledAt",
+            "workersEnabledAt",
+            "releasedAt",
+            "nextStep"
+          ],
+          "additionalProperties": false,
+          "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown."
+        },
         "BackupDrill": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -269156,7 +269500,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:8d2a441d4dda7a1b3530a7731cbcdf5fde3eab543025d513d8b89b2cde707d24",
+  "compatibilityDigest": "sha256:5374259f977dc1ddd3bc5a96feb89e86bfe19b901f6dbb907a910eb450d4a8f9",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -276304,9 +276648,14 @@
             "prs.turnaroundHours",
             "prs.changedLines",
             "loc.changedLines",
-            "tasks.leadTimeHours"
+            "tasks.leadTimeHours",
+            "delivery.deploymentFrequency",
+            "delivery.changeLeadTimeHours",
+            "delivery.changeFailRate",
+            "delivery.failedDeploymentRecoveryHours",
+            "delivery.deploymentReworkRate"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -276806,6 +277155,8 @@
             "skillStorageSettings.verify",
             "backups.list",
             "backups.drills.list",
+            "installationRestore.get",
+            "installationRestore.step",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -299407,9 +299758,14 @@
             "prs.turnaroundHours",
             "prs.changedLines",
             "loc.changedLines",
-            "tasks.leadTimeHours"
+            "tasks.leadTimeHours",
+            "delivery.deploymentFrequency",
+            "delivery.changeLeadTimeHours",
+            "delivery.changeFailRate",
+            "delivery.failedDeploymentRecoveryHours",
+            "delivery.deploymentReworkRate"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -301113,6 +301469,33 @@
       ],
       "additionalProperties": false,
       "description": "Ask for the measured facts about one storage file, optionally as of one numbered version. Name the organization explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing."
+    },
+    "InstallationRestoreStep": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "step": {
+          "type": "string",
+          "enum": [
+            "intake",
+            "dispatch",
+            "workers"
+          ],
+          "description": "The step to take. Steps are taken in order: intake, then dispatch, then workers."
+        },
+        "confirmation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "The name of the backup that was restored, typed exactly as the restore record shows it. InstallationRestoreStep.confirmation must contain at least 1 characters. InstallationRestoreStep.confirmation must contain at most 128 characters."
+        }
+      },
+      "required": [
+        "step",
+        "confirmation"
+      ],
+      "additionalProperties": false,
+      "description": "One step of the ordered re-enable of a restored installation, with the typed confirmation that names the restored backup."
     },
     "BackupDrillReport": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -327385,6 +327768,8 @@
             "skillStorageSettings.verify",
             "backups.list",
             "backups.drills.list",
+            "installationRestore.get",
+            "installationRestore.step",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -328044,6 +328429,8 @@
             "skillStorageSettings.verify",
             "backups.list",
             "backups.drills.list",
+            "installationRestore.get",
+            "installationRestore.step",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -328703,6 +329090,8 @@
             "skillStorageSettings.verify",
             "backups.list",
             "backups.drills.list",
+            "installationRestore.get",
+            "installationRestore.step",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -374442,6 +374831,8 @@
                   "skillStorageSettings.verify",
                   "backups.list",
                   "backups.drills.list",
+                  "installationRestore.get",
+                  "installationRestore.step",
                   "backups.status",
                   "backups.start",
                   "backupRunnerCredential.issue",
@@ -393533,9 +393924,10 @@
                     "type": "string",
                     "enum": [
                       "no_records",
-                      "no_known_values"
+                      "no_known_values",
+                      "no_deploy_evidence"
                     ],
-                    "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; null when value is known."
+                    "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; no_deploy_evidence for a production delivery metric while Bakery records no deployment; null when value is known."
                   },
                   {
                     "type": "null",
@@ -441070,9 +441462,10 @@
               "type": "string",
               "enum": [
                 "no_records",
-                "no_known_values"
+                "no_known_values",
+                "no_deploy_evidence"
               ],
-              "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; null when value is known."
+              "description": "Why value is null: no_records when nothing in scope falls in the bucket, no_known_values when records exist but none has a known value; no_deploy_evidence for a production delivery metric while Bakery records no deployment; null when value is known."
             },
             {
               "type": "null",
@@ -487785,6 +488178,163 @@
       ],
       "additionalProperties": false,
       "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert."
+    },
+    "InstallationRestore": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The restore's id."
+        },
+        "backupName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The directory name of the backup that was restored; it is the confirmation to type."
+        },
+        "cutoffAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The database-clock cutoff the restored set recorded; null when it recorded none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.cutoffAt may be null in this transport value."
+        },
+        "restoredAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the restore fence ran, on the database clock."
+        },
+        "effectsHeld": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "External effects that were prepared or submitted and are now held as uncertain."
+        },
+        "attemptsQuarantined": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Worker attempts that were running and are now quarantined."
+        },
+        "jobsAwaitingReconciliation": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Jobs those attempts belong to, now waiting for reconciliation."
+        },
+        "workersRevoked": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Worker hosts that were revoked and must be enrolled again."
+        },
+        "intakeEnabledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When intake was re-enabled; null until then."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.intakeEnabledAt may be null in this transport value."
+        },
+        "dispatchEnabledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When dispatch was re-enabled; null until then."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.dispatchEnabledAt may be null in this transport value."
+        },
+        "workersEnabledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When workers were re-enabled; null until then."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.workersEnabledAt may be null in this transport value."
+        },
+        "releasedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the restore was released; null while it holds the installation."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.releasedAt may be null in this transport value."
+        },
+        "nextStep": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "intake",
+                "dispatch",
+                "workers"
+              ],
+              "description": "The step to take next; null once released."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.nextStep may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "backupName",
+        "cutoffAt",
+        "restoredAt",
+        "effectsHeld",
+        "attemptsQuarantined",
+        "jobsAwaitingReconciliation",
+        "workersRevoked",
+        "intakeEnabledAt",
+        "dispatchEnabledAt",
+        "workersEnabledAt",
+        "releasedAt",
+        "nextStep"
+      ],
+      "additionalProperties": false,
+      "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown."
     },
     "BackupDrill": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -116,6 +116,21 @@ export function drainDecision(input: {
   return { drained: false, waitSeconds: busy ? 2 : Math.max(1, settleLeft) };
 }
 
+/**
+ * The doors a restore hold closes, in the order an administrator opens them
+ * (#64 slice E3). `intake` is new work coming in (run creation, webhooks,
+ * imports, catalog changes), `dispatch` is the background consumers that settle
+ * and collect, `workers` is workers claiming work. A door is closed while the
+ * restore record is unreleased and its own step has not been taken.
+ */
+export type RestoreDoor = "intake" | "dispatch" | "workers";
+
+const DOOR_COLUMN: Readonly<Record<RestoreDoor, string>> = Object.freeze({
+  intake: "intake_enabled_at",
+  dispatch: "dispatch_enabled_at",
+  workers: "workers_enabled_at",
+});
+
 type SwitchRow = { state: string; leaseExpiresAt: Date; now: Date };
 
 type HoldRow = {
@@ -136,13 +151,16 @@ type HoldRow = {
  */
 async function readHold(
   transaction: Pick<PgTransactionClient, "query">,
+  door: RestoreDoor,
 ): Promise<{ restoring: boolean; backup: SwitchRow | null }> {
+  // The column comes from the fixed map above, never from a caller's text.
+  const column = DOOR_COLUMN[door];
   const result = await transaction.query<HoldRow>(
     `select switch.state, switch.lease_expires_at as "leaseExpiresAt",
             clock_timestamp() as "now",
             exists (
               select 1 from bakery.installation_restores
-               where released_at is null
+               where released_at is null and ${column} is null
             ) as "restoreHeld"
        from (select 1) as one
        left join bakery.installation_maintenance as switch on switch.id = true`,
@@ -170,8 +188,9 @@ async function readHold(
  */
 export async function assertNotQuiesced(
   transaction: Pick<PgTransactionClient, "query">,
+  door: RestoreDoor,
 ): Promise<void> {
-  const hold = await readHold(transaction);
+  const hold = await readHold(transaction, door);
   if (hold.restoring) {
     throw new StandardError({ code: "INSTALLATION_RESTORING" });
   }
@@ -192,7 +211,8 @@ export async function assertNotQuiesced(
  */
 export async function isQuiesced(
   transaction: Pick<PgTransactionClient, "query">,
+  door: RestoreDoor,
 ): Promise<boolean> {
-  const hold = await readHold(transaction);
+  const hold = await readHold(transaction, door);
   return hold.restoring || hold.backup !== null;
 }

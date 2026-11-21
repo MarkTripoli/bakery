@@ -61,7 +61,7 @@ function createClaimUnitOfWork(database: PgDatabase): ClaimUnitOfWork {
           // A backup holds the installation: no new attempt is leased until it
           // lets go. A worker treats the 503 as transient and keeps working
           // on, and renewing the lease of, what it already holds.
-          await assertNotQuiesced(transaction);
+          await assertNotQuiesced(transaction, "workers");
           const persistence = createClaimsRepository(
             transaction,
             persistenceIdentity(identity),

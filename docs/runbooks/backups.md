@@ -466,8 +466,8 @@ Either way it changes nothing.
    waits for reconciliation, and every worker host is revoked.
 6. Starts the api only and puts the proxy back. Dispatch, the worker and Inngest
    **stay stopped**. The restore hold keeps every guarded door answering 503
-   until an installation administrator re-enables the installation (the next
-   slice). It prints `RESTORE_COMPLETED_HELD`.
+   until an installation administrator re-enables it (see the next section).
+   It prints `RESTORE_COMPLETED_HELD`.
 
 **Redis is loaded in a separate step on purpose.** With the append-only file on
 (as production runs it) and only a snapshot present, Redis starts empty and
@@ -484,6 +484,49 @@ same way, or fix the cause and run the script again.
 it; the drill already checked it matches). It does not read or send anything to a
 provider. What an unsettled effect did at its provider is not known, which is why
 it is `uncertain`.
+
+## After a restore: re-enabling the installation, step by step
+
+`restore.sh` leaves the installation **held**: the api is up, every door that
+starts or changes work answers `503 INSTALLATION_RESTORING`, and dispatch, the
+worker and Inngest are stopped. An installation administrator opens it again in
+a fixed order, one step at a time. There is no screen for it: it is two calls on
+the API, made with the administrator's browser session (an access token is
+refused).
+
+```sh
+# What is held, and which step is next
+GET  /v1/installation/restore
+# Take a step; Idempotency-Key is required
+POST /v1/installation/restore/steps   {"step": "intake", "confirmation": "<backup name>"}
+```
+
+The confirmation is the restored backup's name, exactly as `GET` shows it as
+`backupName`. A wrong one changes nothing.
+
+| order | step | what opens | what you do on the host first |
+| ----- | ---- | ---------- | ----------------------------- |
+| 1 | `intake` | new work: runs, webhooks, imports, catalog changes | nothing; check the restore's counts first |
+| 2 | `dispatch` | the background consumers (retention collector, storage purges) | start Inngest and dispatch: `runtime.sh background <sha>` without the worker, then `docker compose up -d inngest` |
+| 3 | `workers` | workers claim work again, and the restore is **released** | enrol each revoked worker host again, then start the worker |
+
+Look at what the restore held before step 1: `effectsHeld` is the number of
+effects that were unsettled and are now `uncertain`. They are reconciled by
+reading the provider, never sent again, and they stay `uncertain` until that is
+done. `workersRevoked` hosts must be enrolled again; their old assignments were
+quarantined and their jobs wait for reconciliation.
+
+**Named refusals** (each changes nothing):
+
+| code | status | meaning |
+| ---- | ------ | ------- |
+| `RESTORE_NOT_HELD` | 409 | no restore holds this installation |
+| `RESTORE_CONFIRMATION_MISMATCH` | 422 | the confirmation is not the restored backup's name |
+| `RESTORE_STEP_OUT_OF_ORDER` | 409 | a later step was asked for; the answer names the step to take |
+| `RESTORE_STEP_ALREADY_TAKEN` | 409 | that step is done; read the restore for the next one |
+
+The server keeps the order: no step opens a later door while an earlier one is
+closed. Each step is audited with the step and the backup's name.
 
 ## What the runner does when something goes wrong
 

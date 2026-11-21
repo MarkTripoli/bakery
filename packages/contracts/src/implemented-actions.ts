@@ -718,6 +718,8 @@ export const BackupImplementedAction = Object.freeze(
     BackupsStatus: "backups.status",
     BackupsStart: "backups.start",
     BackupsDrillsList: "backups.drills.list",
+    InstallationRestoreGet: "installationRestore.get",
+    InstallationRestoreStep: "installationRestore.step",
     BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
     BackupScheduleGet: "backupSchedule.get",
     BackupSchedulePut: "backupSchedule.put",

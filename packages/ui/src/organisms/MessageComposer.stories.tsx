@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
+  AccessOffer,
   Badge,
   Button,
   IconGlyph,
@@ -65,12 +66,16 @@ const WithMentions: StoryObj = {
       mentions={
         <>
           <span>
-            <Badge tone="warning">Sam Patel · gets access</Badge>
+            <Badge tone="warning">Sam Patel · no access yet</Badge>
           </span>
-          <span role="status">
-            Sending gives Sam Patel access to read and reply in this
-            conversation, and nothing else.
-          </span>
+          <AccessOffer
+            decline={{
+              label: "Don't mention Sam Patel",
+              onDecline: () => undefined,
+            }}
+            detail="They will be able to read and reply in this conversation. Nothing else in the task is shared. This is the only access a mention can give here."
+            question="Sam Patel can't see this conversation. Give them access?"
+          />
         </>
       }
       picker={
