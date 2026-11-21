@@ -108,6 +108,9 @@ import type {
   TaskListResponse,
   TaskRepositoryListResponse,
   TaskResponse,
+  TelemetryDestinationDetail,
+  TelemetryDestinationList,
+  TelemetryDestinationListQuery,
   TicketRequestViewListResponse,
   TicketRoutingRuleSetResponse,
   TicketSourceLabelListResponse,
@@ -3647,6 +3650,84 @@ export function storageFileAtVersionQueryOptions(
     enabled: Boolean(scope.organizationId),
     retry: false,
     staleTime: Infinity,
+  });
+}
+
+/**
+ * One page of the telemetry destinations that match the search and filters,
+ * with the kinds, the measurements and the providers. Further pages follow the
+ * cursor, so a long list is read a page at a time. No event is sent when a
+ * destination's state changes, so it reads again every 15 seconds while visible
+ * and when the tab regains focus.
+ */
+export function telemetryDestinationsQueryOptions(
+  client: Pick<BakeryApiClient, "telemetryDestinations">,
+  scope: ApiScope,
+  filters: Readonly<
+    {
+      search?: string;
+      state?: string;
+      kind?: string;
+      provider?: string;
+      limit?: number;
+    }
+  > = {},
+) {
+  const limit = filters.limit ?? 25;
+  return infiniteQueryOptions<
+    TelemetryDestinationList,
+    ApiFailure,
+    { pages: TelemetryDestinationList[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "telemetryDestinations.list", {
+      search: filters.search ?? null,
+      state: filters.state ?? null,
+      kind: filters.kind ?? null,
+      provider: filters.provider ?? null,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.telemetryDestinations.list({
+          ...(filters.search === undefined || filters.search === ""
+            ? {}
+            : { search: filters.search }),
+          ...(filters.state === undefined ? {} : { state: filters.state }),
+          ...(filters.kind === undefined ? {} : { kind: filters.kind }),
+          ...(filters.provider === undefined
+            ? {}
+            : { provider: filters.provider }),
+          limit,
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+        } as TelemetryDestinationListQuery, signal),
+      ),
+    enabled: Boolean(scope.organizationId),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One telemetry destination with its kind, its provider and the measurements. */
+export function telemetryDestinationQueryOptions(
+  client: Pick<BakeryApiClient, "telemetryDestinations">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<TelemetryDestinationDetail, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "telemetryDestinations.get", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.telemetryDestinations.get(id, signal)),
+    enabled: Boolean(scope.organizationId),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: retryNetworkOnce,
   });
 }
 

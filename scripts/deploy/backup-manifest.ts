@@ -1,5 +1,9 @@
 import process from "node:process";
 import {
+  type Cutoff,
+  parseCutoff,
+} from "../../apps/server/src/modules/backups/cutoff-rules.ts";
+import {
   describeProblems,
   IncompleteBackup,
   type KeyIdentity,
@@ -15,7 +19,14 @@ import {
  *   backup-manifest.ts build <directory> --started <ISO time>
  *       (--key-id <id> --key-file <path> | --no-key | --key-failed <reason>)
  *       --skill-files <n> --blobs <n> [--failed <store>=<reason>]...
+ *       [--cutoff-json <json>]
  *   backup-manifest.ts verify <directory> [--allow-legacy] [--key-file <path>]
+ *       [--require-database-cutoff] [--show-cutoff]
+ *
+ * --cutoff-json is the database cutoff the runner took while the installation
+ * was quiet (see cutoff-rules.ts). Without it the cutoff is the host clock at
+ * --started, marked as weaker. A cutoff that does not parse, or that is not a
+ * database cutoff, fails the build with exit 70 and nothing is written.
  *
  * The key file is read once, only to compute its fingerprint (see
  * keyFingerprint in manifest.ts); its bytes are never copied, printed or kept.
@@ -54,9 +65,17 @@ async function main(args: string[]): Promise<void> {
     const result = await verifyBackupDirectory(directory, {
       allowLegacy: rest.includes("--allow-legacy"),
       keyFile: flag(rest, "--key-file"),
+      requireDatabaseCutoff: rest.includes("--require-database-cutoff"),
     });
     if (result.complete) {
       console.log("BACKUP_COMPLETE");
+      if (rest.includes("--show-cutoff")) {
+        console.log(
+          result.cutoff
+            ? `BACKUP_CUTOFF ${result.cutoff.source} ${result.cutoff.at}`
+            : "BACKUP_CUTOFF none",
+        );
+      }
       return;
     }
     if (result.legacy && rest.includes("--allow-legacy")) {
@@ -98,6 +117,29 @@ async function main(args: string[]): Promise<void> {
       key = { state: "failed", reason: keyFailed };
     } else if (rest.includes("--no-key")) key = { state: "unconfigured" };
     else fail("BACKUP_MANIFEST_USAGE one of --key-id, --no-key, --key-failed");
+    let cutoff: Cutoff | undefined;
+    const cutoffJson = flag(rest, "--cutoff-json");
+    if (cutoffJson !== undefined) {
+      let value: unknown;
+      try {
+        value = JSON.parse(cutoffJson);
+      } catch {
+        console.error("BACKUP_INCOMPLETE the cutoff is not valid JSON");
+        process.exit(70);
+      }
+      const parsed = parseCutoff(value);
+      if (typeof parsed === "string" || parsed.source !== "database") {
+        console.error(
+          `BACKUP_INCOMPLETE the cutoff is invalid: ${
+            typeof parsed === "string"
+              ? parsed
+              : "only a database cutoff may be supplied"
+          }`,
+        );
+        process.exit(70);
+      }
+      cutoff = parsed;
+    }
     const failed: Record<string, string> = {};
     for (let i = 0; i < rest.length; i++) {
       if (rest[i] !== "--failed") continue;
@@ -117,6 +159,7 @@ async function main(args: string[]): Promise<void> {
           blobs: count(flag(rest, "--blobs"), "--blobs"),
         },
         failed,
+        cutoff,
       });
     } catch (error) {
       if (error instanceof IncompleteBackup) {
