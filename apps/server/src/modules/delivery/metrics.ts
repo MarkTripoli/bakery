@@ -24,6 +24,11 @@ import {
   waitShares,
 } from "./task-times.ts";
 import {
+  COUNTER_VERSION,
+  type LineCount,
+  LineCoverage,
+} from "../integrations/line-counter.ts";
+import {
   type CursorBinding,
   decodeCursor,
   encodeCursor,
@@ -48,6 +53,7 @@ export const MetricKey = Object.freeze(
     MergeRate: "prs.mergeRate",
     TurnaroundHours: "prs.turnaroundHours",
     ChangedLines: "prs.changedLines",
+    CountedLines: "loc.changedLines",
     TaskLeadTime: "tasks.leadTimeHours",
   } as const,
 );
@@ -58,6 +64,9 @@ export type MissingReason =
   | "no_merged_time"
   | "no_closed_time"
   | "no_diff_totals"
+  | "no_line_count"
+  | "line_count_binary"
+  | "line_count_truncated"
   | "still_open";
 
 type Unit = "count" | "ratio" | "hours" | "lines";
@@ -112,6 +121,12 @@ export const METRIC_DEFINITIONS: Readonly<Record<MetricKey, Definition>> =
       unit: "lines",
       cohort:
         "Added plus deleted lines, once per distinct pull request merged in each period",
+      placedBy: "merged",
+    },
+    [MetricKey.CountedLines]: {
+      unit: "lines",
+      cohort:
+        "Added plus deleted lines of source, test, docs and config files, lock, vendored and generated files excluded, from a complete count of the merged head, once per distinct pull request merged in each period",
       placedBy: "merged",
     },
     [MetricKey.TaskLeadTime]: {
@@ -194,6 +209,8 @@ export type PullRequestFact = Readonly<{
   closedAt: Date | null;
   additions: number | null;
   deletions: number | null;
+  /** The line count of the head under the current counter version; null when none. */
+  lineCount?: LineCount | null;
   /** Lifecycle transitions, oldest first, deduplicated by identity. */
   transitions: readonly { kind: string; at: Date }[];
 }>;
@@ -403,6 +420,24 @@ export function placements(
             },
         );
         break;
+      case MetricKey.CountedLines: {
+        if (!inWindow(fact.mergedAt, window)) break;
+        const count = fact.lineCount ?? null;
+        const missingReason: MissingReason | null = count === null
+          ? "no_line_count"
+          : count.coverage === LineCoverage.Truncated
+          ? "line_count_truncated"
+          : count.coverage === LineCoverage.Binary
+          ? "line_count_binary"
+          : null;
+        out.push({
+          fact,
+          countedAt: fact.mergedAt,
+          value: missingReason === null ? count!.added + count!.deleted : null,
+          missingReason,
+        });
+        break;
+      }
     }
   }
   return out;
@@ -527,7 +562,21 @@ type FactRow = {
   closed_at: Date | null;
   additions: number | null;
   deletions: number | null;
+  head_sha: string;
   last_observed_at: Date | null;
+};
+
+type LineCountRow = {
+  pull_request_id: string;
+  head_sha: string;
+  counter_version: string;
+  coverage: LineCount["coverage"];
+  added: number;
+  deleted: number;
+  counted_files: number;
+  excluded_files: number;
+  binary_files: number;
+  categories: LineCount["categories"];
 };
 
 /**
@@ -545,7 +594,7 @@ async function readFacts(
   const found = await tx.query<FactRow>(
     `select id, repository_id, task_id, provider_number, url, status,
             opened_at, merged_at, closed_at, additions, deletions,
-            last_observed_at
+            head_sha, last_observed_at
        from bakery.pull_requests
       where organization_id = $1
         and ($2::uuid is null or repository_id = $2)
@@ -593,6 +642,32 @@ async function readFacts(
     list.push({ kind: row.kind, at: row.effective_at });
     byPr.set(row.pull_request_id, list);
   }
+  const counts = ids.length === 0
+    ? { rows: [] as LineCountRow[] }
+    : await tx.query<LineCountRow>(
+      `select pull_request_id, head_sha, counter_version, coverage, added,
+              deleted, counted_files, excluded_files, binary_files, categories
+         from bakery.pull_request_line_counts
+        where organization_id = $1 and pull_request_id = any($2::uuid[])
+          and counter_version = $3`,
+      [organizationId, ids, COUNTER_VERSION],
+    );
+  const headOf = new Map(found.rows.map((row) => [row.id, row.head_sha]));
+  const countOf = new Map<string, LineCount>();
+  for (const row of counts.rows) {
+    // Only the count of the head the pull request merged with is current.
+    if (headOf.get(row.pull_request_id) !== row.head_sha) continue;
+    countOf.set(row.pull_request_id, {
+      counterVersion: row.counter_version,
+      coverage: row.coverage,
+      added: Number(row.added),
+      deleted: Number(row.deleted),
+      countedFiles: Number(row.counted_files),
+      excludedFiles: Number(row.excluded_files),
+      binaryFiles: Number(row.binary_files),
+      categories: row.categories,
+    });
+  }
   const lastObserved = new Map<string, Date>();
   for (const row of found.rows) {
     if (row.last_observed_at === null) continue;
@@ -615,6 +690,7 @@ async function readFacts(
       closedAt: row.closed_at,
       additions: row.additions === null ? null : Number(row.additions),
       deletions: row.deletions === null ? null : Number(row.deletions),
+      lineCount: countOf.get(row.id) ?? null,
       transitions: byPr.get(row.id) ?? [],
     })),
   };
@@ -884,6 +960,7 @@ function sourceRow(p: Placement) {
       deliveredAt: task.deliveredAt?.toISOString() ?? null,
       deliveryPoint: task.deliveryPoint,
       waits: waitShares(task),
+      lineCount: null,
       ...counted,
     };
   }
@@ -903,6 +980,7 @@ function sourceRow(p: Placement) {
     deliveredAt: null,
     deliveryPoint: null,
     waits: null,
+    lineCount: p.fact.lineCount ?? null,
     ...counted,
   };
 }

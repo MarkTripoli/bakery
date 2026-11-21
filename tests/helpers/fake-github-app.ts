@@ -37,10 +37,21 @@ export type FakeReadRoute =
   | "blocked-by"
   | "issue-events"
   | "commit-pulls"
+  | "pull-files"
   | "collaborator-permission";
 
 /** A scripted failure on a read route: the shared scripts or a plain 502. */
 export type FakeReadFailureScript = FakeFailureScript | "server_error";
+
+/** One file of a fake pull request's diff, as `GET .../pulls/{n}/files` lists it. */
+export type FakePullRequestFile = {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  /** Absent for a binary file, as GitHub sends it. */
+  patch?: string;
+};
 
 /** One issue item of a fake repository, pull requests included. */
 export type FakeIssue = {
@@ -1123,6 +1134,8 @@ export function createFakeGitHubApp(
     commitPulls: Map<string, FakeCommitPull[]>;
     /** Collaborator permissions by lowercase login. */
     collaborators: Map<string, { login: string } & FakeCollaborator>;
+    /** The files of a pull request's diff, by pull request number. */
+    pullFiles: Map<number, FakePullRequestFile[]>;
   };
   /** Read state by repository id; created on first use. */
   const repositoryReads = new Map<number, RepositoryReads>();
@@ -1178,6 +1191,7 @@ export function createFakeGitHubApp(
         events: new Map(),
         commitPulls: new Map(),
         collaborators: new Map(),
+        pullFiles: new Map(),
       };
       repositoryReads.set(repositoryId, reads);
     }
@@ -1298,6 +1312,14 @@ export function createFakeGitHubApp(
     };
     reads.pullRequests.set(item.number, pullRequest);
     return pullRequest;
+  };
+  /** Sets the files of a pull request's diff, replacing any before. */
+  const seedPullRequestFiles = (
+    repositoryId: number,
+    number: number,
+    files: FakePullRequestFile[],
+  ): void => {
+    readsOf(repositoryId).pullFiles.set(number, files);
   };
   /** Sets the check runs GitHub holds for one commit, replacing any before. */
   const seedCheckRuns = (
@@ -1493,6 +1515,7 @@ export function createFakeGitHubApp(
     "blocked-by": ["issues"],
     "issue-events": ["issues"],
     "commit-pulls": ["pull_requests"],
+    "pull-files": ["pull_requests"],
     "collaborator-permission": [],
   };
   type ReadTarget = {
@@ -1539,6 +1562,9 @@ export function createFakeGitHubApp(
     }
     if (rest[0] === "pulls" && rest.length === 2) {
       return { route: "pull", owner, name, key };
+    }
+    if (rest[0] === "pulls" && rest.length === 3 && rest[2] === "files") {
+      return { route: "pull-files", owner, name, key };
     }
     if (rest[0] === "commits" && rest.length === 3 && rest[2] === "pulls") {
       return { route: "commit-pulls", owner, name, key };
@@ -1990,6 +2016,25 @@ export function createFakeGitHubApp(
           ? notFound()
           : Response.json(pullRequestWire(installation, repository, pull));
       }
+      case "pull-files": {
+        if (number === null || !reads.pullRequests.has(number)) {
+          return notFound();
+        }
+        const files = reads.pullFiles.get(number) ?? [];
+        const { perPage, page } = pageOf(url);
+        return Response.json(
+          files.slice((page - 1) * perPage, page * perPage).map((file) => ({
+            sha: fakeCommitSha(),
+            filename: file.filename,
+            status: file.status,
+            additions: file.additions,
+            deletions: file.deletions,
+            changes: file.additions + file.deletions,
+            ...(file.patch === undefined ? {} : { patch: file.patch }),
+          })),
+          { headers: pageLink(url, page, perPage, files.length) },
+        );
+      }
       case "check-runs": {
         const runs = target.key === null
           ? []
@@ -2223,6 +2268,7 @@ export function createFakeGitHubApp(
     transferIssue,
     seedPullRequest,
     seedCheckRuns,
+    seedPullRequestFiles,
     seedIssueDetail,
     seedBlockedBy,
     seedIssueEvent,

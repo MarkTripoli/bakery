@@ -29,6 +29,7 @@ export const AuthImplementedAction = Object.freeze(
     BrowserSessionsList: "browserSessions.list",
     BrowserSessionsRevoke: "browserSessions.revoke",
     BrowserSessionsRevokeOthers: "browserSessions.revokeOthers",
+    BrowserSessionsRevokeCurrent: "browserSessions.revokeCurrent",
     ConnectedClientsList: "connectedClients.list",
     ConnectedClientsRevoke: "connectedClients.revoke",
     ProfileGet: "profile.get",
@@ -178,6 +179,7 @@ export const ConversationImplementedAction = Object.freeze(
     ConversationsMentionCandidates: "conversations.mentionCandidates",
     ConversationAccessList: "conversationAccess.list",
     ConversationAccessRevoke: "conversationAccess.revoke",
+    ConversationAccessSharers: "conversationAccess.sharers",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
@@ -734,6 +736,8 @@ export const BackupImplementedAction = Object.freeze(
     BackupsStatus: "backups.status",
     BackupsStart: "backups.start",
     BackupsDrillsList: "backups.drills.list",
+    InstallationRestoreGet: "installationRestore.get",
+    InstallationRestoreStep: "installationRestore.step",
     BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
     BackupScheduleGet: "backupSchedule.get",
     BackupSchedulePut: "backupSchedule.put",

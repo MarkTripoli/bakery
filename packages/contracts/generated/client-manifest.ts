@@ -4435,6 +4435,28 @@ export const clientManifest = {
     },
     {
       "group": "Access",
+      "method": "POST",
+      "path": "/v1/me/sessions/revoke-current",
+      "action": "browserSessions.revokeCurrent",
+      "access": "Authenticated",
+      "permission": "browserSession:write",
+      "input": "Empty",
+      "output": "BrowserSessionRevocation",
+      "event": "",
+      "mcp": "",
+      "idempotency": "none; the caller's own sign-in ends, so a repeat is refused as unauthenticated and the caller treats that as ended",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN"
+      ],
+      "organizationContext": "authenticated_principal_scope",
+      "implemented": true
+    },
+    {
+      "group": "Access",
       "method": "GET",
       "path": "/v1/me/connected-clients",
       "action": "connectedClients.list",
@@ -7448,6 +7470,28 @@ export const clientManifest = {
     },
     {
       "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/access/sharers",
+      "action": "conversationAccess.sharers",
+      "access": "Developer",
+      "permission": "message:read",
+      "input": "IdPath",
+      "output": "ConversationSharers",
+      "event": "",
+      "mcp": "bakery_conversationAccess_sharers",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
       "method": "POST",
       "path": "/v1/conversations/{id}/access/{principalId}/revoke",
       "action": "conversationAccess.revoke",
@@ -8431,6 +8475,62 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "SESSION_REQUIRED",
         "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/restore",
+      "action": "installationRestore.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "InstallationRestore",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESTORE_NOT_HELD",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/restore/steps",
+      "action": "installationRestore.step",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "InstallationRestoreStep",
+      "output": "InstallationRestore",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESTORE_NOT_HELD",
+        "RESTORE_CONFIRMATION_MISMATCH",
+        "RESTORE_STEP_OUT_OF_ORDER",
+        "RESTORE_STEP_ALREADY_TAKEN",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
         "INTERNAL"
       ],
       "organizationContext": "installation_administrator_scope",
@@ -18332,9 +18432,10 @@ export const clientManifest = {
             "prs.mergeRate",
             "prs.turnaroundHours",
             "prs.changedLines",
+            "loc.changedLines",
             "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -18639,6 +18740,7 @@ export const clientManifest = {
             "browserSessions.list",
             "browserSessions.revoke",
             "browserSessions.revokeOthers",
+            "browserSessions.revokeCurrent",
             "connectedClients.list",
             "connectedClients.revoke",
             "principals.list",
@@ -18792,6 +18894,7 @@ export const clientManifest = {
             "conversationParticipants.list",
             "conversations.mentionCandidates",
             "conversationAccess.list",
+            "conversationAccess.sharers",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -18832,6 +18935,8 @@ export const clientManifest = {
             "skillStorageSettings.verify",
             "backups.list",
             "backups.drills.list",
+            "installationRestore.get",
+            "installationRestore.step",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -31129,9 +31234,10 @@ export const clientManifest = {
             "prs.mergeRate",
             "prs.turnaroundHours",
             "prs.changedLines",
+            "loc.changedLines",
             "tasks.leadTimeHours"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary."
         },
         "from": {
           "description": "Start of the UTC reporting window, inclusive; defaults to 30 days before `to` and cannot widen the window past 366 days.",
@@ -32281,6 +32387,33 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Ask for the measured facts about one storage file, optionally as of one numbered version. Name the organization explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing."
+    },
+    "InstallationRestoreStep": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "step": {
+          "type": "string",
+          "enum": [
+            "intake",
+            "dispatch",
+            "workers"
+          ],
+          "description": "The step to take. Steps are taken in order: intake, then dispatch, then workers."
+        },
+        "confirmation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "The name of the backup that was restored, typed exactly as the restore record shows it. InstallationRestoreStep.confirmation must contain at least 1 characters. InstallationRestoreStep.confirmation must contain at most 128 characters."
+        }
+      },
+      "required": [
+        "step",
+        "confirmation"
+      ],
+      "additionalProperties": false,
+      "description": "One step of the ordered re-enable of a restored installation, with the typed confirmation that names the restored backup."
     },
     "BackupDrillReport": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46055,6 +46188,7 @@ export const clientManifest = {
                   "browserSessions.list",
                   "browserSessions.revoke",
                   "browserSessions.revokeOthers",
+                  "browserSessions.revokeCurrent",
                   "connectedClients.list",
                   "connectedClients.revoke",
                   "principals.list",
@@ -46208,6 +46342,7 @@ export const clientManifest = {
                   "conversationParticipants.list",
                   "conversations.mentionCandidates",
                   "conversationAccess.list",
+                  "conversationAccess.sharers",
                   "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
@@ -46248,6 +46383,8 @@ export const clientManifest = {
                   "skillStorageSettings.verify",
                   "backups.list",
                   "backups.drills.list",
+                  "installationRestore.get",
+                  "installationRestore.step",
                   "backups.status",
                   "backups.start",
                   "backupRunnerCredential.issue",
@@ -66536,6 +66673,7 @@ export const clientManifest = {
             "browserSessions.list",
             "browserSessions.revoke",
             "browserSessions.revokeOthers",
+            "browserSessions.revokeCurrent",
             "connectedClients.list",
             "connectedClients.revoke",
             "principals.list",
@@ -66689,6 +66827,7 @@ export const clientManifest = {
             "conversationParticipants.list",
             "conversations.mentionCandidates",
             "conversationAccess.list",
+            "conversationAccess.sharers",
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
@@ -66729,6 +66868,8 @@ export const clientManifest = {
             "skillStorageSettings.verify",
             "backups.list",
             "backups.drills.list",
+            "installationRestore.get",
+            "installationRestore.step",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -69214,9 +69355,12 @@ export const clientManifest = {
                   "no_merged_time",
                   "no_closed_time",
                   "no_diff_totals",
+                  "no_line_count",
+                  "line_count_binary",
+                  "line_count_truncated",
                   "still_open"
                 ],
-                "description": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet."
+                "description": "no_opened_time, no_merged_time or no_closed_time: the provider time the metric needs was never read; no_diff_totals: the provider gave no line totals; no_line_count: the merged head has not been counted yet; line_count_binary: the diff holds a binary file whose lines are unknown; line_count_truncated: the provider's file list stopped before every changed file; still_open: the cohort member has not finished, so a completed-only metric cannot count it yet."
               },
               "count": {
                 "type": "integer",
@@ -100958,6 +101102,43 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "One person's direct, mention-granted access to one conversation, with who granted it and from which message."
     },
+    "ConversationSharers": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The person who may give access."
+              },
+              "displayName": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "Their current display name; never an email address. ConversationSharer.displayName must contain at most 200 characters."
+              }
+            },
+            "required": [
+              "principalId",
+              "displayName"
+            ],
+            "additionalProperties": false,
+            "description": "Up to three active people in the reader's organization whose role may share the conversation, its author first when the author is one of them, then by display name. Empty when nobody may. Each array item follows this format."
+          },
+          "description": "Up to three active people in the reader's organization whose role may share the conversation, its author first when the author is one of them, then by display name. Empty when nobody may."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "Who can give access to one conversation: up to three people, so a writer who may not share can ask one of them. It grants nothing."
+    },
     "Page<ConversationAccessGrant>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -107900,6 +108081,9 @@ export const clientManifest = {
                       "no_merged_time",
                       "no_closed_time",
                       "no_diff_totals",
+                      "no_line_count",
+                      "line_count_binary",
+                      "line_count_truncated",
                       "still_open"
                     ],
                     "description": "Why this record's value is unknown and it was left out of the number; null when it counted."
@@ -108037,6 +108221,121 @@ export const clientManifest = {
                   }
                 ],
                 "description": "MetricSource.waits may be null in this transport value."
+              },
+              "lineCount": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "counterVersion": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Version of the counting rules; counts under different versions are never compared."
+                      },
+                      "coverage": {
+                        "type": "string",
+                        "enum": [
+                          "complete",
+                          "binary",
+                          "truncated"
+                        ],
+                        "description": "complete: every changed file was listed and had line totals; binary: a binary file's lines are unknown; truncated: the provider's list stopped before every changed file. Only a complete count is a known number of lines."
+                      },
+                      "added": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Added lines over the counted files."
+                      },
+                      "deleted": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Deleted lines over the counted files."
+                      },
+                      "countedFiles": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Files whose lines were counted."
+                      },
+                      "excludedFiles": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Lock, vendored, generated, minified and source-map files, never counted as lines."
+                      },
+                      "binaryFiles": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Files listed with no patch and no line totals; their lines are unknown."
+                      },
+                      "categories": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "category": {
+                              "type": "string",
+                              "enum": [
+                                "source",
+                                "test",
+                                "docs",
+                                "config"
+                              ],
+                              "description": "source: code; test: test files and directories; docs: documentation and prose; config: configuration and data files."
+                            },
+                            "added": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "Added lines in this category."
+                            },
+                            "deleted": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "Deleted lines in this category."
+                            },
+                            "files": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "Counted files in this category."
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "added",
+                            "deleted",
+                            "files"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Counted lines by category, one entry per category with a file. Each array item follows this format."
+                        },
+                        "description": "Counted lines by category, one entry per category with a file."
+                      }
+                    },
+                    "required": [
+                      "counterVersion",
+                      "coverage",
+                      "added",
+                      "deleted",
+                      "countedFiles",
+                      "excludedFiles",
+                      "binaryFiles",
+                      "categories"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The line count of the pull request's merged head under the current counter version, the evidence behind loc.changedLines; null for a task or a pull request not counted yet."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MetricSource.lineCount may be null in this transport value."
               }
             },
             "required": [
@@ -108057,7 +108356,8 @@ export const clientManifest = {
               "requestedAt",
               "deliveredAt",
               "deliveryPoint",
-              "waits"
+              "waits",
+              "lineCount"
             ],
             "additionalProperties": false,
             "description": "One record behind a metric: a pull request with its lifecycle times, or a delivered task with its lead time and where it went. Its value is its own contribution; a null value is unknown and was left out of the number."
@@ -112088,6 +112388,163 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert."
+    },
+    "InstallationRestore": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The restore's id."
+        },
+        "backupName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The directory name of the backup that was restored; it is the confirmation to type."
+        },
+        "cutoffAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The database-clock cutoff the restored set recorded; null when it recorded none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.cutoffAt may be null in this transport value."
+        },
+        "restoredAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the restore fence ran, on the database clock."
+        },
+        "effectsHeld": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "External effects that were prepared or submitted and are now held as uncertain."
+        },
+        "attemptsQuarantined": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Worker attempts that were running and are now quarantined."
+        },
+        "jobsAwaitingReconciliation": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Jobs those attempts belong to, now waiting for reconciliation."
+        },
+        "workersRevoked": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Worker hosts that were revoked and must be enrolled again."
+        },
+        "intakeEnabledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When intake was re-enabled; null until then."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.intakeEnabledAt may be null in this transport value."
+        },
+        "dispatchEnabledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When dispatch was re-enabled; null until then."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.dispatchEnabledAt may be null in this transport value."
+        },
+        "workersEnabledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When workers were re-enabled; null until then."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.workersEnabledAt may be null in this transport value."
+        },
+        "releasedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the restore was released; null while it holds the installation."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.releasedAt may be null in this transport value."
+        },
+        "nextStep": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "intake",
+                "dispatch",
+                "workers"
+              ],
+              "description": "The step to take next; null once released."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "InstallationRestore.nextStep may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "backupName",
+        "cutoffAt",
+        "restoredAt",
+        "effectsHeld",
+        "attemptsQuarantined",
+        "jobsAwaitingReconciliation",
+        "workersRevoked",
+        "intakeEnabledAt",
+        "dispatchEnabledAt",
+        "workersEnabledAt",
+        "releasedAt",
+        "nextStep"
+      ],
+      "additionalProperties": false,
+      "description": "The restore that holds this installation, and how far its ordered re-enable has got. Names, counts and times only: nothing the restore touched is shown."
     },
     "BackupDrill": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

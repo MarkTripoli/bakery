@@ -92,6 +92,12 @@ export const FAULTS = {
   // run and every door stays closed until an administrator completes the
   // ordered steps. Asking again does not help, so it is not retryable.
   INSTALLATION_RESTORING: [503, false, "installation-restoring"],
+  // The ordered re-enable of a restored installation (#64 slice E3). Each is a
+  // refusal an administrator can act on, named so a script can tell them apart.
+  RESTORE_NOT_HELD: [409, false, "restore-not-held"],
+  RESTORE_CONFIRMATION_MISMATCH: [422, false, "restore-confirmation-mismatch"],
+  RESTORE_STEP_OUT_OF_ORDER: [409, false, "restore-step-out-of-order"],
+  RESTORE_STEP_ALREADY_TAKEN: [409, false, "restore-step-already-taken"],
   SNAPSHOT_SCOPE_TOO_LARGE: [413, false, "snapshot-scope-too-large"],
   AUTH_INVALID: [401, false, "auth-invalid"],
   AUTH_EXPIRED: [401, false, "auth-expired"],
