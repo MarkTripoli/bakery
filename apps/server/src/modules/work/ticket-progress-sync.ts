@@ -14,6 +14,7 @@ import {
   ticketProgressPhase,
 } from "./ticket-progress.ts";
 import { ticketRequestProgress } from "./ticket-request-state.ts";
+import { claimLinkProgress, recordLinkProgress } from "./ticket-store.ts";
 
 /**
  * Keeps Bakery's one status note on each ticket of a source true as its
@@ -201,15 +202,13 @@ export async function syncSourceProgress(
           limit 10`,
         [call.organizationId, row.link_id, row.request_id],
       );
-      const claim = await transaction.query<{ version: number }>(
-        `update bakery.ticket_task_links
-            set sync_health = 'pending', updated_at = now(),
-                version = version + 1
-          where organization_id = $1 and id = $2 and version = $3
-          returning version`,
-        [call.organizationId, row.link_id, row.link_version],
+      const claimedVersion = await claimLinkProgress(
+        transaction,
+        call.organizationId,
+        row.link_id,
+        row.link_version,
       );
-      if (claim.rows[0] === undefined) {
+      if (claimedVersion === null) {
         result.skipped++;
         continue;
       }
@@ -218,7 +217,7 @@ export async function syncSourceProgress(
         phaseCode: phase.code,
         label: phase.label,
         previousLabel: ticketProgressLabelOfCode(row.last_synced_run_revision),
-        claimedVersion: claim.rows[0].version,
+        claimedVersion,
         body: ticketProgressBody({
           phase,
           // Only a ticket observed as private may carry the task's title.
@@ -299,25 +298,17 @@ export async function syncSourceProgress(
     // The comment id is kept whenever the note posted, so a label that failed
     // never makes the next sync post a second comment.
     await withPgTransaction(deps.database, (transaction) =>
-      transaction.query(
-        `update bakery.ticket_task_links
-            set sync_health = $4,
-                status_comment_external_id = coalesce($5, status_comment_external_id),
-                last_synced_run_revision = case when $4 = 'healthy' then $6::integer
-                  else last_synced_run_revision end,
-                last_problem_code = $7,
-                updated_at = now(), version = version + 1
-          where organization_id = $1 and id = $2 and version = $3
-            and sync_health = 'pending'`,
-        [
-          call.organizationId,
-          row.link_id,
-          claim.claimedVersion,
-          healthy ? "healthy" : "failed",
-          note.kind === "posted" ? note.externalId : null,
-          claim.phaseCode,
-          problem,
-        ],
+      recordLinkProgress(
+        transaction,
+        call.organizationId,
+        row.link_id,
+        claim.claimedVersion,
+        {
+          syncHealth: healthy ? "healthy" : "failed",
+          externalId: note.kind === "posted" ? note.externalId : null,
+          phaseCode: claim.phaseCode,
+          problemCode: problem,
+        },
       ), call.signal);
     if (healthy) result.posted++;
     else result.failed++;
