@@ -216,11 +216,77 @@ impl Shell {
     }
 
     /// A page of the server a `bakery://open` link named, already checked. It is kept, and the last
-    /// one wins, until the window can show the server's pages.
-    /// Show a link's dialog over whatever the window shows. A newer one replaces an older one.
-    pub fn show_link_dialog(&self, dialog: LinkDialog) {
+    /// Show a link's dialog over whatever the window shows. A newer one replaces an older one. Over the
+    /// server's pages, which the app cannot draw inside, it is the system's own message dialog with the
+    /// same words and button names; over the app's own panels it is drawn in the window.
+    pub fn show_link_dialog(self: &Arc<Self>, dialog: LinkDialog) {
+        if self.window_page.lock().unwrap().on_server {
+            self.system_link_dialog(dialog);
+            return;
+        }
         self.state.lock().unwrap().facts.link_dialog = Some(dialog);
         self.push();
+    }
+
+    fn system_link_dialog(self: &Arc<Self>, dialog: LinkDialog) {
+        let view = bakery_desktop_core::link_dialog::view(&dialog, &self.server);
+        self.report("system_dialog", json!({ "kind": view.kind }));
+        let mut message = view.text.join("\n\n");
+        message.push_str("\n\n");
+        if let Some(label) = &view.box_label {
+            message.push_str(label);
+            message.push(' ');
+        }
+        message.push_str(&view.shown);
+        let shell = Arc::clone(self);
+        let _ = self.app.run_on_main_thread(move || {
+            // Two buttons, the design's names, never a bare "OK". Harness only: an answer chosen in
+            // advance in place of a person, because a run cannot press the system's dialog.
+            let pressed = match std::env::var("BAKERY_DESKTOP_DIALOG_ANSWER") {
+                Ok(label) => view.buttons.iter().find(|b| b.label == label).map(|b| b.id),
+                Err(_) => {
+                    let primary = view.buttons.iter().find(|b| b.primary);
+                    let other = view.buttons.iter().find(|b| !b.primary);
+                    let (Some(primary), Some(other)) = (primary, other) else { return };
+                    let answer = rfd::MessageDialog::new()
+                        .set_level(rfd::MessageLevel::Info)
+                        .set_title(&view.title)
+                        .set_description(&message)
+                        .set_buttons(rfd::MessageButtons::OkCancelCustom(
+                            primary.label.clone(),
+                            other.label.clone(),
+                        ))
+                        .show();
+                    match answer {
+                        rfd::MessageDialogResult::Custom(label) => {
+                            view.buttons.iter().find(|b| b.label == label).map(|b| b.id)
+                        }
+                        rfd::MessageDialogResult::Ok => Some(primary.id),
+                        _ => Some(other.id),
+                    }
+                }
+            };
+            shell.answer_system_dialog(&dialog, pressed);
+        });
+    }
+
+    /// What a pressed button of a system dialog does. Copy copies the whole text and closes it.
+    fn answer_system_dialog(self: &Arc<Self>, dialog: &LinkDialog, pressed: Option<bakery_desktop_core::copy::ButtonId>) {
+        use bakery_desktop_core::copy::ButtonId;
+        self.report("system_dialog_answer", json!({ "button": pressed }));
+        match pressed {
+            Some(ButtonId::CopyLink) => {
+                use tauri_plugin_clipboard_manager::ClipboardExt;
+                let _ = self.app.clipboard().write_text(dialog.full().to_string());
+            }
+            Some(ButtonId::OpenLinkInBrowser) => {
+                let target = dialog.full().to_string();
+                if self.app.opener().open_url(&target, None::<&str>).is_err() {
+                    self.show_link_dialog(LinkDialog::BrowserDidNotOpen { address: target });
+                }
+            }
+            _ => {}
+        }
     }
 
     pub fn close_link_dialog(&self) {

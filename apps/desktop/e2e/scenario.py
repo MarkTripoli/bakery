@@ -687,7 +687,8 @@ def phase_web_pages():
     p = os.path.join(OUT, "m-web")
     clear_store()
     clear_store(web)
-    start_app(p, server=web)
+    # A run cannot press the system's dialog, so it answers in advance: Copy the link.
+    start_app(p, server=web, extra={"BAKERY_DESKTOP_DIALOG_ANSWER": "Copy the link"})
     assert wait_window(p, "sign_in") is not None
     # A page link that arrives while nobody is signed in is kept, and opens after the sign-in.
     deliver("bakery://open?path=%2Fissues")
@@ -710,6 +711,16 @@ def phase_web_pages():
     check("[web] the sign-in was saved for the web address", stored(web).startswith("bkd_"), "before sign-out")
     check("[web] the window's one-use code is in no report",
           not any("handoff" in json.dumps(e) and "code=" in json.dumps(e) for e in reports(p)))
+    # Over a server's page a refused link is the system's own dialog, never drawn in the window.
+    deliver("bakery://open?path=%2Fv1%2Ftasks")
+    check("[web] over a server page a refused link brings up the system's dialog",
+          wait_report(p, "system_dialog", 1, timeout=20)
+          and [e["data"]["kind"] for e in reports(p) if e["event"] == "system_dialog"][-1] == "cant_open")
+    check("[web] its Copy the link button copies and closes it",
+          wait_report(p, "system_dialog_answer", 1, timeout=20)
+          and [e["data"]["button"] for e in reports(p) if e["event"] == "system_dialog_answer"][-1] == "copy_link")
+    check("[web] nothing was drawn in the window for it",
+          all(e["data"].get("link_dialog") is None for e in reports(p) if e["event"] == "view" and e["data"]["window"].get("kind") == "app"))
     # The web's own Sign out: a full navigation to the web's sign-out page, as its link does.
     eval_in_window(p, "location.assign('/sign-out')")
     check("[web] signing out in the web ends the app's sign-in and returns to the sign-in panel",

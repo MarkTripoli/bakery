@@ -287,6 +287,7 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(links_plugin(server.clone()))
         .on_menu_event(|app, event| {
             let Some(shell) = app.try_state::<Arc<Shell>>() else {

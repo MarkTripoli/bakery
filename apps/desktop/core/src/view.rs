@@ -196,6 +196,7 @@ pub const PREVIEWS: &[&str] = &[
     "cannot-reach",
     "older-server",
     "older-app",
+    "link-sign-in",
     "link-cant-open",
     "link-not-web",
     "link-other-server",
@@ -422,6 +423,7 @@ pub fn preview(name: &str) -> Option<Preview> {
                 },
             ],
         )),
+        "link-sign-in" => plain(run(vec![Event::OpenLinkArrived])),
         "link-cant-open" => with_link(LinkDialog::CantOpen {
             link: "bakery://open?path=%2F%2Fevil.example".into(),
         }),
