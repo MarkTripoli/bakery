@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
-import { ticketSourcesListQueryOptions } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
@@ -46,17 +45,9 @@ export function BatchStartPage() {
   const queryClient = useQueryClient();
   const search = useSearch({ strict: false }) as Record<string, unknown>;
   const lookups = useBatchLookups();
-  const sources = useQuery(ticketSourcesListQueryOptions(api, scope));
 
-  // Only repositories that are taking issues can run a batch.
-  const takingIds = new Set(
-    (sources.data?.items ?? []).filter((source) => source.enabled).map((
-      source,
-    ) => source.repositoryId),
-  );
-  const choices = lookups.repositories.filter((repository) =>
-    takingIds.has(repository.id)
-  );
+  // Only repositories that are taking issues can run a batch, however many there are.
+  const choices = lookups.takingIssues;
   const asked = typeof search.repository === "string" ? search.repository : "";
   const preselected = choices.some((repository) => repository.id === asked)
     ? asked
@@ -307,7 +298,7 @@ export function BatchStartPage() {
             <UI.Heading level="section">
               {translate("batches.start.repository.heading" as never)}
             </UI.Heading>
-            {sources.isSuccess && choices.length === 0
+            {lookups.sourcesReady && choices.length === 0
               ? (
                 <UI.InlineNotice tone="information">
                   {translate("batches.start.repository.none" as never)}

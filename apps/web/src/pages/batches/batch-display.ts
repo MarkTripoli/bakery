@@ -11,14 +11,22 @@ export type BatchState = BatchResponse["state"];
 export type BatchIssueState = BatchIssueResponse["state"];
 export type ContinueMode = BatchResponse["continueMode"];
 
+/** A value that is itself a catalogue key, such as a reason phrase. */
+export type Phrase = Readonly<{ phrase: string }>;
+
+/** Marks a catalogue key as a phrase to translate, so free text is never mistaken for one. */
+export function phrase(key: string): Phrase {
+  return { phrase: key };
+}
+
 /**
- * A catalogue key and the values its sentence needs. A string value that
- * starts with `batches.` is itself a catalogue key (a reason phrase): the page
- * translates it before filling the sentence, so each language orders its own.
+ * A catalogue key and the values its sentence needs. A value that is a `Phrase`
+ * is translated before the sentence is filled, so each language orders its own
+ * clause. Any other string is free text (a name, a repository) and is used as is.
  */
 export type Message = Readonly<{
   key: string;
-  params?: Readonly<Record<string, string | number>>;
+  params?: Readonly<Record<string, string | number | Phrase>>;
 }>;
 
 /** A batch is live until it has finished or been stopped; only a live batch is read again. */
@@ -35,6 +43,21 @@ export const LIVE_READ_MS = 10_000;
 export function dollars(value: string | null): number {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** "Nov 20, 4:12 AM" in the given zone: the year is left out, a batch is hours or days old. */
+export function formatBatchTime(
+  iso: string,
+  locale: string,
+  timeZone: string,
+): string {
+  return new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+  }).format(new Date(iso));
 }
 
 export function formatDollars(value: number, locale: string): string {
@@ -342,7 +365,7 @@ export function bannerFor(batch: BatchResponse, facts: BannerFacts): Banner {
         title: {
           key: "batches.banner.finishing.title",
           params: {
-            reason: limitWord?.key ?? "batches.limit.generic",
+            reason: phrase(limitWord?.key ?? "batches.limit.generic"),
             number: n,
             max: batch.maxIssues,
           },
@@ -379,7 +402,7 @@ export function bannerFor(batch: BatchResponse, facts: BannerFacts): Banner {
           : {
             key: "batches.banner.finished.title",
             params: {
-              reason: reasonKey,
+              reason: phrase(reasonKey),
               number: last,
               max: batch.maxIssues,
               name: facts.who,

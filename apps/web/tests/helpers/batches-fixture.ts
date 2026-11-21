@@ -12,6 +12,8 @@ export const APP = application(1, "Shop");
 export const WEB = repository(1, APP.id, "web");
 export const STOREFRONT = repository(2, APP.id, "storefront");
 export const ANA = uuid(8800);
+/** The repositories of a large organization, beyond the two the pages are shown with. */
+export const extraRepositoryId = (index: number) => uuid(3000 + index);
 
 const STAMP = "2026-11-20T09:12:00.000Z";
 
@@ -145,6 +147,8 @@ export type Options = {
   /** The next control action answers with a conflict, once. */
   conflictOnce?: boolean;
   pageSize?: number;
+  /** More repositories taking issues than one page of issue sources holds (100). */
+  extraRepositories?: number;
 };
 
 const problem = (
@@ -234,30 +238,51 @@ export async function batchesFixture(page: Page, options: Options = {}) {
         nextCursor: null,
       })),
   );
+  const sourceFor = (repositoryId: string, name: string, n: number) => ({
+    id: uuid(900 + n),
+    organizationId: MOCK_ORGANIZATION_ID,
+    integrationConnectionId: uuid(901),
+    integrationResourceId: uuid(902),
+    applicationId: APP.id,
+    repositoryId,
+    externalContainerId: name,
+    enabled: true,
+    policy: {},
+    policyRevision: 1,
+    syncHealth: "healthy",
+    lastSyncedAt: STAMP,
+    lastProblemCode: null,
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    version: 1,
+  });
+  const allSources = [
+    ...[WEB, STOREFRONT].map((repo, index) =>
+      sourceFor(repo.id, `${repo.owner}/${repo.name}`, index)
+    ),
+    ...Array.from(
+      { length: options.extraRepositories ?? 0 },
+      (_, index) =>
+        sourceFor(
+          extraRepositoryId(index),
+          `acme/extra-${index}`,
+          100 + index,
+        ),
+    ),
+  ];
   await page.route(
     (url) => url.pathname === "/v1/ticket-sources",
-    (route) =>
-      route.fulfill(json({
-        items: [WEB, STOREFRONT].map((repo, index) => ({
-          id: uuid(900 + index),
-          organizationId: MOCK_ORGANIZATION_ID,
-          integrationConnectionId: uuid(901),
-          integrationResourceId: uuid(902),
-          applicationId: APP.id,
-          repositoryId: repo.id,
-          externalContainerId: `${repo.owner}/${repo.name}`,
-          enabled: true,
-          policy: {},
-          policyRevision: 1,
-          syncHealth: "healthy",
-          lastSyncedAt: STAMP,
-          lastProblemCode: null,
-          createdAt: STAMP,
-          updatedAt: STAMP,
-          version: 1,
-        })),
-        nextCursor: null,
-      })),
+    (route) => {
+      // Served in pages, as the server does: the first 100, then the rest by cursor.
+      const url = new URL(route.request().url());
+      const size = Math.min(Number(url.searchParams.get("limit") ?? 100), 100);
+      const offset = Number(url.searchParams.get("cursor")?.slice(1) ?? 0);
+      const items = allSources.slice(offset, offset + size);
+      const next = offset + size < allSources.length
+        ? `c${offset + size}`
+        : null;
+      return route.fulfill(json({ items, nextCursor: next }));
+    },
   );
   await page.route(
     (url) => /^\/v1\/external-tickets\/[^/]+$/.test(url.pathname),

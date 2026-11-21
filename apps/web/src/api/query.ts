@@ -2003,6 +2003,39 @@ export function repositoriesListQueryOptions(
   });
 }
 
+/**
+ * Every repository of the organization, collected 100 at a time up to a bound (as the Projects
+ * lists do), for pages that must name any repository a record points at.
+ */
+export function repositoriesAllQueryOptions(
+  client: Pick<BakeryApiClient, "listRepositories">,
+  scope: ApiScope,
+) {
+  return queryOptions<RepositoryListResponse["items"], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "repositories.all", {}),
+    queryFn: async ({ signal }) => {
+      const items: RepositoryListResponse["items"] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < PROJECTS_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listRepositories({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) break;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 export function repositoryQueryOptions(
   client: Pick<BakeryApiClient, "getRepository">,
   scope: ApiScope,

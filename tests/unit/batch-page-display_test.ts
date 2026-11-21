@@ -8,12 +8,14 @@ import {
   bannerFor,
   currentIssue,
   finishReasonKey,
+  formatBatchTime,
   headerButtons,
   isDirty,
   isLive,
   meter,
   meters,
   parseSpend,
+  phrase,
   planValues,
   START_DEFAULTS,
   startBody,
@@ -210,7 +212,7 @@ Deno.test("a finishing batch names the limit it reached and keeps only Open task
   );
   assertEquals(banner.title, {
     key: "batches.banner.finishing.title",
-    params: { reason: "batches.limit.spend", number: "421", max: 5 },
+    params: { reason: phrase("batches.limit.spend"), number: "421", max: 5 },
   });
   assertEquals(banner.actions, ["openTask"]);
 });
@@ -237,7 +239,10 @@ Deno.test("a finished batch gives its reason, adds the spend sentence only when 
     facts,
   );
   assertEquals(within.title.key, "batches.banner.finished.title");
-  assertEquals(within.title.params?.reason, "batches.finish.issuesReached");
+  assertEquals(
+    within.title.params?.reason,
+    phrase("batches.finish.issuesReached"),
+  );
   assertEquals(within.body.key, "batches.banner.finished.body");
   assertEquals(within.actions, ["startAnother"]);
   const over = bannerFor(
@@ -482,4 +487,23 @@ Deno.test("a changed batch, a refusal and a missing batch are different problems
     "failed",
   );
   assertEquals(controlRefusal({ kind: "network" }), "failed");
+});
+
+Deno.test("a batch time is shown in the zone it is given, not the machine's", () => {
+  const at = "2026-11-20T09:12:00Z";
+  // Newer ICU puts a narrow no-break space before AM and PM; the words are what matter.
+  const shown = (zone: string) =>
+    formatBatchTime(at, "en", zone).replaceAll("\u202f", " ");
+  assertEquals(shown("UTC"), "Nov 20, 9:12 AM");
+  assertEquals(shown("Pacific/Auckland"), "Nov 20, 10:12 PM");
+  assertEquals(shown("America/Los_Angeles"), "Nov 20, 1:12 AM");
+  // A zone that moves the date moves the date.
+  assertEquals(shown("Pacific/Kiritimati"), "Nov 20, 11:12 PM");
+  assertEquals(
+    formatBatchTime("2026-11-20T23:30:00Z", "en", "Asia/Tokyo").replaceAll(
+      "\u202f",
+      " ",
+    ),
+    "Nov 21, 8:30 AM",
+  );
 });

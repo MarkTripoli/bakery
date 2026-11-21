@@ -2,15 +2,22 @@ import type { Translator } from "@bakery/i18n";
 import type { Message } from "./batch-display.ts";
 
 /**
- * A display message as a sentence. A value that is itself a catalogue key (a
- * reason phrase) is translated first, with the message's own values, so each
- * language orders the clause as it needs to.
+ * A display message as a sentence. A value marked as a phrase (a reason such as
+ * "it ran out of time") is translated first, with the message's own values, so
+ * each language orders the clause as it needs to. Every other value is free
+ * text, such as a person's name or a repository, and goes in as it is: a name
+ * that happens to read like a catalogue key is still only a name.
  */
 export function say(translate: Translator, message: Message): string {
-  const values: Record<string, string | number> = { ...message.params };
-  for (const [name, value] of Object.entries(values)) {
-    if (typeof value === "string" && value.startsWith("batches.")) {
-      values[name] = translate(value as never, message.params ?? {});
+  const plain: Record<string, string | number> = {};
+  for (const [name, value] of Object.entries(message.params ?? {})) {
+    if (typeof value === "object") continue;
+    plain[name] = value;
+  }
+  const values: Record<string, string | number> = { ...plain };
+  for (const [name, value] of Object.entries(message.params ?? {})) {
+    if (typeof value === "object") {
+      values[name] = translate(value.phrase as never, plain);
     }
   }
   return translate(message.key as never, values);

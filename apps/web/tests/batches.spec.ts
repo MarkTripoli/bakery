@@ -3,6 +3,7 @@ import {
   batch,
   batchesFixture,
   batchId,
+  extraRepositoryId,
   RUNNING,
   STOREFRONT,
   WEB,
@@ -123,6 +124,24 @@ for (
       await expect(page.getByText("26 batches · newest first")).toBeVisible();
       await expect(page.getByRole("button", { name: "Load more" }))
         .toHaveCount(0);
+    });
+
+    test("a repository beyond the first page of issue sources can still be picked and is named", async ({ page }) => {
+      // 132 repositories take issues: the last is on the second page of sources.
+      const last = extraRepositoryId(129);
+      await batchesFixture(page, {
+        extraRepositories: 130,
+        batches: [
+          batch({ id: batchId(1), repositoryId: last, state: "finished" }),
+        ],
+      });
+      await page.goto("/issues/batches");
+      await expect(page.locator(`[data-batch-id="${batchId(1)}"]`))
+        .toContainText("acme/extra-129");
+      await page.goto(`/issues/batches/new?repository=${last}`);
+      await expect(page.getByRole("combobox")).toHaveValue(last);
+      await expect(page.getByRole("option", { name: "acme/extra-129" }))
+        .toHaveCount(1);
     });
 
     test("a person who may only read sees the list without Start a batch", async ({ page }) => {
