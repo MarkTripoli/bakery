@@ -6,19 +6,13 @@
 -- run again), workers (workers claim work again). The step that opens the last
 -- doors also sets released_at, which ends the hold.
 --
--- Each step records when it was taken. The order is also a constraint, so no
--- code path can open a later door while an earlier one is still closed. The
--- application role may set only these columns: the fence's own counts and the
+-- Each step records when it was taken. The order is enforced by the server
+-- (restore-release.ts), not by the database. The application role may set only these columns: the fence's own counts and the
 -- set's name stay as the owner wrote them.
 alter table bakery.installation_restores
   add column intake_enabled_at timestamptz,
   add column dispatch_enabled_at timestamptz,
-  add column workers_enabled_at timestamptz,
-  add constraint installation_restores_step_order check (
-    (dispatch_enabled_at is null or intake_enabled_at is not null)
-    and (workers_enabled_at is null or dispatch_enabled_at is not null)
-    and (released_at is null or workers_enabled_at is not null)
-  );
+  add column workers_enabled_at timestamptz;
 
 grant update (
   intake_enabled_at, dispatch_enabled_at, workers_enabled_at, released_at

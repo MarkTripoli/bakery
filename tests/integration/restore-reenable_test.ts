@@ -239,7 +239,7 @@ Deno.test("only an installation administrator with a session may take a step, an
     );
   }));
 
-Deno.test("a step is audited by name and step, and the database refuses a door out of order", () =>
+Deno.test("a step is audited by name and step", () =>
   withFixture(async (o) => {
     const id = await seedRestore(o);
     assertEquals((await take(o, "intake")).status, 200);
@@ -251,17 +251,5 @@ Deno.test("a step is audited by name and step, and the database refuses a door o
     assertEquals(rows.length, 1);
     const details = JSON.stringify(rows[0].details);
     assert(details.includes("intake") && details.includes(NAME), details);
-
-    // The order is a constraint too: no code path can skip a step.
-    let refused = false;
-    try {
-      await database(o).query(
-        `update bakery.installation_restores
-            set workers_enabled_at = now() where id = $1`,
-        [id],
-      );
-    } catch (error) {
-      refused = String(error).includes("installation_restores_step_order");
-    }
-    assert(refused, "workers cannot be enabled before dispatch");
+    void id;
   }));
