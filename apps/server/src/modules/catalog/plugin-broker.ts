@@ -274,13 +274,24 @@ export function createPluginBroker(options: BrokerOptions): PluginBroker {
     body: string,
   ): Promise<BrokerOutcome> {
     const at = now();
+    // A lease renewal moves the claim's expiry later while the attempt, and so
+    // its token id, stays the same. The bookkeeping must follow it before the
+    // sweep below, or the first lease period's end would wipe the sequence,
+    // replay and rate state of an attempt that is still live, and an old
+    // request could run again. It only ever moves later.
+    const live = states.get(claims.tokenId);
+    if (live !== undefined && claims.expiresAt > live.expiresAt) {
+      live.expiresAt = claims.expiresAt;
+    }
     // Bookkeeping for lapsed tokens goes with them, so a long-running server
     // does not keep one entry per job it has ever served.
     for (const [id, held] of states) {
       if (at >= held.expiresAt) states.delete(id);
     }
     if (at >= claims.expiresAt || at < claims.issuedAt) {
-      states.delete(claims.tokenId);
+      // The state is not deleted here: a stale call carrying an older expiry
+      // must not wipe the state of an attempt a renewal has kept alive. The
+      // sweep above removes it once its own, latest expiry has passed.
       return deny("token_expired");
     }
     if (claims.installId !== installId) return deny("install_mismatch");
