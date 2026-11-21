@@ -5895,5 +5895,7 @@
   "settings.plugins.frame.gone.title": "⟦Ŧĥïš þàĝë ïš ñô ļôñĝëŕ ĥëŕë ŧëšŧ çô⟧",
   "settings.plugins.frame.gone.body": "⟦Ŧĥë þļûĝïñ ŵàš ŕëɱôṽëð, ôŕ ïŧš çûŕŕëñŧ ṽëŕšïôñ ðôëš ñôŧ ĥàṽë ŧĥïš þàĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "settings.plugins.frame.gone.back": "⟦Ĝô ŧô Ŵôŕķ ŧ⟧",
-  "settings.plugins.frame.noAccess.title": "⟦Ÿôû ðô ñôŧ ĥàṽë àççëšš ŧô ŧĥïš þàĝë ŧëšŧ çôþÿŧ⟧"
+  "settings.plugins.frame.noAccess.title": "⟦Ÿôû ðô ñôŧ ĥàṽë àççëšš ŧô ŧĥïš þàĝë ŧëšŧ çôþÿŧ⟧",
+  "settings.plugins.pages.help": "⟦Ëàçĥ ôñë ïš àļšô ïñ ŧĥë šïðëƀàŕ ûñðëŕ Þļûĝïñš. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "settings.plugins.pages.column": "⟦Þàĝë⟧"
 }

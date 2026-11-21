@@ -162,6 +162,31 @@ async function pluginPagesFixture(
       }],
       nextCursor: null,
     })));
+  // The saved-data list the settings page shows under "Pages it adds".
+  await page.route(
+    `**/v1/plugin-installs/${INSTALL}/state-items**`,
+    (route) =>
+      route.fulfill(json({
+        items: [{
+          id: id(301),
+          pluginInstallId: INSTALL,
+          namespace: "checklist",
+          key: "release-1",
+          sizeBytes: 2048,
+          createdAt: "2026-11-09T09:30:00.000Z",
+          updatedAt: "2026-11-10T09:30:00.000Z",
+        }, {
+          id: id(302),
+          pluginInstallId: INSTALL,
+          namespace: "checklist",
+          key: "release-2",
+          sizeBytes: 512,
+          createdAt: "2026-11-11T14:05:00.000Z",
+          updatedAt: "2026-11-12T14:05:00.000Z",
+        }],
+        nextCursor: null,
+      })),
+  );
   await page.route("**/v1/plugin-pages**", (route) =>
     route.fulfill(json({
       items: state.status === "enabled" ? state.pages : [],
@@ -198,6 +223,9 @@ const open = (page: Page) =>
 const railShot = async (page: Page, name: string) => {
   const drawer = page.getByRole("dialog");
   if (await drawer.count() > 0) {
+    // The pointer stays where the menu button was; park it on the scrim so no row
+    // in the still wears a hover fill.
+    await page.mouse.move(380, 420);
     await shot(page, name, [], { only: "mobile", scrollToEnd: drawer });
   } else await shot(page, name);
 };
@@ -326,9 +354,21 @@ test("the rail lists a plugin's pages, and its settings page lists them with Ope
   await page.goto("/settings/organization/plugins/" + INSTALL, {
     waitUntil: "domcontentloaded",
   });
+  state.pages = [
+    entry(PAGE, "Release checklist"),
+    entry("handover-notes", "Handover notes"),
+  ];
+  await page.reload({ waitUntil: "domcontentloaded" });
   const section = page.getByTestId("plugin-pages");
-  await expect(section.getByText("Pages it adds")).toBeVisible();
+  await expect(section.getByRole("heading", { name: "Pages it adds" }))
+    .toBeVisible();
+  await expect(
+    section.getByText("Each one is also in the sidebar under Plugins."),
+  )
+    .toBeVisible();
   await expect(section.getByText("Release checklist")).toBeVisible();
+  await expect(section.getByText("Handover notes")).toBeVisible();
+  await expect(page.getByText("Saved data could not be loaded")).toHaveCount(0);
   await shot(page, "plugin-pages-it-adds");
   await section.getByRole("button", { name: "Open Release checklist" }).click();
   await expect(page).toHaveURL(new RegExp(`/plugins/${INSTALL}/${PAGE}$`));

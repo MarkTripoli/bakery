@@ -5895,5 +5895,7 @@
   "settings.plugins.frame.gone.title": "⟪This page is no longer here⟫",
   "settings.plugins.frame.gone.body": "⟪The plugin was removed, or its current version does not have this page.⟫",
   "settings.plugins.frame.gone.back": "⟪Go to Work⟫",
-  "settings.plugins.frame.noAccess.title": "⟪You do not have access to this page⟫"
+  "settings.plugins.frame.noAccess.title": "⟪You do not have access to this page⟫",
+  "settings.plugins.pages.help": "⟪Each one is also in the sidebar under Plugins.⟫",
+  "settings.plugins.pages.column": "⟪Page⟫"
 }

@@ -422,6 +422,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                 pages={(pageList.data?.items ?? []).filter((page) =>
                   page.installId === installId
                 )}
+                phone={phone}
               />
 
               <SavedData installId={installId} name={name} phone={phone} />

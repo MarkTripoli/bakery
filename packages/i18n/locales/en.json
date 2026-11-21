@@ -5527,6 +5527,8 @@
   "settings.plugins.pages.openLabel": "Open {title}",
   "settings.plugins.pages.hidden": "Hidden while it is off",
   "settings.plugins.pages.none": "This version adds no pages.",
+  "settings.plugins.pages.help": "Each one is also in the sidebar under Plugins.",
+  "settings.plugins.pages.column": "Page",
   "settings.plugins.frame.provided": "Provided by the plugin {name}, version {version}",
   "settings.plugins.frame.help": "This page is made by the plugin, not by Bakery. It runs sealed off: it cannot see your sign-in, other pages or other plugins.",
   "settings.plugins.frame.helpLabel": "About this page",
