@@ -26,6 +26,7 @@ import {
   isForbiddenFailure,
 } from "../app/async-state.ts";
 import { focusAfterPaint } from "../app/focus.ts";
+import { useShellViewport } from "../app/responsive.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
@@ -119,6 +120,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
   const queryClient = useQueryClient();
   const { translate, locale, timeZone } = useI18n();
   useRestoreOrganizationScope();
+  const phone = useShellViewport() === "phone";
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const run = useQuery(evaluationBatchQueryOptions(api, scope, batchId));
   const batch = run.data;
@@ -159,11 +161,9 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["protected"] }),
   });
 
-  const canStop =
-    access.data?.capabilities.some((capability) =>
-        (capability as string) === "evaluationRun:write"
-      ) === true ||
-    access.data?.role === "admin" || access.data?.role === "developer";
+  // The server lets a developer or an administrator stop a run (evaluationRun:write).
+  const canStop = access.data?.role === "admin" ||
+    access.data?.role === "developer";
 
   const when = (iso: string, withTime = false) =>
     new Intl.DateTimeFormat(locale, {
@@ -306,6 +306,15 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
       });
   };
 
+  const showButton = gate.show === null ? null : (
+    <UI.Button
+      variant="secondary"
+      onClick={() => setFilter(gate.show?.state ?? null)}
+    >
+      {translate("library.evaluations.gate.show", { count: gate.show.count })}
+    </UI.Button>
+  );
+
   const stopDialog = stopping
     ? (
       <UI.AlertDialog
@@ -376,6 +385,9 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
   return (
     <>
       {breadcrumbs}
+      {!phone && stopButton !== null
+        ? <ShellSlot name="actions">{stopButton}</ShellSlot>
+        : null}
       <UI.SettingsContent data-testid="evaluation-page" variant="wide">
         <UI.PageHeader
           variant="list"
@@ -391,7 +403,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
               </UI.Inline>
             </UI.Stack>
           }
-          actions={stopButton}
+          actions={phone ? stopButton : null}
         />
         {stopFailure === "changed"
           ? (
@@ -404,20 +416,14 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
           <UI.InlineNotice
             data-testid="evaluation-gate"
             tone={gate.tone}
-            action={gate.show === null ? undefined : (
-              <UI.Button
-                variant="secondary"
-                onClick={() => setFilter(gate.show?.state ?? null)}
-              >
-                {translate("library.evaluations.gate.show", {
-                  count: gate.show.count,
-                })}
-              </UI.Button>
-            )}
+            action={phone || gate.show === null ? undefined : showButton}
           >
-            <UI.Stack gap="none">
-              <UI.Text>{words(gate.title)}</UI.Text>
-              <UI.Text variant="caption">{words(gate.body)}</UI.Text>
+            <UI.Stack gap="compact">
+              <UI.Stack gap="none">
+                <UI.Text>{words(gate.title)}</UI.Text>
+                <UI.Text variant="caption">{words(gate.body)}</UI.Text>
+              </UI.Stack>
+              {phone && gate.show !== null ? showButton : null}
             </UI.Stack>
           </UI.InlineNotice>
 
@@ -513,25 +519,27 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
                               {result.attemptCount > 1
                                 ? (
                                   <UI.Stack gap="compact">
-                                    <UI.Button
-                                      aria-expanded={openAttempts.has(
-                                        result.id,
-                                      )}
-                                      onClick={() =>
-                                        setOpenAttempts((current) => {
-                                          const next = new Set(current);
-                                          if (!next.delete(result.id)) {
-                                            next.add(result.id);
-                                          }
-                                          return next;
-                                        })}
-                                      variant="quiet"
-                                    >
-                                      {translate(
-                                        "library.evaluation.attempts.toggle",
-                                        { count: result.attemptCount },
-                                      )}
-                                    </UI.Button>
+                                    <UI.Inline gap="compact">
+                                      <UI.Button
+                                        aria-expanded={openAttempts.has(
+                                          result.id,
+                                        )}
+                                        onClick={() =>
+                                          setOpenAttempts((current) => {
+                                            const next = new Set(current);
+                                            if (!next.delete(result.id)) {
+                                              next.add(result.id);
+                                            }
+                                            return next;
+                                          })}
+                                        variant="quiet"
+                                      >
+                                        {translate(
+                                          "library.evaluation.attempts.toggle",
+                                          { count: result.attemptCount },
+                                        )}
+                                      </UI.Button>
+                                    </UI.Inline>
                                     {openAttempts.has(result.id)
                                       ? (
                                         <Attempts

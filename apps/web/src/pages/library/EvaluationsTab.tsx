@@ -187,14 +187,14 @@ export function EvaluationsTab() {
               return (
                 <div data-run={run.id} key={run.id} role="listitem">
                   <UI.StackedRow
-                    status={
-                      <UI.Badge tone={badge.tone}>
-                        {translate(badge.words.key, badge.words.values)}
-                      </UI.Badge>
-                    }
                     title={title(run)}
                   >
                     <UI.Stack gap="compact">
+                      <UI.Inline gap="compact">
+                        <UI.Badge tone={badge.tone}>
+                          {translate(badge.words.key, badge.words.values)}
+                        </UI.Badge>
+                      </UI.Inline>
                       <UI.Text variant="caption">{line(run)}</UI.Text>
                       <UI.Text variant="caption">
                         {translate(gate.key, gate.values)}
