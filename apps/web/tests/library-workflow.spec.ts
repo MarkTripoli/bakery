@@ -1163,5 +1163,135 @@ for (
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-steps-unreadable");
     });
+
+    const openEditor = async (page: Page, options: Options) => {
+      const seen = await libraryFixture(page, options);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      await expect(page.locator("[data-card='start']")).toBeVisible();
+      return seen;
+    };
+
+    // The skills a step names (#431, design-ux): the draft's agent step lists
+    // them, a private skill wears one word, and someone else's is a placeholder.
+    const SKILLS_WORLD: Options = {
+      ...WORLD,
+      versions: [
+        ...VERSIONS.slice(0, 3),
+        version(4, 4, "draft", [
+          { id: "brief", uses: "task.brief" },
+          {
+            id: "implement",
+            uses: "harness.implement",
+            agentVersionId: uuid(2000),
+          },
+        ]),
+      ],
+    };
+    const skill = (over: Record<string, unknown>) => ({
+      stepPath: "/steps/1",
+      skillVersionId: uuid(7000),
+      skillName: "Code style",
+      revision: 2,
+      scope: "global",
+      ownerDisplayName: null,
+      mine: false,
+      status: "available",
+      publishedVersionUsesIt: false,
+      ...over,
+    });
+    const openSkills = async (page: Page, options: Options) => {
+      const seen = await openEditor(page, { ...SKILLS_WORLD, ...options });
+      await page.locator("[data-card]").filter({ hasText: "Implement" })
+        .getByRole("button").first().click();
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      await expect(panel).toBeVisible();
+      return { seen, skills: panel.getByTestId("step-skills") };
+    };
+
+    test("a step lists its skills: private ones wear a word, someone else's is a placeholder, a lost one is a slot", async ({ page }) => {
+      const { skills } = await openSkills(page, {
+        skills: {
+          items: [
+            skill({}),
+            skill({
+              skillVersionId: uuid(7001),
+              skillName: "Release notes",
+              revision: 3,
+              scope: "personal",
+              ownerDisplayName: "Ana Ruiz",
+              mine: true,
+            }),
+            skill({
+              skillVersionId: uuid(7002),
+              skillName: "Security review",
+              revision: 1,
+              scope: "personal",
+              ownerDisplayName: "Dana Lee",
+            }),
+            skill({
+              skillVersionId: null,
+              skillName: "Brand voice",
+              revision: null,
+              scope: null,
+              status: "missing",
+            }),
+            // A skill on another step is not this step's.
+            skill({ stepPath: "/steps/0", skillName: "Not here" }),
+          ],
+        },
+      });
+      await expect(skills.getByText("Skills", { exact: true })).toBeVisible();
+      await expect(skills).toContainText("Code style");
+      await expect(skills).toContainText("Version 2 · comes with Bakery");
+      await expect(skills).toContainText("Release notes");
+      await expect(skills).toContainText(
+        "Version 3 · yours. This workflow may use it; its files stay private.",
+      );
+      await expect(skills).toContainText("Security review");
+      await expect(skills).toContainText(
+        "Version 1 · Dana Lee's. You can run this workflow with it but cannot open its files.",
+      );
+      // Two private skills wear the word; the global one does not.
+      await expect(skills.getByText("Private", { exact: true })).toHaveCount(2);
+      await expect(
+        skills.getByRole("button", {
+          name: "About the private skill Security review",
+        }),
+      ).toBeVisible();
+      // The lost skill is a slot that says what to do, never a link to its files.
+      await expect(skills).toContainText("A skill is missing");
+      await expect(skills).toContainText(
+        'This workflow was made with a private skill called "Brand voice", which did not come with it. Choose a skill to use instead, or remove it.',
+      );
+      await expect(skills).toContainText("Needs attention");
+      await expect(skills).not.toContainText("Not here");
+      await expect(skills.getByRole("link")).toHaveCount(0);
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-skills");
+    });
+
+    test("a step with no skills says the agent uses only its own", async ({ page }) => {
+      const { skills } = await openSkills(page, { skills: { items: [] } });
+      await expect(skills).toContainText(
+        "No skills attached. The agent uses only its own.",
+      );
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-skills-empty");
+    });
+
+    test("skills that did not load say so and can be read again", async ({ page }) => {
+      const { seen, skills } = await openSkills(page, { skills: "fail" });
+      await expect(skills).toContainText("The skills did not load.");
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-skills-failed");
+      const before = seen.skillReads;
+      seen.skillsAnswer = { items: [skill({})] };
+      await skills.getByRole("button", { name: "Try again" }).click();
+      await expect(skills).toContainText("Code style");
+      await expect(skills).not.toContainText("The skills did not load.");
+      expect(seen.skillReads).toBeGreaterThan(before);
+    });
   });
 }

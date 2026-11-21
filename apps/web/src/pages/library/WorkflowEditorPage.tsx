@@ -559,7 +559,17 @@ export function WorkflowEditorPage(
         setSelectedId(null);
       },
     };
-  }, [selectedId, tree, steps, editable, translate]);
+  }, [
+    selectedId,
+    tree,
+    steps,
+    editable,
+    translate,
+    stepPaths,
+    skillsRead.data,
+    skillsRead.status,
+    skillsRead.fetchStatus,
+  ]);
 
   const breadcrumbs = (
     <ShellSlot name="breadcrumbs">
