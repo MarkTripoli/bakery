@@ -654,7 +654,7 @@ export type PolicyOverrides = {
    */
   statuses?: string[];
   /** What counts as delivery; omitted keeps the default, `merged`. */
-  completion?: "merged" | "deployed_healthy" | "manual";
+  completion?: "task" | "merged" | "deployed_healthy";
 };
 
 /**

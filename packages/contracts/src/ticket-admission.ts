@@ -551,9 +551,9 @@ const policyLabelsSchema = z.object(policyLabelsShape).strict().refine(
   "Label display names that drive admission intent and hold; all must differ.",
 );
 
-const policyCompletionSchema = z.enum(["merged", "deployed_healthy", "manual"])
+const policyCompletionSchema = z.enum(["task", "merged", "deployed_healthy"])
   .default("merged").describe(
-    "What counts as delivery for this source's tickets: merged (a registered pull request merged and none still open; the default), deployed_healthy (merged and healthy release evidence recorded) or manual (a person confirms). A finished run, a closed issue or a pull request closed without a merge is never delivery.",
+    "What counts as delivery for this source's tickets: task (the run finished, for work that opens no pull request), merged (a registered pull request merged and none still open; the default), or deployed_healthy (merged and healthy release evidence recorded). A planning-only request is always delivered when its run finishes. A closed issue or a pull request closed without a merge is never delivery.",
   );
 
 const policyApprovalSchema = z.object(policyApprovalShape).strict().describe(

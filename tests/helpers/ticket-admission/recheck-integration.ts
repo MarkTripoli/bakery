@@ -757,6 +757,49 @@ Deno.test("issue 32 recheck: under deployed_healthy a merge is not delivery, and
     await notDelivered("a merge without healthy release evidence");
   }));
 
+Deno.test("issue 32 recheck: work that opens no pull request is delivered when it finishes, by the task policy or a planning-only request", () =>
+  withTicketFixture(async (fx) => {
+    const finish = (runId: string | null) =>
+      fx.owner.query(
+        `update bakery.workflow_runs set status = 'completed', finished_at = now()
+          where organization_id = $1 and id = $2`,
+        [fx.organizationId, runId],
+      );
+    const disposition = async (requestId: string) =>
+      (await fx.owner.query<{ disposition: string }>(
+        "select disposition from bakery.ticket_requests where id = $1",
+        [requestId],
+      )).rows[0].disposition;
+
+    // The source says `task`: a finished run with no pull request is done.
+    const taskSource = await fx.insertSource({
+      policy: fx.policy({ completion: "task" }),
+    });
+    setIssue(fx, 821);
+    const task = await fx.admit(taskSource, { number: 821, intent: "start" });
+    await finish(task.request!.workflowRunId);
+    const ended = await fx.recheck(task.ticketId!);
+    assertEquals(ended.applied, ["terminal"]);
+    assertEquals(await disposition(task.request!.id), "completed");
+
+    // A planning-only request opens no pull request, so under the default
+    // `merged` policy it is still delivered when its run finishes.
+    const mergedSource = await fx.insertSource({ policy: fx.policy() });
+    setIssue(fx, 822);
+    const plan = await fx.admit(mergedSource, { number: 822, intent: "plan" });
+    // A planning-only request has no run: it ends with its task.
+    assertEquals(plan.request!.workflowRunId, null);
+    await fx.owner.query(
+      `update bakery.tasks set status = 'completed', updated_at = now(),
+              version = version + 1
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, plan.request!.taskId],
+    );
+    const planned = await fx.recheck(plan.ticketId!);
+    assertEquals(planned.applied, ["terminal"]);
+    assertEquals(await disposition(plan.request!.id), "completed");
+  }));
+
 Deno.test("issue 82 recheck: a suspended request's task refuses runs.create, and a run started by hand once it resumes is linked, not duplicated", () =>
   withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource({

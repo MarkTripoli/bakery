@@ -11,7 +11,6 @@ function evidence(
     workFinished: true,
     pullRequests: [],
     deployment: null,
-    manuallyConfirmed: false,
     ...overrides,
   };
 }
@@ -112,20 +111,24 @@ Deno.test("deployed_healthy: a merge and healthy release evidence is delivered",
   );
 });
 
-Deno.test("manual: finished work waits for a person's confirmation", () => {
-  assertEquals(ticketDeliveryVerdict("manual", evidence()), {
-    delivered: false,
-    waitingFor: "confirmation",
-    closedUnmerged: false,
-  });
+Deno.test("task: finished work is delivered with no pull request, a running one is not", () => {
+  assertEquals(ticketDeliveryVerdict("task", evidence()), { delivered: true });
+  // Pull requests, open or closed, do not hold back a task policy.
   assertEquals(
-    ticketDeliveryVerdict("manual", evidence({ manuallyConfirmed: true })),
+    ticketDeliveryVerdict(
+      "task",
+      evidence({ pullRequests: [{ status: "open" }, { status: "closed" }] }),
+    ),
     { delivered: true },
+  );
+  assertEquals(
+    ticketDeliveryVerdict("task", evidence({ workFinished: false })),
+    { delivered: false, waitingFor: "work", closedUnmerged: false },
   );
 });
 
 Deno.test("work that has not finished is never delivered, whatever else is true", () => {
-  for (const policy of ["merged", "deployed_healthy", "manual"] as const) {
+  for (const policy of ["task", "merged", "deployed_healthy"] as const) {
     assertEquals(
       ticketDeliveryVerdict(
         policy,
@@ -133,7 +136,6 @@ Deno.test("work that has not finished is never delivered, whatever else is true"
           workFinished: false,
           pullRequests: [{ status: "merged" }],
           deployment: { healthy: true },
-          manuallyConfirmed: true,
         }),
       ),
       { delivered: false, waitingFor: "work", closedUnmerged: false },

@@ -23977,7 +23977,7 @@ export const clientManifest = {
           "description": "Immutable identifier of the external container this source observes (for example, the GitHub repository's stable ID); only one authoritative source per external container is permitted within an organization. TicketSourceCreate.externalContainerId must contain at most 200 characters."
         },
         "policy": {
-          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options, plan approval and the completion policy (merged, deployed_healthy or manual; merged when omitted); automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot. TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options, plan approval and the completion policy (task, merged or deployed_healthy; merged when omitted); automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot. TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",

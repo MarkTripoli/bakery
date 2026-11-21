@@ -49,6 +49,7 @@ Deno.test("the request view shows active until the completion policy is met", ()
       const [completion, number] of [
         ["merged", 901],
         ["deployed_healthy", 902],
+        ["task", 903],
       ] as const
     ) {
       const sourceId = await fx.insertSource({
@@ -98,7 +99,10 @@ Deno.test("the request view shows active until the completion policy is met", ()
 
       assertEquals(
         seen,
-        completion === "merged"
+        completion === "task"
+          // Pull requests do not matter to a task policy: finished is done.
+          ? ["completed", "completed", "completed", "completed", "failed"]
+          : completion === "merged"
           ? ["active", "active", "active", "completed", "failed"]
           : ["active", "active", "active", "active", "failed"],
         completion,

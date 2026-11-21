@@ -10,7 +10,7 @@
  */
 
 /** What a source requires before its ticket counts as delivered. */
-export type TicketCompletionPolicy = "merged" | "deployed_healthy" | "manual";
+export type TicketCompletionPolicy = "task" | "merged" | "deployed_healthy";
 
 /** The facts a verdict reads. */
 export type TicketDeliveryEvidence = {
@@ -20,16 +20,13 @@ export type TicketDeliveryEvidence = {
   pullRequests: readonly { status: "open" | "closed" | "merged" }[];
   /** The latest release health recorded for the work, or null when none is. */
   deployment: { healthy: boolean } | null;
-  /** A person confirmed delivery by hand. */
-  manuallyConfirmed: boolean;
 };
 
 /** What a delivered ticket's progress still waits for. */
 export type TicketDeliveryWait =
   | "work"
   | "merge"
-  | "deployment"
-  | "confirmation";
+  | "deployment";
 
 export type TicketDeliveryVerdict =
   | { delivered: true }
@@ -70,11 +67,9 @@ export function ticketDeliveryVerdict(
     closedUnmerged,
   });
   if (!evidence.workFinished) return waiting("work");
-  if (policy === "manual") {
-    return evidence.manuallyConfirmed
-      ? { delivered: true }
-      : waiting("confirmation");
-  }
+  // Work that opens no pull request (a plan, an analysis) is delivered when it
+  // is finished.
+  if (policy === "task") return { delivered: true };
   const merge = mergeState(evidence.pullRequests);
   if (!merge.merged) return waiting("merge", merge.closedUnmerged);
   if (policy === "merged") return { delivered: true };

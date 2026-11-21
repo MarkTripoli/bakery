@@ -21,14 +21,15 @@ export type RequestDeliveryFacts = Readonly<{
 
 type FactsRow = {
   request_id: string;
+  intent: string;
   completion: string | null;
   pull_request_statuses: string[];
 };
 
 const POLICIES: readonly TicketCompletionPolicy[] = [
+  "task",
   "merged",
   "deployed_healthy",
-  "manual",
 ];
 
 function isPolicy(value: string | null): value is TicketCompletionPolicy {
@@ -54,7 +55,7 @@ export async function readRequestDeliveryFacts(
   const facts = new Map<string, RequestDeliveryFacts>();
   if (requestIds.length === 0) return facts;
   const result = await transaction.query<FactsRow>(
-    `select request.id as request_id,
+    `select request.id as request_id, request.intent,
             source.policy ->> 'completion' as completion,
             array(
               select pull_request.status
@@ -83,7 +84,13 @@ export async function readRequestDeliveryFacts(
   );
   for (const row of result.rows) {
     facts.set(row.request_id, {
-      policy: isPolicy(row.completion) ? row.completion : "merged",
+      // A planning-only request opens no pull request: its plan is the work,
+      // so it is delivered when the run finishes, whatever the source says.
+      policy: row.intent === "plan"
+        ? "task"
+        : isPolicy(row.completion)
+        ? row.completion
+        : "merged",
       pullRequests: row.pull_request_statuses.filter(isPullRequestStatus).map(
         (status) => ({ status }),
       ),
@@ -93,9 +100,8 @@ export async function readRequestDeliveryFacts(
 }
 
 /**
- * The verdict for one request. Release health and a person's confirmation are
- * not recorded anywhere yet, so `deployed_healthy` has no healthy evidence and
- * `manual` no confirmation: neither is met by a merge alone.
+ * The verdict for one request. Release health is not recorded anywhere yet, so
+ * `deployed_healthy` has no healthy evidence: a merge alone does not meet it.
  */
 export function requestDeliveryVerdict(
   facts: RequestDeliveryFacts | undefined,
@@ -105,6 +111,5 @@ export function requestDeliveryVerdict(
     workFinished,
     pullRequests: facts?.pullRequests ?? [],
     deployment: null,
-    manuallyConfirmed: false,
   });
 }
