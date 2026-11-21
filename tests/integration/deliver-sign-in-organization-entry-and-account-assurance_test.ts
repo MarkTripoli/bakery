@@ -9,6 +9,10 @@ import {
   openAuthFixture,
   sessionCookie,
 } from "../helpers/auth.ts";
+import {
+  clearInstallationMaintenance,
+  holdInstallation,
+} from "../helpers/installation-maintenance.ts";
 
 type BrowserSession = { id: string; current: boolean };
 
@@ -45,6 +49,7 @@ Deno.test("installation bootstraps, browser sessions list live devices, and revo
     assertEquals(await beforeBootstrap.json(), {
       bootstrapped: false,
       restoreHeld: false,
+      updatePaused: false,
     });
 
     await createSuperuser({
@@ -58,6 +63,7 @@ Deno.test("installation bootstraps, browser sessions list live devices, and revo
     assertEquals(await afterBootstrap.json(), {
       bootstrapped: true,
       restoreHeld: false,
+      updatePaused: false,
     });
 
     const signInA = await fixture.app.fetch(
@@ -310,6 +316,45 @@ Deno.test("browser session ops never observe or affect another principal's sessi
     assertEquals(bStillValidAfterRevokeOthers.status, 200);
   } finally {
     await cleanupAuthFixture(fixture.pgDatabase, [emailA, emailB]);
+    await fixture.close();
+  }
+});
+
+Deno.test("installation status says an update paused work, and only while its own hold is live", async () => {
+  const fixture = await openAuthFixture();
+  const status = async () =>
+    await (await fixture.app.fetch(
+      new Request(`${authTestOrigin}/v1/installation/status`),
+    )).json() as { updatePaused: boolean };
+  const hold = async (reason: string, leaseSeconds: number) => {
+    await holdInstallation(fixture.pgDatabase, { leaseSeconds });
+    await fixture.pgDatabase.query(
+      "update bakery.installation_maintenance set reason = $1",
+      [reason],
+    );
+  };
+  try {
+    await clearInstallationMaintenance(fixture.pgDatabase);
+    assertEquals((await status()).updatePaused, false, "nothing is held");
+
+    await hold("update", 300);
+    assertEquals((await status()).updatePaused, true, "the update's hold");
+
+    await hold("backup", 300);
+    assertEquals(
+      (await status()).updatePaused,
+      false,
+      "a backup's hold is not an update",
+    );
+
+    await hold("update", -1);
+    assertEquals(
+      (await status()).updatePaused,
+      false,
+      "a lapsed lease reads as not paused",
+    );
+  } finally {
+    await clearInstallationMaintenance(fixture.pgDatabase);
     await fixture.close();
   }
 });

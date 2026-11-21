@@ -9,8 +9,11 @@ export type FormWithSummaryProps =
     children: ReactNode;
     /** What the form will do, kept in view beside it: a plain summary and notes. */
     aside: ReactNode;
-    /** The buttons that end the form: the way out first, the main step last. */
-    actions: ReactNode;
+    /**
+     * The buttons that end the form: the way out first, the main step last.
+     * Leave it out for a page with nothing to end: no row and no rule are drawn.
+     */
+    actions?: ReactNode;
   };
 
 /**
@@ -21,7 +24,8 @@ export type FormWithSummaryProps =
  * at its end. Below that the summary comes between the form and the buttons, so
  * it is read before the step is taken. On a phone the buttons stack with the
  * main step first. In one column the template is no wider than the form is
- * beside its summary, so the buttons end at the form's edge.
+ * beside its summary, so the buttons end at the form's edge. Without `actions`
+ * there is no buttons row and no rule under the form.
  */
 export function FormWithSummary(
   { children, aside, actions, ...props }: FormWithSummaryProps,
@@ -30,13 +34,16 @@ export function FormWithSummary(
     <div
       className="ui-form-with-summary"
       {...props}
+      data-actions={actions === undefined ? "absent" : undefined}
       data-state="default"
       data-ui-component="formWithSummary"
       data-variant="default"
     >
       <div className="ui-form-with-summary__form">{children}</div>
       <aside className="ui-form-with-summary__aside">{aside}</aside>
-      <div className="ui-form-with-summary__actions">{actions}</div>
+      {actions === undefined
+        ? null
+        : <div className="ui-form-with-summary__actions">{actions}</div>}
     </div>
   );
 }
