@@ -4,6 +4,7 @@ import { parseStrongIfMatch, StandardError } from "@bakery/contracts/http";
 import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type { z } from "zod";
 import { requireWorkTransaction } from "../../work/work-transaction.ts";
+import { auditAgentSessionId } from "../../auth/application/agent-power-grants.ts";
 import type { OrganizationBlobStore } from "../../catalog/storage-port.ts";
 import { validateAnchor } from "./anchors.ts";
 import {
@@ -67,6 +68,12 @@ async function recordChange(
     resourceId: row.id,
     requestId: context.requestId,
     traceId: context.traceId,
+    // An agent's comment names the session that wrote it (O50).
+    agentSessionId: await auditAgentSessionId(
+      work.transaction,
+      context,
+      work.organizationId,
+    ),
     details: {
       artifactId: version.artifact_id,
       artifactVersionId: version.id,
