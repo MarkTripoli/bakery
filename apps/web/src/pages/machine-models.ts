@@ -102,6 +102,20 @@ export function modelsForMachine(
   );
 }
 
+/**
+ * Where a machine's own sign-ins cannot be read (only an administrator reads them), the models shown are
+ * those for the coding agents the machine advertises: the ones its work can be sent to.
+ */
+export function modelsForAgents(
+  routes: readonly RouteFacts[],
+  agents: readonly CodingAgent[],
+): RouteFacts[] {
+  return routes.filter((route) => {
+    const agent = agentOfHarness(route.harness);
+    return agent !== null && agents.includes(agent);
+  });
+}
+
 /** A turned-off model that is only turned off can come back; a revoked one never does. */
 export function canSwitch(
   route: Pick<RouteFacts, "status">,

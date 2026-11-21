@@ -15,6 +15,7 @@ import {
   type ModelDraft,
   modelNote,
   modelsEmpty,
+  modelsForAgents,
   modelsForMachine,
   modelState,
   modelTone,
@@ -101,6 +102,20 @@ Deno.test("a machine's models are the ones tied to its own sign-ins", () => {
     [mine.id],
   );
   assertEquals(modelsForMachine([mine], new Set()), []);
+});
+
+Deno.test("where sign-ins cannot be read, a machine's models are those for the agents it advertises", () => {
+  const claude = route({ id: "c" });
+  const codex = route({ id: "x", harness: "codex" });
+  const pi = route({ id: "p", harness: "pi" });
+  const mastra = route({ id: "m", harness: "mastra" });
+  assertEquals(
+    modelsForAgents([claude, codex, pi, mastra], ["claude", "pi"]).map((r) =>
+      r.id
+    ),
+    ["c", "p"],
+  );
+  assertEquals(modelsForAgents([claude], []), []);
 });
 
 Deno.test("only an administrator switches a model, and never a revoked one", () => {
