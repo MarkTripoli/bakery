@@ -5510,6 +5510,7 @@
   "settings.plugins.page.version": "Version",
   "settings.plugins.page.for": "For",
   "settings.plugins.page.back": "Go to Plugins",
+  "shell.navigation.pluginsGroup": "Plugins",
   "shell.navigation.morePluginPages": "More plugin pages",
   "settings.plugins.pages.title": "Pages it adds",
   "settings.plugins.pages.open": "Open",

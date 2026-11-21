@@ -5884,5 +5884,6 @@
   "settings.plugins.pages.open": "⟪Open⟫",
   "settings.plugins.pages.openLabel": "⟪Open {title}⟫",
   "settings.plugins.pages.hidden": "⟪Hidden while it is off⟫",
-  "settings.plugins.pages.none": "⟪This version adds no pages.⟫"
+  "settings.plugins.pages.none": "⟪This version adds no pages.⟫",
+  "shell.navigation.pluginsGroup": "⟪Plugins⟫"
 }

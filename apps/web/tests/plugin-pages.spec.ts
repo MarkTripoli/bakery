@@ -184,6 +184,13 @@ async function pluginPagesFixture(
   return state;
 }
 
+/** On a phone the rail is in the drawer. */
+const openRail = async (page: Page) => {
+  if ((page.viewportSize()?.width ?? 1440) < 744) {
+    await page.getByRole("button", { name: "Open navigation" }).click();
+  }
+};
+
 const open = (page: Page) =>
   page.goto(`/plugins/${INSTALL}/${PAGE}`, { waitUntil: "domcontentloaded" });
 
@@ -218,6 +225,17 @@ test("a plugin page opens under Bakery's strip in a sealed frame that is told ho
     ),
   ).toBeVisible();
   expect(state.documents.length).toBeGreaterThan(0);
+  // The rail names the pages' owner: a Plugins group, after Settings.
+  await openRail(page);
+  const group = page.getByRole("group", { name: "Plugins" });
+  await expect(group.getByRole("link", { name: "Release checklist" }))
+    .toBeVisible();
+  const settings = await page.getByRole("link", { name: "Settings" }).first()
+    .boundingBox();
+  const mine = await group.getByRole("link", { name: "Release checklist" })
+    .boundingBox();
+  if (settings === null || mine === null) throw new Error("no boxes");
+  expect(mine.y).toBeGreaterThan(settings.y);
   // Opening a page is not an update: no notice says the plugin changed.
   await expect(page.getByText(/was updated to/)).toHaveCount(0);
   await shot(page, "plugin-page");
@@ -236,14 +254,43 @@ test("a page that cannot be shown says why in place of the frame", async ({ page
     await open(page);
     await expect(page.getByText(words)).toBeVisible();
     await expect(page.locator("iframe.ui-sealed-frame")).toHaveCount(0);
+    // A state that replaces the frame brings its own button: the strip has none.
+    await expect(page.getByRole("button", { name: "Reload" })).toHaveCount(0);
     if (words === "Notes is turned off") {
       await expect(page.getByText("Off", { exact: true })).toBeVisible();
-      await expect(
-        page.locator("section").getByRole("button", { name: "Manage plugin" }),
-      ).toBeVisible();
+      await expect(page.getByRole("button", { name: "Manage plugin" }))
+        .toHaveCount(1);
       await shot(page, "plugin-page-off");
     }
   }
+});
+
+test("seven pages show the first six and a way to the rest", async ({ page }) => {
+  const state = await pluginPagesFixture(page);
+  state.pages = Array.from(
+    { length: 7 },
+    (_, index) => entry(`page-${index + 1}`, `Plugin page ${index + 1}`),
+  );
+  await open(page);
+  await openRail(page);
+  const group = page.getByRole("group", { name: "Plugins" });
+  await expect(group.getByRole("link")).toHaveCount(7);
+  await expect(group.getByRole("link", { name: "Plugin page 6" }))
+    .toBeVisible();
+  await expect(group.getByRole("link", { name: "Plugin page 7" })).toHaveCount(
+    0,
+  );
+  await expect(group.getByRole("link", { name: "More plugin pages" }))
+    .toBeVisible();
+  await shot(page, "plugin-rail-seven");
+});
+
+test("on the compact rail the pages keep their names as tooltips", async ({ page }) => {
+  await pluginPagesFixture(page);
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await open(page);
+  const link = page.getByRole("group", { name: "Plugins" }).getByRole("link");
+  await expect(link).toHaveAttribute("title", "Release checklist");
 });
 
 test("a page that failed to load says so and tries again", async ({ page }) => {
@@ -257,6 +304,7 @@ test("a page that failed to load says so and tries again", async ({ page }) => {
       "Bakery could not load it. The rest of Bakery is not affected.",
     ),
   ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reload" })).toHaveCount(0);
   await shot(page, "plugin-page-failed");
   state.answer = access(null);
   await page.getByRole("button", { name: "Try again" }).click();
@@ -274,9 +322,7 @@ test("the rail lists a plugin's pages, and its settings page lists them with Ope
   await shot(page, "plugin-pages-it-adds");
   await section.getByRole("button", { name: "Open Release checklist" }).click();
   await expect(page).toHaveURL(new RegExp(`/plugins/${INSTALL}/${PAGE}$`));
-  // On a phone the rail is in the drawer.
-  const drawer = page.getByRole("button", { name: "Open navigation" });
-  if (await drawer.isVisible()) await drawer.click();
+  await openRail(page);
   await expect(
     page.getByRole("link", { name: "Release checklist" }),
   ).toBeVisible();

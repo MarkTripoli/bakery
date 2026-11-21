@@ -125,6 +125,7 @@ function usePrimaryDestinations(
   const pluginEntries = pluginPages.data?.items ?? [];
   const pluginItems: UI.ApplicationRailItem[] = [
     ...pluginEntries.slice(0, 6).map((entry) => ({
+      group: translate("shell.navigation.pluginsGroup"),
       id: `plugin-${entry.installId}-${entry.pageId}`,
       label: entry.title,
       href: `/plugins/${entry.installId}/${entry.pageId}`,
@@ -134,6 +135,7 @@ function usePrimaryDestinations(
     ...(pluginEntries.length > 6
       ? [{
         id: "plugins-more",
+        group: translate("shell.navigation.pluginsGroup"),
         label: translate("shell.navigation.morePluginPages"),
         href: "/settings/organization/plugins",
         icon: <UI.IconGlyph name="integration" />,
@@ -300,7 +302,6 @@ function usePrimaryDestinations(
       translate("shell.navigation.automations"),
       "lightning",
     ),
-    ...pluginItems,
     {
       id: "settings",
       label: translate("shell.states.settingsTitle"),
@@ -308,6 +309,7 @@ function usePrimaryDestinations(
       matchPath: "/settings",
       icon: <UI.IconGlyph name="settings-sun" />,
     },
+    ...pluginItems,
   ];
 }
 

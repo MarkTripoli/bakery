@@ -96,6 +96,8 @@ function fakeApi(
       packages: rejecting,
       versions: rejecting,
       installs: rejecting,
+      pages: rejecting,
+      page: rejecting,
       install: rejecting,
       update: rejecting,
       savedData: rejecting,

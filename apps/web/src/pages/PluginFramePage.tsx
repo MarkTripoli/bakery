@@ -190,44 +190,62 @@ export function PluginFramePage(
     )
     : null;
 
+  // A state that replaces the frame brings its own button; the strip then has none.
+  const framed = !loading && !read.isError && reason === null &&
+    read.data !== undefined && scope.organizationId !== null;
+
   return (
     <>
       <ShellActiveNavigation id={`plugin-${installId}-${pageId}`} />
-      <UI.Stack data-testid="plugin-frame-page" gap="tight">
-        <UI.Inline gap="compact">
-          <UI.Heading level="page">{title}</UI.Heading>
-          {row?.scope === "personal"
-            ? <UI.Badge>{translate("settings.plugins.frame.private")}</UI.Badge>
-            : null}
-          {reason === "off"
+      <UI.Stack data-testid="plugin-frame-page" gap="standard">
+        <UI.Inline data-touch-targets="coarse" variant="between">
+          <UI.Stack gap="tight">
+            <UI.Inline gap="compact">
+              <UI.Heading level="page">{title}</UI.Heading>
+              {row?.scope === "personal"
+                ? (
+                  <UI.Badge>
+                    {translate("settings.plugins.frame.private")}
+                  </UI.Badge>
+                )
+                : null}
+              {reason === "off"
+                ? (
+                  <UI.Badge>
+                    {translate("settings.plugins.frame.off.badge")}
+                  </UI.Badge>
+                )
+                : null}
+            </UI.Inline>
+            <UI.Inline gap="compact">
+              <UI.Text variant="muted">
+                {translate("settings.plugins.frame.provided", {
+                  name,
+                  version: row?.versionName ?? "",
+                })}
+              </UI.Text>
+              <UI.HelpTip label={translate("settings.plugins.frame.helpLabel")}>
+                {translate("settings.plugins.frame.help")}
+              </UI.HelpTip>
+            </UI.Inline>
+          </UI.Stack>
+          {framed
             ? (
-              <UI.Badge>
-                {translate("settings.plugins.frame.off.badge")}
-              </UI.Badge>
+              <UI.Inline gap="compact">
+                <UI.Button
+                  disabled={!online}
+                  onClick={() => {
+                    setReloads((count) => count + 1);
+                    void read.refetch();
+                  }}
+                  variant="secondary"
+                >
+                  {translate("settings.plugins.frame.reload")}
+                </UI.Button>
+                {manage}
+              </UI.Inline>
             )
             : null}
-        </UI.Inline>
-        <UI.Inline gap="compact">
-          <UI.Text variant="muted">
-            {translate("settings.plugins.frame.provided", {
-              name,
-              version: row?.versionName ?? "",
-            })}
-          </UI.Text>
-          <UI.HelpTip label={translate("settings.plugins.frame.helpLabel")}>
-            {translate("settings.plugins.frame.help")}
-          </UI.HelpTip>
-          <UI.Button
-            disabled={!online}
-            onClick={() => {
-              setReloads((count) => count + 1);
-              void read.refetch();
-            }}
-            variant="secondary"
-          >
-            {translate("settings.plugins.frame.reload")}
-          </UI.Button>
-          {manage}
         </UI.Inline>
         {!online
           ? (
@@ -261,8 +279,8 @@ export function PluginFramePage(
             </UI.InlineNotice>
           )
           : null}
+        {body}
       </UI.Stack>
-      {body}
     </>
   );
 }

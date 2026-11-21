@@ -5884,5 +5884,6 @@
   "settings.plugins.pages.open": "⟦Ôþëñ⟧",
   "settings.plugins.pages.openLabel": "⟦Ôþëñ {title} ŧë⟧",
   "settings.plugins.pages.hidden": "⟦Ĥïððëñ ŵĥïļë ïŧ ïš ôƒƒ ŧëšŧŧ⟧",
-  "settings.plugins.pages.none": "⟦Ŧĥïš ṽëŕšïôñ àððš ñô þàĝëš. ŧëšŧ çô⟧"
+  "settings.plugins.pages.none": "⟦Ŧĥïš ṽëŕšïôñ àððš ñô þàĝëš. ŧëšŧ çô⟧",
+  "shell.navigation.pluginsGroup": "⟦Þļûĝïñš…⟧"
 }
