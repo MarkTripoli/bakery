@@ -7,6 +7,7 @@
 export const STEP_LABELS = [
   "Checking the release",
   "Checking database changes",
+  "Pausing work",
   "Saving a snapshot",
   "Switching",
   "Checking health",
@@ -30,6 +31,9 @@ const NOTHING_CHANGED = new Set([
   "APPLIED_MIGRATION_CHANGED",
   "APPLIED_MIGRATION_REMOVED",
   "MIGRATION_COMPATIBILITY_REVIEW_REQUIRED",
+  "INSTALLATION_RESTORING",
+  "MAINTENANCE_HELD",
+  "DRAIN_TIMEOUT",
   "ROLLBACK_SCHEMA_INCOMPATIBLE",
   "NO_ROLLBACK_BASELINE",
   "ROLLBACK_HEAD_CHANGED",
@@ -108,6 +112,22 @@ export function failureLines(error, context = {}) {
         running(context),
         "A person has to review the migration and list it as safe in the",
         "release's expand list before it can be installed.",
+      );
+    case "INSTALLATION_RESTORING":
+      return lines(
+        "Bakery is held after a restore, so it was not updated.",
+        "Finish the restore first: open Bakery, Installation, Restore.",
+      );
+    case "MAINTENANCE_HELD":
+      return lines(
+        "A backup is running, so Bakery was not updated. Nothing was changed.",
+        `${running(context)} Try again when the backup has finished.`,
+      );
+    case "DRAIN_TIMEOUT":
+      return lines(
+        "Work that is running did not finish in time, so Bakery was not",
+        `updated. ${running(context)} It is taking work as before.`,
+        "Try again in a few minutes.",
       );
     case "ROLLBACK_SCHEMA_INCOMPATIBLE":
       return lines(
@@ -192,8 +212,34 @@ export function failedStepLine(step, total = STEP_LABELS.length, code = "") {
   });
 }
 
-/** Closing lines after a deploy or rollback that finished. */
-export function completionLines(command, state, before) {
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** "Carried over: 3 tasks, 1 approval, 2 open questions." */
+export function carriedOverLine(counts) {
+  return `Carried over: ${plural(counts.tasks, "task")}, ${
+    plural(counts.approvals, "approval")
+  }, ${plural(counts.questions, "open question")}.`;
+}
+
+/** What may or may not have happened outside Bakery, in #64's words. */
+function unsureLinesFor(counts) {
+  if (!counts || counts.outsideActionsUnsure === 0) return [];
+  const n = counts.outsideActionsUnsure;
+  return [
+    `${
+      plural(n, "outside action is", "outside actions are")
+    } held. They may or may not`,
+    "have happened. Bakery never sends them again; each is checked first.",
+    `See them: ${COMMAND} status --unsure`,
+  ];
+}
+
+/**
+ * Closing lines after a deploy or rollback that finished. `resumed` is what
+ * waited through an update: the counts when work was resumed, null when it could
+ * not be (the pause then lapses by itself), undefined when nothing was paused.
+ */
+export function completionLines(command, state, before, resumed) {
   const active = state.active?.sha;
   if (command === "rollback") {
     return [
@@ -205,6 +251,14 @@ export function completionLines(command, state, before) {
     return [`Bakery is already running ${short(active)}. Nothing was changed.`];
   }
   const lines = [`Updated. Bakery is running ${short(active)}.`];
+  if (resumed) lines.push(`${carriedOverLine(resumed)} Work has resumed.`);
+  else if (resumed === null) {
+    lines.push(
+      "Work could not be resumed just now. It starts again by itself within",
+      `35 minutes, or run: ${COMMAND} recover`,
+    );
+  }
+  lines.push(...unsureLinesFor(resumed));
   if (state.previous?.sha) {
     lines.push(
       `${short(state.previous.sha)} is kept so you can go back:`,
@@ -220,28 +274,51 @@ function row(label, value) {
   return `${label.padEnd(16)} ${value}`;
 }
 
+/**
+ * The line for what is waiting. counts is the database's answer, null when it
+ * did not answer, undefined when there is no release to ask with yet.
+ */
+function workRow(counts) {
+  if (counts === undefined) return row("Work", "nothing is installed yet");
+  if (counts === null) {
+    return row("Work", "not available, the database did not answer");
+  }
+  return row(
+    "Work",
+    `${plural(counts.tasks, "task")}, ${
+      plural(counts.approvals, "approval")
+    }, ${plural(counts.questions, "open question")}`,
+  );
+}
+
 /** The lines `status` prints. state is the parsed journal, or null. */
-export function statusLines(state) {
+export function statusLines(state, counts) {
   if (!state || (!state.active && !state.desired)) {
     return [
       row("Running", "nothing is installed yet"),
       row("Can go back to", "No earlier version is kept."),
+      workRow(undefined),
       row("State", "Ready for the first install."),
     ];
   }
   const back = state.previous?.sha ?? "No earlier version is kept.";
+  const unsure = unsureLinesFor(counts ?? undefined);
   if (state.phase === "committed") {
     return [
       row("Running", `${state.active.sha} (${state.active.slot})`),
       row("Can go back to", back),
+      workRow(counts),
       row("State", "Ready."),
+      ...unsure,
     ];
   }
   if (state.phase === "enrollment") {
     return [
       row("Running", `${state.desired.sha} (${state.desired.slot})`),
       row("Can go back to", back),
+      workRow(counts),
       row("State", "Waiting for the first worker to enroll."),
+      ...unsure,
     ];
   }
   return [
@@ -251,7 +328,24 @@ export function statusLines(state) {
       state.active ? `${state.active.sha} (${state.active.slot})` : "none",
     ),
     row("Can go back to", back),
+    workRow(counts),
     row("State", `A switch to ${short(state.desired?.sha)} did not finish.`),
     `Run: ${COMMAND} recover`,
+  ];
+}
+
+/** `status --unsure`: the outside actions whose outcome is unknown, by kind. */
+export function unsureLines(actions) {
+  if (actions === undefined) return ["Nothing is installed yet."];
+  if (actions === null) {
+    return ["The database did not answer, so the list cannot be shown."];
+  }
+  if (actions.length === 0) return ["No outside action needs a look."];
+  return [
+    "These outside actions may or may not have happened. Bakery never sends",
+    "them again; each is checked first.",
+    ...actions.map((a) =>
+      `  ${plural(a.count, "action")} of ${a.operation}, since ${a.since}`
+    ),
   ];
 }

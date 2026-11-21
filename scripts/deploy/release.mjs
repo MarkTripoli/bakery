@@ -24,6 +24,7 @@ import {
   statusLines,
   STEP_LABELS,
   stepLine,
+  unsureLines,
 } from "./release-messages.mjs";
 
 const execute = promisify(execFile);
@@ -476,17 +477,46 @@ export async function transition(
   emit(progress, 1);
   const additions = pendingMigrations(old.migrations, target, rollback);
   emit(progress, 2, additions.length ? `${additions.length} to apply` : "none");
+  // Only an update of a running installation pauses work. A rollback has to
+  // work when Bakery is broken, and a first install has nothing to pause. The
+  // journal records which release's code holds the pause (`paused`) before it
+  // is taken, so a launcher that dies mid-update is resumed by `recover`, and
+  // a host where nothing was paused never calls the database to resume. A
+  // refused pause clears the record and throws before anything else is
+  // written, so nothing needs undoing.
+  const pausing = !rollback && !bootstrap && Boolean(old.active) &&
+    typeof operations.pause === "function";
+  if (pausing) {
+    await store.write({ ...old, paused: sha });
+    try {
+      await operations.pause(sha);
+    } catch (error) {
+      try {
+        await store.write(old);
+      } catch {
+        // The journal cannot be written; recover clears the record.
+      }
+      throw error;
+    }
+  }
+  emit(progress, 3, pausing ? "quiet" : "skipped");
   const desired = { sha, slot: old.active?.slot === "blue" ? "green" : "blue" };
   let state = {
     ...old,
+    ...(pausing ? { paused: sha } : {}),
     phase: "preparing",
     desired,
     transaction: randomUUID(),
   };
-  await store.write(state);
+  try {
+    await store.write(state);
+  } catch (error) {
+    if (pausing) await resumeWork(operations, sha);
+    throw error;
+  }
   try {
     await operations.backup();
-    emit(progress, 3);
+    emit(progress, 4);
     if (additions.length) {
       state = {
         ...state,
@@ -506,7 +536,7 @@ export async function transition(
     await store.write(state);
     await operations.switchProxy(desired);
     await operations.publicSmoke(desired);
-    emit(progress, 4);
+    emit(progress, 5);
     if (bootstrap) {
       state = { ...state, phase: "enrollment" };
       await store.write(state);
@@ -536,7 +566,13 @@ async function finish(store, operations, state, progress = () => {}) {
       transaction: state.transaction,
     };
     await store.write(committed);
-    emit(progress, 5);
+    emit(progress, 6);
+    // After the commit, and never fatal: the update is done. If work cannot be
+    // resumed now, the pause's lease lapses on its own and `recover` resumes it.
+    if (state.paused) {
+      const resumed = await resumeWork(operations, state.paused);
+      if (resumed !== undefined) progress({ resumed });
+    }
     return committed;
   } catch (error) {
     await recover(store, operations);
@@ -544,9 +580,34 @@ async function finish(store, operations, state, progress = () => {}) {
   }
 }
 
+/**
+ * Lets work start again after an update. Returns what waited, `null` when it
+ * could not be done (the pause then lapses by itself), or undefined when this
+ * host has no way to pause. Releases only a pause the launcher itself took.
+ */
+async function resumeWork(operations, sha) {
+  if (typeof operations.resume !== "function") return undefined;
+  try {
+    return (await operations.resume(sha)).carriedOver;
+  } catch {
+    return null;
+  }
+}
+
 export async function recover(store, operations) {
   const state = await store.read();
-  if (state.phase === "committed" || state.phase === "enrollment") return state;
+  if (state.phase === "committed" || state.phase === "enrollment") {
+    // Also the way out when the launcher died after pausing and before it
+    // resumed: the record is cleared only once work really resumed.
+    if (state.paused && state.phase === "committed") {
+      if (await resumeWork(operations, state.paused) !== null) {
+        const { paused: _, ...rest } = state;
+        await store.write(rest);
+        return rest;
+      }
+    }
+    return state;
+  }
   if (state.phase === "migrating") await operations.migrate(state.desired.sha);
   // The host lock binds recovery to this journal; no CI-side cancellation race.
   await operations.switchProxy(state.active);
@@ -567,6 +628,9 @@ export async function recover(store, operations) {
     transaction: state.transaction,
   };
   await store.write(restored);
+  // Only after the old version is serving again, so work never starts against
+  // a version that is not answering.
+  if (state.paused) await resumeWork(operations, state.paused);
   return restored;
 }
 
@@ -607,26 +671,57 @@ export async function restoreAfterBoot(store, operations) {
   return restored;
 }
 
+// Exit codes the "update" task uses to say why a pause was refused (see
+// apps/server/src/platform/update-task.ts), so no text has to be read.
+const PAUSE_REFUSALS = {
+  74: "DRAIN_TIMEOUT",
+  75: "INSTALLATION_RESTORING",
+  76: "MAINTENANCE_HELD",
+};
+
+async function hostAction(name, ...args) {
+  try {
+    const { stdout } = await execute(`${ROOT}/deploy/runtime.sh`, [
+      name,
+      ...args,
+    ], {
+      timeout: name === "migrate" ? 600_000 : 300_000,
+      maxBuffer: 1024 * 1024,
+      env: { PATH: "/usr/sbin:/usr/bin:/sbin:/bin" },
+    });
+    return stdout;
+  } catch (error) {
+    throw new Error(
+      `DEPLOY_${name.toUpperCase()}_FAILED:${error.code ?? "unknown"}`,
+    );
+  }
+}
+
+/**
+ * What the launcher asks of the database around an update: pause, resume, count
+ * or list the unsure actions. Each prints one JSON line.
+ */
+export async function updateTask(sha, subcommand) {
+  try {
+    const stdout = await hostAction("update", sha, subcommand);
+    return JSON.parse(stdout.trim().split("\n").at(-1));
+  } catch (error) {
+    const refusal = PAUSE_REFUSALS[Number(error.message.split(":")[1])];
+    if (subcommand === "pause" && refusal) throw new Error(refusal);
+    throw error;
+  }
+}
+
 export function hostOperations(config) {
-  const action = async (name, ...args) => {
-    try {
-      await execute(`${ROOT}/deploy/runtime.sh`, [name, ...args], {
-        timeout: name === "migrate" ? 600_000 : 300_000,
-        maxBuffer: 1024 * 1024,
-        env: { PATH: "/usr/sbin:/usr/bin:/sbin:/bin" },
-      });
-    } catch (error) {
-      throw new Error(
-        `DEPLOY_${name.toUpperCase()}_FAILED:${error.code ?? "unknown"}`,
-      );
-    }
-  };
+  const action = hostAction;
   const switchProxy = async (active) => {
     const path = "/etc/bakery/Caddyfile.next";
     await writeAtomic(path, renderCaddy(config, active), 0o644);
     await action("proxy", path);
   };
   return {
+    pause: (sha) => updateTask(sha, "pause"),
+    resume: (sha) => updateTask(sha, "resume"),
     prepare: (sha, digest) => action("prepare", sha, digest ?? "retained"),
     manifest: async (sha) =>
       JSON.parse(
@@ -686,12 +781,19 @@ async function readState() {
 async function main() {
   const [command, sha, checksum] = process.argv.slice(2);
   let lastStep = 0;
-  const progress = (step) => {
-    lastStep = step.step;
-    console.log(stepLine(step));
+  // `resumed` is what waited through an update: counts, null when work could
+  // not be resumed, undefined when nothing was paused.
+  const notes = { resumed: undefined };
+  const progress = (event) => {
+    if ("resumed" in event) {
+      notes.resumed = event.resumed;
+      return;
+    }
+    lastStep = event.step;
+    console.log(stepLine(event));
   };
   try {
-    await run(command, sha, checksum, progress);
+    await run(command, sha, checksum, progress, notes);
   } catch (error) {
     const state = await readState();
     const code = error instanceof Error ? error.message.split(":")[0] : "";
@@ -712,10 +814,25 @@ async function main() {
   }
 }
 
-async function run(command, sha, checksum, progress) {
+async function run(command, sha, checksum, progress, notes = {}) {
   if (process.getuid() !== 0) throw new Error("ROOT_REQUIRED");
   if (command === "status") {
-    for (const line of statusLines(await readState())) console.log(line);
+    const state = await readState();
+    // The counts come from the database, not from Bakery, so they are there
+    // when the server is down. If the database does not answer, say so.
+    const release = state?.active?.sha;
+    const ask = async (subcommand) => {
+      if (!release) return undefined;
+      try {
+        return await updateTask(release, subcommand);
+      } catch {
+        return null;
+      }
+    };
+    const lines = sha === "--unsure"
+      ? unsureLines(await ask("unsure"))
+      : statusLines(state, await ask("counts"));
+    for (const line of lines) console.log(line);
     return;
   }
   const config = JSON.parse(
@@ -735,7 +852,9 @@ async function run(command, sha, checksum, progress) {
         false,
         progress,
       );
-      for (const line of completionLines("deploy", state, before)) {
+      for (
+        const line of completionLines("deploy", state, before, notes.resumed)
+      ) {
         console.log(line);
       }
       break;
