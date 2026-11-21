@@ -37,6 +37,7 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { TaskFromIssue } from "../TaskFromIssue.tsx";
+import { useMentionField } from "../../mentions/useMentionField.tsx";
 import { Composer } from "./Composer.tsx";
 import {
   browserDraftStore,
@@ -193,6 +194,18 @@ export function TaskConversation(
   const [sendPhase, setSendPhase] = useState<
     "idle" | "sending" | "unknown" | "forbidden" | "error"
   >(draft.sendId === null ? "idle" : "unknown");
+  const mentionField = useMentionField({
+    source: { kind: "conversation", id: conversationId },
+    value: draft.body,
+    onValue: (body) => {
+      setDraft({ ...draft, body });
+      if (sendPhase === "error" || sendPhase === "forbidden") {
+        setSendPhase("idle");
+      }
+    },
+    offline: !online,
+    disabled: sendPhase === "sending" || sendPhase === "unknown",
+  });
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -217,10 +230,18 @@ export function TaskConversation(
         body: frozen.body.trim(),
         clientMessageId: sendId,
         intent: frozen.intent === "ask" ? "agent_request" : "discussion",
+        ...(mentionField.mentions.length > 0
+          ? {
+            mentions: mentionField.mentions.map((mention) =>
+              mention.principalId
+            ),
+          }
+          : {}),
       },
     });
     if (!alive.current) return;
     if (result.ok) {
+      mentionField.clear();
       setDraft({ ...frozen, body: "", sendId: null, sendBody: null });
       setSendPhase("idle");
       void refresh();
@@ -229,6 +250,9 @@ export function TaskConversation(
     const failure = commandFailure(result.error);
     if (failure === "unknown") return setSendPhase("unknown");
     setDraft({ ...frozen, sendId: null, sendBody: null });
+    // The server refused a mention and wrote nothing: the draft stays, the
+    // refused names turn red and say why.
+    if (mentionField.refuse(result.error)) return setSendPhase("idle");
     setSendPhase(failure === "forbidden" ? "forbidden" : "error");
   };
 
@@ -797,12 +821,7 @@ export function TaskConversation(
               runBlocked={runBlocked}
               resultsHint={task.status === "completed" &&
                 task.currentRunId !== null}
-              onBody={(body) => {
-                setDraft({ ...draft, body });
-                if (sendPhase === "error" || sendPhase === "forbidden") {
-                  setSendPhase("idle");
-                }
-              }}
+              mentionField={mentionField}
               onIntent={(intent: DraftIntent) => setDraft({ ...draft, intent })}
               onSend={() => void send()}
               onRetry={() => void send()}

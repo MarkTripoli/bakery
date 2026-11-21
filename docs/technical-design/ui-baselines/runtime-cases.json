@@ -1418,6 +1418,13 @@
       "context": "desktop-dark-fine"
     },
     {
+      "id": "ui.mentionPicker.contract.desktop-light-fine",
+      "catalogId": "ui.mentionPicker",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-mentionpicker--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.messageComposer.contract.desktop-light-fine",
       "catalogId": "ui.messageComposer",
       "requiredCaseId": "contract",
