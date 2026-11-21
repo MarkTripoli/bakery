@@ -303,6 +303,8 @@ def phase_cold_sign_in():
         return
     deliver(link)
     check("[cold] the app finishes and opens the app window", wait_window(p, "app") is not None)
+    check("[cold] once signed in the window goes to the server's page by a one-use code",
+          wait_report(p, "server_page_opened", 1) and not any(e["event"] == "handoff_failed" for e in reports(p)))
     order = [v[0] for v in views(p)]
     check("[cold] the windows came in the designed order",
           order[:3] == ["sign_in", "waiting", "browser_did_not_open"] and order[-1] == "app", " > ".join(order))
