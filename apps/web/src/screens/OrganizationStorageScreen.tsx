@@ -325,7 +325,7 @@ function EditForm(
               onBlur={() => props.onFieldBlur(name)}
               onChange={(value) => props.onDraftChange(name, value)}
               placeholder={DEFAULTED_FIELDS.includes(name)
-                ? String(FIELD_RULES[name].fallback)
+                ? translate("organizationStorage.field.defaultPlaceholder")
                 : undefined}
               type="text"
               value={draft[name]}

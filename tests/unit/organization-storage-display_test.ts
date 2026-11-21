@@ -91,6 +91,8 @@ Deno.test("the agent step limits take megabytes and a file count, and an empty b
   assertEquals(fieldProblem("stepWriteFiles", "x", SAVED), "whole");
   // Empty is allowed for these two and saves Bakery's default.
   assertEquals(fieldProblem("stepWriteFiles", "", SAVED), null);
+  assertEquals(fieldProblem("stepWriteBytes", "", SAVED), null);
+  assertEquals(fieldProblem("stepWriteBytes", "  ", SAVED), null);
   assertEquals(fieldProblem("maxFileBytes", "", SAVED), "whole");
   const put = putOf(
     { ...draftOf(SAVED), stepWriteBytes: "512", stepWriteFiles: "" },
@@ -98,6 +100,13 @@ Deno.test("the agent step limits take megabytes and a file count, and an empty b
   );
   assertEquals(put.stepWriteBytes, 512 * 1024 * 1024);
   assertEquals(put.stepWriteFiles, 2000);
+  // The megabytes box emptied saves 2 GB, and both emptied save both defaults.
+  const emptied = putOf(
+    { ...draftOf(SAVED), stepWriteBytes: "", stepWriteFiles: "" },
+    SAVED,
+  );
+  assertEquals(emptied.stepWriteBytes, 2 * GIGABYTE);
+  assertEquals(emptied.stepWriteFiles, 2000);
 });
 
 Deno.test("a quota below what is stored is flagged, not refused", () => {

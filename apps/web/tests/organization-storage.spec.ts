@@ -137,6 +137,27 @@ for (
       });
     });
 
+    test("an emptied step limit box shows the word Default, not a number that looks typed", async ({ page }) => {
+      await storageFixture(page);
+      await page.goto("/organization/storage");
+      const bytes = page.getByRole("textbox", {
+        name: "Most a step may write",
+        exact: true,
+      });
+      const files = page.getByRole("textbox", {
+        name: "Most files a step may write",
+        exact: true,
+      });
+      await bytes.fill("");
+      await files.fill("");
+      await expect(bytes).toHaveAttribute("placeholder", "Default");
+      await expect(files).toHaveAttribute("placeholder", "Default");
+      await expect(bytes).toHaveValue("");
+      await bytes.scrollIntoViewIfNeeded();
+      await page.mouse.move(700, 700);
+      await still(page, "organization-storage-agent-emptied");
+    });
+
     test("the first save of an organization on the defaults sends no If-Match", async ({ page }) => {
       const seen = await storageFixture(page, { version: 0 });
       await page.goto("/organization/storage");

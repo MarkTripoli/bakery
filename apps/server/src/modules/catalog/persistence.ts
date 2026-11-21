@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireCommandMetadata, StandardError } from "@bakery/contracts/http";
 import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { assertNotQuiesced } from "../../platform/maintenance.ts";
 import {
   type CursorBinding,
   decodeCursor,
@@ -516,6 +517,8 @@ export function createCatalogHandlers(
     async importSkill(context: ActionContext, input: SkillImportInput) {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
+      // A backup holds the installation: no import starts until it lets go.
+      await assertNotQuiesced(transaction);
       requireCommandMetadata(context);
       const parsed = SkillImportAdmissionPersistenceSchema.safeParse(input);
       if (!parsed.success) invalidSourceInput(parsed.error);

@@ -24,6 +24,7 @@ import {
   COORDINATOR_TRANSIENT_RETRY_DELAYS_MILLISECONDS,
 } from "./shared.ts";
 import { reclaimExpiredAttempts } from "@bakery/persistence/attempts";
+import { releaseReconciledHandoffs } from "./handoff-release.ts";
 import { reconcileFailedLifecycleTasks } from "../work/coordination-projection.ts";
 
 type DenoSignalApi = {
@@ -1157,6 +1158,7 @@ export async function runExecutionCoordinatorTask(): Promise<void> {
             database,
             async (transaction) => {
               await reclaimExpiredAttempts(transaction);
+              await releaseReconciledHandoffs(transaction);
               await reconcileFailedLifecycleTasks(transaction);
               await sweepExecutionRetention(transaction);
             },
