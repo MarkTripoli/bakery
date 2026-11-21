@@ -40,7 +40,7 @@ export type CatalogActionHandlers = {
   ) => Promise<z.output<typeof contractSchemas.SkillSource>>;
   listSkills: (
     context: ActionContext,
-    input: z.output<typeof contractSchemas.CursorQuery>,
+    input: z.output<typeof contractSchemas.SkillQuery>,
   ) => Promise<z.output<typeof contractSchemas["Page<Skill>"]>>;
   getSkill: (
     context: ActionContext,
@@ -272,7 +272,7 @@ export function createCatalogActionRegistry(
     name: CatalogImplementedAction.SkillsList,
     method: HttpMethod.Get,
     path: "/v1/skills",
-    input: contractSchemas.CursorQuery,
+    input: contractSchemas.SkillQuery,
     output: contractSchemas["Page<Skill>"],
     policy: queryPolicy,
     handler: handlers.listSkills,

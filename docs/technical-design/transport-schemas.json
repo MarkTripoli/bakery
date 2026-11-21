@@ -3217,6 +3217,46 @@
       ],
       "description": "Lists questions using opaque keyset pagination bound to the current principal and scope; page/offset-style parameters are rejected."
     },
+    "SkillQuery": {
+      "fields": [
+        {
+          "name": "scope",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "global",
+            "organization",
+            "personal"
+          ],
+          "description": "Restricts the listing to skills of one scope: global (comes with Bakery), organization (shared by everyone in the organization) or personal (private to the caller); omit to list every skill the caller can see."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of skills returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
+    },
     "RepositoryCreate": {
       "fields": [
         {
