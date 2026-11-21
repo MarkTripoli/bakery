@@ -186,7 +186,7 @@ export function PluginFramePage(
 
   return (
     <>
-      <ShellActiveNavigation id="plugins" />
+      <ShellActiveNavigation id={`plugin-${installId}-${pageId}`} />
       <UI.Stack data-testid="plugin-frame-page" gap="tight">
         <UI.Inline gap="compact">
           <UI.Heading level="page">{title}</UI.Heading>
