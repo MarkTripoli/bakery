@@ -56,12 +56,8 @@ import {
   machineReason,
   requestedMode,
 } from "./machine-state.ts";
-import {
-  type EnrollmentInput,
-  hasInstaller,
-  installState,
-  type MachineSystem,
-} from "./machine-wizard.ts";
+import { type EnrollmentInput, installState } from "./machine-wizard.ts";
+import { isSupportedSystem, type MachineSystem } from "./machine-systems.ts";
 
 function message(
   translate: Translator,
@@ -625,10 +621,13 @@ export function MachineDetailPage(
                           </UI.Inline>
                         </UI.Stack>
                       )
-                      : !hasInstaller(workerData.os as MachineSystem)
+                      : !isSupportedSystem(
+                          workerData.os,
+                          workerData.architecture,
+                        )
                       ? (
                         <UI.AlertBanner tone="information" role="status">
-                          {message(translate, "machines.wizard.macos")}
+                          {message(translate, "machines.wizard.unsupported")}
                         </UI.AlertBanner>
                       )
                       : (
