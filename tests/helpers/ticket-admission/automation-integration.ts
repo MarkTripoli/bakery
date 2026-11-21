@@ -10,6 +10,11 @@ import { assert, assertEquals } from "@std/assert";
 import { createTicketFactIndex } from "../../../apps/server/src/modules/integrations/ticket-reads.ts";
 import { withPgTransaction } from "../../../apps/server/src/platform/database.ts";
 import { readSourceHandle } from "../../../apps/server/src/modules/work/ticket-store.ts";
+import type {
+  TicketLabelChange,
+  TicketLabelResult,
+  TicketLabelWriter,
+} from "../../../apps/server/src/modules/work/ticket-labels.ts";
 import {
   createTicketIntakeWorkflow,
   createTicketPollWorkflow,
@@ -1290,4 +1295,49 @@ Deno.test("issue 82 automation: no backend sits idle in a transaction while the 
       await control.reader.readIssue(handle, ticketRef(83), signal);
     });
     assert(control.samples.some((sample) => sample.idle > 0));
+  }));
+
+Deno.test("issue 32 automation: the poll writes the status note after its step when a writer is wired, and writes none without one", () =>
+  withAutomation(async (a) => {
+    const { fx } = a;
+    await fx.insertSource({ policy: automaticPolicy(fx) });
+    a.seedLabeler();
+    await admitted(a, 31);
+
+    // No writer: the step is as before and carries no progress result.
+    const bare = await a.poll();
+    assertEquals(bare.outcomes[0].progress, undefined);
+    assertEquals(fx.notes.posts.length, 0);
+
+    const written = await a.poll({ noteWriter: fx.notes });
+    assertEquals(written.outcomes[0].progress, {
+      posted: 1,
+      failed: 0,
+      skipped: 0,
+    });
+    assertEquals(fx.notes.posts.length, 1);
+    assertEquals(fx.notes.posts[0].issueNumber, 31);
+
+    // The phase has not changed: the next poll writes nothing more.
+    const again = await a.poll({ noteWriter: fx.notes });
+    assertEquals(again.outcomes[0].progress?.posted, 0);
+    assertEquals(fx.notes.posts.length, 1);
+  }));
+
+Deno.test("issue 32 automation: the poll changes Bakery's progress label when a label writer is wired", () =>
+  withAutomation(async (a) => {
+    const { fx } = a;
+    await fx.insertSource({ policy: automaticPolicy(fx) });
+    a.seedLabeler();
+    await admitted(a, 33);
+    const changes: { add: readonly string[]; remove: readonly string[] }[] = [];
+    const labels: TicketLabelWriter = {
+      apply(change: TicketLabelChange): Promise<TicketLabelResult> {
+        changes.push({ add: change.add, remove: change.remove });
+        return Promise.resolve({ kind: "applied" });
+      },
+    };
+    const written = await a.poll({ noteWriter: fx.notes, labelWriter: labels });
+    assertEquals(written.outcomes[0].progress?.posted, 1);
+    assertEquals(changes, [{ add: ["bakery:queued"], remove: [] }]);
   }));
