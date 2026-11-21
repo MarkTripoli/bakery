@@ -334,6 +334,22 @@ export function claimDepsFor(db: PgDatabase, rig: EffectRig): ClaimDeps {
   };
 }
 
+/**
+ * Grants the rig's actor one more exact action on the rig's resource, the way
+ * an administrator grants each action on its own.
+ */
+export function grantRigAction(rig: EffectRig, capability: string): void {
+  const current = rig.snapshot.current;
+  rig.snapshot.current = {
+    ...current,
+    grants: [...current.grants, {
+      ...current.grants[0]!,
+      grantId: crypto.randomUUID(),
+      capability,
+    } as IntegrationGrantRecord],
+  };
+}
+
 /** How the fake GitHub answers a comment creation request. */
 export type PostBehavior =
   | "ok"
@@ -351,10 +367,14 @@ type StoredComment = {
   user: { id: number; type: string } | null;
 };
 
+type StoredIssue = StoredComment & { number: number };
+
 /** In-memory GitHub that records every request the broker sends. */
 export type FakeGithub = {
   calls: { method: string; path: string }[];
   comments: StoredComment[];
+  /** Issues created through `POST /issues`, oldest first. */
+  issues: StoredIssue[];
   post: PostBehavior;
   list: ListBehavior;
   posts(): number;
@@ -367,6 +387,7 @@ export function fakeGithub(): FakeGithub {
   const fake: FakeGithub = {
     calls: [],
     comments: [],
+    issues: [],
     post: "ok",
     list: "normal",
     posts: () => fake.calls.filter((c) => c.method === "POST").length,
@@ -381,6 +402,7 @@ export function fakeGithub(): FakeGithub {
       );
       const method = init?.method ?? "GET";
       fake.calls.push({ method, path: url.pathname });
+      const forIssues = url.pathname.endsWith("/issues");
       if (method === "POST") {
         if (fake.post === "hang") {
           return new Promise<Response>((_, reject) => {
@@ -403,6 +425,20 @@ export function fakeGithub(): FakeGithub {
           return Promise.resolve(new Response("not json", { status: 201 }));
         }
         const body = JSON.parse(String(init?.body)) as { body: string };
+        if (forIssues) {
+          const issue: StoredIssue = {
+            id: 9000 + fake.issues.length + 1,
+            number: 100 + fake.issues.length,
+            body: body.body,
+            user: { id: GITHUB_BINDING.botUserId, type: "Bot" },
+          };
+          fake.issues.push(issue);
+          return Promise.resolve(
+            fake.post === "stored_then_500"
+              ? new Response("{}", { status: 500 })
+              : Response.json(issue, { status: 201 }),
+          );
+        }
         const comment: StoredComment = {
           id: nextId++,
           body: body.body,
@@ -419,8 +455,9 @@ export function fakeGithub(): FakeGithub {
       }
       const page = Number(url.searchParams.get("page") ?? "1");
       const size = Number(url.searchParams.get("per_page") ?? "100");
+      const listed = forIssues ? [...fake.issues].reverse() : fake.comments;
       return Promise.resolve(
-        Response.json(fake.comments.slice((page - 1) * size, page * size)),
+        Response.json(listed.slice((page - 1) * size, page * size)),
       );
     }) as typeof fetch,
   };

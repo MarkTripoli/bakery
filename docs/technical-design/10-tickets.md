@@ -284,7 +284,7 @@ Before shipping GitHub intake, prove these boundary cases in provider fixtures a
 
 Measure intake lag, time from an authorized request to dispatch, time waiting for information, readiness reversals after scope changes, progress-sync failures, retry counts and cost per completed ticket. Include rejected/blocked work in the denominator so a high apparent success rate cannot hide abandoned tickets. Keep deterministic delivery evidence separate from sampled model assessments of plan quality.
 
-The current map validates documentation structure and responsive rendering only. Source setup, readiness, admission and the poll and webhook functions are built and backed by fixtures. Live GitHub checks, the Tickets page and remote ticket creation remain to build.
+The current map validates documentation structure and responsive rendering only. Source setup, readiness, admission and the poll and webhook functions are built and backed by fixtures. Live GitHub checks, the Tickets page and the route for remote ticket creation remain to build. The GitHub actions the route will use exist and run through the effect ledger: `github.issue.create` (found again by its effect marker after a lost response, never posted twice), and `github.issue.labels.add` and `github.issue.label.remove`, which name only Bakery's own labels so a person's labels stay.
 
 ## Label routing to multiple repositories (#31)
 
