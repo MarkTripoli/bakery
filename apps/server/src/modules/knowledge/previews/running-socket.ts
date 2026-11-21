@@ -186,7 +186,28 @@ export async function proxyPreviewSocket(
     }
   };
 
-  forward = (data) => send(browser, data);
+  // The person's socket is still connecting when the upgrade returns, and a
+  // frame sent to it then would be dropped: the app's first frames (a greeting)
+  // wait here, in order, until it opens.
+  const waiting: (string | ArrayBuffer)[] = [];
+  let waitingBytes = 0;
+  const toBrowser = (data: string | ArrayBuffer) => {
+    if (browser.readyState !== WebSocket.CONNECTING) {
+      send(browser, data);
+      return;
+    }
+    waitingBytes += typeof data === "string" ? data.length : data.byteLength;
+    if (waitingBytes > MAX_BUFFERED_BYTES) {
+      finish(TOO_BIG, "too much waiting to be sent");
+      return;
+    }
+    waiting.push(data);
+  };
+  browser.onopen = () => {
+    for (const data of waiting.splice(0)) send(browser, data);
+    waitingBytes = 0;
+  };
+  forward = toBrowser;
   for (const data of early.splice(0)) forward(data);
   browser.onmessage = (event) => send(upstream, event.data);
   browser.onclose = (event) =>

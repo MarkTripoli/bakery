@@ -1595,6 +1595,54 @@ Deno.test("a socket opens on the preview's own origin, reaches the registered ap
     }
   }));
 
+Deno.test("an app that greets on open reaches the browser, in order", () =>
+  withSocketFixture(async (fixture, wsUrl, origin) => {
+    const greetings = ["hello-1", "hello-2"];
+    const server = Deno.serve(
+      { hostname: "127.0.0.1", port: 0, onListen() {} },
+      (request) => {
+        const { socket, response } = Deno.upgradeWebSocket(request);
+        socket.onopen = () => {
+          for (const frame of greetings) socket.send(frame);
+        };
+        socket.onmessage = (event) => socket.send(event.data);
+        return response;
+      },
+    );
+    try {
+      const { preview } = await registerAt(
+        fixture,
+        "sock-greet",
+        (server.addr as Deno.NetAddr).port,
+      );
+      const opened = await openOrigin(fixture, preview.id);
+      const socket = new WebSocket(
+        wsUrl(),
+        { headers: { cookie: opened.cookie, origin } } as unknown as string[],
+      );
+      const got: string[] = [];
+      const done = new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 4000);
+        socket.onmessage = (event) => {
+          got.push(event.data);
+          if (got.length === 3) {
+            clearTimeout(timer);
+            resolve();
+          }
+        };
+      });
+      await new Promise((resolve) => {
+        socket.onopen = resolve;
+      });
+      socket.send("client-1");
+      await done;
+      assertEquals(got, ["hello-1", "hello-2", "client-1"]);
+      socket.close();
+    } finally {
+      await server.shutdown();
+    }
+  }));
+
 Deno.test("a socket is refused without the session, from another origin, or when it is not a plain upgrade", () =>
   withSocketFixture(async (fixture, wsUrl, origin) => {
     const app = startSocketApp();
