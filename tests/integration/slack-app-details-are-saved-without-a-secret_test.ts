@@ -13,6 +13,7 @@ import { Hono } from "hono";
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { loadSecretKey } from "../../apps/server/src/modules/secrets/crypto.ts";
 import { openAppSecret } from "../../apps/server/src/modules/integrations/callbacks.ts";
+import { deleteSlackApp } from "../../apps/server/src/modules/integrations/slack-app-actions.ts";
 import {
   readSlackAppCredentials,
   readSlackAppSettings,
@@ -64,6 +65,36 @@ function save(
         requestId: crypto.randomUUID(),
         traceId: crypto.randomUUID(),
       }),
+  );
+}
+
+function remove(
+  fixture: Fixture,
+  draft: { expectedVersion?: number },
+) {
+  return withPgTransaction(
+    fixture.pgDatabase,
+    async (transaction) =>
+      await deleteSlackApp(
+        {
+          transaction,
+          requestId: crypto.randomUUID(),
+          traceId: crypto.randomUUID(),
+          commandMetadata: {
+            expectedVersion: draft.expectedVersion,
+          },
+          principal: { principalId: fixture.principalId },
+          authority: {
+            installationAdministrator: true,
+            subject: {
+              principalId: fixture.principalId,
+              principalType: "human",
+            },
+          },
+        } as never,
+        {},
+        { publicBaseUrl: "https://bakery.test" } as never,
+      ),
   );
 }
 
@@ -237,6 +268,65 @@ Deno.test("a second editor's save is refused rather than overwriting", async () 
   });
 });
 
+Deno.test("a removal names the version it removes", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const secretsKey = await key();
+    const saved = await save(fixture, secretsKey, {
+      appId: appId(),
+      clientId: "1234567890.0987654321",
+      clientSecret: "client-secret-one",
+      signingSecret: "signing-secret-one",
+    });
+    try {
+      // Removal destroys the pair, so a caller that never read the row is refused
+      // rather than deleting a row it never saw.
+      let missing = "";
+      try {
+        await remove(fixture, {});
+      } catch (error) {
+        missing = (error as { code?: string }).code ?? "";
+      }
+      assertEquals(missing, "PRECONDITION_REQUIRED");
+
+      // A removal quoting a version someone else already moved past is refused.
+      let stale = "";
+      try {
+        await remove(fixture, { expectedVersion: saved.version + 7 });
+      } catch (error) {
+        stale = (error as { code?: string }).code ?? "";
+      }
+      assertEquals(stale, "PRECONDITION_FAILED");
+
+      // Neither attempt removed anything: the row and both secrets are still here.
+      const still = await readSlackAppSettings(fixture.pgDatabase as never);
+      assertEquals(still?.version, saved.version);
+      const secrets = await fixture.pgDatabase.query<{ n: string }>(
+        `select count(*)::text as n from bakery.secrets
+          where provider = 'slack' and revoked_at is null`,
+      );
+      assertEquals(secrets.rows[0]!.n, "2");
+
+      // The version the row carries is accepted.
+      await remove(fixture, { expectedVersion: saved.version });
+      assertEquals(
+        await readSlackAppSettings(fixture.pgDatabase as never),
+        null,
+      );
+    } finally {
+      await withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          removeSlackAppSettings(transaction, {
+            principalId: fixture.principalId,
+            operation: "integration.slack.credentials.remove",
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+      );
+    }
+  });
+});
+
 Deno.test("removing the details keeps the links people made", async () => {
   await withWorkerFixture(async (fixture) => {
     const secretsKey = await key();
@@ -279,11 +369,19 @@ Deno.test("removing the details keeps the links people made", async () => {
       [fixture.organizationId],
     );
     assertEquals(links.rows[0]!.n, "1");
-    // The secrets went with it: the app they belonged to no longer exists here.
+    // The secrets went out of use with it: the app they belonged to no longer
+    // exists here. The application role may take a secret out of use but not
+    // delete one, so the rows stay as sealed history and nothing decrypts them.
     const secrets = await fixture.pgDatabase.query<{ n: string }>(
-      "select count(*)::text as n from bakery.secrets where provider = 'slack'",
+      `select count(*)::text as n from bakery.secrets
+        where provider = 'slack' and revoked_at is null`,
     );
     assertEquals(secrets.rows[0]!.n, "0");
+    const sealed = await fixture.pgDatabase.query<{ n: string }>(
+      `select count(*)::text as n from bakery.secrets
+        where provider = 'slack' and active_version_id is null`,
+    );
+    assertEquals(sealed.rows[0]!.n, "2");
     // Save/remove both left an audit row, and neither names a secret value.
     const audit = await fixture.pgDatabase.query<{ details: unknown }>(
       `select details from bakery.audit_events

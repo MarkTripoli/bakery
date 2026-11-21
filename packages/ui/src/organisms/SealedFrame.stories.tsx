@@ -18,7 +18,11 @@ export const Contract: StoryObj = {
   render: () => (
     <Stack gap="standard">
       <Text>A plugin page, sealed</Text>
-      <div style={{ blockSize: 240, inlineSize: "100%" }}>
+      {
+        /* The frame fills its parent and keeps a 70dvh floor, so the specimen
+          gives it a window-sized box rather than a short one it would escape. */
+      }
+      <div style={{ blockSize: "70dvh", inlineSize: "100%" }}>
         <SealedFrame
           src={page}
           title="Release checklist, provided by the plugin Release helper"

@@ -320,7 +320,10 @@ export async function integrationsFixture(
       body: "<!doctype html><title>GitHub</title><p>Create GitHub App</p>",
     });
   });
-  return { ...state, slack };
+  // `slack` is a live handle, not a snapshot: a test that sets
+  // `fixture.slack.current` must reach the routes, so the object is assigned
+  // rather than spread into a copy.
+  return Object.assign(state, { slack });
 }
 
 export type Fixture = Awaited<ReturnType<typeof integrationsFixture>>;

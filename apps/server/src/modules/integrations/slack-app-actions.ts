@@ -234,6 +234,19 @@ export async function deleteSlackApp(
   dependencies: Dependencies,
 ): Promise<SlackApp> {
   const { context: value, actor } = installationActor(context);
+  // Removal destroys the pair, so it names the version it is removing: a second
+  // editor who never saw the current row must not delete it blind.
+  const expectedVersion = requireCommandMetadata(context).expectedVersion;
+  if (expectedVersion === undefined) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  const existing = await readSlackAppSettings(value.transaction);
+  if (existing === null) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  if (existing.version !== expectedVersion) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
   await removeSlackAppSettings(value.transaction, {
     principalId: actor.subject.principalId,
     operation: Action.IntegrationSlackAppDelete,
