@@ -7,8 +7,10 @@ import type {
   TicketTaskLinkResponse,
 } from "../api/client.ts";
 import {
+  openQuestionsQueryOptions,
   organizationMembersQueryOptions,
   pullRequestsQueryOptions,
+  questionsQueryOptions,
   repositoryQueryOptions,
   taskQueryOptions,
   ticketLinksByIssueQueryOptions,
@@ -16,6 +18,7 @@ import {
 } from "../api/query.ts";
 import { failureStatus } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useShellViewport } from "../app/responsive.ts";
 import { useSession } from "../app/session-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ageOf } from "./issue-state.ts";
@@ -25,7 +28,10 @@ import {
   PROGRESS_TONE,
   progressNext,
   progressReason,
+  questionRow,
+  type QuestionRowView,
   startedBy,
+  waitsOnAnswer,
   type WorkStartedBy,
 } from "./issues/work-model.ts";
 
@@ -91,6 +97,76 @@ function PullRequests({ taskId }: { readonly taskId: string }) {
         </UI.Inline>
       ))}
     </>
+  );
+}
+
+/**
+ * The row at the top of "Bakery's work" while the task waits on a question: what
+ * it asks and one way to answer it. The answer form stays on the task page, so
+ * there is one place to answer; this row only points at it.
+ */
+function QuestionRow(
+  { row, taskId, canWrite, phone }: {
+    readonly row: QuestionRowView;
+    readonly taskId: string;
+    /** Developers and administrators may answer; others see who can. */
+    readonly canWrite: boolean;
+    /** On a phone the button goes under the text, the width of the row. */
+    readonly phone: boolean;
+  },
+) {
+  const navigate = useNavigate();
+  const { translate } = useI18n();
+  if (row.kind === "expired") {
+    // The way to the task is the "Open task" button of the line below.
+    return (
+      <UI.InlineNotice tone="neutral">
+        {translate("issues.work.question.expired" as never)}
+      </UI.InlineNotice>
+    );
+  }
+  const answer = canWrite
+    ? (
+      <UI.Button
+        variant="primary"
+        onClick={() =>
+          void navigate({ to: "/tasks/$taskId", params: { taskId } })}
+      >
+        {translate("issues.work.question.answer" as never)}
+      </UI.Button>
+    )
+    : undefined;
+  return (
+    <UI.InlineNotice
+      tone="warning"
+      data-testid="issue-question"
+      action={phone ? undefined : answer}
+    >
+      <UI.Stack gap="compact">
+        <UI.Text variant="strong">
+          {translate(
+            (row.count === 1
+              ? "issues.work.question.one"
+              : "issues.work.question.many") as never,
+            { count: row.count },
+          )}
+        </UI.Text>
+        {row.lines.map((line, index) => (
+          <UI.Text key={index} lines={2}>{line}</UI.Text>
+        ))}
+        <UI.Text variant="caption">
+          {translate("issues.work.question.asked" as never, {
+            when: ago(row.askedAt, translate),
+          })}
+        </UI.Text>
+        {canWrite ? null : (
+          <UI.Text variant="caption">
+            {translate("issues.work.question.cannot" as never)}
+          </UI.Text>
+        )}
+        {phone ? answer : null}
+      </UI.Stack>
+    </UI.InlineNotice>
   );
 }
 
@@ -299,6 +375,22 @@ export function IssueWork(
     ...taskQueryOptions(api, scope, own?.taskId ?? ""),
     enabled: scope.organizationId !== null && own !== undefined,
   });
+  // Read once: the row and the progress badge both speak from it.
+  const phone = useShellViewport() === "phone";
+  // Every open question, paged; the newest page of all questions is read only
+  // when none is open, to tell whether the newest one expired.
+  const openQuestions = useQuery({
+    ...openQuestionsQueryOptions(api, scope, own?.taskId ?? ""),
+    enabled: scope.organizationId !== null && own !== undefined,
+  });
+  const noneOpen = openQuestions.data?.items.length === 0;
+  const newestQuestions = useQuery({
+    ...questionsQueryOptions(api, scope, own?.taskId ?? ""),
+    enabled: scope.organizationId !== null && own !== undefined && noneOpen,
+  });
+  const questions = openQuestions.isError ? openQuestions : newestQuestions;
+  const asking = questionRow(openQuestions.data?.items ?? []) ??
+    (noneOpen ? questionRow(newestQuestions.data?.items ?? []) : null);
 
   if (requests.isPending || links.isPending) {
     return <UI.Skeleton shape="row" />;
@@ -339,12 +431,47 @@ export function IssueWork(
       <UI.Heading level="section">
         {translate("issues.work.title" as never)}
       </UI.Heading>
+      {own !== undefined && questions.isError
+        ? (
+          <UI.InlineNotice
+            tone="error"
+            action={
+              <UI.Button
+                variant="secondary"
+                onClick={() => void questions.refetch()}
+              >
+                {translate("issues.retry" as never)}
+              </UI.Button>
+            }
+          >
+            {translate("issues.work.question.loadFailed" as never)}
+          </UI.InlineNotice>
+        )
+        : null}
+      {own !== undefined && asking !== null
+        ? (
+          <QuestionRow
+            row={asking}
+            taskId={own.taskId}
+            canWrite={canWrite}
+            phone={phone}
+          />
+        )
+        : null}
       {request !== null && by !== null
         ? (
           <UI.Stack gap="compact" aria-live="polite">
             <UI.Inline gap="compact">
-              <UI.Badge tone={PROGRESS_TONE[request.progress]}>
-                {translate(`issues.work.progress.${request.progress}` as never)}
+              <UI.Badge
+                tone={waitsOnAnswer(request.progress, asking)
+                  ? "warning"
+                  : PROGRESS_TONE[request.progress]}
+              >
+                {translate(
+                  (waitsOnAnswer(request.progress, asking)
+                    ? "issues.work.progress.needsAnswer"
+                    : `issues.work.progress.${request.progress}`) as never,
+                )}
               </UI.Badge>
               {reason !== null
                 ? <UI.Text>{reasonSentence(reason)}</UI.Text>

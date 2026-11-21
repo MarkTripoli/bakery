@@ -693,6 +693,19 @@ test("a failed read of the choices keeps the card and the badge, and Try again r
   await expect(chooseButton(page)).toBeVisible();
 });
 
+test("on a phone a failed read puts Try again on its own row under the text", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openWaiting(page, [offerRow()], { failRead: true });
+  const failed = page.getByTestId("route-waiting-load-failed");
+  const retry = card(page).getByRole("button", { name: "Try again" });
+  await expect(retry).toBeVisible();
+  const text = (await failed.boundingBox())!;
+  const button = (await retry.boundingBox())!;
+  // Under the message, not beside it squeezing the text into a column.
+  expect(button.y).toBeGreaterThanOrEqual(text.y + text.height);
+  expect(text.width).toBeGreaterThan(button.width);
+});
+
 test("on a phone the chooser is a sheet in two steps: providers, then models", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openWaiting(page, [offerRow()]);
