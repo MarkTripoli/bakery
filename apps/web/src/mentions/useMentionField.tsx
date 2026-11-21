@@ -7,11 +7,21 @@ import {
   useRef,
   useState,
 } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
-import type { ApiFailure, MentionSource } from "../api/client.ts";
+import type {
+  ApiFailure,
+  ConversationSharer,
+  MentionSource,
+} from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  conversationAccessQueryOptions,
+  conversationSharersQueryOptions,
   mentionCandidatesQueryOptions,
   organizationQueryOptions,
 } from "../api/query.ts";
@@ -19,9 +29,13 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   addMention,
+  appendLine,
   insertMention,
+  markNeedsSharer,
   MAX_MENTIONS,
   type Mention,
+  nameParts,
+  needsSharer,
   offered,
   reconcile,
   type RefusalCode,
@@ -61,6 +75,12 @@ export type MentionField = {
   readonly offered: number;
   /** The "Not sent." sentence for what the server refused; null otherwise. */
   readonly notice: string | null;
+  /** A chosen person needs someone else to give them access: Send stays off until that mention is removed or someone is asked. */
+  readonly blocked: boolean;
+  /** Why Send is off while `blocked`, in words ("Ask Dana Lee or remove the mention to send."); null otherwise. */
+  readonly sendReason: string | null;
+  /** What to say when a send that was giving access failed on the server's side; null with no offer open. */
+  readonly failed: { readonly line: string; readonly detail: string } | null;
   /** Reads a failed send: marks the refused people and returns true when it was a mention refusal. */
   readonly refuse: (failure: ApiFailure) => boolean;
   /** Forgets the chips and refusals, after a send. */
@@ -98,6 +118,16 @@ export function useMentionField(
   const [refusals, setRefusals] = useState<
     readonly { mention: Mention; code: RefusalCode }[]
   >([]);
+  // The server said the writer may not share after all: the block says "Not sent.".
+  const [notSent, setNotSent] = useState(false);
+  // What a send that gave access left behind: the line with its Undo, then its result.
+  const [sent, setSent] = useState<
+    {
+      readonly people: readonly { principalId: string; name: string }[];
+      readonly state: "done" | "undoing" | "undone" | "failed";
+    } | null
+  >(null);
+  const queryClient = useQueryClient();
 
   const trigger = triggerAt(value, Math.min(caret, value.length));
   const wanted = trigger !== null && !disabled;
@@ -134,7 +164,7 @@ export function useMentionField(
   const full = mentions.length >= MAX_MENTIONS;
   const rows = candidates.map((candidate) => {
     const kind = rowKind(candidate, source.kind);
-    return { candidate, kind };
+    return { candidate, kind, asks: needsSharer(candidate, source.kind) };
   });
   const optionsForPicker = rows.map(({ candidate, kind }) => ({
     id: candidate.principalId,
@@ -144,22 +174,14 @@ export function useMentionField(
       ? candidate.displayName
       : kind === "gains"
       ? translate("mentions.row.optionGains", { name: candidate.displayName })
-      : translate(
-        source.kind === "conversation"
-          ? "mentions.row.optionBlockedConversation"
-          : "mentions.row.optionBlockedComment",
-        { name: candidate.displayName },
-      ),
+      // Only a comment has a row that cannot be chosen: it never gives access.
+      : translate("mentions.row.optionBlockedComment", {
+        name: candidate.displayName,
+      }),
     ...(kind === "gains"
       ? { note: translate("mentions.row.gains") }
       : kind === "blocked"
-      ? {
-        note: translate(
-          source.kind === "conversation"
-            ? "mentions.row.blockedConversation"
-            : "mentions.row.blockedComment",
-        ),
-      }
+      ? { note: translate("mentions.row.blockedComment") }
       : {}),
   }));
   const activeId =
@@ -176,8 +198,10 @@ export function useMentionField(
     const mention: Mention = {
       principalId,
       name: row.candidate.displayName,
-      gainsAccess: row.kind === "gains",
+      gainsAccess: row.kind === "gains" && !row.asks,
+      needsSharer: row.asks,
     };
+    setSent(null);
     const inserted = insertMention(
       value,
       trigger,
@@ -213,15 +237,20 @@ export function useMentionField(
     : candidates.length === 0
     ? "empty" as const
     : "options" as const;
-  const hasGains = rows.some((entry) => entry.kind === "gains");
+  const hasGains = rows.some((entry) => entry.kind === "gains" && !entry.asks);
+  const hasAsks = rows.some((entry) => entry.asks);
   const picker = open
     ? (
       <UI.MentionPicker
         activeId={activeId}
         footer={source.kind === "comment"
           ? translate("mentions.footer.comment")
-          : hasGains && pickerState === "options"
+          : pickerState !== "options"
+          ? undefined
+          : hasGains
           ? translate("mentions.footer.conversation")
+          : hasAsks
+          ? translate("mentions.footer.conversationAsk")
           : undefined}
         label={translate("mentions.picker.label")}
         listId={listId}
@@ -251,6 +280,93 @@ export function useMentionField(
       mention.gainsAccess && !refusedIds.has(mention.principalId)
     )
     : [];
+  // A person the writer may not give access to: someone who can share has to be asked.
+  const blocking = source.kind === "conversation"
+    ? mentions.filter((mention) =>
+      mention.needsSharer && !refusedIds.has(mention.principalId)
+    )
+    : [];
+  const sharersRead = useQuery(
+    conversationSharersQueryOptions(
+      api,
+      scope,
+      source.id,
+      blocking.length > 0,
+    ),
+  );
+  // The line names up to two of the (at most three) people who can share.
+  const sharers = (sharersRead.data?.items ?? []).slice(0, 2);
+  const joined = (names: readonly string[]) =>
+    translate("mentions.names", nameParts(names));
+  /** Swaps the blocked chip for the sharer's and adds a selected line that asks them. */
+  const ask = (sharer: ConversationSharer) => {
+    let next = value;
+    for (const mention of blocking) next = withoutAtSign(next, mention);
+    const appended = appendLine(
+      next,
+      translate("mentions.share.askLine", {
+        sharer: `@${sharer.displayName}`,
+        names: joined(blocking.map((mention) => mention.name)),
+      }),
+    );
+    const sharerMention: Mention = {
+      principalId: sharer.principalId,
+      name: sharer.displayName,
+      gainsAccess: false,
+      needsSharer: false,
+    };
+    setMentions((current) =>
+      addMention(
+        current.filter((mention) => !mention.needsSharer),
+        sharerMention,
+      )
+    );
+    setRefusals([]);
+    setNotSent(false);
+    onValue(appended.text);
+    setCaret(appended.end);
+    requestAnimationFrame(() => {
+      ref.current?.focus();
+      // The new line is selected, so typing replaces it.
+      ref.current?.setSelectionRange(appended.start, appended.end);
+    });
+  };
+  /** Takes back the access the last send gave: the live grants of those people, each revoked. */
+  const undo = async () => {
+    if (sent === null || source.kind !== "conversation") return;
+    if (!scope.organizationId) return;
+    const organizationId = scope.organizationId;
+    const undoing = sent;
+    setSent({ ...undoing, state: "undoing" });
+    let state: "undone" | "failed" = "failed";
+    try {
+      const grants = await queryClient.fetchQuery({
+        ...conversationAccessQueryOptions(api, scope, source.id),
+        staleTime: 0,
+      });
+      const people = new Set(
+        undoing.people.map((person) => person.principalId),
+      );
+      const results = await Promise.all(
+        grants.filter((grant) => people.has(grant.principalId)).map((grant) =>
+          api.revokeConversationAccess({
+            organizationId,
+            conversationId: source.id,
+            principalId: grant.principalId,
+            version: grant.version,
+            idempotencyKey: `${grant.id}:undo:${grant.version}`,
+          })
+        ),
+      );
+      if (results.every((result) => result.ok)) state = "undone";
+    } catch {
+      state = "failed";
+    }
+    void queryClient.invalidateQueries({
+      queryKey: conversationAccessQueryOptions(api, scope, source.id).queryKey,
+    });
+    setSent((current) => current === null ? null : { ...current, state });
+  };
   // "Don't mention" keeps the name as words; the chip's remove cuts the whole word.
   const removeMention = (mention: Mention, keepName = false) => {
     onValue(
@@ -266,87 +382,146 @@ export function useMentionField(
     );
     ref.current?.focus();
   };
-  const row = mentions.length === 0 && !(wanted && offline) ? null : (
-    <>
-      {mentions.length > 0
-        ? (
-          <UI.Inline
-            gap="compact"
-            aria-label={translate("mentions.notified.label")}
-          >
-            <UI.Text variant="caption">
-              {translate("mentions.notified.label")}
-            </UI.Text>
-            {mentions.map((mention) => (
-              <UI.Inline gap="compact" key={mention.principalId}>
-                <UI.Badge
-                  tone={refusedIds.has(mention.principalId)
-                    ? "danger"
-                    : mention.gainsAccess
-                    ? "warning"
-                    : "neutral"}
-                >
-                  {mention.gainsAccess && !refusedIds.has(mention.principalId)
-                    ? translate("mentions.chip.gains", { name: mention.name })
-                    : mention.name}
-                </UI.Badge>
-                <UI.IconButton
-                  label={translate("mentions.chip.remove", {
-                    name: mention.name,
-                  })}
-                  onClick={() =>
-                    removeMention(mention)}
-                  variant="compact"
-                >
-                  <UI.IconGlyph name="close" size="small" />
-                </UI.IconButton>
-              </UI.Inline>
-            ))}
-          </UI.Inline>
-        )
-        : null}
-      {offering.length > 0
-        ? (
-          <UI.AccessOffer
-            caption={offering.length > 1
-              ? translate("mentions.offer.leaveOut")
-              : undefined}
-            decline={offering.length === 1
-              ? {
-                label: translate("mentions.offer.decline", {
-                  name: offering[0].name,
+  const row = mentions.length === 0 && sent === null && !(wanted && offline)
+    ? null
+    : (
+      <>
+        {mentions.length > 0
+          ? (
+            <UI.Inline
+              gap="compact"
+              aria-label={translate("mentions.notified.label")}
+            >
+              <UI.Text variant="caption">
+                {translate("mentions.notified.label")}
+              </UI.Text>
+              {mentions.map((mention) => (
+                <UI.Inline gap="compact" key={mention.principalId}>
+                  <UI.Badge
+                    tone={refusedIds.has(mention.principalId)
+                      ? "danger"
+                      : mention.gainsAccess || mention.needsSharer
+                      ? "warning"
+                      : "neutral"}
+                  >
+                    {(mention.gainsAccess || mention.needsSharer) &&
+                        !refusedIds.has(mention.principalId)
+                      ? translate("mentions.chip.gains", { name: mention.name })
+                      : mention.name}
+                  </UI.Badge>
+                  <UI.IconButton
+                    label={translate("mentions.chip.remove", {
+                      name: mention.name,
+                    })}
+                    onClick={() =>
+                      removeMention(mention)}
+                    variant="compact"
+                  >
+                    <UI.IconGlyph name="close" size="small" />
+                  </UI.IconButton>
+                </UI.Inline>
+              ))}
+            </UI.Inline>
+          )
+          : null}
+        {offering.length > 0
+          ? (
+            <UI.AccessOffer
+              caption={offering.length > 1
+                ? translate("mentions.offer.leaveOut")
+                : undefined}
+              decline={offering.length === 1
+                ? {
+                  label: translate("mentions.offer.decline", {
+                    name: offering[0].name,
+                  }),
+                  onDecline: () => removeMention(offering[0], true),
+                }
+                : undefined}
+              detail={translate("mentions.offer.detail")}
+              question={translate("mentions.offer.question", {
+                count: offering.length,
+                name: offering[0].name,
+              })}
+              // While the send that gives the access is under way, the offer is read-only.
+              state={disabled ? "busy" : "default"}
+            />
+          )
+          : null}
+        {blocking.length > 0
+          ? (
+            <UI.AccessOffer
+              actions={sharers.map((sharer) => ({
+                label: translate("mentions.share.ask", {
+                  name: sharer.displayName,
                 }),
-                onDecline: () => removeMention(offering[0], true),
-              }
-              : undefined}
-            detail={translate("mentions.offer.detail")}
-            question={translate("mentions.offer.question", {
-              count: offering.length,
-              name: offering[0].name,
-            })}
-            // While the send that gives the access is under way, the offer is read-only.
-            state={disabled ? "busy" : "default"}
-          />
-        )
-        : null}
-      {wanted && offline
-        ? (
-          <UI.Text role="status" variant="caption">
-            {translate("mentions.offline")}
-          </UI.Text>
-        )
-        : null}
-    </>
-  );
+                onClick: () => ask(sharer),
+              }))}
+              detail={sharersRead.isError
+                ? translate("mentions.share.failed")
+                : sharersRead.isPending
+                ? translate("mentions.share.loading")
+                : sharers.length === 0
+                ? translate("mentions.share.lineNone", {
+                  organization: organizationName,
+                })
+                : translate("mentions.share.line", {
+                  names: translate(
+                    "mentions.share.names",
+                    nameParts(sharers.map((sharer) => sharer.displayName)),
+                  ),
+                })}
+              question={translate(
+                notSent
+                  ? "mentions.share.questionNotSent"
+                  : "mentions.share.question",
+                { count: blocking.length, name: blocking[0].name },
+              )}
+              state={disabled ? "busy" : "default"}
+            />
+          )
+          : null}
+        {sent !== null
+          ? sent.state === "undone"
+            ? (
+              <UI.AccessOffer
+                question={translate("mentions.sent.undone", {
+                  names: joined(sent.people.map((person) => person.name)),
+                })}
+              />
+            )
+            : (
+              <UI.AccessOffer
+                actions={[{
+                  label: translate("mentions.sent.undo"),
+                  onClick: () => void undo(),
+                }]}
+                detail={sent.state === "failed"
+                  ? translate("mentions.sent.undoFailed")
+                  : undefined}
+                question={translate("mentions.sent.line", {
+                  names: joined(sent.people.map((person) => person.name)),
+                })}
+                state={sent.state === "undoing" ? "busy" : "default"}
+              />
+            )
+          : null}
+        {wanted && offline
+          ? (
+            <UI.Text role="status" variant="caption">
+              {translate("mentions.offline")}
+            </UI.Text>
+          )
+          : null}
+      </>
+    );
 
   const notice = refusals.length === 0
     ? null
     : refusals.length > 1
     ? translate("mentions.refused.several", { count: refusals.length })
     : translate(
-      refusals[0].code === "share_forbidden"
-        ? "mentions.refused.shareForbidden"
-        : refusals[0].code === "not_member"
+      refusals[0].code === "not_member"
         ? "mentions.refused.notMember"
         : "mentions.refused.noThreadAccess",
       { name: refusals[0].mention.name, organization: organizationName },
@@ -359,6 +534,7 @@ export function useMentionField(
       value,
       onChange: (event) => {
         const next = event.currentTarget.value;
+        setSent(null);
         setCaret(event.currentTarget.selectionStart ?? next.length);
         setMentions((current) => reconcile(next, current));
         setRefusals((current) =>
@@ -407,15 +583,48 @@ export function useMentionField(
       : null,
     refused: refusals.length > 0,
     notice,
+    blocked: blocking.length > 0,
+    sendReason: blocking.length === 0
+      ? null
+      : sharers.length > 0
+      ? translate("mentions.share.reason", { name: sharers[0].displayName })
+      : translate("mentions.share.reasonNone"),
+    failed: offering.length === 0 ? null : {
+      line: translate("mentions.failed.line"),
+      detail: translate("mentions.failed.detail", {
+        names: joined(offering.map((mention) => mention.name)),
+      }),
+    },
     refuse: (failure) => {
       const found = refusedPeople(mentions, refusalsOf(failure));
       if (found.length === 0) return false;
-      setRefusals(found);
+      // The writer may not share after all: nothing is red, the block asks someone who can.
+      const noShare = found.filter((entry) => entry.code === "share_forbidden");
+      if (noShare.length > 0) {
+        setMentions((current) =>
+          markNeedsSharer(
+            current,
+            new Set(noShare.map((entry) => entry.mention.principalId)),
+          )
+        );
+        setNotSent(true);
+      }
+      setRefusals(found.filter((entry) => entry.code !== "share_forbidden"));
       return true;
     },
     clear: () => {
+      if (offering.length > 0 && source.kind === "conversation") {
+        setSent({
+          people: offering.map((mention) => ({
+            principalId: mention.principalId,
+            name: mention.name,
+          })),
+          state: "done",
+        });
+      }
       setMentions([]);
       setRefusals([]);
+      setNotSent(false);
     },
   };
 }

@@ -283,6 +283,9 @@ export type MentionCandidate = MentionCandidatePage["items"][number];
 export type ConversationAccessPage =
   ClientOutputMap["Page<ConversationAccessGrant>"];
 export type ConversationAccessGrant = ConversationAccessPage["items"][number];
+/** Up to three people who may share one conversation, for a writer who may not. */
+export type ConversationSharers = ClientOutputMap["ConversationSharers"];
+export type ConversationSharer = ConversationSharers["items"][number];
 /** Where a mention is being written: a task's conversation, or a document's comment thread. */
 export type MentionSource =
   | { readonly kind: "conversation"; readonly id: string }
@@ -2253,6 +2256,12 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<ConversationAccessPage>>;
+  /** Who can give access to a conversation: up to three people, the author first. It grants nothing. */
+  readonly listConversationSharers: (options: {
+    readonly organizationId: string;
+    readonly conversationId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ConversationSharers>>;
   /** Takes one person's mention access back. `version` is the grant's own, sent as If-Match. */
   readonly revokeConversationAccess: (options: {
     readonly organizationId: string;
@@ -5186,6 +5195,21 @@ export function createBakeryApiClient({
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listConversationSharers(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["conversationAccess.sharers"](
+          { id: options.conversationId },
           { signal: options.signal },
         );
         return { ok: true, data };

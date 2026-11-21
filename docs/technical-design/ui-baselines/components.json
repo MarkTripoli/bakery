@@ -1,5 +1,5 @@
 {
-  "revision": "81eb26088a6ca669e586d115ca3d4990beea2a0bba58467d08a9f1d810eede28",
+  "revision": "0957ba7190f7cdd0175af7d93a8d7755d522bd78a2bd5c0cff547ed75b1dc9c8",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -21203,7 +21203,7 @@
       "requiredCases": [
         {
           "id": "contract",
-          "description": "Exercises AccessOffer for one person, for several people with the line on how to leave someone out, and while sending.",
+          "description": "Exercises AccessOffer for one person, for several people with the line on how to leave someone out, while sending, for a writer who may not share (who can be asked), and after the send with its Undo.",
           "variants": [
             "default"
           ],
