@@ -1,5 +1,9 @@
 import { appendAudit } from "@bakery/persistence/event-audit";
 import { observeDrain } from "../modules/backups/maintenance.ts";
+import {
+  readUncertainActions,
+  type UncertainActionKind,
+} from "../modules/backups/uncertain-actions.ts";
 import type { PgTransactionClient } from "./database.ts";
 import {
   drainDecision,
@@ -280,35 +284,14 @@ export async function resumeAfterUpdate(
   });
 }
 
-/** One kind of outside action Bakery cannot tell the outcome of. */
-export type UnsureAction = {
-  /** The action's operation word, for example a provider and verb. Never its target or arguments. */
-  readonly operation: string;
-  readonly count: number;
-  readonly since: string;
-};
-
 /**
- * The outside actions whose outcome is unknown, grouped by kind, oldest first.
- * Words and counts only, so a person can say what they are without Bakery
- * printing where they pointed or what they carried (design ask 4).
+ * The outside actions whose outcome is unknown, grouped by kind, oldest first
+ * (design ask 4). The same list the HTTP read serves; words and counts only.
  */
 export async function readUnsureActions(
   transact: Transact,
-): Promise<readonly UnsureAction[]> {
-  return await transact(async (transaction) => {
-    const result = await transaction.query<UnsureAction>(
-      `select operation, count(*)::integer as "count",
-              to_char(min(updated_at) at time zone 'utc',
-                      'YYYY-MM-DD"T"HH24:MI:SS"Z"') as "since"
-         from bakery.external_effects
-        where status = 'uncertain'
-        group by operation
-        order by min(updated_at), operation
-        limit 200`,
-    );
-    return result.rows;
-  });
+): Promise<readonly UncertainActionKind[]> {
+  return (await transact(readUncertainActions)).kinds;
 }
 
 /** The same counts with no change, for `status`. */
