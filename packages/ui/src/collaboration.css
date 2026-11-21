@@ -2816,3 +2816,11 @@ button.ui-activity-line__row:hover {
 .ui-access-offer[data-state="busy"] {
   opacity: 0.8;
 }
+
+/* Where the browser cannot size the field to its text, it starts three lines
+   tall, so a long draft is never cut to one line. */
+@supports not (field-sizing: content) {
+  .ui-message-composer__field textarea {
+    min-block-size: calc(var(--space-6) * 3);
+  }
+}
