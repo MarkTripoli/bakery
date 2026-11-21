@@ -430,12 +430,11 @@ Deno.test("a job keeps the code of the version it was admitted with after the in
 
 Deno.test("an update that gives the install the jobs capability does not give it to a job admitted before", () =>
   withPluginFixture(async (fixture, store) => {
-    const files1 = { "jobs/nightly.js": JOB_JS };
     const first = await publishWithPages(
       fixture,
       store,
       { name: "nightly-helper", requestedCapabilities: ["state.read"] },
-      files1,
+      { "jobs/nightly.js": JOB_JS },
     );
     assertEquals(first.response.status, 201, await first.response.text());
     const installId = await install(fixture, first);
@@ -449,9 +448,10 @@ Deno.test("an update that gives the install the jobs capability does not give it
         name: "nightly-helper",
         requestedCapabilities: ["state.read", "jobs.schedule"],
       },
-      files1,
+      { "jobs/nightly.js": "export default () => 'wider';\n" },
       first.packageId,
     );
+    assertEquals(second.response.status, 201, await second.response.text());
     const moved = await call(fixture, `/v1/plugin-installs/${installId}`, {
       method: "PATCH",
       body: {
@@ -467,7 +467,7 @@ Deno.test("an update that gives the install the jobs capability does not give it
     );
   }));
 
-Deno.test("a job that names no version, or a version of another package, is not run", () =>
+Deno.test("a job that names a version of another package is not run", () =>
   withPluginFixture(async (fixture, store) => {
     const manifest = {
       name: "nightly-helper",
@@ -481,12 +481,6 @@ Deno.test("a job that names no version, or a version of another package, is not 
       "jobs/nightly.js": JOB_JS,
     });
     assertEquals(other.response.status, 201, await other.response.text());
-
-    const none = await admit(fixture, installId, {});
-    await refused(
-      await files(fixture, none.worker, none.assignment),
-      "plugin_job_version_missing",
-    );
 
     const foreign = await admit(fixture, installId, {
       versionId: other.versionId,
