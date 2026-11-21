@@ -895,7 +895,7 @@ export async function createRunCommand(
     context,
   );
   // A backup holds the installation: no run is admitted until it lets go.
-  await assertNotQuiesced(transaction);
+  await assertNotQuiesced(transaction, "intake");
   requireCommandMetadata(context);
   const taskId = context.params.id;
   if (!taskId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });

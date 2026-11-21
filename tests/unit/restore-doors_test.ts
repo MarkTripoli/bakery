@@ -44,7 +44,7 @@ Deno.test("run creation, imports, catalog changes and intake ask for the intake 
     ]
   ) {
     assertEquals(
-      /assertNotQuiesced\(transaction\)/.test(read(path)),
+      /assertNotQuiesced\(transaction, "intake"\)/.test(read(path)),
       true,
       path,
     );
@@ -55,7 +55,11 @@ Deno.test("run creation, imports, catalog changes and intake ask for the intake 
       "modules/workflows/automations/event-intake.ts",
     ]
   ) {
-    assertEquals(/isQuiesced\(transaction\)/.test(read(path)), true, path);
+    assertEquals(
+      /isQuiesced\(transaction, "intake"\)/.test(read(path)),
+      true,
+      path,
+    );
   }
 });
 

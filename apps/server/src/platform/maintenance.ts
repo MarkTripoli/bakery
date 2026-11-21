@@ -188,7 +188,7 @@ async function readHold(
  */
 export async function assertNotQuiesced(
   transaction: Pick<PgTransactionClient, "query">,
-  door: RestoreDoor = "intake",
+  door: RestoreDoor,
 ): Promise<void> {
   const hold = await readHold(transaction, door);
   if (hold.restoring) {
@@ -211,7 +211,7 @@ export async function assertNotQuiesced(
  */
 export async function isQuiesced(
   transaction: Pick<PgTransactionClient, "query">,
-  door: RestoreDoor = "intake",
+  door: RestoreDoor,
 ): Promise<boolean> {
   const hold = await readHold(transaction, door);
   return hold.restoring || hold.backup !== null;
