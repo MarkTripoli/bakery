@@ -5531,6 +5531,87 @@ export const clientManifest = {
     },
     {
       "group": "Worker protocol",
+      "method": "GET",
+      "path": "/v1/worker/link.tgz",
+      "action": "worker.linkPackage",
+      "access": "Public",
+      "permission": null,
+      "input": "Empty",
+      "output": "WorkerLinkPackageBytes",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; public, cacheable (max-age 300) with an ETag; If-None-Match answers 304",
+      "errors": [
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/link-code-inspection",
+      "action": "worker.inspectLinkCode",
+      "access": "Public",
+      "permission": null,
+      "input": "WorkerLinkCodeInspect",
+      "output": "WorkerLinkCodeInspection",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read-only inspection; rate-limited per source and code; no-store",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/link-requests",
+      "action": "worker.createLinkRequest",
+      "access": "Public",
+      "permission": null,
+      "input": "WorkerLinkRequestCreate",
+      "output": "WorkerLinkRequestCreated",
+      "event": "",
+      "mcp": "",
+      "idempotency": "none; every call opens a new ten-minute request; rate-limited per source",
+      "errors": [
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/link-requests/{requestId}/polls",
+      "action": "worker.pollLinkRequest",
+      "access": "Public",
+      "permission": null,
+      "input": "WorkerLinkRequestPoll",
+      "output": "WorkerLinkRequestPollResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; an approved poll mints a fresh link code each time; rate-limited per source",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Worker protocol",
       "method": "POST",
       "path": "/v1/worker/inventory",
       "action": "worker.reportInventory",
@@ -5595,6 +5676,81 @@ export const clientManifest = {
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/worker-link-requests/lookups",
+      "action": "workerLinkRequests.find",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "WorkerLinkRequestLookup",
+      "output": "WorkerLinkRequest",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; rate-limited per principal and per code",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/worker-link-requests/{id}/approvals",
+      "action": "workerLinkRequests.approve",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "WorkerLinkRequestApprove",
+      "output": "WorkerLinkRequest",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; a request is decided once",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/worker-link-requests/{id}/declines",
+      "action": "workerLinkRequests.decline",
+      "access": "Admin",
+      "permission": "worker:manage",
+      "input": "WorkerLinkRequestDecline",
+      "output": "WorkerLinkRequest",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; a request is decided once",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "RATE_LIMITED",
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
@@ -18901,9 +19057,16 @@ export const clientManifest = {
             "workerEnrollments.cancel",
             "workerEnrollments.replace",
             "worker.inspectEnrollment",
+            "worker.linkPackage",
+            "worker.inspectLinkCode",
+            "worker.createLinkRequest",
+            "worker.pollLinkRequest",
             "worker.reportInventory",
             "workerComponents.list",
             "workers.repairEnrollment",
+            "workerLinkRequests.find",
+            "workerLinkRequests.approve",
+            "workerLinkRequests.decline",
             "workers.revoke",
             "modelProviderAccounts.list",
             "workerProviderBindings.list",
@@ -21579,22 +21742,23 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
+          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerEnrollmentCreate.name must contain at most 200 characters. WorkerEnrollmentCreate.name must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$.",
           "type": "string",
           "maxLength": 200,
-          "description": "Display name for the machine being enrolled, shown throughout the Machines views. WorkerEnrollmentCreate.name must contain at most 200 characters."
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
         },
         "os": {
+          "description": "Intended operating system of the machine being enrolled; omitted means the machine reports its own system when it links, and Bakery checks it against the supported systems.",
           "type": "string",
           "enum": [
             "linux",
             "macos"
-          ],
-          "description": "Intended operating system of the machine being enrolled; the setup command and installed worker binary target this platform."
+          ]
         },
         "architecture": {
+          "description": "Intended CPU architecture of the machine being enrolled; omitted means the machine reports its own processor when it links. When given, a mismatch discovered during setup requires an explicit Admin correction rather than a silently broader capability grant. WorkerEnrollmentCreate.architecture must contain at most 100 characters.",
           "type": "string",
-          "maxLength": 100,
-          "description": "Intended CPU architecture of the machine being enrolled; a mismatch discovered during setup requires an explicit Admin correction rather than a silently broader capability grant. WorkerEnrollmentCreate.architecture must contain at most 100 characters."
+          "maxLength": 100
         },
         "capabilities": {
           "description": "Ceiling of capability names this machine is allowed to run; a later worker registration's requested capabilities must be a subset of this set. WorkerEnrollmentCreate.capabilities must contain at most 32000 UTF-8 bytes.",
@@ -21644,9 +21808,6 @@ export const clientManifest = {
         }
       },
       "required": [
-        "name",
-        "os",
-        "architecture",
         "capabilities",
         "slots"
       ],
@@ -32961,6 +33122,292 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
+    },
+    "WorkerLinkCodeInspect": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "linkCode": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Link code from the command, XXXX-XXXX; capitals and the dash do not matter. Inspection does not use it up. WorkerLinkCodeInspect.linkCode must contain at most 20 characters."
+        },
+        "os": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Operating system the machine reports, such as linux or macos; compared with the supported systems and with any system the Admin set. WorkerLinkCodeInspect.os must contain at most 50 characters."
+        },
+        "architecture": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkCodeInspect.architecture must contain at most 100 characters. WorkerLinkCodeInspect.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
+        },
+        "hostname": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkCodeInspect.hostname must contain at most 200 characters. WorkerLinkCodeInspect.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
+        }
+      },
+      "required": [
+        "linkCode",
+        "os",
+        "architecture",
+        "hostname"
+      ],
+      "additionalProperties": false,
+      "description": "What the link command sends before it asks its one question: the link code and what the machine is, so Bakery can say which organization, name and slots it would join and whether the system is supported."
+    },
+    "WorkerLinkRequestCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "os": {
+          "type": "string",
+          "enum": [
+            "linux",
+            "macos"
+          ],
+          "description": "Operating system the machine reports: linux or macos. Anything else is refused, so an unauthenticated machine cannot put its own words on an Admin's screen."
+        },
+        "architecture": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "Processor the machine reports, such as arm64 or x86_64. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkRequestCreate.architecture must contain at most 100 characters. WorkerLinkRequestCreate.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
+        },
+        "hostname": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkRequestCreate.hostname must contain at most 200 characters. WorkerLinkRequestCreate.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
+        }
+      },
+      "required": [
+        "os",
+        "architecture",
+        "hostname"
+      ],
+      "additionalProperties": false,
+      "description": "A machine with no link code asks to be linked: Bakery returns a short user code to show an Admin and a device secret only this terminal keeps."
+    },
+    "WorkerLinkRequestPoll": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "deviceSecret": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "The device secret this terminal received when it created the request; a wrong one answers not found. WorkerLinkRequestPoll.deviceSecret must contain at most 200 characters."
+        }
+      },
+      "required": [
+        "deviceSecret"
+      ],
+      "additionalProperties": false,
+      "description": "The waiting terminal asks whether its link request was approved, declined or expired; an approval returns a fresh link code bound to the approved settings."
+    },
+    "WorkerLinkRequestLookup": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "userCode": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "The code the terminal shows, XXXX-XXXX; capitals and the dash do not matter. WorkerLinkRequestLookup.userCode must contain at most 20 characters."
+        }
+      },
+      "required": [
+        "userCode"
+      ],
+      "additionalProperties": false,
+      "description": "An Admin types the code a terminal shows to find the machine that is waiting to join."
+    },
+    "WorkerLinkRequestApprove": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkRequestApprove.name must contain at most 200 characters. WorkerLinkRequestApprove.name must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$.",
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
+        },
+        "slots": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "How many tasks the machine may run at once; registration cannot exceed it. WorkerLinkRequestApprove.slots must be at least 1. WorkerLinkRequestApprove.slots must be at most 100."
+        },
+        "capabilities": {
+          "description": "Capabilities the machine may run; registration cannot exceed them. WorkerLinkRequestApprove.capabilities must contain at most 32000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 32000
+        }
+      },
+      "required": [
+        "slots",
+        "capabilities"
+      ],
+      "additionalProperties": false,
+      "description": "An Admin approves a waiting machine with its name, slots and coding-agent capabilities.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
+    "WorkerLinkRequestDecline": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Empty body: an Admin declines a waiting machine. Nothing is installed on it and its terminal stops."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46607,9 +47054,16 @@ export const clientManifest = {
                   "workerEnrollments.cancel",
                   "workerEnrollments.replace",
                   "worker.inspectEnrollment",
+                  "worker.linkPackage",
+                  "worker.inspectLinkCode",
+                  "worker.createLinkRequest",
+                  "worker.pollLinkRequest",
                   "worker.reportInventory",
                   "workerComponents.list",
                   "workers.repairEnrollment",
+                  "workerLinkRequests.find",
+                  "workerLinkRequests.approve",
+                  "workerLinkRequests.decline",
                   "workers.revoke",
                   "modelProviderAccounts.list",
                   "workerProviderBindings.list",
@@ -48892,22 +49346,49 @@ export const clientManifest = {
                 "description": "Derived pending, consumed, canceled or expired state at the server's current time."
               },
               "name": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Intended machine display name."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Intended machine display name. Null when the Admin left it to the machine's host name and the machine has not registered yet."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerEnrollmentSummary.name may be null in the safe projection."
               },
               "os": {
-                "type": "string",
-                "enum": [
-                  "linux",
-                  "macos"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "linux",
+                      "macos"
+                    ],
+                    "description": "Intended operating system. Null when the machine reports it when it links."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
                 ],
-                "description": "Intended operating system."
+                "description": "WorkerEnrollmentSummary.os may be null in the safe projection."
               },
               "architecture": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Intended machine architecture."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Intended machine architecture. Null when the machine reports it when it links."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "WorkerEnrollmentSummary.architecture may be null in the safe projection."
               },
               "capabilities": {
                 "anyOf": [
@@ -67102,9 +67583,16 @@ export const clientManifest = {
             "workerEnrollments.cancel",
             "workerEnrollments.replace",
             "worker.inspectEnrollment",
+            "worker.linkPackage",
+            "worker.inspectLinkCode",
+            "worker.createLinkRequest",
+            "worker.pollLinkRequest",
             "worker.reportInventory",
             "workerComponents.list",
             "workers.repairEnrollment",
+            "workerLinkRequests.find",
+            "workerLinkRequests.approve",
+            "workerLinkRequests.decline",
             "workers.revoke",
             "modelProviderAccounts.list",
             "workerProviderBindings.list",
@@ -72575,15 +73063,27 @@ export const clientManifest = {
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp when the record expires."
+        },
+        "linkCode": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Ten-minute, one-use link code (XXXX-XXXX) for the same enrollment; it may appear in a command because it expires with the enrollment, works once, only adds one machine to this organization within the settings above, and is useless once the machine registers. Persisted only as a hash."
+        },
+        "command": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The whole one-line command an Admin pastes on the machine: npx -y <origin>/v1/worker/link.tgz link --server <origin> --code <linkCode>. Until an npm scope is chosen the link command is served from this Bakery's own origin as an npm tarball."
         }
       },
       "required": [
         "enrollmentId",
         "enrollmentToken",
-        "expiresAt"
+        "expiresAt",
+        "linkCode",
+        "command"
       ],
       "additionalProperties": false,
-      "description": "workers.enroll generates a one-use short-lived enrollment token. Return once to Admin; persist only its hash, with encrypted short-expiry idempotency replay if required. This is not the worker long-lived credential."
+      "description": "workers.enroll generates a one-use short-lived enrollment token. Return once to Admin; persist only its hash, with encrypted short-expiry idempotency replay if required. This is not the worker long-lived credential. It also returns a short link code for the same enrollment and the one-line command that carries it (#70)."
     },
     "DispatchBlockers": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -72715,22 +73215,49 @@ export const clientManifest = {
           "description": "Display name of the enrolling organization the token pairs to."
         },
         "name": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Intended machine display name from the enrollment."
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Intended machine display name from the enrollment. Null when the Admin left it to the machine's host name and the machine has not registered yet."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerEnrollmentInspection.name may be null in the safe projection."
         },
         "os": {
-          "type": "string",
-          "enum": [
-            "linux",
-            "macos"
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "linux",
+                "macos"
+              ],
+              "description": "Intended operating system from the enrollment. Null when the machine reports it when it links."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
           ],
-          "description": "Intended operating system from the enrollment."
+          "description": "WorkerEnrollmentInspection.os may be null in the safe projection."
         },
         "architecture": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Intended architecture from the enrollment."
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Intended architecture from the enrollment. Null when the machine reports it when it links."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerEnrollmentInspection.architecture may be null in the safe projection."
         },
         "slots": {
           "type": "integer",
@@ -114061,6 +114588,571 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of BackupDrill."
+    },
+    "WorkerLinkCodeInspection": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "organizationName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name of the organization the machine would join."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Machine name the Admin set, or the reported host name when it was left empty."
+        },
+        "slots": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many tasks the machine may run at once."
+        },
+        "capabilities": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "Capabilities the machine may run."
+        },
+        "supported": {
+          "type": "boolean",
+          "description": "Whether the reported system and processor are supported (and match any system the Admin set); false means nothing should be installed and the code stays unused."
+        },
+        "supportedSystems": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "The supported systems as a list of {os, architecture} pairs, such as linux arm64."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp after which the code no longer works."
+        }
+      },
+      "required": [
+        "organizationName",
+        "name",
+        "slots",
+        "capabilities",
+        "supported",
+        "supportedSystems",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "What a link code would do, shown in the terminal before its one question: the organization, machine name, slots and capabilities it binds, and whether this machine's system is supported. Never contains the code, its hash or any credential.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "WorkerLinkRequestCreated": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the link request; the terminal polls it."
+        },
+        "userCode": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Short code (XXXX-XXXX) the terminal prints for an Admin to approve."
+        },
+        "deviceSecret": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Secret only this terminal holds, returned once; every poll must present it."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp, ten minutes after creation, when an undecided request expires."
+        },
+        "pollIntervalSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many seconds the terminal waits between polls."
+        }
+      },
+      "required": [
+        "requestId",
+        "userCode",
+        "deviceSecret",
+        "expiresAt",
+        "pollIntervalSeconds"
+      ],
+      "additionalProperties": false,
+      "description": "A new link request: the user code the terminal prints for an Admin and the device secret only the terminal keeps. Both are stored as hashes."
+    },
+    "WorkerLinkRequestPollResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "declined",
+            "expired"
+          ],
+          "description": "pending while no Admin has decided, approved, declined, or expired after ten minutes."
+        },
+        "linkCode": {
+          "description": "Present only when approved and the machine has not registered yet: a fresh link code bound to the approved settings, replacing any earlier one.",
+          "type": "string",
+          "maxLength": 65536
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "additionalProperties": false,
+      "description": "Where a link request stands for the waiting terminal."
+    },
+    "WorkerLinkRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the link request."
+        },
+        "userCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The code as the Admin typed it on lookup, normalized to XXXX-XXXX; null on approve and decline answers, since only its hash is stored."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerLinkRequest.userCode may be null in the safe projection."
+        },
+        "hostname": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Host name the machine reported."
+        },
+        "os": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Operating system the machine reported."
+        },
+        "architecture": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Processor the machine reported."
+        },
+        "supported": {
+          "type": "boolean",
+          "description": "Whether the reported system is supported today."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "declined",
+            "expired"
+          ],
+          "description": "pending, approved, declined or expired."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the machine asked."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when an undecided request expires."
+        },
+        "decidedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the approval or decline, or null while pending."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerLinkRequest.decidedAt may be null in the safe projection."
+        },
+        "decidedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal who approved or declined, or null while pending."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerLinkRequest.decidedBy may be null in the safe projection."
+        },
+        "enrollmentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Enrollment the approval created, or null; its status is watched through workerEnrollments.get."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerLinkRequest.enrollmentId may be null in the safe projection."
+        },
+        "workerHostId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Machine registered from the approval, or null until it registers."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "WorkerLinkRequest.workerHostId may be null in the safe projection."
+        }
+      },
+      "required": [
+        "id",
+        "userCode",
+        "hostname",
+        "os",
+        "architecture",
+        "supported",
+        "state",
+        "createdAt",
+        "expiresAt",
+        "decidedAt",
+        "decidedBy",
+        "enrollmentId",
+        "workerHostId"
+      ],
+      "additionalProperties": false,
+      "description": "A machine waiting to be linked, as an Admin sees it: only what the machine said about itself, and the decision once made. Never the device secret or any hash."
+    },
+    "WorkerLinkPackageBytes": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes.",
+      "type": "string",
+      "format": "binary"
     }
   }
 } as const;

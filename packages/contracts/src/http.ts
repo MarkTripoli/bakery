@@ -589,6 +589,7 @@ export function toProblem(
     ? safeResetMetadata(rawParams)
     : undefined;
   const reason = standard?.code === "STATE_CONFLICT" ||
+      standard?.code === "RESOURCE_NOT_FOUND" ||
       standard?.code === "STORAGE_AREA_REFUSED" ||
       standard?.code === "STORAGE_QUOTA_EXCEEDED" ||
       standard?.code === "STEP_WRITE_LIMIT_EXCEEDED"
