@@ -246,3 +246,38 @@ Deno.test("recording a drill audits names and numbers only", () =>
     assert(!text.includes(credential), "the credential is never audited");
     assert(!text.includes(body.backupName), "no set name beyond the id");
   }));
+
+Deno.test("only an installation administrator may list drills: a developer and an anonymous caller are refused and learn nothing", () =>
+  withFixture(async (o) => {
+    const credential = await o.issueCredential();
+    const body = passing();
+    const seeded = await report(o, credential, body);
+    assertEquals(seeded.status, 200, await seeded.clone().text());
+    await seeded.body?.cancel();
+
+    // The administrator sees it.
+    const admin = await o.admin("GET", LIST);
+    assertEquals(admin.status, 200);
+    assertEquals(
+      ((await admin.json()) as { items: unknown[] }).items.length,
+      1,
+    );
+
+    // A developer is authenticated but is not an installation administrator.
+    const developer = await o.admin("GET", LIST, undefined, {
+      cookie: o.f.developerCookie,
+    });
+    assertEquals(developer.status, 403, await developer.clone().text());
+    const refusal = await developer.text();
+    assert(refusal.includes("AUTH_FORBIDDEN"), refusal);
+    assert(
+      !refusal.includes(body.backupName) && !refusal.includes(body.drillId),
+      "a refusal leaks no drill data",
+    );
+
+    // An anonymous caller is refused before anything is read.
+    const anonymous = await o.f.app.request(LIST, { method: "GET" });
+    assert([401, 403].includes(anonymous.status), String(anonymous.status));
+    const anonymousBody = await anonymous.text();
+    assert(!anonymousBody.includes(body.backupName), anonymousBody);
+  }));
