@@ -2937,7 +2937,7 @@
       "action": "skills.list",
       "access": "Developer",
       "permission": "skill:read",
-      "input": "CursorQuery",
+      "input": "SkillQuery",
       "output": "Page<Skill>",
       "event": "",
       "mcp": "bakery_skills_list",
@@ -21755,11 +21755,25 @@
           "operationId": "skills.list",
           "parameters": [
             {
+              "name": "scope",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Restricts the listing to skills of one scope: global (comes with Bakery), organization (shared by everyone in the organization) or personal (private to the caller); omit to list every skill the caller can see.",
+                "type": "string",
+                "enum": [
+                  "global",
+                  "organization",
+                  "personal"
+                ]
+              }
+            },
+            {
               "name": "cursor",
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. CursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
                 "type": "string",
                 "maxLength": 65536,
                 "x-utf8-max-bytes": 512
@@ -21770,7 +21784,7 @@
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. CursorQuery.limit must be at least 1. CursorQuery.limit must be at most 100.",
+                "description": "Maximum number of skills returned per page; defaults to 25 and cannot exceed 100. SkillQuery.limit must be at least 1. SkillQuery.limit must be at most 100.",
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
@@ -58003,6 +58017,35 @@
           },
           "additionalProperties": false,
           "description": "Lists questions using opaque keyset pagination bound to the current principal and scope; page/offset-style parameters are rejected."
+        },
+        "SkillQuery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "scope": {
+              "description": "Restricts the listing to skills of one scope: global (comes with Bakery), organization (shared by everyone in the organization) or personal (private to the caller); omit to list every skill the caller can see.",
+              "type": "string",
+              "enum": [
+                "global",
+                "organization",
+                "personal"
+              ]
+            },
+            "cursor": {
+              "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+              "type": "string",
+              "maxLength": 65536,
+              "x-utf8-max-bytes": 512
+            },
+            "limit": {
+              "description": "Maximum number of skills returned per page; defaults to 25 and cannot exceed 100. SkillQuery.limit must be at least 1. SkillQuery.limit must be at most 100.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "additionalProperties": false,
+          "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
         },
         "RepositoryCreate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -268903,7 +268946,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:78764174309c0b62222739820f906a1eca6b62fbcb56d4ee80d13d5dd1bbb5a6",
+  "compatibilityDigest": "sha256:b0253a3aff00da400668344c5c722ef264a95cac2480a9daefb10d4a985f76e0",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -278252,6 +278295,35 @@
       },
       "additionalProperties": false,
       "description": "Lists questions using opaque keyset pagination bound to the current principal and scope; page/offset-style parameters are rejected."
+    },
+    "SkillQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scope": {
+          "description": "Restricts the listing to skills of one scope: global (comes with Bakery), organization (shared by everyone in the organization) or personal (private to the caller); omit to list every skill the caller can see.",
+          "type": "string",
+          "enum": [
+            "global",
+            "organization",
+            "personal"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior skills.list page, bound to the same scope filter. SkillQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of skills returned per page; defaults to 25 and cannot exceed 100. SkillQuery.limit must be at least 1. SkillQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists the skills the caller can see, newest first, optionally of one scope, using opaque keyset pagination bound to the current principal, organization and scope filter; page/offset-style parameters are rejected."
     },
     "RepositoryCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

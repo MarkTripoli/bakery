@@ -1139,6 +1139,7 @@ export type ContractInputName =
   | "SkillFilePath"
   | "SkillFileUpload"
   | "SkillImport"
+  | "SkillQuery"
   | "SkillSourceCreate"
   | "SkillSourceUpdate"
   | "SkillStorageSettingsPut"
