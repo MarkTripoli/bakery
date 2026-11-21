@@ -4,6 +4,7 @@ import {
   type RealInngestStack,
 } from "../fixtures/real-inngest-stack.ts";
 import {
+  automationPlan,
   runsOf,
   SCHEDULE_EVERY_MINUTE,
   startedWithRun,
@@ -30,7 +31,10 @@ async function withStack(
 
 Deno.test("the real clock admits one firing for a due schedule, the promotion pass starts it once, and the next occurrence while its run is active is skipped", () =>
   withStack(async (stack) => {
-    const seed = await stack.seedWorkflow(crypto.randomUUID(), { run: false });
+    const seed = await stack.seedWorkflow(crypto.randomUUID(), {
+      run: false,
+      plan: automationPlan,
+    });
     const automation = await stack.seedAutomation(seed, {
       trigger: SCHEDULE_EVERY_MINUTE,
       overlapPolicy: "skip",
@@ -68,7 +72,10 @@ Deno.test("the real clock admits one firing for a due schedule, the promotion pa
 
 Deno.test("an event sent to the consumer twice makes one firing and one run", () =>
   withStack(async (stack) => {
-    const seed = await stack.seedWorkflow(crypto.randomUUID(), { run: false });
+    const seed = await stack.seedWorkflow(crypto.randomUUID(), {
+      run: false,
+      plan: automationPlan,
+    });
     const automation = await stack.seedAutomation(seed, {
       trigger: {
         type: "event",

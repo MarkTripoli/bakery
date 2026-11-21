@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { createRealInngestStack } from "../fixtures/real-inngest-stack.ts";
 import {
+  automationPlan,
   runsOf,
   SCHEDULE_EVERY_MINUTE,
   startedWithRun,
@@ -16,7 +17,10 @@ Deno.test("after a stopped engine the next tick admits one coalesced firing with
   const stack = createRealInngestStack({ jobCompletionTimeout: "20s" });
   try {
     await stack.start();
-    const seed = await stack.seedWorkflow(crypto.randomUUID(), { run: false });
+    const seed = await stack.seedWorkflow(crypto.randomUUID(), {
+      run: false,
+      plan: automationPlan,
+    });
     // Five whole minutes behind, on a minute boundary.
     const cursor = new Date(
       Math.floor((Date.now() - 5 * 60_000) / 60_000) * 60_000,
