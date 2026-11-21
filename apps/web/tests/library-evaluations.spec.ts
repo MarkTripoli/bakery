@@ -31,13 +31,13 @@ for (
       await expect(page.getByText("Reviewed coding, version 5").first())
         .toBeVisible();
       await expect(
-        page.getByText("Finished with gaps · 7 of 10 results measured"),
-      )
-        .toBeVisible();
+        page.getByText("Finished with gaps · 7 of 10 results measured").first(),
+      ).toBeVisible();
       await expect(page.getByText("Running · 4 of 10 results measured"))
         .toBeVisible();
-      await expect(page.getByText("Finished · 10 of 10 results passed"))
-        .toBeVisible();
+      await expect(
+        page.getByText("Finished · 10 of 10 results passed").first(),
+      ).toBeVisible();
       await expect(page.getByText("Finished · 6 of 10 results passed"))
         .toBeVisible();
       await expect(page.getByText("Waiting to start")).toBeVisible();
