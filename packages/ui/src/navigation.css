@@ -1672,7 +1672,8 @@ a.bakery-application-rail__link:hover {
     grid-template-areas:
       "form aside"
       "actions aside";
-    grid-template-columns: minmax(0, var(--layout-form)) var(--layout-form-summary);
+    grid-template-columns: minmax(0, var(--layout-form))
+      var(--layout-form-summary);
   }
   .ui-form-with-summary__form {
     grid-area: form;
