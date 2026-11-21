@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "b5c94881564cc3f2254efb23fd52338828d047d3"
+    "f5ec00f7de45132935cf369a5841a7b710f99c61"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:dc9bc9faa37e598d625d1fb669b99daaa3a52e6492cc63feebb4f07363963f31",
-  "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main b5c94881564cc3f2254efb23fd52338828d047d3: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged.",
+  "targetCompatibilityDigest": "sha256:c44fd407f81156779a18a51f17df17fcfa8630047667593898fa60731dad73cb",
+  "reason": "#64 E4 server by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main f5ec00f7de45132935cf369a5841a7b710f99c61: installationStatus gains restoreHeld, and installationRestore gains who took each step (InstallationRestoreActor). Main's own approval is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "b5c94881564cc3f2254efb23fd52338828d047d3"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:dc9bc9faa37e598d625d1fb669b99daaa3a52e6492cc63feebb4f07363963f31",
+      "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main b5c94881564cc3f2254efb23fd52338828d047d3: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
