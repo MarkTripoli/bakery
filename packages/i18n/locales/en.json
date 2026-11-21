@@ -4306,7 +4306,7 @@
   "library.evaluation.used.measured": "Measured",
   "library.evaluation.used.comparedWith": "Compared with",
   "library.evaluation.used.testCases": "Test cases",
-  "library.evaluation.used.testCasesValue": "{set}, fixed {date}",
+  "library.evaluation.used.testCasesValue": "{set}, as it stood on {date}",
   "library.evaluation.used.scorers": "Scorers",
   "library.evaluation.used.scorerValue": "{slug}, revision {revision}",
   "library.evaluation.used.rule": "Rule",

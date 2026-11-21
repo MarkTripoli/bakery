@@ -5780,7 +5780,6 @@
   "library.evaluation.used.measured": "⟦Ṁëàšûŕëð…⟧",
   "library.evaluation.used.comparedWith": "⟦Çôɱþàŕëð ŵïŧĥ ŧë⟧",
   "library.evaluation.used.testCases": "⟦Ŧëšŧ çàšëš ŧ⟧",
-  "library.evaluation.used.testCasesValue": "⟦{set}, ƒïẋëð {date} ŧëšŧ⟧",
   "library.evaluation.used.scorers": "⟦Šçôŕëŕš…⟧",
   "library.evaluation.used.scorerValue": "⟦{slug}, ŕëṽïšïôñ {revision} ŧëšŧ çô⟧",
   "library.evaluation.used.rule": "⟦Ŕûļë⟧",
@@ -5814,5 +5813,6 @@
   "library.evaluation.attempts.line": "⟦Àŧŧëɱþŧ {number} · {time} · {state} ŧëšŧ çôþÿŧ⟧",
   "library.evaluation.attempts.hide": "⟦{count, plural, one {Hide # attempt} other {Hide # attempts}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "library.evaluations.rowLine": "⟦{set} · {started} ŧëš⟧",
-  "library.evaluation.results.summary": "⟦{measured} ôƒ {required} ɱëàšûŕëð. Ŧĥë šïẋ çôûñŧš àļŵàÿš àðð ûþ ŧô {required}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "library.evaluation.results.summary": "⟦{measured} ôƒ {required} ɱëàšûŕëð. Ŧĥë šïẋ çôûñŧš àļŵàÿš àðð ûþ ŧô {required}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.evaluation.used.testCasesValue": "⟦{set}, àš ïŧ šŧôôð ôñ {date} ŧëšŧ çô⟧"
 }

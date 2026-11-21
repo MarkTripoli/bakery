@@ -140,7 +140,8 @@ for (
       await expect(used.getByText("Reviewed coding, version 4")).toBeVisible();
       await expect(used.getByText("Compared with")).toBeVisible();
       await expect(used.getByText("Reviewed coding, version 3")).toBeVisible();
-      await expect(used.getByText(/Support questions, fixed /)).toBeVisible();
+      await expect(used.getByText(/Support questions, as it stood on /))
+        .toBeVisible();
       await expect(
         used.getByText(/exact-answer, revision 2; polite-tone, revision 1/),
       )
