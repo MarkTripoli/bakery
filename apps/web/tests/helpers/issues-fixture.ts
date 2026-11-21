@@ -177,6 +177,16 @@ export type WorkSeed = {
   };
   /** Tasks that only mention the issue. */
   mentioned?: { title: string; status: string }[];
+  /** The questions the work's own task has raised (served from the questions read). */
+  questions?: {
+    status: "open" | "answered" | "expired";
+    prompt: string;
+    /** How long ago it was asked; 25 minutes by default. */
+    minutesAgo?: number;
+    kind?: "question" | "approval";
+  }[];
+  /** Questions cannot be read (the read answers an error). */
+  questionsFail?: boolean;
 };
 
 export type Options = {
@@ -188,7 +198,7 @@ export type Options = {
   sources?: "none" | "healthy" | "degraded" | "authRequired" | "unknown";
   pageSize?: number;
   /** The person's role in the organization; an administrator by default. */
-  role?: "admin" | "developer";
+  role?: "admin" | "developer" | "viewer";
   /** What starting work answers: ok (default), or a refusal. */
   start?:
     | "ok"
@@ -678,11 +688,68 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         updatedAt: stamp,
         version: 1,
         runId: null,
+        mayMerge: false,
+        mergeMethod: "squash",
+        targetBranch: "main",
       }));
       return route.fulfill({
         status: 200,
         contentType: "application/json",
         body: page_(items),
+      });
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/questions",
+    (route) => {
+      if (work?.questionsFail) {
+        return route.fulfill(problem(503, "DEPENDENCY_UNAVAILABLE"));
+      }
+      const params = new URL(route.request().url()).searchParams;
+      const asked = params.get("taskId");
+      const all = asked === taskId
+        ? (work?.questions ?? []).map((question, index) => ({
+          id: uuid(8950 + index),
+          kind: question.kind ?? "question",
+          conversationId: uuid(8400),
+          taskId,
+          runId: null,
+          turnId: null,
+          generation: 1,
+          prompt: question.prompt,
+          options: null,
+          allowFreeText: true,
+          audience: { type: "task_participants" },
+          expiresAt: null,
+          status: question.status,
+          answer: null,
+          answeredBy: null,
+          answeredAt: null,
+          createdAt: new Date(
+            Date.now() - (question.minutesAgo ?? 25) * 60_000,
+          ).toISOString(),
+          updatedAt: stamp,
+          version: 1,
+          responseSchema: null,
+        }))
+        : [];
+      // As the server answers: newest first, filtered by status, one page at a
+      // time (25 unless asked, at most 100), with a cursor to the next page.
+      const status = params.get("status");
+      const matching = all
+        .filter((question) => status === null || question.status === status)
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      const limit = Math.min(Number(params.get("limit") ?? 25), 100);
+      const start = Number(params.get("cursor") ?? 0);
+      const items = matching.slice(start, start + limit);
+      const end = start + items.length;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items,
+          nextCursor: end < matching.length ? String(end) : null,
+        }),
       });
     },
   );

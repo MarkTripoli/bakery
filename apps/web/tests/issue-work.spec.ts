@@ -274,6 +274,160 @@ for (
         .toHaveCount(0);
     });
 
+    test("an open question is the first row, with one way to answer it", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [{
+          status: "open",
+          prompt:
+            "Which database should the invoice export read from?\nThe reporting replica or the primary?\nThird line is not shown.",
+        }],
+      });
+      const row = page.getByTestId("issue-question");
+      await expect(row.getByText("Bakery needs an answer")).toBeVisible();
+      await expect(
+        row.getByText("Which database should the invoice export read from?"),
+      )
+        .toBeVisible();
+      await expect(row.getByText("The reporting replica or the primary?"))
+        .toBeVisible();
+      await expect(row.getByText("Third line is not shown.")).toHaveCount(0);
+      await expect(
+        row.getByText(
+          "Asked 25 minutes ago · work is paused until someone answers",
+        ),
+      )
+        .toBeVisible();
+      // The badge agrees with the row: the work waits on an answer.
+      await expect(section(page).getByText("Needs an answer", { exact: true }))
+        .toBeVisible();
+      await expect(section(page).getByText("Working", { exact: true }))
+        .toHaveCount(0);
+      // Answer is the one next step: primary, beside the text on a desktop and
+      // under it, the row's width and at least 44 high, on a phone.
+      const answer = row.getByRole("button", { name: "Answer" });
+      await expect(answer).toHaveClass(/ui-button--primary/);
+      const box = (await answer.boundingBox())!;
+      const rowBox = (await row.boundingBox())!;
+      const asked = (await row.getByText(/^Asked /).boundingBox())!;
+      if (viewport.width < 744) {
+        expect(box.y).toBeGreaterThanOrEqual(asked.y + asked.height - 1);
+        // The 44 high touch size comes with a touch device, the mobile project.
+        if (test.info().project.name === "mobile") {
+          expect(box.height).toBeGreaterThanOrEqual(44);
+        }
+        expect(box.width).toBeGreaterThan(rowBox.width * 0.6);
+      } else {
+        expect(box.x).toBeGreaterThan(rowBox.x + rowBox.width * 0.7);
+      }
+      // The first thing in the section, above how the work is going.
+      await expect(section(page).locator("> *").nth(1)).toHaveAttribute(
+        "data-testid",
+        "issue-question",
+      );
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-question");
+      await row.getByRole("button", { name: "Answer" }).click();
+      await expect(page).toHaveURL(new RegExp(`/tasks/${uuid(8100)}`));
+    });
+
+    test("several open questions are counted and the oldest is shown", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [
+          { status: "open", prompt: "Newest question", minutesAgo: 5 },
+          { status: "open", prompt: "Oldest question", minutesAgo: 90 },
+        ],
+      });
+      const row = page.getByTestId("issue-question");
+      await expect(row.getByText("Bakery needs 2 answers")).toBeVisible();
+      await expect(row.getByText("Oldest question")).toBeVisible();
+      await expect(row.getByText("Newest question")).toHaveCount(0);
+    });
+
+    test("more than a page of open questions are all counted and the oldest is shown", async ({ page }) => {
+      // 130 open ones: a read of the newest page (25, or even 100) would miss
+      // the oldest and count too few. The expired one is older still.
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [
+          ...Array.from({ length: 130 }, (_, index) => ({
+            status: "open" as const,
+            prompt: `Question number ${index}`,
+            minutesAgo: 10 + index,
+          })),
+          { status: "expired", prompt: "An old one", minutesAgo: 5000 },
+        ],
+      });
+      const row = page.getByTestId("issue-question");
+      await expect(row.getByText("Bakery needs 130 answers")).toBeVisible();
+      // The oldest open one is number 129, asked 139 minutes ago.
+      await expect(row.getByText("Question number 129")).toBeVisible();
+      await expect(row.getByText("Question number 0", { exact: true }))
+        .toHaveCount(0);
+      await expect(row.getByText(/^Asked 2 hours ago/)).toBeVisible();
+    });
+
+    test("someone who may not answer sees the question without the button", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [{ status: "open", prompt: "Which database?" }],
+      }, { role: "viewer" });
+      const row = page.getByTestId("issue-question");
+      await expect(row.getByText("Bakery needs an answer")).toBeVisible();
+      await expect(
+        row.getByText("Someone who can work on this task needs to answer."),
+      )
+        .toBeVisible();
+      await expect(row.getByRole("button", { name: "Answer" })).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-question-not-allowed");
+    });
+
+    test("an expired question says so and opens the task; an answered one shows nothing", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [{ status: "expired", prompt: "Which database?" }],
+      });
+      await expect(
+        section(page).getByText("A question went unanswered and expired."),
+      )
+        .toBeVisible();
+      await expect(page.getByTestId("issue-question")).toHaveCount(0);
+      // One way to the task, not two: the line below carries it.
+      await expect(section(page).getByRole("button", { name: "Open task" }))
+        .toHaveCount(1);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-question-expired");
+    });
+
+    test("an answered question and an approval show no row", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        questions: [
+          { status: "answered", prompt: "Which database?" },
+          { status: "open", prompt: "Approve the plan?", kind: "approval" },
+        ],
+      });
+      await expect(section(page).getByText("Working", { exact: true }))
+        .toBeVisible();
+      await expect(page.getByTestId("issue-question")).toHaveCount(0);
+      await expect(
+        section(page).getByText("A question went unanswered and expired."),
+      )
+        .toHaveCount(0);
+    });
+
+    test("questions that cannot be loaded say so and Try again reads them", async ({ page }) => {
+      await open(page, { ...ONE_REPOSITORY, questionsFail: true });
+      await expect(
+        section(page).getByText("Bakery's questions could not be loaded."),
+      )
+        .toBeVisible();
+      await expect(section(page).getByRole("button", { name: "Try again" }))
+        .toBeVisible();
+    });
+
     test("on hold pauses with an information banner", async ({ page }) => {
       await open(page, {
         issue: 201,

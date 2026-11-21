@@ -5464,5 +5464,13 @@
   "files.preview.state.hostUnavailable": "⟦Þŕëṽïëŵš àŕë ñôŧ àṽàïļàƀļë ŕïĝĥŧ ñôŵ. ŧëšŧ çôþÿŧ⟧",
   "files.preview.state.mismatchTitle": "⟦Ŧĥïš ƒïļë ðôëš ñôŧ ɱàŧçĥ ïŧš ŕëçôŕð ŧëšŧ çôþÿŧ⟧",
   "files.preview.state.mismatchDescription": "⟦Ŵĥàŧ ïš šŧôŕëð ïš ñôŧ ŵĥàŧ ŵàš ŕëçôŕðëð, šô Ɓàķëŕÿ ŵïļļ ñôŧ šĥôŵ ôŕ ðôŵñļôàð ïŧ. Àšķ àñ ôŕĝàñïžàŧïôñ Àðɱïñ ŧô çĥëçķ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "files.preview.state.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧"
+  "files.preview.state.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
+  "issues.work.progress.needsAnswer": "⟦Ñëëðš àñ àñšŵëŕ ŧëš⟧",
+  "issues.work.question.one": "⟦Ɓàķëŕÿ ñëëðš àñ àñšŵëŕ ŧëšŧŧ⟧",
+  "issues.work.question.many": "⟦Ɓàķëŕÿ ñëëðš {count} àñšŵëŕš ŧëšŧ çô⟧",
+  "issues.work.question.asked": "⟦Àšķëð {when} · ŵôŕķ ïš þàûšëð ûñŧïļ šôɱëôñë àñšŵëŕš ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "issues.work.question.answer": "⟦Àñšŵëŕ…⟧",
+  "issues.work.question.cannot": "⟦Šôɱëôñë ŵĥô çàñ ŵôŕķ ôñ ŧĥïš ŧàšķ ñëëðš ŧô àñšŵëŕ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "issues.work.question.expired": "⟦À ǫûëšŧïôñ ŵëñŧ ûñàñšŵëŕëð àñð ëẋþïŕëð. ŧëšŧ çôþÿ ŧ⟧",
+  "issues.work.question.loadFailed": "⟦Ɓàķëŕÿ'š ǫûëšŧïôñš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧ⟧"
 }

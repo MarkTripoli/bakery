@@ -5464,5 +5464,13 @@
   "files.preview.state.hostUnavailable": "⟪Previews are not available right now.⟫",
   "files.preview.state.mismatchTitle": "⟪This file does not match its record⟫",
   "files.preview.state.mismatchDescription": "⟪What is stored is not what was recorded, so Bakery will not show or download it. Ask an organization Admin to check it.⟫",
-  "files.preview.state.retry": "⟪Try again⟫"
+  "files.preview.state.retry": "⟪Try again⟫",
+  "issues.work.progress.needsAnswer": "⟪Needs an answer⟫",
+  "issues.work.question.one": "⟪Bakery needs an answer⟫",
+  "issues.work.question.many": "⟪Bakery needs {count} answers⟫",
+  "issues.work.question.asked": "⟪Asked {when} · work is paused until someone answers⟫",
+  "issues.work.question.answer": "⟪Answer⟫",
+  "issues.work.question.cannot": "⟪Someone who can work on this task needs to answer.⟫",
+  "issues.work.question.expired": "⟪A question went unanswered and expired.⟫",
+  "issues.work.question.loadFailed": "⟪Bakery's questions could not be loaded.⟫"
 }
