@@ -113,9 +113,12 @@ export const slackUnset = {
   detailsCheckResult: null,
   lastRequestAt: null,
   lastRequestFailedAt: null,
-  redirectUrl: "https://bakery.test/v1/integrations/slack/identity/callback",
-  eventsUrl: "https://bakery.test/v1/integrations/slack/events",
-  interactivityUrl: "https://bakery.test/v1/integrations/slack/interactions",
+  // The addresses the server serves, not the page's guesses: the redirect the
+  // identity flow mounts, and the two webhook paths Slack reports to.
+  redirectUrl:
+    "https://bakery.test/v1/integration-auth/slack/identity-callback",
+  eventsUrl: "https://bakery.test/v1/webhooks/slack/events",
+  interactivityUrl: "https://bakery.test/v1/webhooks/slack/interactions",
   version: 0,
 };
 

@@ -18,6 +18,7 @@ import { join } from "node:path";
 import {
   INTEGRATIONS_PAGE_PATH,
   integrationsFixture,
+  slackFixture,
   slackSet,
   slackUnset,
 } from "./helpers/installation-integrations-fixtures.ts";
@@ -135,6 +136,90 @@ for (const [state, initial] of STATES) {
             fullPage: true,
           });
         }
+      });
+    }
+  }
+}
+
+/**
+ * The states a person reaches by pressing something, so each still has to be
+ * driven there: the Replace form, the Remove confirmation, and the banner the
+ * page shows once the details are gone. They use the stateful `slackFixture`
+ * rather than a fixed body, because the press has to be answered.
+ */
+const INTERACTIONS = [
+  {
+    state: "replace-form",
+    prepare: async (page: import("@playwright/test").Page) => {
+      await page.getByRole("button", { name: "Replace details" }).click();
+    },
+  },
+  {
+    state: "remove-dialog",
+    prepare: async (page: import("@playwright/test").Page) => {
+      await page.getByRole("button", { name: "Remove", exact: true }).click();
+      await expect(
+        page.getByRole("alertdialog", {
+          name: "Remove the Slack app details?",
+        }),
+      ).toBeVisible();
+    },
+  },
+  {
+    state: "removed",
+    prepare: async (page: import("@playwright/test").Page) => {
+      await page.getByRole("button", { name: "Remove", exact: true }).click();
+      const dialog = page.getByRole("alertdialog", {
+        name: "Remove the Slack app details?",
+      });
+      await dialog.getByRole("button", { name: "Remove", exact: true }).click();
+      await expect(page.getByTestId("slack-app")).toContainText(
+        "The Slack app details were removed.",
+      );
+    },
+  },
+] as const;
+
+for (const { state, prepare } of INTERACTIONS) {
+  for (const theme of THEMES) {
+    for (const [label, viewport] of VIEWPORTS) {
+      test(`still: ${state} ${theme} ${label}`, async ({ page }) => {
+        test.skip(OUT === undefined, "evidence capture runs only when asked");
+        const dir = OUT!;
+        await mkdir(dir, { recursive: true });
+        await page.setViewportSize(viewport);
+        await page.emulateMedia({ colorScheme: theme });
+
+        await integrationsFixture(page);
+        // Last registered wins: the app read, put, check and delete answered.
+        await slackFixture(page, { ...slackSet, version: 1 });
+        await page.goto(INTEGRATIONS_PAGE_PATH, {
+          waitUntil: "domcontentloaded",
+        });
+        const section = page.getByTestId("slack-app");
+        await section.waitFor({ state: "visible", timeout: 45_000 });
+        await expect(section).toContainText("Slack is set up.");
+        await prepare(page);
+
+        // The dialog is its own layer, so a still of the section would miss it:
+        // the viewport is what a person sees, and that is what is captured.
+        const dialogOpen = state === "remove-dialog";
+        await section.scrollIntoViewIfNeeded();
+        const box = await section.boundingBox();
+        if (box === null) throw new Error("the Slack section has no box");
+        const scrolled = await page.evaluate(() => globalThis.scrollY);
+        await page.screenshot({
+          path: join(dir, `${state}--${theme}--${label}.png`),
+          ...(dialogOpen ? {} : {
+            clip: {
+              x: Math.max(0, box.x - 16),
+              y: box.y + scrolled - 16,
+              width: box.width + 32,
+              height: box.height + 32,
+            },
+            fullPage: true,
+          }),
+        });
       });
     }
   }

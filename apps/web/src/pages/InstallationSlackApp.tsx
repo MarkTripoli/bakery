@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApiFailure, IntegrationSlackApp } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
@@ -124,7 +124,9 @@ export function InstallationSlackApp() {
       setStatus("idle");
       // The design promises one check after every save: the details are only
       // worth writing if Slack accepts them, and a saved-but-refused app must
-      // say so without the person pressing anything.
+      // say so without the person pressing anything. The check quotes the
+      // version the save returned, not the one the page loaded with.
+      checkVersion.current = result.data.version;
       void check();
       return;
     }
@@ -147,12 +149,18 @@ export function InstallationSlackApp() {
       void slack.refetch();
     }
   });
+  // The version a check quotes is the one the save just made. The save leaves it
+  // here and the check takes it, so a check right after a save never quotes the
+  // version the page loaded with, which the save has just replaced.
+  const checkVersion = useRef<number | undefined>(undefined);
   const [, check] = useSingleFlightSubmit(async () => {
-    if (!loaded) return;
+    const current = checkVersion.current ?? loaded?.version;
+    checkVersion.current = undefined;
+    if (current === undefined) return;
     setStatus("checking");
     const generation = started();
     const result = await api.integrationSlackApp.check({
-      version: loaded.version,
+      version: current,
       idempotencyKey: crypto.randomUUID(),
     });
     if (generation !== started()) return;

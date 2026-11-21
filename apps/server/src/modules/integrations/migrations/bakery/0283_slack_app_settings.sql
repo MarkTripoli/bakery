@@ -18,15 +18,11 @@
 -- nothing to key it on and no second row to allow.
 create table bakery.slack_app_settings (
   id boolean primary key default true,
-  constraint slack_app_settings_single_row check (id),
-  -- Slack's own app id (A...). Opaque here; the length bound only stops nonsense.
+  -- Slack's own app id (A...). Opaque here; the shape is checked in code, where a
+  -- refusal can say which field was wrong.
   external_app_id text not null,
-  constraint slack_app_settings_app_id_format
-    check (external_app_id ~ '^A[A-Z0-9]{6,32}$'),
   -- The app's OAuth client id, which is the audience of the signing-in token.
   client_id text not null,
-  constraint slack_app_settings_client_id_format
-    check (client_id ~ '^[0-9]{6,32}\.[0-9]{6,32}$'),
   signing_secret_id uuid not null,
   client_secret_id uuid not null,
   created_at timestamptz not null default now(),
@@ -37,6 +33,11 @@ create table bakery.slack_app_settings (
   constraint slack_app_settings_client_secret_fk
     foreign key (client_secret_id) references bakery.secrets (id)
 );
+
+-- One row, enforced by structure: a unique index on a constant leaves no second
+-- row to insert, without a CHECK the boundary rail forbids in a migration.
+create unique index slack_app_settings_single_row
+  on bakery.slack_app_settings ((true));
 
 grant select on bakery.slack_app_settings to bakery_app;
 

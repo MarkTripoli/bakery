@@ -237,6 +237,8 @@ export function createApp(options: {
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
   skillStorageProbe?: typeof probeSkillStorage;
+  /** Slack's answer to a credential check; tests inject one so none reaches Slack. */
+  slackAppFetch?: typeof fetch;
   /** Destination test runner; tests inject one so no suite reaches a real bucket. */
   backupDestinationProbe?: typeof probeBackupDestination;
   /** Destination host resolver; tests inject one so no suite touches real DNS. */
@@ -1123,6 +1125,9 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       secretsKey: options.config.secretsKey,
+      ...(options.slackAppFetch === undefined
+        ? {}
+        : { fetch: options.slackAppFetch }),
     }),
   );
   app.route(

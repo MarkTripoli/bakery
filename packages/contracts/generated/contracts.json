@@ -11187,11 +11187,17 @@
         "AUTH_EXPIRED",
         "AUTH_FACTOR_REQUIRED",
         "AUTH_FORBIDDEN",
-        "INTERNAL",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
         "PRECONDITION_REQUIRED",
         "PRECONDITION_FAILED",
-        "UNPROCESSABLE",
-        "IDEMPOTENCY_KEY_REQUIRED"
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT"
       ],
       "organizationContext": "installation_administrator_scope",
       "implemented": true
@@ -11214,11 +11220,15 @@
         "AUTH_EXPIRED",
         "AUTH_FACTOR_REQUIRED",
         "AUTH_FORBIDDEN",
-        "INTERNAL",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
         "PRECONDITION_REQUIRED",
         "PRECONDITION_FAILED",
-        "UNPROCESSABLE",
-        "IDEMPOTENCY_KEY_REQUIRED"
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
       ],
       "organizationContext": "installation_administrator_scope",
       "implemented": true
@@ -11241,6 +11251,7 @@
         "AUTH_EXPIRED",
         "AUTH_FACTOR_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
         "INTERNAL"
       ],
       "organizationContext": "installation_administrator_scope",
@@ -11264,11 +11275,15 @@
         "AUTH_EXPIRED",
         "AUTH_FACTOR_REQUIRED",
         "AUTH_FORBIDDEN",
-        "INTERNAL",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
         "PRECONDITION_REQUIRED",
         "PRECONDITION_FAILED",
-        "UNPROCESSABLE",
-        "IDEMPOTENCY_KEY_REQUIRED"
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
       ],
       "organizationContext": "installation_administrator_scope",
       "implemented": true
@@ -266771,7 +266786,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:b9906234cc615f516df64710f200dcdca00790c13c23e54714fd84c9441ba13e",
+  "compatibilityDigest": "sha256:e77e74e22a8a1f00b7158ade7f4eb52f91be3932bb4c6e95d6e6a37d4bb6942a",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

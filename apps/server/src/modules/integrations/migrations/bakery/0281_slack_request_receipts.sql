@@ -8,7 +8,8 @@
 --
 -- The key is the signature rather than a Slack-provided event id because not every
 -- interaction carries one, and because the signature is the only field the MAC
--- covers together with the body. `body_digest` is stored beside it so a receipt can
+-- covers together with the body. Both digests are checked in code before a row is
+-- written: a migration states structure, not behaviour. `body_digest` is stored beside it so a receipt can
 -- be explained later without keeping the body, which may name a channel or a
 -- person.
 --
@@ -24,11 +25,7 @@ create table bakery.slack_request_receipts (
   -- rather than a derived time, so a receipt and a log line agree exactly.
   requested_at integer not null,
   team_id text,
-  received_at timestamptz not null default now(),
-  constraint slack_request_receipts_replay_key_format
-    check (replay_key ~ '^[0-9a-f]{64}$'),
-  constraint slack_request_receipts_body_digest_format
-    check (body_digest ~ '^[0-9a-f]{64}$')
+  received_at timestamptz not null default now()
 );
 
 create unique index slack_request_receipts_replay_unique

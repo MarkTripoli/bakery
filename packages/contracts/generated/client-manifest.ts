@@ -10052,11 +10052,17 @@ export const clientManifest = {
         "AUTH_EXPIRED",
         "AUTH_FACTOR_REQUIRED",
         "AUTH_FORBIDDEN",
-        "INTERNAL",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
         "PRECONDITION_REQUIRED",
         "PRECONDITION_FAILED",
-        "UNPROCESSABLE",
-        "IDEMPOTENCY_KEY_REQUIRED"
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT"
       ],
       "organizationContext": "installation_administrator_scope",
       "implemented": true
@@ -10079,11 +10085,15 @@ export const clientManifest = {
         "AUTH_EXPIRED",
         "AUTH_FACTOR_REQUIRED",
         "AUTH_FORBIDDEN",
-        "INTERNAL",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
         "PRECONDITION_REQUIRED",
         "PRECONDITION_FAILED",
-        "UNPROCESSABLE",
-        "IDEMPOTENCY_KEY_REQUIRED"
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
       ],
       "organizationContext": "installation_administrator_scope",
       "implemented": true
@@ -10106,6 +10116,7 @@ export const clientManifest = {
         "AUTH_EXPIRED",
         "AUTH_FACTOR_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
         "INTERNAL"
       ],
       "organizationContext": "installation_administrator_scope",
@@ -10129,11 +10140,15 @@ export const clientManifest = {
         "AUTH_EXPIRED",
         "AUTH_FACTOR_REQUIRED",
         "AUTH_FORBIDDEN",
-        "INTERNAL",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
         "PRECONDITION_REQUIRED",
         "PRECONDITION_FAILED",
-        "UNPROCESSABLE",
-        "IDEMPOTENCY_KEY_REQUIRED"
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
       ],
       "organizationContext": "installation_administrator_scope",
       "implemented": true

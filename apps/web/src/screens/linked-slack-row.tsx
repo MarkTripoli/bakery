@@ -189,9 +189,9 @@ function rowAction(
       // a way there; everyone else is told who acts.
       return state.canConnect
         ? (
-          <a href="/settings/installation/integrations">
+          <UI.Link href="/settings/installation/integrations">
             {translate("settings.security.linked.slack.connectSlack")}
-          </a>
+          </UI.Link>
         )
         : null;
     case "not-linked":
