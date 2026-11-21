@@ -326,12 +326,18 @@ Deno.test("revoking the Bakery app from the sessions list ends its window sessio
 Deno.test("a handed-off session never outlives the desktop sign-in it came from", async () => {
   await withFixture(async (f) => {
     const desktop = await signInDesktop(f, f.developerCookie);
+    // Asking for a code renews the desktop sign-in, so shorten it after.
+    const { code } = await codeFor(f, desktop.credential);
     await f.pgDatabase.query(
       `update public.session set "expiresAt" = now() + interval '1 hour'
         where id = $1`,
       [desktop.sessionId],
     );
-    await openHandoff(f, (await codeFor(f, desktop.credential)).code);
+    const opened = await openHandoff(f, code);
+    const maxAge = Number(
+      /Max-Age=(\d+)/.exec(opened.headers.get("set-cookie")!)![1],
+    );
+    assert(maxAge > 0 && maxAge <= 3600, String(maxAge));
     const rows = await f.pgDatabase.query<{ browser: Date; desktop: Date }>(
       `select b."expiresAt" as browser, d."expiresAt" as desktop
          from bakery.desktop_handoffs h
@@ -343,7 +349,6 @@ Deno.test("a handed-off session never outlives the desktop sign-in it came from"
     assert(rows.rows[0].browser.getTime() <= rows.rows[0].desktop.getTime());
   });
 });
-
 Deno.test("signing out other sessions from the person's browser ends the app and its window sessions", async () => {
   await withFixture(async (f) => {
     const desktop = await signInDesktop(f, f.developerCookie);

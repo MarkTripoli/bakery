@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import type { PgDatabase } from "../../../../platform/database.ts";
 import { redeemDesktopHandoff } from "../../adapters/desktop-handoff-postgres.ts";
-import { DESKTOP_SESSION_TTL_MS } from "../../domain/desktop-sign-in.ts";
 import {
   DESKTOP_HANDOFF_PATH,
   handoffNavigationAllowed,
@@ -25,6 +24,7 @@ function baseHeaders(location: string): Headers {
 /** The browser session cookie, the provider's own name and signed format. */
 async function sessionCookie(
   token: string,
+  expiresAt: Date,
   options: { publicBaseUrl: string; secret: string },
 ): Promise<string> {
   const secure = new URL(options.publicBaseUrl).protocol === "https:";
@@ -35,7 +35,11 @@ async function sessionCookie(
     "HttpOnly",
     ...(secure ? ["Secure"] : []),
     "SameSite=Lax",
-    `Max-Age=${Math.floor(DESKTOP_SESSION_TTL_MS / 1000)}`,
+    // The session may end before the default lifetime (it never outlives its
+    // desktop sign-in), so the cookie ends with it.
+    `Max-Age=${
+      Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
+    }`,
   ].join("; ");
 }
 
@@ -78,7 +82,10 @@ export function createDesktopHandoffPage(options: {
       });
     }
     const answer = baseHeaders(outcome.returnTo);
-    answer.append("Set-Cookie", await sessionCookie(outcome.token, options));
+    answer.append(
+      "Set-Cookie",
+      await sessionCookie(outcome.token, outcome.expiresAt, options),
+    );
     return new Response(null, { status: 303, headers: answer });
   });
   return app;

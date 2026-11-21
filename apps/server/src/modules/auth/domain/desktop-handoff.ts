@@ -23,7 +23,6 @@ export const DesktopHandoffRefusal = Object.freeze(
     Expired: "desktop_handoff_expired",
     Used: "desktop_handoff_used",
     SignedOut: "desktop_handoff_signed_out",
-    CrossSite: "desktop_handoff_cross_site",
   } as const,
 );
 export type DesktopHandoffRefusal =
