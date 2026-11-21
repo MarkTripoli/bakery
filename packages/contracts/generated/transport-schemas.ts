@@ -231,6 +231,11 @@ const transportSchemas = {
       "retryable": true,
       "slug": "installation-quiesced"
     },
+    "INSTALLATION_RESTORING": {
+      "status": 503,
+      "retryable": false,
+      "slug": "installation-restoring"
+    },
     "SNAPSHOT_SCOPE_TOO_LARGE": {
       "status": 413,
       "retryable": false,
@@ -8000,6 +8005,95 @@ const transportSchemas = {
         "Archive and file digest manifest validate before the immutable version is created. Bundle bytes are stored outside Postgres."
       ],
       "description": "Publishes a new immutable version of a plugin package from a validated bundle archive and file-digest manifest; the archive bytes are stored outside Postgres, and the version becomes selectable for installs only after validation passes."
+    },
+    "PluginPagePath": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "The plugin install whose page is addressed, supplied via the {id} path segment; numbered only among installs of the caller's organization."
+        },
+        {
+          "name": "pageId",
+          "type": "string",
+          "required": true,
+          "location": "path",
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "description": "Id of one page the install's current version declares in its manifest pages list (lowercase letters, digits and hyphens); supplied via the {pageId} path segment."
+        }
+      ],
+      "description": "Addresses one page of one plugin install for pluginPages.get. Both values come from the route; an install the caller cannot see answers as removed rather than revealing that it exists."
+    },
+    "PluginPageDocumentQuery": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "The plugin install whose page is addressed, supplied via the {id} path segment; numbered only among installs of the caller's organization."
+        },
+        {
+          "name": "pageId",
+          "type": "string",
+          "required": true,
+          "location": "path",
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "description": "Id of one page the install's current version declares in its manifest pages list (lowercase letters, digits and hyphens); supplied via the {pageId} path segment."
+        },
+        {
+          "name": "theme",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "light",
+            "dark"
+          ],
+          "description": "The resolved Bakery theme the frame should draw in (System already resolved to light or dark by the host). Echoed to the page unchanged in its own query string as theme; the server does not rewrite the plugin's HTML."
+        },
+        {
+          "name": "locale",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 35,
+            "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$"
+          },
+          "description": "The person's Bakery locale as a BCP 47 tag, such as en or ar-EG. Echoed to the page in its query string as locale and sent back as Content-Language; the plugin picks its own catalog from it and falls back to English."
+        },
+        {
+          "name": "dir",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "ltr",
+            "rtl"
+          ],
+          "description": "Text direction of the person's locale, so the page can mirror its layout. Echoed to the page in its query string as dir."
+        },
+        {
+          "name": "organizationId",
+          "type": "uuid",
+          "required": false,
+          "description": "Organization that owns the install, as a query parameter because an iframe src cannot send the Bakery-Organization-Id header. Parsed and membership-checked exactly like the header; the header wins when present, and a header and query that differ are refused. Omitting both is SCOPE_REQUIRED."
+        }
+      ],
+      "rules": [
+        "The response is the page's HTML file from the version's bundle, served with Content-Security-Policy sandbox allow-scripts (an opaque origin: no cookies, storage or same-origin access), default-src 'none' (no network: no fetch, XHR, WebSocket, beacon or external script, image, font or frame), inline script and style only, no forms, popups or top-level navigation, and frame-ancestors 'self'.",
+        "Refused exactly when pluginPages.get answers refused: the install is off, removed or not visible to the caller, the version has no such page, or the install does not hold ui.page."
+      ],
+      "description": "Reads the HTML document of one plugin page for the sealed frame Bakery draws it in. theme, locale and dir are the host's validated render inputs; the page reads them from its own location.search."
     },
     "PluginInstallQuery": {
       "fields": [
@@ -28068,7 +28162,8 @@ const transportSchemas = {
         "publishedAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "pages"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -28083,11 +28178,18 @@ const transportSchemas = {
         "publishedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "pages": "PluginPageDeclaration[]"
       },
       "nullableFields": [
         "publishedAt"
       ],
+      "optionalFields": [
+        "pages"
+      ],
+      "computedFields": {
+        "pages": "Derived from manifest.pages when the version is read; never stored separately from the manifest."
+      },
       "description": "One immutable, published build of a plugin package, returned after creating a version: its versionName, sdkRange compatibility declaration, manifest, bundleDigest verified before loading, and source/build evidence. publishedAt stays null until publication completes; publishing a new versionName always creates a new row rather than mutating an existing one.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying this plugin version record.",
@@ -28102,7 +28204,8 @@ const transportSchemas = {
         "publishedAt": "Timestamp recording when the published event occurred for this plugin version record. May be null when unavailable.",
         "createdAt": "Timestamp recording when the created event occurred for this plugin version record.",
         "updatedAt": "Timestamp recording the last update to this plugin version record.",
-        "version": "Monotonic revision used to order or conditionally update this plugin version record."
+        "version": "Monotonic revision used to order or conditionally update this plugin version record.",
+        "pages": "The pages this version adds, in manifest order, each checked against the bundle when the version was published; empty when the version adds none. A page shows only while an install of this version is on and holds ui.page."
       }
     },
     "Page<PluginVersion>": {
@@ -34381,6 +34484,152 @@ const transportSchemas = {
     "Page<PluginStateItem>": {
       "pageOf": "PluginStateItem",
       "description": "Cursor page of saved items for one plugin install, newest first, returned by GET /v1/plugin-installs/{id}/state-items. The saved values are never part of it. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "PluginPageDeclaration": {
+      "fields": [
+        "id",
+        "title",
+        "file"
+      ],
+      "fieldTypes": {
+        "id": "string",
+        "title": "string",
+        "file": "string"
+      },
+      "description": "One page a plugin version adds, as its manifest declares it and as publishing checked it: the file was present in the version's bundle when the version was created.",
+      "fieldDescriptions": {
+        "id": "Stable page id, unique within the version (lowercase letters, digits and hyphens, at most 64); the {pageId} of the page routes and of the /plugins/{install}/{page} address.",
+        "title": "Title Bakery shows in its own strip and in the sidebar, at most 80 characters, with no control or bidirectional-override characters.",
+        "file": "Relative path of the page's self-contained .html file inside the version's bundle archive; never absolute, never with an empty, . or .. segment."
+      }
+    },
+    "PluginPageAccess": {
+      "fields": [
+        "installId",
+        "pageId",
+        "status",
+        "reason",
+        "title",
+        "pluginPackageId",
+        "pluginDisplayName",
+        "pluginVersionId",
+        "versionName",
+        "scope",
+        "documentPath"
+      ],
+      "fieldTypes": {
+        "installId": "uuid",
+        "pageId": "string",
+        "status": "enum(available|refused)",
+        "reason": "enum(off|removed|no_such_page|no_access|not_granted)|null",
+        "title": "string|null",
+        "pluginPackageId": "uuid|null",
+        "pluginDisplayName": "string|null",
+        "pluginVersionId": "uuid|null",
+        "versionName": "string|null",
+        "scope": "enum(organization|personal)|null",
+        "documentPath": "string|null"
+      },
+      "nullableFields": [
+        "reason",
+        "title",
+        "pluginPackageId",
+        "pluginDisplayName",
+        "pluginVersionId",
+        "versionName",
+        "scope",
+        "documentPath"
+      ],
+      "description": "Whether one plugin page can be shown to the caller now, with what Bakery needs to draw its strip. A refusal is an answer, not an error, so the page can say which state it is in; the web asks again when the window regains focus because no event announces an install being turned off, removed or updated.",
+      "fieldDescriptions": {
+        "installId": "The install asked about, echoed from the path.",
+        "pageId": "The page asked about, echoed from the path.",
+        "status": "available when the document read will answer; refused otherwise, with reason saying why.",
+        "reason": "Why the page cannot be shown, null when available: off when the install is staged, disabled or failed; removed when the install was uninstalled, is not in the caller's organization or does not exist; no_access when it is another person's personal (private) install; no_such_page when the install's current version declares no page with this id; not_granted when the install does not hold the ui.page grant.",
+        "title": "The page's title from the version manifest; null when removed, no_access or no_such_page.",
+        "pluginPackageId": "The plugin package the install is of; null when removed or no_access.",
+        "pluginDisplayName": "The package's displayName, for \"Provided by the plugin {name}\"; null when removed or no_access.",
+        "pluginVersionId": "The version the install runs now. A page that is open on another version was updated underneath it. Null when removed or no_access.",
+        "versionName": "The running version's versionName, for \"version {v}\"; null when removed or no_access.",
+        "scope": "personal for a private install that only its owner sees, organization otherwise; null when removed or no_access.",
+        "documentPath": "Path of the document read for this page, /v1/plugin-installs/{id}/pages/{pageId}/document, to which the host adds theme, locale, dir and organizationId; null unless available."
+      }
+    },
+    "PluginPageEntry": {
+      "fields": [
+        "installId",
+        "pageId",
+        "title",
+        "pluginPackageId",
+        "pluginDisplayName",
+        "pluginVersionId",
+        "versionName",
+        "scope",
+        "documentPath"
+      ],
+      "fieldTypes": {
+        "installId": "uuid",
+        "pageId": "string",
+        "title": "string",
+        "pluginPackageId": "uuid",
+        "pluginDisplayName": "string",
+        "pluginVersionId": "uuid",
+        "versionName": "string",
+        "scope": "enum(organization|personal)",
+        "documentPath": "string"
+      },
+      "description": "One sidebar entry: a page of a plugin install that is on, holds ui.page and is visible to the caller (an organization install, or the caller's own personal install).",
+      "fieldDescriptions": {
+        "installId": "The install the page belongs to; with pageId it forms the /plugins/{install}/{page} address.",
+        "pageId": "The page's id within the install's current version.",
+        "title": "The page's title from the version manifest.",
+        "pluginPackageId": "The plugin package the install is of.",
+        "pluginDisplayName": "The package's displayName, shown with the page.",
+        "pluginVersionId": "The version the install runs now.",
+        "versionName": "The running version's versionName.",
+        "scope": "personal for a private install only its owner sees, organization otherwise.",
+        "documentPath": "Path of the page's document read, to which the host adds theme, locale, dir and organizationId."
+      }
+    },
+    "Page<PluginPageEntry>": {
+      "pageOf": "PluginPageEntry",
+      "description": "Cursor page of the plugin pages the caller has, returned by GET /v1/plugin-pages: installs in the order they were created, oldest first, then each install's pages in manifest order, so the sidebar stays stable as plugins are added. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "PluginPageDocument": {
+      "fields": [
+        "contentType",
+        "contentLength",
+        "contentDigest",
+        "content"
+      ],
+      "fieldTypes": {
+        "contentType": "mediaType",
+        "contentLength": "integer",
+        "contentDigest": "sha256",
+        "content": "bytes"
+      },
+      "bounds": {
+        "contentMaxBytes": 2097152
+      },
+      "httpVariants": [
+        {
+          "status": 200,
+          "body": "PluginPageDocumentBytes",
+          "contentType": "text/html",
+          "description": "The page's HTML file, whole, under the sandbox Content-Security-Policy and no-store."
+        }
+      ],
+      "description": "A plugin page's HTML document. The REST response is the raw file (PluginPageDocumentBytes); this shape names its parts for the catalog.",
+      "fieldDescriptions": {
+        "contentType": "Always text/html; charset=utf-8.",
+        "contentLength": "Length of the document in bytes, at most 2 MiB.",
+        "contentDigest": "SHA-256 of the document bytes as they sit in the bundle.",
+        "content": "The page's HTML file exactly as the bundle holds it; the server adds nothing to it."
+      }
+    },
+    "PluginPageDocumentBytes": {
+      "body": "bytes",
+      "description": "Raw HTML bytes of one plugin page, returned as the HTTP body under Content-Security-Policy sandbox allow-scripts with default-src 'none'."
     },
     "PreviewAvailability": {
       "fields": [

@@ -201,8 +201,11 @@ class UstarInventoryParser {
   #identities = new Set<string>();
   #deferredError: TarArchiveError | undefined;
 
-  constructor(selectedPath: string | undefined) {
+  readonly #manifestRequired: boolean;
+
+  constructor(selectedPath: string | undefined, manifestRequired: boolean) {
     this.#selectedPath = normalizeSelectedPath(selectedPath);
+    this.#manifestRequired = manifestRequired;
   }
 
   push(chunk: Uint8Array): void {
@@ -343,7 +346,15 @@ class UstarInventoryParser {
     if (this.#deferredError) throw this.#deferredError;
     if (this.#entry || this.#headerOffset !== 0) fail("ARCHIVE_TRUNCATED");
     if (!this.#ended || this.#zeroBlocks !== 2) fail("ARCHIVE_END");
-    if (!this.#manifestBytes) fail("ARCHIVE_INVENTORY");
+    if (!this.#manifestBytes) {
+      if (this.#manifestRequired) fail("ARCHIVE_INVENTORY");
+      if (this.#files.length > MAX_UPLOAD_FILES) fail("ARCHIVE_ENTRY_COUNT");
+      return Object.freeze({
+        manifest: Object.freeze({}),
+        manifestBytes: new Uint8Array(),
+        files: Object.freeze(this.#files),
+      });
+    }
     let manifest: unknown;
     try {
       manifest = JSON.parse(
@@ -411,10 +422,18 @@ function consumeOptionalGzipHeader(bytes: Uint8Array): number {
   return offset;
 }
 
-/** Parses one bounded gzip POSIX USTAR member and inventories every entry. */
+/**
+ * Parses one bounded gzip POSIX USTAR member and inventories every entry.
+ *
+ * A skill archive must carry `manifest.json`. A plugin bundle need not: its
+ * manifest is the version's own record, so `manifestRequired: false` lets an
+ * archive without one inventory to an empty manifest. Every other bound and
+ * path refusal is the same for both.
+ */
 export async function parseGzipUstarArchive(
   compressed: Uint8Array,
   selectedPath?: string,
+  options: Readonly<{ manifestRequired?: boolean }> = {},
 ): Promise<SkillArchiveInventory> {
   if (compressed.byteLength > MAX_SKILL_ARCHIVE_BYTES) {
     fail("ARCHIVE_COMPRESSED_LIMIT");
@@ -423,7 +442,10 @@ export async function parseGzipUstarArchive(
   const trailerOffset = compressed.byteLength - 8;
   const expectedCrc = readLittleEndianUint32(compressed, trailerOffset);
   const expectedSize = readLittleEndianUint32(compressed, trailerOffset + 4);
-  const parser = new UstarInventoryParser(selectedPath);
+  const parser = new UstarInventoryParser(
+    selectedPath,
+    options.manifestRequired ?? true,
+  );
   let crc = 0xffffffff;
   let expandedBytes = 0;
   try {
