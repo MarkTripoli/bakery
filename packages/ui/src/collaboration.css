@@ -2680,6 +2680,9 @@ button.ui-activity-line__row:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  /* A chip keeps its words on one line, so at 200% zoom the row scrolls
+     rather than pushing the box past the pane. */
+  overflow-x: auto;
 }
 .ui-mention-picker {
   container-type: inline-size;

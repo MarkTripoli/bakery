@@ -1,5 +1,5 @@
 {
-  "revision": "cc9f0e7658333ee1578a0f67fde8f441551bf9142f01ac0a5bdb310df0dcb235",
+  "revision": "f6362216ea2240a4e0414d694722c60ed17bfd9c2bfb581c22b1876dab368719",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -21177,10 +21177,11 @@
         "default"
       ],
       "states": [
-        "default",
+        "options",
         "loading",
         "empty",
-        "error"
+        "error",
+        "limit"
       ],
       "themes": [
         "light",
@@ -21205,15 +21206,16 @@
       "requiredCases": [
         {
           "id": "contract",
-          "description": "Exercises MentionPicker in its rows, loading, empty and failed states.",
+          "description": "Exercises MentionPicker in its rows, loading, empty, failed and at-the-limit states.",
           "variants": [
             "default"
           ],
           "states": [
-            "default",
+            "options",
             "loading",
             "empty",
-            "error"
+            "error",
+            "limit"
           ],
           "baselineIds": []
         }

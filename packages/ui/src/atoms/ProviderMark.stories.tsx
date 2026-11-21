@@ -26,12 +26,25 @@ const PROVIDERS = [
 
 export const Contract: StoryObj = {
   render: () => (
-    <div style={{ display: "grid", gap: 16, maxInlineSize: 640 }}>
+    <div
+      style={{
+        display: "grid",
+        gap: 16,
+        maxInlineSize: 640,
+        minInlineSize: 0,
+      }}
+    >
       {/* The name always sits beside the mark, so the mark is hidden from assistive technology. */}
       {PROVIDERS.map(([provider, name]) => (
         <div
           key={provider}
-          style={{ alignItems: "center", display: "flex", gap: 12 }}
+          style={{
+            alignItems: "center",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            minInlineSize: 0,
+          }}
         >
           <ProviderMark name={name} provider={provider} />
           <ProviderMark name={name} provider={provider} size="header" />
