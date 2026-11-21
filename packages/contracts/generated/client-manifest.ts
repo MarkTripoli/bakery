@@ -10640,6 +10640,29 @@ export const clientManifest = {
     {
       "group": "Tickets",
       "method": "GET",
+      "path": "/v1/batches/startable",
+      "action": "batches.startable",
+      "access": "Developer",
+      "permission": "batch:read",
+      "input": "BatchStartableQuery",
+      "output": "BatchStartable",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
       "path": "/v1/batches/{id}",
       "action": "batches.get",
       "access": "Developer",
@@ -11110,6 +11133,75 @@ export const clientManifest = {
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-pages",
+      "action": "pluginPages.list",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "CursorQuery",
+      "output": "Page<PluginPageEntry>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/pages/{pageId}",
+      "action": "pluginPages.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "PluginPagePath",
+      "output": "PluginPageAccess",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/pages/{pageId}/document",
+      "action": "pluginPageDocuments.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "PluginPageDocumentQuery",
+      "output": "PluginPageDocument",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "organizationIdQuery": "organizationId",
       "implemented": true
     },
     {
@@ -18776,6 +18868,7 @@ export const clientManifest = {
             "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "batches.list",
+            "batches.startable",
             "batches.get",
             "batches.create",
             "batches.pause",
@@ -18796,6 +18889,9 @@ export const clientManifest = {
             "pluginState.get",
             "pluginStateItems.list",
             "pluginState.put",
+            "pluginPages.list",
+            "pluginPages.get",
+            "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
             "artifacts.update",
@@ -25468,6 +25564,88 @@ export const clientManifest = {
         }
       }
     },
+    "PluginPagePath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The plugin install whose page is addressed, supplied via the {id} path segment; numbered only among installs of the caller's organization."
+        },
+        "pageId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "description": "Id of one page the install's current version declares in its manifest pages list (lowercase letters, digits and hyphens); supplied via the {pageId} path segment. PluginPagePath.pageId must contain at least 1 characters. PluginPagePath.pageId must contain at most 64 characters. PluginPagePath.pageId must match the pattern ^[a-z0-9][a-z0-9-]*$."
+        }
+      },
+      "required": [
+        "id",
+        "pageId"
+      ],
+      "additionalProperties": false,
+      "description": "Addresses one page of one plugin install for pluginPages.get. Both values come from the route; an install the caller cannot see answers as removed rather than revealing that it exists."
+    },
+    "PluginPageDocumentQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The plugin install whose page is addressed, supplied via the {id} path segment; numbered only among installs of the caller's organization."
+        },
+        "pageId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "description": "Id of one page the install's current version declares in its manifest pages list (lowercase letters, digits and hyphens); supplied via the {pageId} path segment. PluginPageDocumentQuery.pageId must contain at least 1 characters. PluginPageDocumentQuery.pageId must contain at most 64 characters. PluginPageDocumentQuery.pageId must match the pattern ^[a-z0-9][a-z0-9-]*$."
+        },
+        "theme": {
+          "type": "string",
+          "enum": [
+            "light",
+            "dark"
+          ],
+          "description": "The resolved Bakery theme the frame should draw in (System already resolved to light or dark by the host). Echoed to the page unchanged in its own query string as theme; the server does not rewrite the plugin's HTML."
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 35,
+          "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$",
+          "description": "The person's Bakery locale as a BCP 47 tag, such as en or ar-EG. Echoed to the page in its query string as locale and sent back as Content-Language; the plugin picks its own catalog from it and falls back to English. PluginPageDocumentQuery.locale must contain at least 2 characters. PluginPageDocumentQuery.locale must contain at most 35 characters. PluginPageDocumentQuery.locale must match the pattern ^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$."
+        },
+        "dir": {
+          "type": "string",
+          "enum": [
+            "ltr",
+            "rtl"
+          ],
+          "description": "Text direction of the person's locale, so the page can mirror its layout. Echoed to the page in its query string as dir."
+        },
+        "organizationId": {
+          "description": "Organization that owns the install, as a query parameter because an iframe src cannot send the Bakery-Organization-Id header. Parsed and membership-checked exactly like the header; the header wins when present, and a header and query that differ are refused. Omitting both is SCOPE_REQUIRED.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "id",
+        "pageId",
+        "theme",
+        "locale",
+        "dir"
+      ],
+      "additionalProperties": false,
+      "description": "Reads the HTML document of one plugin page for the sealed frame Bakery draws it in. theme, locale and dir are the host's validated render inputs; the page reads them from its own location.search."
+    },
     "PluginInstallQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -30103,10 +30281,51 @@ export const clientManifest = {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "state": {
+          "description": "Only the batches in this state. Omit it for every state.",
+          "type": "string",
+          "enum": [
+            "running",
+            "waiting",
+            "paused",
+            "stopping",
+            "finishing",
+            "finished",
+            "stopped"
+          ]
         }
       },
       "additionalProperties": false,
-      "description": "Lists batches newest first, optionally for one repository."
+      "description": "Lists batches newest first, optionally for one repository and one state."
+    },
+    "BatchStartableQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The repository whose issues a batch would take."
+        },
+        "cursor": {
+          "description": "Opaque cursor from the previous page.",
+          "type": "string",
+          "maxLength": 65536
+        },
+        "limit": {
+          "description": "Page size. BatchStartableQuery.limit must be at least 1. BatchStartableQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "repositoryId"
+      ],
+      "additionalProperties": false,
+      "description": "Lists the open issues in a repository that a batch could start now, in the order a batch takes them (lowest issue number first), with the smallest spend that can start one."
     },
     "AgentFileGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46027,6 +46246,7 @@ export const clientManifest = {
                   "ticketTaskLinks.resyncNote",
                   "ticketRequests.create",
                   "batches.list",
+                  "batches.startable",
                   "batches.get",
                   "batches.create",
                   "batches.pause",
@@ -46047,6 +46267,9 @@ export const clientManifest = {
                   "pluginState.get",
                   "pluginStateItems.list",
                   "pluginState.put",
+                  "pluginPages.list",
+                  "pluginPages.get",
+                  "pluginPageDocuments.get",
                   "userPreferences.get",
                   "userPreferences.update",
                   "artifacts.update",
@@ -66502,6 +66725,7 @@ export const clientManifest = {
             "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "batches.list",
+            "batches.startable",
             "batches.get",
             "batches.create",
             "batches.pause",
@@ -66522,6 +66746,9 @@ export const clientManifest = {
             "pluginState.get",
             "pluginStateItems.list",
             "pluginState.put",
+            "pluginPages.list",
+            "pluginPages.get",
+            "pluginPageDocuments.get",
             "userPreferences.get",
             "userPreferences.update",
             "artifacts.update",
@@ -82968,6 +83195,37 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Monotonic revision used to order or conditionally update this plugin version record."
+        },
+        "pages": {
+          "description": "The pages this version adds, in manifest order, each checked against the bundle when the version was published; empty when the version adds none. A page shows only while an install of this version is on and holds ui.page.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Stable page id, unique within the version (lowercase letters, digits and hyphens, at most 64); the {pageId} of the page routes and of the /plugins/{install}/{page} address."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Title Bakery shows in its own strip and in the sidebar, at most 80 characters, with no control or bidirectional-override characters."
+              },
+              "file": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Relative path of the page's self-contained .html file inside the version's bundle archive; never absolute, never with an empty, . or .. segment."
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "file"
+            ],
+            "additionalProperties": false,
+            "description": "The pages this version adds, in manifest order, each checked against the bundle when the version was published; empty when the version adds none. A page shows only while an install of this version is on and holds ui.page. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -83515,6 +83773,37 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Monotonic revision used to order or conditionally update this plugin version record."
+              },
+              "pages": {
+                "description": "The pages this version adds, in manifest order, each checked against the bundle when the version was published; empty when the version adds none. A page shows only while an install of this version is on and holds ui.page.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Stable page id, unique within the version (lowercase letters, digits and hyphens, at most 64); the {pageId} of the page routes and of the /plugins/{install}/{page} address."
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Title Bakery shows in its own strip and in the sidebar, at most 80 characters, with no control or bidirectional-override characters."
+                    },
+                    "file": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Relative path of the page's self-contained .html file inside the version's bundle archive; never absolute, never with an empty, . or .. segment."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "file"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The pages this version adds, in manifest order, each checked against the bundle when the version was published; empty when the version adds none. A page shows only while an install of this version is on and holds ui.page. Each array item follows this format."
+                }
               }
             },
             "required": [
@@ -101611,6 +101900,34 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "The ticket (issue) this entry is for."
               },
+              "issueNumber": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The issue's number in its tracker, as last stored; null when the stored ticket has none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchIssue.issueNumber may be null in the safe projection."
+              },
+              "issueTitle": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The issue's title as last stored, at most 500 characters; null when none is stored."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchIssue.issueTitle may be null in the safe projection."
+              },
               "state": {
                 "type": "string",
                 "enum": [
@@ -101700,6 +102017,8 @@ export const clientManifest = {
               "id",
               "position",
               "externalTicketId",
+              "issueNumber",
+              "issueTitle",
               "state",
               "reason",
               "ticketRequestId",
@@ -101963,6 +102282,34 @@ export const clientManifest = {
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                       "description": "The ticket (issue) this entry is for."
                     },
+                    "issueNumber": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The issue's number in its tracker, as last stored; null when the stored ticket has none."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "BatchIssue.issueNumber may be null in the safe projection."
+                    },
+                    "issueTitle": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The issue's title as last stored, at most 500 characters; null when none is stored."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "BatchIssue.issueTitle may be null in the safe projection."
+                    },
                     "state": {
                       "type": "string",
                       "enum": [
@@ -102052,6 +102399,8 @@ export const clientManifest = {
                     "id",
                     "position",
                     "externalTicketId",
+                    "issueNumber",
+                    "issueTitle",
                     "state",
                     "reason",
                     "ticketRequestId",
@@ -102164,6 +102513,110 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of Batch."
+    },
+    "BatchStartable": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "externalTicketId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The ticket (issue) the batch would start."
+              },
+              "number": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The issue's number in its tracker."
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The issue's title as last stored, at most 500 characters; null when none is stored."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchStartableIssue.title may be null in the safe projection."
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "A link to the issue, or null when the tracker gave none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchStartableIssue.url may be null in the safe projection."
+              },
+              "checkedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the stored readiness check this answer rests on."
+              }
+            },
+            "required": [
+              "externalTicketId",
+              "number",
+              "title",
+              "url",
+              "checkedAt"
+            ],
+            "additionalProperties": false,
+            "description": "The startable issues on this page, lowest issue number first. Each array item follows this format."
+          },
+          "description": "The startable issues on this page, lowest issue number first."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque cursor for the next page, or null on the last page."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "BatchStartable.nextCursor may be null in the safe projection."
+        },
+        "smallestSpendUsd": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+              "description": "The least a batch's spend limit can be and still start one issue: the reservation of one mandatory path plus one repair cycle. Null when the repository cannot run work now, so no amount would start one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "BatchStartable.smallestSpendUsd may be null in the safe projection."
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor",
+        "smallestSpendUsd"
+      ],
+      "additionalProperties": false,
+      "description": "The issues a batch in one repository would take now, in the order it takes them, and the smallest spend limit that can start one issue. Returned by `GET /v1/batches/startable`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "AgentFileGrant": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -106830,6 +107283,336 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of PluginStateItem."
+    },
+    "PluginPageAccess": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "installId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The install asked about, echoed from the path."
+        },
+        "pageId": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The page asked about, echoed from the path."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "refused"
+          ],
+          "description": "available when the document read will answer; refused otherwise, with reason saying why."
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "off",
+                "removed",
+                "no_such_page",
+                "no_access",
+                "not_granted"
+              ],
+              "description": "Why the page cannot be shown, null when available: off when the install is staged, disabled or failed; removed when the install was uninstalled, is not in the caller's organization or does not exist; no_access when it is another person's personal (private) install; no_such_page when the install's current version declares no page with this id; not_granted when the install does not hold the ui.page grant."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.reason may be null in this transport value."
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The page's title from the version manifest; null when removed, no_access or no_such_page."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.title may be null in this transport value."
+        },
+        "pluginPackageId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The plugin package the install is of; null when removed or no_access."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.pluginPackageId may be null in this transport value."
+        },
+        "pluginDisplayName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The package's displayName, for \"Provided by the plugin {name}\"; null when removed or no_access."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.pluginDisplayName may be null in this transport value."
+        },
+        "pluginVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The version the install runs now. A page that is open on another version was updated underneath it. Null when removed or no_access."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.pluginVersionId may be null in this transport value."
+        },
+        "versionName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The running version's versionName, for \"version {v}\"; null when removed or no_access."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.versionName may be null in this transport value."
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "organization",
+                "personal"
+              ],
+              "description": "personal for a private install that only its owner sees, organization otherwise; null when removed or no_access."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.scope may be null in this transport value."
+        },
+        "documentPath": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Path of the document read for this page, /v1/plugin-installs/{id}/pages/{pageId}/document, to which the host adds theme, locale, dir and organizationId; null unless available."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginPageAccess.documentPath may be null in this transport value."
+        }
+      },
+      "required": [
+        "installId",
+        "pageId",
+        "status",
+        "reason",
+        "title",
+        "pluginPackageId",
+        "pluginDisplayName",
+        "pluginVersionId",
+        "versionName",
+        "scope",
+        "documentPath"
+      ],
+      "additionalProperties": false,
+      "description": "Whether one plugin page can be shown to the caller now, with what Bakery needs to draw its strip. A refusal is an answer, not an error, so the page can say which state it is in; the web asks again when the window regains focus because no event announces an install being turned off, removed or updated."
+    },
+    "Page<PluginPageEntry>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "installId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The install the page belongs to; with pageId it forms the /plugins/{install}/{page} address."
+              },
+              "pageId": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The page's id within the install's current version."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The page's title from the version manifest."
+              },
+              "pluginPackageId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The plugin package the install is of."
+              },
+              "pluginDisplayName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The package's displayName, shown with the page."
+              },
+              "pluginVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The version the install runs now."
+              },
+              "versionName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The running version's versionName."
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "organization",
+                  "personal"
+                ],
+                "description": "personal for a private install only its owner sees, organization otherwise."
+              },
+              "documentPath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Path of the page's document read, to which the host adds theme, locale, dir and organizationId."
+              }
+            },
+            "required": [
+              "installId",
+              "pageId",
+              "title",
+              "pluginPackageId",
+              "pluginDisplayName",
+              "pluginVersionId",
+              "versionName",
+              "scope",
+              "documentPath"
+            ],
+            "additionalProperties": false,
+            "description": "One sidebar entry: a page of a plugin install that is on, holds ui.page and is visible to the caller (an organization install, or the caller's own personal install)."
+          },
+          "description": "PluginPageEntry items in this cursor page. Page<PluginPageEntry>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<PluginPageEntry>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PluginPageEntry>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<PluginPageEntry>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<PluginPageEntry>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of PluginPageEntry."
+    },
+    "PluginPageDocument": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contentType": {
+          "type": "string",
+          "maxLength": 255,
+          "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+\\/[!#$%&'*+\\-.^_`|~0-9A-Za-z]+(?:[ \\t]*;[ \\t]*[!#$%&'*+\\-.^_`|~0-9A-Za-z]+(?:[ \\t]*=[ \\t]*(?:\"(?:[\\t\\x20-\\x21\\x23-\\x5b\\x5d-\\x7e]|\\\\[\\t\\x20-\\x7e])*\"|[!#$%&'*+\\-.^_`|~0-9A-Za-z]+))?)*$",
+          "description": "Always text/html; charset=utf-8."
+        },
+        "contentLength": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Length of the document in bytes, at most 2 MiB."
+        },
+        "contentDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 of the document bytes as they sit in the bundle."
+        },
+        "content": {
+          "description": "The page's HTML file exactly as the bundle holds it; the server adds nothing to it. PluginPageDocument.content must contain at most 2097152 UTF-8 bytes.",
+          "type": "string",
+          "format": "binary",
+          "x-utf8-max-bytes": 2097152
+        }
+      },
+      "required": [
+        "contentType",
+        "contentLength",
+        "contentDigest",
+        "content"
+      ],
+      "additionalProperties": false,
+      "description": "A plugin page's HTML document. The REST response is the raw file (PluginPageDocumentBytes); this shape names its parts for the catalog."
     },
     "PreviewAvailability": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

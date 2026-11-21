@@ -13,6 +13,54 @@ import { readBlobProbe } from "./blob-probes.ts";
 import { storedMediaSafety } from "./media.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
+import {
+  hiddenArtifactIds,
+  hiddenFromReviewer,
+  hiddenVersionIds,
+  reviewerIsolationOf,
+} from "./reviewer-isolation.ts";
+
+/** Not found for a reviewer session when the artifact is another step's transcript (O47). */
+async function refuseHiddenArtifact(
+  context: ActionContext,
+  organizationId: string,
+  artifactId: string,
+): Promise<void> {
+  const { transaction } = requireWorkTransaction(context);
+  const isolation = await reviewerIsolationOf(
+    transaction,
+    context,
+    organizationId,
+  );
+  const hidden = await hiddenArtifactIds(
+    transaction,
+    isolation,
+    organizationId,
+    [artifactId],
+  );
+  if (hidden.size) hiddenFromReviewer();
+}
+
+/** Not found for a reviewer session when the version is hidden from it (O47). */
+async function refuseHiddenVersion(
+  context: ActionContext,
+  organizationId: string,
+  versionId: string,
+): Promise<void> {
+  const { transaction } = requireWorkTransaction(context);
+  const isolation = await reviewerIsolationOf(
+    transaction,
+    context,
+    organizationId,
+  );
+  const hidden = await hiddenVersionIds(
+    transaction,
+    isolation,
+    organizationId,
+    [versionId],
+  );
+  if (hidden.size) hiddenFromReviewer();
+}
 
 const ARTIFACT_ORDERING = "createdAt:desc,id:desc";
 const VERSION_ORDERING = "createdAt:desc,id:desc";
@@ -441,8 +489,17 @@ export function createArtifactReadHandlers(
           limit + 1,
         ],
       );
-      const items = result.rows.slice(0, limit);
-      const last = items.at(-1);
+      const page = result.rows.slice(0, limit);
+      // A reviewer's list leaves out other steps' transcripts (O47); the
+      // cursor follows the unfiltered page.
+      const hidden = await hiddenArtifactIds(
+        transaction,
+        await reviewerIsolationOf(transaction, context, organizationId),
+        organizationId,
+        page.map((row) => row.id),
+      );
+      const items = page.filter((row) => !hidden.has(row.id));
+      const last = page.at(-1);
       return {
         items: items.map(artifact),
         nextCursor: result.rows.length > limit && last
@@ -468,6 +525,7 @@ export function createArtifactReadHandlers(
       if (!result.rows[0]) {
         throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       }
+      await refuseHiddenArtifact(context, organizationId, result.rows[0].id);
       return artifact(result.rows[0]);
     },
 
@@ -488,6 +546,7 @@ export function createArtifactReadHandlers(
       );
       const taskId = parent.rows[0]?.task_id;
       if (!taskId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      await refuseHiddenArtifact(context, organizationId, String(artifactId));
       const limit = pageSize(input.limit);
       const binding = versionBinding(organizationId, principalId, artifactId);
       const position = await decodeCursor(secret, input.cursor, binding);
@@ -556,6 +615,7 @@ export function createArtifactReadHandlers(
         organizationId,
         context.params.id,
       );
+      await refuseHiddenVersion(context, organizationId, row.id);
       return {
         versionId: row.id,
         sha256: row.sha256,
@@ -632,6 +692,7 @@ export function createArtifactReadHandlers(
         organizationId,
         context.params.id,
       );
+      await refuseHiddenVersion(context, organizationId, row.id);
       const headers = new Headers({
         "Content-Type": row.media_type,
         "Content-Length": String(size),

@@ -13,6 +13,8 @@ import { postgresErrorCode } from "../../platform/postgres-errors.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { parseMicroUsd } from "./budget.ts";
 import { authorizeTicketAdmission } from "./ticket-request-command.ts";
+import { smallestBatchSpend } from "./batch-startable.ts";
+import type { BudgetRuntimeConfig } from "@bakery/config";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 /**
@@ -81,6 +83,8 @@ type IssueRow = {
   id: string;
   position: number;
   external_ticket_id: string;
+  issue_number: string | null;
+  issue_title: string | null;
   state: string;
   reason: string | null;
   ticket_request_id: string | null;
@@ -104,6 +108,8 @@ function toIssue(row: IssueRow): BatchIssue {
     id: row.id,
     position: row.position,
     externalTicketId: row.external_ticket_id,
+    issueNumber: row.issue_number,
+    issueTitle: row.issue_title,
     state: row.state,
     reason: row.reason,
     ticketRequestId: row.ticket_request_id,
@@ -135,11 +141,15 @@ export async function loadBatch(
   const row = found.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   const issues = (await transaction.query<IssueRow>(
-    `select issue.id, issue.position, issue.external_ticket_id, issue.state,
-            issue.reason, issue.ticket_request_id, issue.cost_usd::text as cost_usd,
+    `select issue.id, issue.position, issue.external_ticket_id,
+            ticket.number as issue_number, ticket.snapshot ->> 'title' as issue_title,
+            issue.state, issue.reason, issue.ticket_request_id, issue.cost_usd::text as cost_usd,
             coalesce(issue.cost_usd, live.cost)::text as spent,
             issue.started_at, issue.merged_at
        from bakery.batch_issues as issue
+       join bakery.external_tickets as ticket
+         on ticket.organization_id = issue.organization_id
+        and ticket.id = issue.external_ticket_id
        left join bakery.ticket_requests as request
          on request.organization_id = issue.organization_id
         and request.id = issue.ticket_request_id
@@ -234,7 +244,10 @@ export function createBatchesListHandler(cursorSecret: string) {
       organizationId,
       principalId,
       ordering: "createdAt:desc,id:desc",
-      filters: JSON.stringify({ repositoryId: input.repositoryId ?? null }),
+      filters: JSON.stringify({
+        repositoryId: input.repositoryId ?? null,
+        state: input.state ?? null,
+      }),
       schemaVersion: 1,
     };
     const position = await decodeCursor(cursorSecret, input.cursor, binding);
@@ -248,6 +261,7 @@ export function createBatchesListHandler(cursorSecret: string) {
          from bakery.batches as batch
         where batch.organization_id = $1
           and ($2::uuid is null or batch.repository_id = $2)
+          and ($6::text is null or batch.state = $6)
           and ($3::timestamptz is null
                or (batch.created_at, batch.id) < ($3, $4::uuid))
         order by batch.created_at desc, batch.id desc
@@ -258,6 +272,7 @@ export function createBatchesListHandler(cursorSecret: string) {
         position?.createdAt ?? null,
         position?.id ?? null,
         limit + 1,
+        input.state ?? null,
       ],
     )).rows;
     const visible = rows.slice(0, limit);
@@ -282,11 +297,20 @@ export function createBatchesListHandler(cursorSecret: string) {
  * `batches.create`. Someone who may start work (the same authority a ticket request
  * needs) starts a bounded run in a repository that is taking issues. All three limits
  * and the carry-on choice are required: the schema refuses a body without them, and
- * the amount must be above zero. One live batch per repository, by the table's index.
+ * the amount must be above zero and at least what one issue needs to start (the preset's
+ * smallest budget, read live). One live batch per repository, by the table's index.
  */
+export function createBatchHandler(
+  dependencies: { budget: BudgetRuntimeConfig | undefined },
+) {
+  return (context: ActionContext, input: BatchCreate): Promise<Batch> =>
+    createBatch(context, input, dependencies.budget);
+}
+
 export async function createBatch(
   context: ActionContext,
   input: BatchCreate,
+  budget?: BudgetRuntimeConfig,
 ): Promise<Batch> {
   authorizeTicketAdmission(context);
   const { transaction, organizationId, principalId } = requireWorkTransaction(
@@ -311,6 +335,18 @@ export async function createBatch(
   );
   if (taking.rows.length === 0) {
     throw conflict("repository_not_taking_issues");
+  }
+  // Below the smallest spend that can start one issue, the batch could never start
+  // anything. When the repository cannot run work now there is no smallest amount to
+  // judge by, and the supervisor says why when it tries to start.
+  const smallest = await smallestBatchSpend(
+    transaction,
+    organizationId,
+    input.repositoryId,
+    budget,
+  );
+  if (smallest !== null && spend < parseMicroUsd(smallest, "smallest_spend")) {
+    throw unprocessable(["maxSpendUsd"], "max_spend_below_smallest");
   }
   let id: string;
   try {

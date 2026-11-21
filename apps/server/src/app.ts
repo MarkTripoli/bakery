@@ -855,6 +855,11 @@ export function createApp(options: {
     "/",
     createPluginInstallRoutes({
       database: options.pgDatabase,
+      // Absent when no object store is configured; a page's document read
+      // then fails closed.
+      ...(skillFileStore
+        ? { bundles: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
@@ -891,6 +896,7 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      budget: options.config.budget,
     }),
   );
   app.route(

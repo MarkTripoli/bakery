@@ -41,6 +41,7 @@ import { FilesPage } from "./pages/FilesPage.tsx";
 import { FileVersionPage } from "./pages/FileVersionPage.tsx";
 import { folderPathOf } from "./pages/files/files-state.ts";
 import { AgentPage } from "./pages/AgentPage.tsx";
+import { EvaluationRunPage } from "./pages/EvaluationRunPage.tsx";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
@@ -336,6 +337,20 @@ export const routeCoverage = [
   {
     id: "library-agent",
     path: "/library/agents/$agentId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library-evaluation",
+    path: "/library/evaluations/$batchId",
     classification: "production",
     states: [
       "loading",
@@ -1459,8 +1474,9 @@ const libraryRoute = createRoute({
   // `?tab=agents` opens the Agents list; Workflows is the page itself.
   validateSearch: (
     search: Record<string, unknown>,
-  ): { tab?: "agents" | "memory"; fact?: string } => {
+  ): { tab?: "agents" | "memory" | "evaluations"; fact?: string } => {
     if (search.tab === "agents") return { tab: "agents" };
+    if (search.tab === "evaluations") return { tab: "evaluations" };
     if (search.tab !== "memory") return {};
     // An open fact is only meaningful on the Memory tab.
     return typeof search.fact === "string" && search.fact !== ""
@@ -1513,6 +1529,17 @@ const agentRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <AgentPage agentId={agentRoute.useParams().agentId} />,
+  errorComponent: ProtectedRouteError,
+});
+
+const evaluationRunRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/evaluations/$batchId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <EvaluationRunPage batchId={evaluationRunRoute.useParams().batchId} />
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -2642,6 +2669,7 @@ const routeTree = rootRoute.addChildren([
   workflowEditorRoute,
   builtInWorkflowRoute,
   agentRoute,
+  evaluationRunRoute,
   machineNewRoute,
   machineDetailRoute,
   statusRoute,
