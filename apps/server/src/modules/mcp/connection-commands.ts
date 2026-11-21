@@ -86,6 +86,11 @@ export const AgentConnectionRefusal = Object.freeze(
     Personal: "agent_connection_draft_is_personal",
     /** An agent cannot switch a connection on; a person reviews the draft first. */
     Enable: "agent_connection_enable_stays_with_people",
+    /**
+     * An agent edits only its person's own disabled draft with no secret, and
+     * never revokes: a live or organization connection is a person's to change.
+     */
+    NotDraft: "agent_connection_edits_only_its_draft",
   } as const,
 );
 
@@ -567,6 +572,15 @@ export function createMcpConnectionUpdater(
       { lock: true },
     );
     requireMayChange(context, current);
+    if (attributeAction(context, principalId).actorKind === "agent") {
+      if (
+        current.owner_principal_id !== principalId ||
+        current.status !== "disabled" || current.secret_id !== null
+      ) throw refuseAgent("id", AgentConnectionRefusal.NotDraft);
+      if (input.status === "revoked") {
+        throw refuseAgent("status", AgentConnectionRefusal.NotDraft);
+      }
+    }
     if (current.version !== expectedVersion) {
       throw new StandardError({ code: "PRECONDITION_FAILED" });
     }

@@ -251,6 +251,23 @@ Deno.test("an agent drafts a personal connection with no secret, a person comple
     );
     assertEquals(rows.rows[0]!.n, 1, "the refused drafts wrote nothing");
 
+    // The agent may rename its own draft, but it cannot revoke it.
+    const renamed = await sessionResult(
+      await agent.call(
+        "mcpConnections.update",
+        { id: drafted.id, label: "Renamed draft" },
+        Number(drafted.version),
+      ),
+    );
+    assertEquals(renamed.label, "Renamed draft");
+    const revoke = await agent.call(
+      "mcpConnections.update",
+      { id: drafted.id, status: "revoked" },
+      Number(renamed.version),
+    );
+    assertEquals(revoke.status, 422);
+    assertEquals(await reason(revoke), "agent_connection_edits_only_its_draft");
+
     // The person completes it: switching it on is theirs.
     const enabled = await json(
       await asPerson(
@@ -258,11 +275,51 @@ Deno.test("an agent drafts a personal connection with no secret, a person comple
         "PATCH",
         "/v1/mcp-connections/" + drafted.id,
         { status: "enabled" },
-        Number(drafted.version),
+        Number(renamed.version),
       ),
       200,
     );
     assertEquals(enabled.status, "enabled");
+
+    // Once it is live the agent cannot change it, though its person can.
+    const live = await agent.call(
+      "mcpConnections.update",
+      {
+        id: drafted.id,
+        label: "changed on a live connection",
+        enabledCapabilities: [],
+      },
+      Number(enabled.version),
+    );
+    assertEquals(live.status, 422);
+    assertEquals(await reason(live), "agent_connection_edits_only_its_draft");
+
+    // Nor an organization connection, though the person is an admin and may.
+    const organization = await json(
+      await asPerson(fixture, "POST", "/v1/mcp-connections", {
+        ...draftInput,
+        label: "Organization docs",
+        scope: "organization",
+      }),
+      201,
+    );
+    const shared = await agent.call(
+      "mcpConnections.update",
+      { id: organization.id, label: "changed by an agent" },
+      Number(organization.version),
+    );
+    assertEquals(shared.status, 422);
+    assertEquals(await reason(shared), "agent_connection_edits_only_its_draft");
+    const unchanged = (await fixture.pgDatabase.query<
+      { label: string; status: string }
+    >(
+      "select label, status from bakery.mcp_connections where id = any($1::uuid[]) order by label",
+      [[drafted.id, organization.id]],
+    )).rows;
+    assertEquals(unchanged, [
+      { label: "Organization docs", status: "enabled" },
+      { label: "Renamed draft", status: "enabled" },
+    ]);
   }));
 
 Deno.test("a session without the draft power cannot create a connection, and secrets and consent are not session tools", () =>
