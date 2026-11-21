@@ -1,5 +1,6 @@
 import { readJsonIfExists, writeJsonAtomically } from "./storage.ts";
 import type {
+  WorkerInventoryComponent,
   WorkerMaintenanceAssignment,
   WorkerMaintenanceReport,
 } from "./types.ts";
@@ -36,6 +37,8 @@ export interface MaintenanceComponentAdapter {
   readonly componentKey: string;
   /** `external` components are owned by the operator and never touched. */
   readonly installOwner: "bakery" | "external";
+  /** Inventory kind; defaults to "worker". */
+  readonly kind?: "worker" | "harness" | "toolchain";
   supports(verb: MaintenanceVerb): boolean;
   /** The release installed now, read from disk, or null when absent. */
   installed(): Promise<ComponentRelease | null>;
@@ -118,6 +121,16 @@ export type MaintenanceJournal = {
 export const MAINTENANCE_JOURNAL_FILE = "maintenance-journal.json";
 const MAX_TERMINAL_ENTRIES = 100;
 const DEFAULT_REPORT_ATTEMPTS = 4;
+/** Version of the maintenance adapter contract this worker speaks. */
+export const MAINTENANCE_ADAPTER_VERSION = "1";
+const MAINTENANCE_VERBS: readonly MaintenanceVerb[] = [
+  "refresh_inventory",
+  "verify",
+  "install_component",
+  "update_component",
+  "rollback_component",
+  "remove_component",
+];
 const MUTATING: ReadonlySet<MaintenanceVerb> = new Set([
   "install_component",
   "update_component",
@@ -265,6 +278,35 @@ export class MaintenanceExecutor {
         event,
         ...details,
       })));
+  }
+
+  /**
+   * The installed managed components for the regular inventory report, so
+   * an Admin can target them. Components not installed are left out.
+   */
+  async inventoryComponents(
+    observedAt: string,
+  ): Promise<WorkerInventoryComponent[]> {
+    const components: WorkerInventoryComponent[] = [];
+    for (const adapter of this.adapters.values()) {
+      const installed = await adapter.installed();
+      if (!installed) continue;
+      components.push({
+        componentKey: adapter.componentKey,
+        kind: adapter.kind ?? "worker",
+        actualVersion: installed.version,
+        actualDigest: installed.digest,
+        installOwner: adapter.installOwner,
+        adapterVersion: MAINTENANCE_ADAPTER_VERSION,
+        observedAt,
+        capabilities: [],
+        maintenanceSupport: {
+          remoteLogin: "none",
+          verbs: MAINTENANCE_VERBS.filter((verb) => adapter.supports(verb)),
+        },
+      } as WorkerInventoryComponent);
+    }
+    return components;
   }
 
   /** True while any entry is unfinished or holds claims after a failure. */

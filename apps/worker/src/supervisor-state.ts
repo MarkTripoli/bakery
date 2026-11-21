@@ -24,6 +24,7 @@ import {
 import type {
   RegistrationState,
   WorkerCommandOutcomeStatus,
+  WorkerInventoryComponent,
   WorkerMaintenanceAssignment,
 } from "./types.ts";
 
@@ -31,6 +32,8 @@ import type {
 export type SupervisorMaintenance = {
   accept(assignments: readonly WorkerMaintenanceAssignment[]): Promise<void>;
   claimsClosed(): boolean;
+  /** Managed components for the regular inventory report. */
+  inventoryComponents?(observedAt: string): Promise<WorkerInventoryComponent[]>;
 };
 export type SupervisorState = {
   config: WorkerConfig;

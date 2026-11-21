@@ -174,6 +174,9 @@ export type LeaseState = ContractValue<"LeaseState">;
 export type WorkerHeartbeatResult = ContractValue<"WorkerHeartbeatResult">;
 export type WorkerInventoryReport = ContractValue<"WorkerInventoryReport">;
 export type WorkerInventoryCheck = ContractValue<"WorkerInventoryCheck">;
+export type WorkerInventoryComponent = ContractValue<
+  "WorkerInventoryComponent"
+>;
 export type WorkerInventoryReceipt = ContractValue<"WorkerInventoryReceipt">;
 export type WorkerMaintenanceAssignment = ContractValue<
   "WorkerMaintenanceAssignment"

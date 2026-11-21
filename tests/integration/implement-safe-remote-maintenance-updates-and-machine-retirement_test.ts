@@ -12,7 +12,12 @@ import {
   MaintenanceExecutor,
   MaintenanceJournalStore,
 } from "../../apps/worker/src/maintenance.ts";
-import { createReleaseDirectoryAdapter } from "../../apps/worker/src/maintenance-release.ts";
+import {
+  createReleaseDirectoryAdapter,
+  WORKER_COMPONENT_KEY,
+  workerMaintenanceAdapters,
+} from "../../apps/worker/src/maintenance-release.ts";
+import { mkdir, writeFile } from "node:fs/promises";
 import {
   problemCode,
   registeredWorker,
@@ -753,6 +758,77 @@ Deno.test("the worker executor applies an assigned update and the server records
       assertEquals(statuses, [200, 200, 200]);
       assertEquals(await heartbeatAssignments(fixture, worker), []);
       assert(!executor.claimsClosed());
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
+  }));
+
+Deno.test("the worker's reported own release can be targeted by an Admin update", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue25-b2-own" });
+    const hostId = worker.registration.workerHostId;
+    const base = await mkdtemp(join(tmpdir(), "bakery-maintenance-own-"));
+    try {
+      const bytes = new TextEncoder().encode("bakery worker 1.0.0");
+      const digest = createHash("sha256").update(bytes).digest("hex");
+      await mkdir(join(base, "source", digest), { recursive: true });
+      await writeFile(join(base, "source", digest, "artifact"), bytes);
+      await writeFile(
+        join(base, "source", digest, "release.json"),
+        JSON.stringify({ version: "1.0.0", stateFormat: 1 }),
+      );
+      const adapters = workerMaintenanceAdapters({
+        maintenanceRelease: {
+          root: join(base, "release"),
+          sourceDir: join(base, "source"),
+        },
+      });
+      await adapters[0]!.switchTo(
+        await adapters[0]!.stage({ digest, version: null }),
+      );
+      const executor = new MaintenanceExecutor({
+        journal: await MaintenanceJournalStore.open(join(base, "state")),
+        adapters,
+        report: () => Promise.resolve(),
+        log: () => undefined,
+      });
+      const components = await executor.inventoryComponents(
+        new Date().toISOString(),
+      );
+      const reported = await workerRequest(
+        fixture,
+        worker.credential,
+        "/v1/worker/inventory",
+        {
+          reportId: crypto.randomUUID(),
+          hostGeneration: worker.registration.registrationGeneration,
+          expectedInventoryRevision: 1,
+          components,
+          checks: [],
+        },
+        {
+          headers: { "X-Bakery-Worker-Protocol-Version": "2" },
+          idempotencyKey: crypto.randomUUID(),
+        },
+      );
+      assertEquals(reported.status, 200, await reported.clone().text());
+      await reported.body?.cancel();
+      const stored = await fixture.pgDatabase.query<{
+        install_owner: string;
+      }>(
+        `select install_owner from bakery.worker_components
+          where worker_host_id = $1 and component_key = $2`,
+        [hostId, WORKER_COMPONENT_KEY],
+      );
+      assertEquals(stored.rows[0]?.install_owner, "bakery");
+      const created = await createMaintenance(fixture, hostId, {
+        verb: "update_component",
+        componentKey: WORKER_COMPONENT_KEY,
+        targetVersion: "1.1.0",
+        targetDigest: "a".repeat(64),
+      });
+      assertEquals(created.status, 201, await created.clone().text());
+      await created.body?.cancel();
     } finally {
       await rm(base, { recursive: true, force: true });
     }

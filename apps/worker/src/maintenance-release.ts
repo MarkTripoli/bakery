@@ -45,6 +45,7 @@ export type ReleaseDirectoryAdapterOptions = {
   /** Local health check of the installed release. */
   health: (installed: ComponentRelease | null) => Promise<boolean>;
   verbs?: readonly MaintenanceVerb[];
+  kind?: "worker" | "harness" | "toolchain";
 };
 
 const DEFAULT_VERBS: readonly MaintenanceVerb[] = [
@@ -120,6 +121,7 @@ export function createReleaseDirectoryAdapter(
   return {
     componentKey: options.componentKey,
     installOwner: "bakery",
+    kind: options.kind ?? "worker",
     supports: (verb) => verbs.has(verb),
     installed,
     async verify() {
