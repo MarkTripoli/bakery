@@ -4855,9 +4855,9 @@
           "required": false,
           "bounds": {
             "maxLength": 200,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]*$"
           },
-          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control characters are refused."
+          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control, zero-width and text-direction characters are refused."
         },
         {
           "name": "os",
@@ -5627,9 +5627,9 @@
           "required": true,
           "bounds": {
             "maxLength": 200,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]*$"
           },
-          "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name. Control characters are refused."
+          "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name. Control, zero-width and text-direction characters are refused."
         },
         {
           "name": "os",
@@ -5647,9 +5647,9 @@
           "required": true,
           "bounds": {
             "maxLength": 100,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]*$"
           },
-          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture. Control characters are refused."
+          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture. Control, zero-width and text-direction characters are refused."
         },
         {
           "name": "capabilities",
@@ -14492,9 +14492,9 @@
           "required": true,
           "bounds": {
             "maxLength": 100,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]*$"
           },
-          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control characters are refused."
+          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control, zero-width and text-direction characters are refused."
         },
         {
           "name": "hostname",
@@ -14502,9 +14502,9 @@
           "required": true,
           "bounds": {
             "maxLength": 200,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]*$"
           },
-          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control characters are refused."
+          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control, zero-width and text-direction characters are refused."
         }
       ],
       "rules": [
@@ -14532,9 +14532,9 @@
           "required": true,
           "bounds": {
             "maxLength": 100,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]*$"
           },
-          "description": "Processor the machine reports, such as arm64 or x86_64. Control characters are refused."
+          "description": "Processor the machine reports, such as arm64 or x86_64. Control, zero-width and text-direction characters are refused."
         },
         {
           "name": "hostname",
@@ -14542,9 +14542,9 @@
           "required": true,
           "bounds": {
             "maxLength": 200,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]*$"
           },
-          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control characters are refused."
+          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control, zero-width and text-direction characters are refused."
         }
       ],
       "rules": [
@@ -14598,9 +14598,9 @@
           "required": false,
           "bounds": {
             "maxLength": 200,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2069\\uFEFF]*$"
           },
-          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control characters are refused."
+          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control, zero-width and text-direction characters are refused."
         },
         {
           "name": "slots",

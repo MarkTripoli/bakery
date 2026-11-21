@@ -537,7 +537,18 @@ Deno.test("a machine name with control characters is refused at approve and enro
     const request = await createRequest(fixture);
     const before = await enrollmentCount(fixture);
     for (
-      const name of ["a\u001b[2Jb", "line\nbreak", "bell\u0007", "del\u007f"]
+      const name of [
+        "a\u001b[2Jb",
+        "line\nbreak",
+        "bell\u0007",
+        "del\u007f",
+        "nel\u0085",
+        "csi\u009b2J",
+        "evil\u202egnp.exe",
+        "iso\u2066late",
+        "zero\u200bwidth",
+        "bom\ufeff",
+      ]
     ) {
       const approved = await approve(fixture, request.requestId, {
         slots: 1,
@@ -562,7 +573,17 @@ Deno.test("a machine name with control characters is refused at approve and enro
     assertEquals(fine.status, 200, await fine.clone().text());
   }));
 
-const CONTROL_TEXT = ["\u001b[31m", "a\nb", "\u0000"];
+const CONTROL_TEXT = [
+  "\u001b[31m",
+  "a\nb",
+  "\u0000",
+  "\u0085",
+  "\u009b",
+  "\u202e",
+  "\u2066",
+  "\u200b",
+  "\ufeff",
+];
 
 Deno.test("a machine cannot put control characters in front of an Admin", () =>
   withWorkerFixture(async (fixture) => {
@@ -639,7 +660,10 @@ Deno.test("a machine cannot put control characters in front of an Admin", () =>
     assertEquals(
       [...stored.rows[0]!.name].some((character) => {
         const code = character.charCodeAt(0);
-        return code < 0x20 || code === 0x7f;
+        return code < 0x20 || (code >= 0x7f && code <= 0x9f) ||
+          (code >= 0x200b && code <= 0x200f) ||
+          (code >= 0x202a && code <= 0x202e) ||
+          (code >= 0x2060 && code <= 0x2069) || code === 0xfeff;
       }),
       false,
     );
