@@ -132,10 +132,7 @@ impl Shell {
         let previewing = named.is_some();
         let (session, mut facts) = match named {
             Some(p) => (p.session, p.facts),
-            None => (
-                fresh(&server, &startup, false),
-                ViewFacts::default(),
-            ),
+            None => (fresh(&server, &startup, false), ViewFacts::default()),
         };
         facts.computer.get_or_insert_with(computer_name);
         let retry_after = std::env::var("BAKERY_DESKTOP_RETRY_MS")
@@ -355,7 +352,10 @@ impl Shell {
                     Some(credential) => self.client.revoke_current(&credential).await,
                     None => false,
                 };
-                self.report("effect", json!({ "name": "revoke_unstored", "ended": ended }));
+                self.report(
+                    "effect",
+                    json!({ "name": "revoke_unstored", "ended": ended }),
+                );
                 Some(Event::UnstoredRevoked {
                     ended_on_server: ended,
                 })
@@ -383,12 +383,18 @@ impl Shell {
                 let answer = probe(&self.server).await;
                 self.note_tried();
                 let answered = !matches!(answer, ServerAnswer::NoAnswer);
-                self.report("effect", json!({ "name": "check_current", "answered": answered }));
+                self.report(
+                    "effect",
+                    json!({ "name": "check_current", "answered": answered }),
+                );
                 Some(Event::CurrentChecked { answered })
             }
             Effect::CheckThisComputer => {
                 let answering = !matches!(probe(THIS_COMPUTER).await, ServerAnswer::NoAnswer);
-                self.report("effect", json!({ "name": "check_this_computer", "answering": answering }));
+                self.report(
+                    "effect",
+                    json!({ "name": "check_this_computer", "answering": answering }),
+                );
                 Some(Event::ThisComputerChecked { answering })
             }
             Effect::CheckServer { address } => {
@@ -451,7 +457,10 @@ impl Shell {
     /// the same place, under the notice that the app now uses the server.
     fn switch_server(&self, address: &str) {
         let settings = self.settings.after_switch(address);
-        let place = self.app.get_webview_window("main").and_then(|w| place_of(&w));
+        let place = self
+            .app
+            .get_webview_window("main")
+            .and_then(|w| place_of(&w));
         let handoff = Handoff {
             switched_to: address.to_string(),
             place,
@@ -484,9 +493,10 @@ impl Shell {
                     if let Some(which) = name.strip_prefix("choose-") {
                         let typed = std::fs::read_to_string(entry.path()).unwrap_or_default();
                         let _ = std::fs::remove_file(entry.path());
-                        if let Ok(choice) = serde_json::from_str::<bakery_desktop_core::session::ServerChoice>(
-                            &format!("\"{which}\""),
-                        ) {
+                        if let Ok(choice) = serde_json::from_str::<
+                            bakery_desktop_core::session::ServerChoice,
+                        >(&format!("\"{which}\""))
+                        {
                             shell.report("command", json!({ "choose": which }));
                             shell
                                 .dispatch(Event::ChooserContinue {

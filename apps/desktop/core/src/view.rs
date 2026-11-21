@@ -2,11 +2,11 @@
 //! Also the named states the Linux stills are taken of, each one reached by driving the real state
 //! machine, so a still cannot show a state the app cannot reach.
 
+use crate::compat::Kind;
 use crate::copy::{panel_for, Context, Identity, Panel};
 use crate::session::{
     step, Availability, ChooserProblem, Event, Notice, ServerAnswer, ServerChoice, Session, Window,
 };
-use crate::compat::Kind;
 use crate::wire::ExchangeFailure;
 use serde::Serialize;
 
@@ -181,9 +181,8 @@ pub const PREVIEWS: &[&str] = &[
 pub fn preview(name: &str) -> Option<Preview> {
     let signed_in_here = || Session::start(true).on_server(SERVER);
     let local = || Session::start(false).on_server(LOCAL);
-    let choose = |session: Session, this_computer: bool| {
-        run_on(session, chooser_events(this_computer))
-    };
+    let choose =
+        |session: Session, this_computer: bool| run_on(session, chooser_events(this_computer));
     Some(match name {
         "sign-in" => plain(run(vec![])),
         "signed-out" => plain(run_on(
@@ -255,9 +254,10 @@ pub fn preview(name: &str) -> Option<Preview> {
         ))),
         "sign-in-again" => plain(run(ended())),
         "sign-in-again-waiting" => plain(run(then(ended(), waiting_events()))),
-        "sign-in-again-expired" => {
-            plain(run(then(ended(), then(waiting_events(), vec![Event::TimedOut]))))
-        }
+        "sign-in-again-expired" => plain(run(then(
+            ended(),
+            then(waiting_events(), vec![Event::TimedOut]),
+        ))),
         "signed-in" => Preview {
             session: signed_in_here(),
             facts: ViewFacts {
@@ -394,7 +394,11 @@ mod tests {
     use crate::session::{Mismatch, Refusal};
 
     fn window(name: &str) -> Window {
-        preview(name).unwrap_or_else(|| panic!("{name}")).session.window().clone()
+        preview(name)
+            .unwrap_or_else(|| panic!("{name}"))
+            .session
+            .window()
+            .clone()
     }
 
     #[test]
@@ -406,8 +410,20 @@ mod tests {
         };
         let refusal = |r| Window::Refusal { refusal: r };
         expect("sign-in", Window::SignIn, false);
-        expect("signed-out", Window::SignedOut { ended_on_server: true }, false);
-        expect("signed-out-unconfirmed", Window::SignedOut { ended_on_server: false }, false);
+        expect(
+            "signed-out",
+            Window::SignedOut {
+                ended_on_server: true,
+            },
+            false,
+        );
+        expect(
+            "signed-out-unconfirmed",
+            Window::SignedOut {
+                ended_on_server: false,
+            },
+            false,
+        );
         expect("waiting", Window::Waiting, false);
         expect("browser-did-not-open", Window::BrowserDidNotOpen, false);
         expect("finishing", Window::Finishing, false);
@@ -417,7 +433,11 @@ mod tests {
         expect("not-from-this-app", refusal(Refusal::NotFromThisApp), false);
         expect("could-not-finish", refusal(Refusal::CouldNotFinish), false);
         expect("no-keyring", refusal(Refusal::NoKeyring), false);
-        expect("no-keyring-still-listed", refusal(Refusal::NoKeyringStillListed), false);
+        expect(
+            "no-keyring-still-listed",
+            refusal(Refusal::NoKeyringStillListed),
+            false,
+        );
         expect("sign-in-again", Window::SignInAgain, true);
         expect("sign-in-again-waiting", Window::Waiting, true);
         expect("sign-in-again-expired", refusal(Refusal::Expired), true);
@@ -425,9 +445,29 @@ mod tests {
         expect("signing-out", Window::SigningOut, false);
         expect("not-running", Window::NotAnswering, false);
         expect("cannot-reach", Window::NotAnswering, false);
-        expect("older-server", Window::Incompatible { mismatch: Mismatch::ServerOlder, address: OTHER.into() }, false);
-        expect("older-app", Window::Incompatible { mismatch: Mismatch::AppOlder, address: OTHER.into() }, false);
-        expect("checking", Window::Checking { address: OTHER.into() }, false);
+        expect(
+            "older-server",
+            Window::Incompatible {
+                mismatch: Mismatch::ServerOlder,
+                address: OTHER.into(),
+            },
+            false,
+        );
+        expect(
+            "older-app",
+            Window::Incompatible {
+                mismatch: Mismatch::AppOlder,
+                address: OTHER.into(),
+            },
+            false,
+        );
+        expect(
+            "checking",
+            Window::Checking {
+                address: OTHER.into(),
+            },
+            false,
+        );
         for choose in [
             "choose-server",
             "choose-server-this-computer",
@@ -467,9 +507,17 @@ mod tests {
     #[test]
     fn the_waiting_preview_carries_its_deadline_and_the_address_state_carries_the_address() {
         let waiting = preview("waiting").unwrap();
-        assert!(format!("{:?}", view(&waiting.session, &waiting.facts).panel.unwrap().detail).contains(UNTIL));
+        assert!(format!(
+            "{:?}",
+            view(&waiting.session, &waiting.facts).panel.unwrap().detail
+        )
+        .contains(UNTIL));
         let none = preview("browser-did-not-open").unwrap();
-        assert!(format!("{:?}", view(&none.session, &none.facts).panel.unwrap().detail).contains(URL));
+        assert!(format!(
+            "{:?}",
+            view(&none.session, &none.facts).panel.unwrap().detail
+        )
+        .contains(URL));
     }
 
     #[test]
@@ -499,7 +547,11 @@ mod tests {
         for name in ["switched", "switched-signed-in"] {
             let p = preview(name).unwrap();
             let panel = view(&p.session, &p.facts).panel.unwrap();
-            assert_eq!(panel.notice.as_deref(), Some("Bakery now uses https://bakery.example.com."), "{name}");
+            assert_eq!(
+                panel.notice.as_deref(),
+                Some("Bakery now uses https://bakery.example.com."),
+                "{name}"
+            );
         }
     }
 

@@ -36,7 +36,9 @@ async fn press_button(
             let _ = app.opener().open_url(shell::KEYRING_HELP_URL, None::<&str>);
         }
         Press::Shell(ButtonId::StartBakeryHelp) => {
-            let _ = app.opener().open_url(shell::START_BAKERY_HELP_URL, None::<&str>);
+            let _ = app
+                .opener()
+                .open_url(shell::START_BAKERY_HELP_URL, None::<&str>);
         }
         Press::Shell(ButtonId::QuitBakery) => app.exit(0),
         // The chooser's Continue sends the option and the text with `choose_server`.
@@ -67,7 +69,9 @@ fn config_dir() -> PathBuf {
     }
     let home = || std::env::var("HOME").map(PathBuf::from).unwrap_or_default();
     #[cfg(target_os = "windows")]
-    let base = std::env::var("APPDATA").map(PathBuf::from).unwrap_or_else(|_| home());
+    let base = std::env::var("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| home());
     #[cfg(target_os = "macos")]
     let base = home().join("Library").join("Application Support");
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
@@ -192,7 +196,10 @@ fn main() {
             app.manage(Arc::clone(&shell));
             test_hooks(app, &shell, &server);
             if let Some(place) = restored {
-                shell.report("place_restored", json!({ "width": place.width, "height": place.height }));
+                shell.report(
+                    "place_restored",
+                    json!({ "width": place.width, "height": place.height }),
+                );
             }
             shell.report(
                 "app_started",

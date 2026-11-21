@@ -51,7 +51,9 @@ pub fn resolve_server(saved: Option<&str>, configured: Option<&str>) -> String {
     if let Some(address) = saved.and_then(|s| parse_server_address(s).ok()) {
         return address;
     }
-    if let Some(address) = configured.and_then(|c| crate::csp::server_origins(c.trim()).map(|(origin, _)| origin)) {
+    if let Some(address) =
+        configured.and_then(|c| crate::csp::server_origins(c.trim()).map(|(origin, _)| origin))
+    {
         return address;
     }
     THIS_COMPUTER.to_string()
@@ -93,10 +95,16 @@ mod tests {
     #[test]
     fn the_server_the_person_chose_beats_the_configured_one_which_beats_this_computer() {
         assert_eq!(
-            resolve_server(Some("https://bakery.example.com"), Some("https://other.example.com")),
+            resolve_server(
+                Some("https://bakery.example.com"),
+                Some("https://other.example.com")
+            ),
             "https://bakery.example.com"
         );
-        assert_eq!(resolve_server(None, Some("https://other.example.com")), "https://other.example.com");
+        assert_eq!(
+            resolve_server(None, Some("https://other.example.com")),
+            "https://other.example.com"
+        );
         assert_eq!(resolve_server(None, None), "http://127.0.0.1:8000");
     }
 
@@ -104,23 +112,44 @@ mod tests {
     fn a_value_that_is_not_a_usable_address_is_skipped_never_trusted() {
         // A damaged saved choice falls back to the configured server, not to garbage.
         assert_eq!(
-            resolve_server(Some("not an address ://"), Some("https://other.example.com")),
+            resolve_server(
+                Some("not an address ://"),
+                Some("https://other.example.com")
+            ),
             "https://other.example.com"
         );
-        assert_eq!(resolve_server(Some("http://bakery.example.com"), None), "http://127.0.0.1:8000");
+        assert_eq!(
+            resolve_server(Some("http://bakery.example.com"), None),
+            "http://127.0.0.1:8000"
+        );
         assert_eq!(resolve_server(Some(""), Some("")), "http://127.0.0.1:8000");
-        assert_eq!(resolve_server(None, Some("ftp://lab.example.com")), "http://127.0.0.1:8000");
+        assert_eq!(
+            resolve_server(None, Some("ftp://lab.example.com")),
+            "http://127.0.0.1:8000"
+        );
         // What is kept is the address as the app writes it, whatever was typed into the file.
-        assert_eq!(resolve_server(Some("bakery.example.com/tasks"), None), "https://bakery.example.com");
+        assert_eq!(
+            resolve_server(Some("bakery.example.com/tasks"), None),
+            "https://bakery.example.com"
+        );
     }
 
     #[test]
     fn the_operators_own_setting_may_use_plain_http_and_is_only_cleaned_up() {
-        assert_eq!(resolve_server(None, Some("http://192.168.1.5:8000/")), "http://192.168.1.5:8000");
-        assert_eq!(resolve_server(None, Some("HTTP://Lab.Example.com:8000")), "http://lab.example.com:8000");
+        assert_eq!(
+            resolve_server(None, Some("http://192.168.1.5:8000/")),
+            "http://192.168.1.5:8000"
+        );
+        assert_eq!(
+            resolve_server(None, Some("HTTP://Lab.Example.com:8000")),
+            "http://lab.example.com:8000"
+        );
         // What the person chose in the app still follows the chooser's rule.
         assert_eq!(
-            resolve_server(Some("http://192.168.1.5:8000"), Some("http://lab.example.com:8000")),
+            resolve_server(
+                Some("http://192.168.1.5:8000"),
+                Some("http://lab.example.com:8000")
+            ),
             "http://lab.example.com:8000"
         );
     }
@@ -137,7 +166,9 @@ mod tests {
         }
         // Unknown fields from a newer app are ignored, not refused.
         assert_eq!(
-            Settings::parse(r#"{"server":"https://a.example.com","future":true}"#).server.as_deref(),
+            Settings::parse(r#"{"server":"https://a.example.com","future":true}"#)
+                .server
+                .as_deref(),
             Some("https://a.example.com")
         );
     }
@@ -146,28 +177,45 @@ mod tests {
     fn switching_remembers_the_last_other_address_but_not_this_computer() {
         let start = Settings::default();
         let elsewhere = start.after_switch("https://bakery.example.com");
-        assert_eq!(elsewhere.server.as_deref(), Some("https://bakery.example.com"));
-        assert_eq!(elsewhere.last_other.as_deref(), Some("https://bakery.example.com"));
+        assert_eq!(
+            elsewhere.server.as_deref(),
+            Some("https://bakery.example.com")
+        );
+        assert_eq!(
+            elsewhere.last_other.as_deref(),
+            Some("https://bakery.example.com")
+        );
         // A server on this computer at another port is another server, and is remembered as such.
         let nearby = Settings::default().after_switch("http://127.0.0.1:46289");
         assert_eq!(nearby.last_other.as_deref(), Some("http://127.0.0.1:46289"));
         let back = elsewhere.after_switch("http://127.0.0.1:8000");
         assert_eq!(back.server.as_deref(), Some("http://127.0.0.1:8000"));
-        assert_eq!(back.last_other.as_deref(), Some("https://bakery.example.com"), "kept for the chooser");
+        assert_eq!(
+            back.last_other.as_deref(),
+            Some("https://bakery.example.com"),
+            "kept for the chooser"
+        );
     }
 
     #[test]
     fn the_handoff_carries_the_notice_and_the_place_and_a_damaged_one_is_nothing() {
         let h = Handoff {
             switched_to: "https://bakery.example.com".into(),
-            place: Some(Place { x: -20, y: 40, width: 960, height: 640 }),
+            place: Some(Place {
+                x: -20,
+                y: 40,
+                width: 960,
+                height: 640,
+            }),
         };
         assert_eq!(Handoff::parse(&h.to_text()), Some(h));
         for bad in ["", "{}", "garbage", r#"{"place":null}"#] {
             assert_eq!(Handoff::parse(bad), None, "{bad}");
         }
         assert_eq!(
-            Handoff::parse(r#"{"switched_to":"https://a.example.com"}"#).unwrap().place,
+            Handoff::parse(r#"{"switched_to":"https://a.example.com"}"#)
+                .unwrap()
+                .place,
             None
         );
     }

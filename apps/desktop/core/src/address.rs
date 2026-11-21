@@ -90,8 +90,14 @@ mod tests {
     #[test]
     fn no_scheme_typed_means_https() {
         assert_eq!(ok("bakery.example.com"), "https://bakery.example.com");
-        assert_eq!(ok("bakery.example.com:8443"), "https://bakery.example.com:8443");
-        assert_eq!(ok("  https://bakery.example.com  "), "https://bakery.example.com");
+        assert_eq!(
+            ok("bakery.example.com:8443"),
+            "https://bakery.example.com:8443"
+        );
+        assert_eq!(
+            ok("  https://bakery.example.com  "),
+            "https://bakery.example.com"
+        );
     }
 
     #[test]
@@ -103,12 +109,18 @@ mod tests {
         ] {
             assert_eq!(ok(pasted), "https://bakery.example.com", "{pasted}");
         }
-        assert_eq!(ok("https://bakery.example.com:8443/x"), "https://bakery.example.com:8443");
+        assert_eq!(
+            ok("https://bakery.example.com:8443/x"),
+            "https://bakery.example.com:8443"
+        );
     }
 
     #[test]
     fn the_name_is_lowercased_and_the_default_port_is_not_kept() {
-        assert_eq!(ok("HTTPS://Bakery.Example.COM:443"), "https://bakery.example.com");
+        assert_eq!(
+            ok("HTTPS://Bakery.Example.COM:443"),
+            "https://bakery.example.com"
+        );
     }
 
     #[test]
@@ -116,8 +128,16 @@ mod tests {
         assert_eq!(ok("http://127.0.0.1:8000"), "http://127.0.0.1:8000");
         assert_eq!(ok("http://localhost:8000/"), "http://localhost:8000");
         assert_eq!(ok("http://[::1]:8000"), "http://[::1]:8000");
-        for remote in ["http://bakery.example.com", "http://192.168.1.20:8000", "http://10.0.0.5"] {
-            assert_eq!(parse_server_address(remote), Err(AddressProblem::PlainHttp), "{remote}");
+        for remote in [
+            "http://bakery.example.com",
+            "http://192.168.1.20:8000",
+            "http://10.0.0.5",
+        ] {
+            assert_eq!(
+                parse_server_address(remote),
+                Err(AddressProblem::PlainHttp),
+                "{remote}"
+            );
         }
         // https is fine anywhere, including this computer.
         assert_eq!(ok("https://localhost:8443"), "https://localhost:8443");
@@ -139,30 +159,62 @@ mod tests {
     fn what_is_not_a_web_address_is_told_apart_from_an_empty_box() {
         assert_eq!(parse_server_address(""), Err(AddressProblem::Empty));
         assert_eq!(parse_server_address("   \t"), Err(AddressProblem::Empty));
-        for bad in ["ftp://bakery.example.com", "file:///etc/hosts", "https://", "https://exa mple.com", "javascript://x"] {
-            assert_eq!(parse_server_address(bad), Err(AddressProblem::NotWebAddress), "{bad}");
+        for bad in [
+            "ftp://bakery.example.com",
+            "file:///etc/hosts",
+            "https://",
+            "https://exa mple.com",
+            "javascript://x",
+        ] {
+            assert_eq!(
+                parse_server_address(bad),
+                Err(AddressProblem::NotWebAddress),
+                "{bad}"
+            );
         }
     }
 
     #[test]
     fn only_the_usual_local_server_is_the_one_the_chooser_calls_this_computer() {
-        for yes in ["http://127.0.0.1:8000", "http://localhost:8000", "http://[::1]:8000"] {
+        for yes in [
+            "http://127.0.0.1:8000",
+            "http://localhost:8000",
+            "http://[::1]:8000",
+        ] {
             assert!(is_default_server(yes), "{yes}");
         }
         // Local, but another server: it belongs under "Another address".
-        for no in ["http://127.0.0.1:46289", "https://127.0.0.1:8000", "http://localhost:3000",
-                   "https://bakery.example.com", "http://192.168.1.2:8000", "nonsense"] {
+        for no in [
+            "http://127.0.0.1:46289",
+            "https://127.0.0.1:8000",
+            "http://localhost:3000",
+            "https://bakery.example.com",
+            "http://192.168.1.2:8000",
+            "nonsense",
+        ] {
             assert!(!is_default_server(no), "{no}");
-            }
-        assert!(is_this_computer_address("http://127.0.0.1:46289"), "still on this computer");
+        }
+        assert!(
+            is_this_computer_address("http://127.0.0.1:46289"),
+            "still on this computer"
+        );
     }
 
     #[test]
     fn this_computer_is_recognised_in_every_spelling() {
-        for yes in ["http://127.0.0.1:8000", "http://localhost:8000", "http://[::1]:8000", "https://localhost"] {
+        for yes in [
+            "http://127.0.0.1:8000",
+            "http://localhost:8000",
+            "http://[::1]:8000",
+            "https://localhost",
+        ] {
             assert!(is_this_computer_address(yes), "{yes}");
         }
-        for no in ["https://bakery.example.com", "http://192.168.1.2:8000", "not a url"] {
+        for no in [
+            "https://bakery.example.com",
+            "http://192.168.1.2:8000",
+            "not a url",
+        ] {
             assert!(!is_this_computer_address(no), "{no}");
         }
     }

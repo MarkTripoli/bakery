@@ -163,7 +163,11 @@ fn sign_in_button() -> Button {
 }
 
 fn different_server_button() -> Button {
-    button(ButtonId::UseDifferentServer, "Use a different server", false)
+    button(
+        ButtonId::UseDifferentServer,
+        "Use a different server",
+        false,
+    )
 }
 
 /// The line over the sign-in panel or the signed-in window, if the app carries one.
@@ -426,7 +430,10 @@ fn chooser_panel(chooser: &Chooser, ctx: &Context) -> Panel {
             help: "For example https://bakery.example.com".into(),
             problem,
         }),
-        vec![button(ButtonId::Continue, "Continue", true), button(ButtonId::Cancel, "Cancel", false)],
+        vec![
+            button(ButtonId::Continue, "Continue", true),
+            button(ButtonId::Cancel, "Cancel", false),
+        ],
     )
 }
 
@@ -505,17 +512,31 @@ mod tests {
     fn every_window() -> Vec<Window> {
         let mut all = vec![
             Window::SignIn,
-            Window::SignedOut { ended_on_server: true },
-            Window::SignedOut { ended_on_server: false },
+            Window::SignedOut {
+                ended_on_server: true,
+            },
+            Window::SignedOut {
+                ended_on_server: false,
+            },
             Window::Waiting,
             Window::BrowserDidNotOpen,
             Window::Finishing,
             Window::SignInAgain,
-            Window::Choose { chooser: chooser(ServerChoice::Another, None) },
-            Window::Checking { address: "https://bakery.acme.example".into() },
+            Window::Choose {
+                chooser: chooser(ServerChoice::Another, None),
+            },
+            Window::Checking {
+                address: "https://bakery.acme.example".into(),
+            },
             Window::NotAnswering,
-            Window::Incompatible { mismatch: Mismatch::ServerOlder, address: "https://bakery.acme.example".into() },
-            Window::Incompatible { mismatch: Mismatch::AppOlder, address: "https://bakery.acme.example".into() },
+            Window::Incompatible {
+                mismatch: Mismatch::ServerOlder,
+                address: "https://bakery.acme.example".into(),
+            },
+            Window::Incompatible {
+                mismatch: Mismatch::AppOlder,
+                address: "https://bakery.acme.example".into(),
+            },
             Window::SigningOut,
             Window::App,
         ];
@@ -609,14 +630,32 @@ mod tests {
         let p = panel_for(&Window::App, &ctx()).unwrap();
         assert_eq!(p.heading, "You are signed in");
         assert_eq!(
-            p.buttons.iter().map(|b| b.label.as_str()).collect::<Vec<_>>(),
+            p.buttons
+                .iter()
+                .map(|b| b.label.as_str())
+                .collect::<Vec<_>>(),
             vec!["Use a different server", "Sign out"]
         );
         assert!(p.primary().is_none(), "focus goes to the heading");
         // Without a name the server box stands alone; with one, who is signed in comes first.
-        assert_eq!(p.detail, Detail::Server { address: SERVER.into() });
-        let who = Identity { name: Some("Ana Costa".into()), email: Some("ana@acme.example".into()) };
-        let named = panel_for(&Window::App, &Context { identity: Some(&who), ..ctx() }).unwrap();
+        assert_eq!(
+            p.detail,
+            Detail::Server {
+                address: SERVER.into()
+            }
+        );
+        let who = Identity {
+            name: Some("Ana Costa".into()),
+            email: Some("ana@acme.example".into()),
+        };
+        let named = panel_for(
+            &Window::App,
+            &Context {
+                identity: Some(&who),
+                ..ctx()
+            },
+        )
+        .unwrap();
         assert_eq!(
             named.detail,
             Detail::SignedIn {
@@ -626,9 +665,26 @@ mod tests {
             }
         );
         // Only one of the two known: shown on its own.
-        let email_only = Identity { name: None, email: Some("ana@acme.example".into()) };
-        let one = panel_for(&Window::App, &Context { identity: Some(&email_only), ..ctx() }).unwrap();
-        assert!(matches!(one.detail, Detail::SignedIn { name: None, email: Some(_), .. }));
+        let email_only = Identity {
+            name: None,
+            email: Some("ana@acme.example".into()),
+        };
+        let one = panel_for(
+            &Window::App,
+            &Context {
+                identity: Some(&email_only),
+                ..ctx()
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            one.detail,
+            Detail::SignedIn {
+                name: None,
+                email: Some(_),
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -687,7 +743,13 @@ mod tests {
     #[test]
     fn the_signed_out_window_is_the_sign_in_panel_under_one_notice() {
         let plain = panel_for(&Window::SignIn, &ctx()).unwrap();
-        let out = panel_for(&Window::SignedOut { ended_on_server: true }, &ctx()).unwrap();
+        let out = panel_for(
+            &Window::SignedOut {
+                ended_on_server: true,
+            },
+            &ctx(),
+        )
+        .unwrap();
         assert_eq!(plain.notice, None);
         assert_eq!(
             out.notice.as_deref(),
@@ -745,7 +807,9 @@ mod tests {
         let shows = |w: Window| matches!(panel_for(&w, &ctx()).unwrap().detail, Detail::Server { ref address } if address == SERVER);
         for w in [
             Window::SignIn,
-            Window::SignedOut { ended_on_server: true },
+            Window::SignedOut {
+                ended_on_server: true,
+            },
             Window::Refusal {
                 refusal: Refusal::Expired,
             },

@@ -46,23 +46,34 @@ mod tests {
     use super::*;
 
     fn health(extra: &str) -> String {
-        format!(r#"{{"service":"bakery-server","state":"ok","version":"dev","dependencies":[]{extra}}}"#)
+        format!(
+            r#"{{"service":"bakery-server","state":"ok","version":"dev","dependencies":[]{extra}}}"#
+        )
     }
 
     #[test]
     fn a_server_at_the_apps_level_is_compatible() {
-        assert_eq!(read_health(&health(r#","compatibility":1"#)), Kind::Compatible);
+        assert_eq!(
+            read_health(&health(r#","compatibility":1"#)),
+            Kind::Compatible
+        );
     }
 
     #[test]
     fn a_missing_or_lower_level_is_an_older_server() {
         assert_eq!(read_health(&health("")), Kind::ServerOlder);
-        assert_eq!(read_health(&health(r#","compatibility":0"#)), Kind::ServerOlder);
+        assert_eq!(
+            read_health(&health(r#","compatibility":0"#)),
+            Kind::ServerOlder
+        );
     }
 
     #[test]
     fn a_higher_level_is_an_older_app() {
-        assert_eq!(read_health(&health(r#","compatibility":2"#)), Kind::AppOlder);
+        assert_eq!(
+            read_health(&health(r#","compatibility":2"#)),
+            Kind::AppOlder
+        );
     }
 
     #[test]
