@@ -13952,6 +13952,121 @@
           "description": "The organization whose storage tree holds the file. A caller must send the organization it is already acting in; it is stated rather than inferred so a file id from elsewhere cannot be probed by accident."
         }
       ]
+    },
+    "BackupDrillReport": {
+      "fields": [
+        {
+          "name": "drillId",
+          "type": "uuid",
+          "required": true,
+          "description": "Chosen by the runner for this drill. Reporting the same drill again returns the stored record; the same id with different content answers 409 STATE_CONFLICT."
+        },
+        {
+          "name": "backupName",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "description": "The directory name of the backup set that was restored into the isolated database."
+        },
+        {
+          "name": "startedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When the drill began, on the host clock."
+        },
+        {
+          "name": "outcome",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "passed",
+            "failed"
+          ],
+          "description": "Whether every required check passed."
+        },
+        {
+          "name": "failureCode",
+          "type": "enum",
+          "required": false,
+          "nullable": true,
+          "enum": [
+            "set_incomplete",
+            "key_mismatch",
+            "migration_unsupported",
+            "cutoff_mismatch",
+            "restore_failed",
+            "references_missing",
+            "drill_error"
+          ],
+          "description": "Why a failed drill failed, as a stable code; null when it passed."
+        },
+        {
+          "name": "detail",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 1000
+          },
+          "description": "Plain words saying what to do about a failure, with no path, key or restored data in it; null when it passed."
+        },
+        {
+          "name": "cutoffAt",
+          "type": "timestamp",
+          "required": false,
+          "nullable": true,
+          "description": "The database-clock cutoff the restored set recorded; null for a set that recorded none."
+        },
+        {
+          "name": "rpoSeconds",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "min": 0,
+            "max": 31536000
+          },
+          "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup, which is the data a failure at that moment would have lost. Null exactly when cutoffAt is null."
+        },
+        {
+          "name": "rtoSeconds",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 0,
+            "max": 604800
+          },
+          "description": "Whole seconds from the start of the drill to the end of its last check: how long restoring this set took on this host."
+        },
+        {
+          "name": "checksPassed",
+          "type": "string[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 16
+          },
+          "description": "The checks that passed, by name: manifest, checksums, key, postgres, redis, files, references, migrations, cutoff."
+        },
+        {
+          "name": "checksFailed",
+          "type": "string[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 16
+          },
+          "description": "The checks that failed, by the same names; empty when the drill passed."
+        }
+      ],
+      "rules": [
+        "A passed drill has no failure code, no detail and no failed check, and every required check is in checksPassed.",
+        "A failed drill has a failure code, a detail and at least one failed check.",
+        "A check name is one of the nine listed, appears once, and is in only one of the two lists.",
+        "rpoSeconds is present exactly when cutoffAt is."
+      ],
+      "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
     }
   },
   "projections": {
@@ -35112,6 +35227,61 @@
         "limit": "The byte limit the probe hit, when the code names one, so a reader can say how far over the file is instead of merely that it is too large.",
         "probedAt": "When the answer was recorded, so a reader can say how fresh it is. Null when nobody has probed the file."
       }
+    },
+    "BackupDrill": {
+      "fields": [
+        "id",
+        "backupName",
+        "startedAt",
+        "recordedAt",
+        "outcome",
+        "failureCode",
+        "detail",
+        "cutoffAt",
+        "rpoSeconds",
+        "rtoSeconds",
+        "checksPassed",
+        "checksFailed"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "backupName": "string",
+        "startedAt": "timestamp",
+        "recordedAt": "timestamp",
+        "outcome": "enum(passed|failed)",
+        "failureCode": "enum(set_incomplete|key_mismatch|migration_unsupported|cutoff_mismatch|restore_failed|references_missing|drill_error)|null",
+        "detail": "string|null",
+        "cutoffAt": "timestamp|null",
+        "rpoSeconds": "integer|null",
+        "rtoSeconds": "integer",
+        "checksPassed": "string[]",
+        "checksFailed": "string[]"
+      },
+      "nullableFields": [
+        "failureCode",
+        "detail",
+        "cutoffAt",
+        "rpoSeconds"
+      ],
+      "description": "One restore drill as the installation administrator sees it: which backup set was restored into an isolated database, whether every check passed, the backup age (RPO) and the restore time (RTO). Names, counts and numbers only: no path, key or restored data appears here.",
+      "fieldDescriptions": {
+        "id": "The drill's id, chosen by the runner.",
+        "backupName": "The directory name of the backup set that was restored.",
+        "startedAt": "When the drill began, on the host clock.",
+        "recordedAt": "When the server recorded the report, on the database clock.",
+        "outcome": "passed when every required check passed, otherwise failed.",
+        "failureCode": "Why a failed drill failed, as a stable code; null when it passed.",
+        "detail": "Plain words saying what to do about a failure; null when it passed.",
+        "cutoffAt": "The database-clock cutoff the set recorded; null when it recorded none.",
+        "rpoSeconds": "Whole seconds from the cutoff to the start of the drill: the age of the backup. Null when the set recorded no cutoff.",
+        "rtoSeconds": "Whole seconds the restore and its checks took on this host.",
+        "checksPassed": "The checks that passed, by name.",
+        "checksFailed": "The checks that failed, by name; empty when the drill passed."
+      }
+    },
+    "Page<BackupDrill>": {
+      "pageOf": "BackupDrill",
+      "description": "Cursor page of restore drills returned by `GET /v1/installation/backups/drills`, newest report first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     }
   },
   "pageEnvelope": {

@@ -8384,6 +8384,31 @@ export const clientManifest = {
     {
       "group": "Installation administration",
       "method": "GET",
+      "path": "/v1/installation/backups/drills",
+      "action": "backups.drills.list",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "CursorQuery",
+      "output": "Page<BackupDrill>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
       "path": "/v1/installation/backups/status",
       "action": "backups.status",
       "access": "Installation administrator",
@@ -8686,6 +8711,31 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "MALFORMED_REQUEST",
         "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Backup runner protocol",
+      "method": "POST",
+      "path": "/v1/backup-runner/drills",
+      "action": "backupRunner.drill",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "BackupDrillReport",
+      "output": "BackupDrill",
+      "event": "",
+      "mcp": "",
+      "idempotency": "safe to repeat: the first report records the drill, later reports with the same id return the same record",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
         "STATE_CONFLICT",
         "BODY_TOO_LARGE",
         "UNSUPPORTED_MEDIA_TYPE",
@@ -18539,6 +18589,7 @@ export const clientManifest = {
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
             "backups.list",
+            "backups.drills.list",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -18551,6 +18602,7 @@ export const clientManifest = {
             "backupRunner.report",
             "backupRunner.maintain",
             "backupRunner.cutoff",
+            "backupRunner.drill",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -31824,6 +31876,141 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Ask for the measured facts about one storage file, optionally as of one numbered version. Name the organization explicitly, because a file id alone does not say which organization's tree it belongs to; naming the wrong one is not found rather than forbidden, so ids from another organization reveal nothing."
+    },
+    "BackupDrillReport": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "drillId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Chosen by the runner for this drill. Reporting the same drill again returns the stored record; the same id with different content answers 409 STATE_CONFLICT."
+        },
+        "backupName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "The directory name of the backup set that was restored into the isolated database. BackupDrillReport.backupName must contain at least 1 characters. BackupDrillReport.backupName must contain at most 128 characters."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the drill began, on the host clock."
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ],
+          "description": "Whether every required check passed."
+        },
+        "failureCode": {
+          "description": "BackupDrillReport.failureCode may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "set_incomplete",
+                "key_mismatch",
+                "migration_unsupported",
+                "cutoff_mismatch",
+                "restore_failed",
+                "references_missing",
+                "drill_error"
+              ],
+              "description": "Why a failed drill failed, as a stable code; null when it passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "detail": {
+          "description": "BackupDrillReport.detail may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 1000,
+              "description": "Plain words saying what to do about a failure, with no path, key or restored data in it; null when it passed. BackupDrillReport.detail must contain at most 1000 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "cutoffAt": {
+          "description": "BackupDrillReport.cutoffAt may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The database-clock cutoff the restored set recorded; null for a set that recorded none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "rpoSeconds": {
+          "description": "BackupDrillReport.rpoSeconds may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 31536000,
+              "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup, which is the data a failure at that moment would have lost. Null exactly when cutoffAt is null. BackupDrillReport.rpoSeconds must be at least 0. BackupDrillReport.rpoSeconds must be at most 31536000."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "rtoSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 604800,
+          "description": "Whole seconds from the start of the drill to the end of its last check: how long restoring this set took on this host. BackupDrillReport.rtoSeconds must be at least 0. BackupDrillReport.rtoSeconds must be at most 604800."
+        },
+        "checksPassed": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that passed, by name: manifest, checksums, key, postgres, redis, files, references, migrations, cutoff. Each array item follows this format."
+          },
+          "description": "The checks that passed, by name: manifest, checksums, key, postgres, redis, files, references, migrations, cutoff. BackupDrillReport.checksPassed must contain at most 16 items."
+        },
+        "checksFailed": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that failed, by the same names; empty when the drill passed. Each array item follows this format."
+          },
+          "description": "The checks that failed, by the same names; empty when the drill passed. BackupDrillReport.checksFailed must contain at most 16 items."
+        }
+      },
+      "required": [
+        "drillId",
+        "backupName",
+        "startedAt",
+        "outcome",
+        "rtoSeconds",
+        "checksPassed",
+        "checksFailed"
+      ],
+      "additionalProperties": false,
+      "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -45620,6 +45807,7 @@ export const clientManifest = {
                   "skillStorageSettings.put",
                   "skillStorageSettings.verify",
                   "backups.list",
+                  "backups.drills.list",
                   "backups.status",
                   "backups.start",
                   "backupRunnerCredential.issue",
@@ -45632,6 +45820,7 @@ export const clientManifest = {
                   "backupRunner.report",
                   "backupRunner.maintain",
                   "backupRunner.cutoff",
+                  "backupRunner.drill",
                   "backupRunner.settings",
                   "telemetryDestinations.list",
                   "telemetryDestinations.get",
@@ -66090,6 +66279,7 @@ export const clientManifest = {
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
             "backups.list",
+            "backups.drills.list",
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
@@ -66102,6 +66292,7 @@ export const clientManifest = {
             "backupRunner.report",
             "backupRunner.maintain",
             "backupRunner.cutoff",
+            "backupRunner.drill",
             "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.get",
@@ -110151,6 +110342,352 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert."
+    },
+    "BackupDrill": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The drill's id, chosen by the runner."
+        },
+        "backupName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The directory name of the backup set that was restored."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the drill began, on the host clock."
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the server recorded the report, on the database clock."
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ],
+          "description": "passed when every required check passed, otherwise failed."
+        },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "set_incomplete",
+                "key_mismatch",
+                "migration_unsupported",
+                "cutoff_mismatch",
+                "restore_failed",
+                "references_missing",
+                "drill_error"
+              ],
+              "description": "Why a failed drill failed, as a stable code; null when it passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.failureCode may be null in this transport value."
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Plain words saying what to do about a failure; null when it passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.detail may be null in this transport value."
+        },
+        "cutoffAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The database-clock cutoff the set recorded; null when it recorded none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.cutoffAt may be null in this transport value."
+        },
+        "rpoSeconds": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup. Null when the set recorded no cutoff."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupDrill.rpoSeconds may be null in this transport value."
+        },
+        "rtoSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Whole seconds the restore and its checks took on this host."
+        },
+        "checksPassed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that passed, by name. Each array item follows this format."
+          },
+          "description": "The checks that passed, by name."
+        },
+        "checksFailed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "The checks that failed, by name; empty when the drill passed. Each array item follows this format."
+          },
+          "description": "The checks that failed, by name; empty when the drill passed."
+        }
+      },
+      "required": [
+        "id",
+        "backupName",
+        "startedAt",
+        "recordedAt",
+        "outcome",
+        "failureCode",
+        "detail",
+        "cutoffAt",
+        "rpoSeconds",
+        "rtoSeconds",
+        "checksPassed",
+        "checksFailed"
+      ],
+      "additionalProperties": false,
+      "description": "One restore drill as the installation administrator sees it: which backup set was restored into an isolated database, whether every check passed, the backup age (RPO) and the restore time (RTO). Names, counts and numbers only: no path, key or restored data appears here."
+    },
+    "Page<BackupDrill>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The drill's id, chosen by the runner."
+              },
+              "backupName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The directory name of the backup set that was restored."
+              },
+              "startedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the drill began, on the host clock."
+              },
+              "recordedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the server recorded the report, on the database clock."
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed"
+                ],
+                "description": "passed when every required check passed, otherwise failed."
+              },
+              "failureCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "set_incomplete",
+                      "key_mismatch",
+                      "migration_unsupported",
+                      "cutoff_mismatch",
+                      "restore_failed",
+                      "references_missing",
+                      "drill_error"
+                    ],
+                    "description": "Why a failed drill failed, as a stable code; null when it passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.failureCode may be null in this transport value."
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Plain words saying what to do about a failure; null when it passed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.detail may be null in this transport value."
+              },
+              "cutoffAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "The database-clock cutoff the set recorded; null when it recorded none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.cutoffAt may be null in this transport value."
+              },
+              "rpoSeconds": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Whole seconds from the cutoff to the start of the drill: the age of the backup. Null when the set recorded no cutoff."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "BackupDrill.rpoSeconds may be null in this transport value."
+              },
+              "rtoSeconds": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Whole seconds the restore and its checks took on this host."
+              },
+              "checksPassed": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The checks that passed, by name. Each array item follows this format."
+                },
+                "description": "The checks that passed, by name."
+              },
+              "checksFailed": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The checks that failed, by name; empty when the drill passed. Each array item follows this format."
+                },
+                "description": "The checks that failed, by name; empty when the drill passed."
+              }
+            },
+            "required": [
+              "id",
+              "backupName",
+              "startedAt",
+              "recordedAt",
+              "outcome",
+              "failureCode",
+              "detail",
+              "cutoffAt",
+              "rpoSeconds",
+              "rtoSeconds",
+              "checksPassed",
+              "checksFailed"
+            ],
+            "additionalProperties": false,
+            "description": "One restore drill as the installation administrator sees it: which backup set was restored into an isolated database, whether every check passed, the backup age (RPO) and the restore time (RTO). Names, counts and numbers only: no path, key or restored data appears here."
+          },
+          "description": "BackupDrill items in this cursor page. Page<BackupDrill>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<BackupDrill>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<BackupDrill>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<BackupDrill>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<BackupDrill>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of BackupDrill."
     }
   }
 } as const;
