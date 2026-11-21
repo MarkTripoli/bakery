@@ -61,30 +61,41 @@ test("deep links verify the selected immutable version and switching updates the
 test("preview refuses bytes whose digest disagrees with the advertised version", async ({ page }) => {
   await stubArtifactPage(page, { content: "Corrupted current bytes!!\n" });
   await page.goto(PATH);
-  await expect(
-    page.getByText("Content could not be verified. Preview is unavailable."),
-  ).toBeVisible();
+  // Bytes that do not hash to the digest they came with failed on the way:
+  // nothing is shown, and the read can be tried again.
+  await expect(page.getByText("The preview did not load.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   await expect(page.locator('[data-ui-component="artifactViewer"]'))
     .toHaveCount(0);
   await expect(page.getByText("Corrupted current bytes!!", { exact: true }))
     .toHaveCount(0);
 });
 
-test("HTML stays download-only and is not fetched automatically", async ({ page }) => {
+test("when the server says what is stored is not what was recorded, the page says so and offers no preview or download", async ({ page }) => {
+  await stubArtifactPage(page);
+  await page.route(
+    "**/v1/artifact-versions/**/content",
+    (route) => route.fulfill(problem(409, "ARTIFACT_CONTENT_MISMATCH")),
+  );
+  await page.goto(PATH);
+  await expect(page.getByText("This file does not match its record"))
+    .toBeVisible();
+  await expect(page.locator('[data-ui-component="artifactViewer"]'))
+    .toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Download verified bytes" }))
+    .toHaveCount(0);
+});
+
+test("HTML is shown as inert text and never runs", async ({ page }) => {
   const html = '<script>document.body.dataset.compromised="yes"</script>';
   await stubArtifactPage(page, {
     current: version(html, "text/html"),
     content: html,
   });
-  const contentRequests: string[] = [];
-  page.on("request", (request) => {
-    if (request.url().includes("/content")) contentRequests.push(request.url());
-  });
   await page.goto(PATH);
-  await expect(page.getByText(/This media type is download-only/))
-    .toBeVisible();
+  // Nothing was probed, so the declared type decides: text, drawn as characters.
+  await expect(page.getByText(html, { exact: true })).toBeVisible();
   await expect(page.getByTestId("artifact-retrieval-download")).toBeEnabled();
-  expect(contentRequests).toEqual([]);
   await expect(page.locator("body")).not.toHaveAttribute(
     "data-compromised",
     "yes",
