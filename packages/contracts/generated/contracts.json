@@ -212965,6 +212965,12 @@
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                       "description": "Registered action input installId."
                     },
+                    "versionId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Registered action input versionId."
+                    },
                     "entry": {
                       "type": "string",
                       "maxLength": 65536,
@@ -215143,6 +215149,7 @@
                   },
                   "required": [
                     "installId",
+                    "versionId",
                     "entry"
                   ],
                   "additionalProperties": false,
@@ -274240,7 +274247,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:831b5b0aac64f39f5f47880eeb8f5f90b584ced81ba6485d3f98a4211392a147",
+  "compatibilityDigest": "sha256:e6abab423571a9da35fb843d899ea90f8d95a9cb7fcc1283007b66860ec03ccd",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -437947,6 +437954,12 @@
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                   "description": "Registered action input installId."
                 },
+                "versionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Registered action input versionId."
+                },
                 "entry": {
                   "type": "string",
                   "maxLength": 65536,
@@ -440125,6 +440138,7 @@
               },
               "required": [
                 "installId",
+                "versionId",
                 "entry"
               ],
               "additionalProperties": false,
