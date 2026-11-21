@@ -29,6 +29,7 @@ async function withSandbox(
     replay?: "promoted" | "short" | "stale" | "crash" | "restarting";
     base?: boolean;
     drill?: "fail";
+    prepare?: "fail";
     backup?: "fail";
     timeoutMs?: number;
   },
@@ -151,7 +152,9 @@ async function withSandbox(
     );
     await stub(
       join(opt, "deploy/pitr-prepare.sh"),
-      `echo "prepare $(basename "$1") $2 $3 $4" >> "${log}"\nmkdir -p "$2"\necho new > "$2/PG_VERSION"\necho "restorewal $(ls "$BAKERY_BACKUP_SANDBOX/var/lib/bakery$4" | xargs)" >> "${log}"`,
+      `echo "prepare $(basename "$1") $2 $3 $4" >> "${log}"\nmkdir -p "$2"\necho new > "$2/PG_VERSION"${
+        options.prepare === "fail" ? "\nexit 1" : ""
+      }\necho "restorewal $(ls "$BAKERY_BACKUP_SANDBOX/var/lib/bakery$4" | xargs)" >> "${log}"`,
     );
 
     const set = join(dir, "sets", SET_NAME);
@@ -513,4 +516,27 @@ Deno.test("a Postgres that restarts by itself (restart: unless-stopped) after re
       "old cluster",
     );
   });
+});
+
+Deno.test("a failure after the database was moved aside names where the old one is", async () => {
+  await withSandbox({ prepare: "fail" }, async (s) => {
+    const result = await s.run(...args(s));
+    assertEquals(result.code, 1, result.stderr);
+    assert(result.stderr.includes("RESTORE_FAILED"), result.stderr);
+    const aside = [...Deno.readDirSync(s.state)].map((e) => e.name)
+      .find((n) => n.startsWith("postgres.pre-restore-"));
+    assert(aside !== undefined);
+    assert(result.stderr.includes(join(s.state, aside)), result.stderr);
+  });
+});
+
+Deno.test("an impossible calendar date is refused as invalid, not as too early", async () => {
+  for (const target of ["2026-13-01T00:00:00Z", "2026-02-30T10:15:00Z"]) {
+    await withSandbox({}, async (s) => {
+      const result = await s.run(...args(s, target));
+      assertEquals(result.code, 68, result.stderr);
+      assert(result.stderr.includes("PITR_TARGET_INVALID"), result.stderr);
+      assertEquals(await s.calls(), []);
+    });
+  }
 });

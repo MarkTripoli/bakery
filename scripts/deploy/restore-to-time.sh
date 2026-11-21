@@ -87,6 +87,11 @@ if [[ ! "$target" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[
   echo "PITR_TARGET_INVALID: $target is not a UTC instant like 2026-11-21T10:15:00Z. Nothing was changed." >&2
   exit 68
 fi
+# A real calendar instant: the shape alone lets 2026-13-01 or 2026-02-30 through.
+if ! node -e 'const t = process.argv[1]; const at = new Date(t); process.exit(!Number.isNaN(at.getTime()) && at.toISOString().slice(0, 16) === t.slice(0, 16) ? 0 : 1)' "$target"; then
+  echo "PITR_TARGET_INVALID: $target is not a real UTC instant like 2026-11-21T10:15:00Z. Nothing was changed." >&2
+  exit 68
+fi
 finished=$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1] + "/manifest.json")).finishedAt' "$set_dir")
 if ! node -e 'process.exit(Date.parse(process.argv[1]) >= Date.parse(process.argv[2]) ? 0 : 1)' "$target" "$finished"; then
   echo "PITR_TARGET_BEFORE_SET: $target is before $set_name finished ($finished). Pick an earlier set. Nothing was changed." >&2
@@ -119,8 +124,9 @@ fi
 echo "PRE_RESTORE_BACKUP $pre"
 
 failed() {
-  echo "RESTORE_FAILED: the stores may be partly replaced and the installation is stopped. The pre-restore backup is $pre. Do not start any service; restore $pre or fix the cause and run this again." >&2
+  echo "RESTORE_FAILED: the stores may be partly replaced and the installation is stopped. The pre-restore backup is $pre.${aside:+ The database as it was before this restore is in $aside.} Do not start any service; restore $pre or fix the cause and run this again." >&2
 }
+aside=""
 trap failed ERR
 
 # 3. Pending page, then stop everything that writes.
