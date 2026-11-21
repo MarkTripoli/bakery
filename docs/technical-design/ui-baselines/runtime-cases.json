@@ -591,6 +591,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "template.formWithSummary.contract.desktop-light-fine",
+      "catalogId": "template.formWithSummary",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-formwithsummary--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "template.installationSettingsForm.contract.desktop-light-fine",
       "catalogId": "template.installationSettingsForm",
       "requiredCaseId": "contract",
