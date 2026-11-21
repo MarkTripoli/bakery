@@ -130,6 +130,9 @@
 .ui-inline--compact {
   gap: var(--space-2);
 }
+.ui-stack--indent {
+  padding-inline-start: var(--space-4);
+}
 .ui-stack--standard,
 .ui-inline--standard {
   gap: var(--space-4);
