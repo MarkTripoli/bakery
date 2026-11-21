@@ -957,6 +957,11 @@ export function createDraftResourceRoutes(
             principalId,
             draftId(context),
             input as DraftSuggestionCreateInput,
+            {
+              attribution: attributeAction(context, principalId),
+              requestId: context.requestId,
+              traceId: context.traceId,
+            },
           );
           if (!("kind" in prepared)) {
             announceSuggestion(context, organizationId, prepared, true);

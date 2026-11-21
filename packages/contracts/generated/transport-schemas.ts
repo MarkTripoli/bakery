@@ -226,6 +226,11 @@ const transportSchemas = {
       "retryable": true,
       "slug": "worker-unavailable"
     },
+    "INSTALLATION_QUIESCED": {
+      "status": 503,
+      "retryable": true,
+      "slug": "installation-quiesced"
+    },
     "SNAPSHOT_SCOPE_TOO_LARGE": {
       "status": 413,
       "retryable": false,
@@ -5124,7 +5129,7 @@ const transportSchemas = {
       ],
       "rules": [
         "Exactly one submission wins however many handoff, cancel and recovery submissions race: the source attempt is fenced, the job's fence advances and the job is queued again in one transaction, or nothing is written.",
-        "A refusal names why and commits nothing: run_not_active, already_continued, manifest_blocked, source_not_live, fence_moved, job_terminal, cancel_requested, awaiting_reconciliation, attempt_budget_exhausted, effects_unresolved or capture_incomplete.",
+        "A refusal names why and commits nothing: run_not_active, already_continued, manifest_blocked, source_not_live, fence_moved, job_terminal, cancel_requested, awaiting_reconciliation, attempt_budget_exhausted or capture_incomplete. An effect that has not settled is not a refusal: it retires the source and parks the job in awaiting_reconciliation.",
         "The job's input, billing and agent configuration are not changed; the continuation reads the stored manifest by its id."
       ],
       "description": "A person's choice to retire a live source attempt that stored a handoff manifest and admit its job again for a continuation, submitted against the run version they saw."
@@ -10538,9 +10543,10 @@ const transportSchemas = {
             "destination_unreachable",
             "key_missing",
             "incomplete_set",
+            "drain_timeout",
             "runner_error"
           ],
-          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report. A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site."
+          "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report (drain_timeout when the installation did not go quiet in time for the snapshot). A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site."
         },
         {
           "name": "failureDetail",
@@ -10883,7 +10889,7 @@ const transportSchemas = {
             "min": 1,
             "max": 2147483647
           },
-          "description": "Draft epoch observed with the source checkpoint; a suggestion from any other epoch is refused with reason draft_moved_on."
+          "description": "Draft epoch observed with the source checkpoint. A suggestion from a closed epoch is recorded as no_longer_fits with reason draft_moved_on, so offline words are kept for a person to apply; one from an epoch that does not exist yet is refused with draft_moved_on."
         },
         {
           "name": "sourceCheckpointId",
@@ -13739,6 +13745,22 @@ const transportSchemas = {
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
       "description": "Cursor page of a batch's results in case order, optionally one state."
+    },
+    "BackupRunMaintenance": {
+      "fields": [
+        {
+          "name": "leaseToken",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 32,
+            "maxLength": 128
+          },
+          "description": "Proof that the runner still holds the claim on this backup run, returned once by the claim. Any other token is refused, and a request after the lease has lapsed answers 409 STATE_CONFLICT."
+        }
+      ],
+      "rules": [],
+      "description": "The runner asks to hold the installation for the backup it has claimed, and keeps asking until the installation is quiet. The first ask enters maintenance, which stops new work from being admitted; each later ask checks whether everything in flight has finished. Asking again while it holds is safe and changes nothing."
     },
     "AlertChannelCreate": {
       "fields": [
@@ -30214,7 +30236,7 @@ const transportSchemas = {
         "progressPercent": "integer|null",
         "sizeBytes": "decimalString|null",
         "locations": "string[]",
-        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|incomplete_set|runner_error)|null",
+        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|incomplete_set|drain_timeout|runner_error)|null",
         "failureDetail": "string|null"
       },
       "nullableFields": [
@@ -30242,7 +30264,7 @@ const transportSchemas = {
         "progressPercent": "Latest reported progress from 0 to 100, or null before any report.",
         "sizeBytes": "Size of the finished encrypted backup set in bytes as a decimal string, or null until completed.",
         "locations": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site.",
-        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise.",
+        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), drain_timeout (the installation did not go quiet in time for the snapshot, so no backup was taken and the installation was released), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise.",
         "failureDetail": "The runner's plain-text answer for the failure or the failed off-site copy, or null."
       }
     },
@@ -30259,7 +30281,9 @@ const transportSchemas = {
         "runningProgressPercent",
         "waitingRunId",
         "runnerConfigured",
-        "runnerLastUsedAt"
+        "runnerLastUsedAt",
+        "maintenanceState",
+        "maintenanceSince"
       ],
       "fieldTypes": {
         "state": "enum(protected|running|not_copied|stale|failed)",
@@ -30269,7 +30293,9 @@ const transportSchemas = {
         "runningProgressPercent": "integer|null",
         "waitingRunId": "uuid|null",
         "runnerConfigured": "boolean",
-        "runnerLastUsedAt": "timestamp|null"
+        "runnerLastUsedAt": "timestamp|null",
+        "maintenanceState": "enum(off|draining|quiesced)",
+        "maintenanceSince": "timestamp|null"
       },
       "nullableFields": [
         "lastGoodBackupAt",
@@ -30277,7 +30303,8 @@ const transportSchemas = {
         "runningRunId",
         "runningProgressPercent",
         "waitingRunId",
-        "runnerLastUsedAt"
+        "runnerLastUsedAt",
+        "maintenanceSince"
       ],
       "description": "The one answer to whether this installation is protected: a state word, the last good backup, the run in progress and whether a host runner has been set up and has been heard from.",
       "fieldDescriptions": {
@@ -30288,7 +30315,9 @@ const transportSchemas = {
         "runningProgressPercent": "Latest progress of the held run, or null.",
         "waitingRunId": "Request that waits for the runner to pick it up, or null.",
         "runnerConfigured": "True once a runner credential has been issued.",
-        "runnerLastUsedAt": "When the runner last authenticated, or null when it never has."
+        "runnerLastUsedAt": "When the runner last authenticated, or null when it never has.",
+        "maintenanceState": "off normally; draining or quiesced while a backup holds the installation and new work is refused with 503 INSTALLATION_QUIESCED. A hold whose lease has lapsed reads as off.",
+        "maintenanceSince": "When the current hold began, or null when the installation is not held."
       }
     },
     "BackupRunnerCredentialIssued": {
@@ -34697,6 +34726,33 @@ const transportSchemas = {
         "cases": "Per case and scorer, both states; empty when incompatible.",
         "onlyLeft": "Cases only the path batch has.",
         "onlyRight": "Cases only the other batch has."
+      }
+    },
+    "BackupMaintenance": {
+      "fields": [
+        "state",
+        "runId",
+        "leaseExpiresAt",
+        "liveAttempts",
+        "openTransactions",
+        "retryAfterSeconds"
+      ],
+      "fieldTypes": {
+        "state": "enum(off|draining|quiesced)",
+        "runId": "uuid",
+        "leaseExpiresAt": "timestamp",
+        "liveAttempts": "integer",
+        "openTransactions": "integer",
+        "retryAfterSeconds": "integer"
+      },
+      "description": "Where the installation stands for the backup run that holds it: draining while work already in flight finishes, quiesced once nothing is left and the snapshot may be taken. The counts are everything the check can see and nothing more.",
+      "fieldDescriptions": {
+        "state": "draining while the installation refuses new work and waits for work in flight; quiesced when nothing the check can see is left and the settle window has passed; off only if the hold has already ended.",
+        "runId": "The backup run that holds the installation.",
+        "leaseExpiresAt": "When the hold ends on its own unless the run reports again before then.",
+        "liveAttempts": "Worker job attempts that are leased, running or canceling with an unexpired lease.",
+        "openTransactions": "Other database transactions of the server role that began before the hold and are still open.",
+        "retryAfterSeconds": "Whole seconds to wait before asking again; 0 when quiesced."
       }
     },
     "AlertChannel": {
