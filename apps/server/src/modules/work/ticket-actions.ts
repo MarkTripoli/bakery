@@ -44,6 +44,13 @@ import {
   getTicketRequest,
 } from "./ticket-request-query.ts";
 import {
+  authorizeRemoteTicketCreate,
+  createRemoteTicketRunner,
+  recordRemoteTicketCreate,
+  type RemoteTicketCreator,
+  UNAVAILABLE_TICKET_CREATOR,
+} from "./ticket-create.ts";
+import {
   createTicketNoteRunner,
   recordTicketNoteSync,
   type TicketNoteWriter,
@@ -63,14 +70,16 @@ export type TicketActionDependencies = TicketOperationDependencies & {
   cursorSecret: string;
   /** Posts Bakery's status note on a ticket (#69); none wired refuses every write as failed. */
   noteWriter?: TicketNoteWriter;
+  /** Creates a ticket in the tracker (#32); none wired answers every creation as unavailable. */
+  ticketCreator?: RemoteTicketCreator;
 };
 
 /**
  * Ticket operations. The four that read GitHub run through the probe, read,
  * execute wrapper, and the status note resync through claim, write, record,
- * so no registry transaction is open during a provider call; the rest go
- * straight to the authority runner. Remote ticket creation
- * (`externalTickets.create`) is not registered.
+ * so no registry transaction is open during a provider call, and so does
+ * remote ticket creation (claim, send, answer); the rest go straight to the
+ * authority runner.
  */
 export function createTicketActionRegistry(
   database: PgDatabase,
@@ -82,12 +91,16 @@ export function createTicketActionRegistry(
     base,
     dependencies.noteWriter ?? UNAVAILABLE_NOTE_WRITER,
   );
+  const creator = dependencies.ticketCreator ?? UNAVAILABLE_TICKET_CREATOR;
+  const creating = createRemoteTicketRunner(base, creator);
   const authority: ActionAuthorityRunner = {
     run: (action, context, input, next) =>
       readsProvider(action.name)
         ? reading(action, context, input, next)
         : action.name === TicketImplementedAction.TicketTaskLinksResyncNote
         ? noting(action, context, input, next)
+        : action.name === TicketImplementedAction.ExternalTicketsCreate
+        ? creating(action, context, input, next)
         : base.run(action, context, input, next),
   };
   const registry = new ActionRegistry(authority, createPostgresCommandRunner());
@@ -110,6 +123,23 @@ export function createTicketActionRegistry(
   } as const;
 
   registry.register({
+    name: TicketImplementedAction.ExternalTicketsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/ticket-sources/:id/tickets",
+    input: contractSchemas.RemoteTicketCreate,
+    output: contractSchemas.IntegrationActionReceipt,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.DeveloperAndExactExternalActionGrant,
+      organizationContext,
+      authorize: authorizeRemoteTicketCreate(creator),
+    },
+    // The effect is written to the ledger and may not have reached the
+    // provider: the receipt is 202 and never claims the issue exists.
+    explicitIdempotency: "key",
+    successStatus: 202,
+    handler: recordRemoteTicketCreate,
+  }).register({
     name: TicketImplementedAction.TicketSourcesList,
     method: HttpMethod.Get,
     path: "/v1/ticket-sources",

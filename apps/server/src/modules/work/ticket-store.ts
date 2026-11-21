@@ -1519,6 +1519,73 @@ export async function claimLinkNote(
   return claimed.rows[0].version;
 }
 
+/**
+ * Marks a link's status note as being written by the progress sync (#32), only
+ * if the link is still at the version the sync read; the link's new version, or
+ * null when another writer changed it first and the sync leaves it to them.
+ */
+export async function claimLinkProgress(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  linkId: string,
+  readVersion: number,
+): Promise<number | null> {
+  const claimed = await transaction.query<{ version: number }>(
+    `update bakery.ticket_task_links
+        set sync_health = 'pending', updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2 and version = $3
+      returning version`,
+    [organizationId, linkId, readVersion],
+  );
+  return claimed.rows[0]?.version ?? null;
+}
+
+/** What one progress sync left on its link. */
+export type LinkProgressOutcome = {
+  syncHealth: "healthy" | "failed";
+  /** The comment id when the note posted, kept even when a label failed; null keeps the stored one. */
+  externalId: string | null;
+  /** The phase code recorded as synced; used only when healthy. */
+  phaseCode: number;
+  problemCode: string | null;
+};
+
+/**
+ * Records a progress sync on the link claimed at `claimedVersion` (#32). The
+ * phase is recorded only when the whole sync was healthy, so a failed label is
+ * written again from the last good phase; the comment id is kept whenever the
+ * note posted. False when the claim no longer holds.
+ */
+export async function recordLinkProgress(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  linkId: string,
+  claimedVersion: number,
+  outcome: LinkProgressOutcome,
+): Promise<boolean> {
+  const updated = await transaction.query(
+    `update bakery.ticket_task_links
+        set sync_health = $4,
+            status_comment_external_id = coalesce($5, status_comment_external_id),
+            last_synced_run_revision = case when $4 = 'healthy'
+              then $6::integer else last_synced_run_revision end,
+            last_problem_code = $7,
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2 and version = $3
+        and sync_health = 'pending'`,
+    [
+      organizationId,
+      linkId,
+      claimedVersion,
+      outcome.syncHealth,
+      outcome.externalId,
+      outcome.phaseCode,
+      outcome.problemCode,
+    ],
+  );
+  return updated.rowCount === 1;
+}
+
 /** What one note write left on its link. */
 export type LinkNoteOutcome = {
   syncHealth: "healthy" | "failed";
