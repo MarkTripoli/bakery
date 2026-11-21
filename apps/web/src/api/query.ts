@@ -78,6 +78,8 @@ import type {
   PlanRevisionListResponse,
   PluginInstallListResponse,
   PluginPackageListResponse,
+  PluginPageAccessResponse,
+  PluginPageListResponse,
   PluginVersionListResponse,
   PrincipalPage,
   PullRequestListResponse,
@@ -464,6 +466,52 @@ export function pluginInstallsQueryOptions(
       );
     },
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The pages the sidebar lists: every page of every plugin that is on and that this person has. */
+export function pluginPagesQueryOptions(
+  client: Pick<BakeryApiClient, "plugins">,
+  scope: ApiScope,
+) {
+  return queryOptions<PluginPageListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "pluginPages.list", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.plugins.pages({
+          organizationId: requireOrganization(scope),
+          limit: 100,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Whether one plugin page may be shown now, and the reason when it may not. */
+export function pluginPageQueryOptions(
+  client: Pick<BakeryApiClient, "plugins">,
+  scope: ApiScope,
+  installId: string,
+  pageId: string,
+) {
+  return queryOptions<PluginPageAccessResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "pluginPages.get", {
+      installId,
+      pageId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.plugins.page({
+          organizationId: requireOrganization(scope),
+          installId,
+          pageId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && installId !== "" && pageId !== "",
     retry: retryNetworkOnce,
   });
 }

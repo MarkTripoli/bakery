@@ -212,6 +212,9 @@ export type PluginPackageListResponse = ClientOutputMap["Page<PluginPackage>"];
 export type PluginVersionListResponse = ClientOutputMap["Page<PluginVersion>"];
 export type PluginInstallListResponse = ClientOutputMap["Page<PluginInstall>"];
 export type PluginInstallResponse = ClientOutputMap["PluginInstall"];
+export type PluginPageListResponse = ClientOutputMap["Page<PluginPageEntry>"];
+export type PluginPageEntry = PluginPageListResponse["items"][number];
+export type PluginPageAccessResponse = ClientOutputMap["PluginPageAccess"];
 /**
  * One item a plugin has saved, as the page may know it: where it is kept, how
  * big it is and when it was last saved. The read it comes from carries no saved
@@ -956,6 +959,20 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<PluginInstallListResponse>>;
+    /** `GET /v1/plugin-pages`: every page of every plugin that is on and that this person has, for the sidebar. */
+    readonly pages: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginPageListResponse>>;
+    /** `GET /v1/plugin-installs/{id}/pages/{pageId}`: whether one page may be shown, and why not when it may not. */
+    readonly page: (options: {
+      readonly organizationId: string;
+      readonly installId: string;
+      readonly pageId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginPageAccessResponse>>;
     /** `POST /v1/plugin-installs`: installs one published version, for everyone or for one person. */
     readonly install: (options: {
       readonly organizationId: string;
@@ -2824,6 +2841,26 @@ export function createBakeryApiClient({
             scoped.actions["pluginInstalls.list"]({
               cursor: options.cursor,
               limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      pages(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginPages.list"]({
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      page(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginPages.get"]({
+              id: options.installId,
+              pageId: options.pageId,
             }, { signal: options.signal }),
         );
       },
