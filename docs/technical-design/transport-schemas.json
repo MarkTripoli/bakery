@@ -225,6 +225,26 @@
       "retryable": false,
       "slug": "installation-restoring"
     },
+    "RESTORE_NOT_HELD": {
+      "status": 409,
+      "retryable": false,
+      "slug": "restore-not-held"
+    },
+    "RESTORE_CONFIRMATION_MISMATCH": {
+      "status": 422,
+      "retryable": false,
+      "slug": "restore-confirmation-mismatch"
+    },
+    "RESTORE_STEP_OUT_OF_ORDER": {
+      "status": 409,
+      "retryable": false,
+      "slug": "restore-step-out-of-order"
+    },
+    "RESTORE_STEP_ALREADY_TAKEN": {
+      "status": 409,
+      "retryable": false,
+      "slug": "restore-step-already-taken"
+    },
     "SNAPSHOT_SCOPE_TOO_LARGE": {
       "status": 413,
       "retryable": false,
