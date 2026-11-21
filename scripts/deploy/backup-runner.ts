@@ -32,6 +32,39 @@ import {
   type RunOutcome,
 } from "./backup-runner/run.ts";
 import type { HostResolver } from "../../apps/server/src/modules/backups/dns.ts";
+import { connect } from "./backup-runner/offsite.ts";
+import {
+  earliestBaseBackup,
+  listSpool,
+  shipWal,
+  WAL_SPOOL,
+} from "./backup-runner/wal.ts";
+
+/** The operator's public age recipient, from the file backup.sh reads. */
+const BACKUP_ENV = "/etc/bakery/backup.env";
+
+async function backupRecipient(path: string): Promise<string> {
+  const text = await Deno.readTextFile(path);
+  const match = /^BAKERY_BACKUP_RECIPIENT=["']?([^"'\n]+)["']?\s*$/m.exec(text);
+  if (!match) throw new Error("BAKERY_BACKUP_RECIPIENT is not set");
+  return match[1];
+}
+
+/** age-encrypts one file to the recipient; the bytes never touch the disk. */
+async function ageEncrypt(
+  path: string,
+  recipient: string,
+  signal?: AbortSignal,
+): Promise<Uint8Array> {
+  const output = await new Deno.Command("age", {
+    args: ["--encrypt", "--recipient", recipient, path],
+    stdout: "piped",
+    stderr: "piped",
+    signal,
+  }).output();
+  if (!output.success) throw new Error("age could not encrypt a WAL file");
+  return output.stdout;
+}
 
 /**
  * The host backup runner (issue #80, slice S1c): one pass per invocation, run
@@ -71,6 +104,12 @@ export type RunnerOptions = {
   readonly now?: () => Date;
   readonly partBytes?: number;
   readonly heartbeatMs?: number;
+  readonly walSpool?: string;
+  readonly encryptWal?: (
+    path: string,
+    signal?: AbortSignal,
+  ) => Promise<Uint8Array>;
+  readonly backupEnv?: string;
 };
 
 export function exitCodeOf(outcome: RunOutcome): number {
@@ -113,7 +152,7 @@ export async function runRunner(options: RunnerOptions): Promise<number> {
   const deps: RunnerDeps = {
     api,
     secrets,
-    backup: (signal, cutoff) =>
+    backup: (signal, cutoff, pointInTime) =>
       options.backup
         ? options.backup(signal, secrets, cutoff)
         : runBackupScript({
@@ -122,6 +161,7 @@ export async function runRunner(options: RunnerOptions): Promise<number> {
           secrets,
           signal,
           cutoff,
+          pointInTime,
         }),
     offsite: (settings) =>
       offsiteFromSettings(settings, { allowLoopbackEndpoint: test }),
@@ -160,6 +200,56 @@ export async function runRunner(options: RunnerOptions): Promise<number> {
     log,
     heartbeatMs: options.heartbeatMs,
   };
+  /**
+   * Restore to any minute: one pass over the WAL spool, after the backup step.
+   * The settings (an audited read) are asked for only when the spool holds
+   * something. Returns true when the pass failed; the backup's own outcome is
+   * already reported and stands.
+   */
+  const walPass = async (): Promise<boolean> => {
+    const spool = options.walSpool ?? WAL_SPOOL;
+    try {
+      if ((await listSpool(spool)).length === 0) return false;
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) return false;
+      throw error;
+    }
+    try {
+      const settings = await api.settings();
+      const enabled = settings.pointInTimeEnabled === true;
+      const offsite = enabled
+        ? offsiteFromSettings(settings, { allowLoopbackEndpoint: test })
+        : null;
+      const connection = offsite === null
+        ? null
+        : await connect(offsite, { resolve: options.resolve });
+      const encrypt = options.encryptWal ?? (async (path, signal) =>
+        ageEncrypt(
+          path,
+          await backupRecipient(options.backupEnv ?? BACKUP_ENV),
+          signal,
+        ));
+      const shipped = await shipWal({
+        spool,
+        enabled,
+        connection,
+        encrypt,
+        report: (window) => api.reportWal(window),
+        earliestBaseBackupAt: await earliestBaseBackup(root),
+      });
+      if (shipped.shipped > 0) {
+        log(`restore to any minute: shipped ${shipped.shipped} WAL file(s)`);
+      }
+      return false;
+    } catch (error) {
+      log(
+        `restore to any minute: WAL shipping failed (${
+          (error as Error)?.message ?? error
+        }); the spool is kept for the next pass`,
+      );
+      return true;
+    }
+  };
   try {
     const outcome = await runOnce(deps);
     if (outcome.kind === "lease-lost") {
@@ -171,7 +261,9 @@ export async function runRunner(options: RunnerOptions): Promise<number> {
         `backup run ${outcome.runId}: the runner could not report to the server`,
       );
     }
-    return exitCodeOf(outcome);
+    const walFailed = await walPass();
+    const code = exitCodeOf(outcome);
+    return code === EXIT.ok && walFailed ? EXIT.failed : code;
   } catch (error) {
     if (error instanceof ApiFatal) {
       log(
