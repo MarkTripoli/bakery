@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "15a88422cbb8441c41ce0f420ac33cfe9e041a99"
+    "b5c94881564cc3f2254efb23fd52338828d047d3"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:dc9bc9faa37e598d625d1fb669b99daaa3a52e6492cc63feebb4f07363963f31",
-  "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 15a88422cbb8441c41ce0f420ac33cfe9e041a99: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged.",
+  "reason": "#58 item 3 rebind by dev-bugfix on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main b5c94881564cc3f2254efb23fd52338828d047d3: Batch gains waitingOn (nullable, always present; read live from the issue's open question or approval); BatchWaitingOn and BatchWaitingPerson are new. Main's approval is displaced, kept unchanged.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
