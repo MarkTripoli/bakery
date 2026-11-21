@@ -21742,10 +21742,10 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control characters are refused. WorkerEnrollmentCreate.name must contain at most 200 characters. WorkerEnrollmentCreate.name must match the pattern ^[^\\u0000-\\u001F\\u007F]*$.",
+          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerEnrollmentCreate.name must contain at most 200 characters. WorkerEnrollmentCreate.name must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$.",
           "type": "string",
           "maxLength": 200,
-          "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
         },
         "os": {
           "description": "Intended operating system of the machine being enrolled; omitted means the machine reports its own system when it links, and Bakery checks it against the supported systems.",
@@ -33140,14 +33140,14 @@ export const clientManifest = {
         "architecture": {
           "type": "string",
           "maxLength": 100,
-          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
-          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control characters are refused. WorkerLinkCodeInspect.architecture must contain at most 100 characters. WorkerLinkCodeInspect.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkCodeInspect.architecture must contain at most 100 characters. WorkerLinkCodeInspect.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
         },
         "hostname": {
           "type": "string",
           "maxLength": 200,
-          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
-          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control characters are refused. WorkerLinkCodeInspect.hostname must contain at most 200 characters. WorkerLinkCodeInspect.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkCodeInspect.hostname must contain at most 200 characters. WorkerLinkCodeInspect.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
         }
       },
       "required": [
@@ -33174,14 +33174,14 @@ export const clientManifest = {
         "architecture": {
           "type": "string",
           "maxLength": 100,
-          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
-          "description": "Processor the machine reports, such as arm64 or x86_64. Control characters are refused. WorkerLinkRequestCreate.architecture must contain at most 100 characters. WorkerLinkRequestCreate.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "Processor the machine reports, such as arm64 or x86_64. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkRequestCreate.architecture must contain at most 100 characters. WorkerLinkRequestCreate.architecture must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
         },
         "hostname": {
           "type": "string",
           "maxLength": 200,
-          "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
-          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control characters are refused. WorkerLinkRequestCreate.hostname must contain at most 200 characters. WorkerLinkRequestCreate.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F]*$."
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$",
+          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkRequestCreate.hostname must contain at most 200 characters. WorkerLinkRequestCreate.hostname must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$."
         }
       },
       "required": [
@@ -33230,10 +33230,10 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control characters are refused. WorkerLinkRequestApprove.name must contain at most 200 characters. WorkerLinkRequestApprove.name must match the pattern ^[^\\u0000-\\u001F\\u007F]*$.",
+          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses. WorkerLinkRequestApprove.name must contain at most 200 characters. WorkerLinkRequestApprove.name must match the pattern ^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$.",
           "type": "string",
           "maxLength": 200,
-          "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
         },
         "slots": {
           "type": "integer",

@@ -4866,9 +4866,9 @@ const transportSchemas = {
           "required": false,
           "bounds": {
             "maxLength": 200,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control characters are refused."
+          "description": "Display name for the machine being enrolled, shown throughout the Machines views; omitted or empty means the machine's own host name, which the machine reports when it registers. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "os",
@@ -5638,9 +5638,9 @@ const transportSchemas = {
           "required": true,
           "bounds": {
             "maxLength": 200,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name. Control characters are refused."
+          "description": "Display name reported for this worker at registration; for a link code whose enrollment left the name empty, this is the machine's host name and becomes the machine's name. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "os",
@@ -5658,9 +5658,9 @@ const transportSchemas = {
           "required": true,
           "bounds": {
             "maxLength": 100,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture. Control characters are refused."
+          "description": "CPU architecture this worker is actually running, checked against the enrollment's intended architecture. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "capabilities",
@@ -14503,9 +14503,9 @@ const transportSchemas = {
           "required": true,
           "bounds": {
             "maxLength": 100,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control characters are refused."
+          "description": "Processor the machine reports, such as arm64 or x86_64; compared with the supported systems. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "hostname",
@@ -14513,9 +14513,9 @@ const transportSchemas = {
           "required": true,
           "bounds": {
             "maxLength": 200,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control characters are refused."
+          "description": "The machine's own host name; shown as its name when the Admin left the name empty. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         }
       ],
       "rules": [
@@ -14543,9 +14543,9 @@ const transportSchemas = {
           "required": true,
           "bounds": {
             "maxLength": 100,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "Processor the machine reports, such as arm64 or x86_64. Control characters are refused."
+          "description": "Processor the machine reports, such as arm64 or x86_64. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "hostname",
@@ -14553,9 +14553,9 @@ const transportSchemas = {
           "required": true,
           "bounds": {
             "maxLength": 200,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control characters are refused."
+          "description": "The machine's own host name, shown to the approving Admin and used as the name unless the Admin changes it. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         }
       ],
       "rules": [
@@ -14609,9 +14609,9 @@ const transportSchemas = {
           "required": false,
           "bounds": {
             "maxLength": 200,
-            "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+            "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB\\uD800-\\uDFFF\\u{E0000}-\\u{E007F}]*$"
           },
-          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control characters are refused."
+          "description": "Name for the machine; omitted or empty keeps the host name the machine reported. Control, line-separator, zero-width, text-direction, byte-order-mark and tag characters are refused, the same set the link command refuses."
         },
         {
           "name": "slots",

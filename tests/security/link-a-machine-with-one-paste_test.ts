@@ -548,6 +548,10 @@ Deno.test("a machine name with control characters is refused at approve and enro
         "iso\u2066late",
         "zero\u200bwidth",
         "bom\ufeff",
+        "cr\rx",
+        "ls\u2028x",
+        "alm\u061cx",
+        "tag\u{e0041}x",
       ]
     ) {
       const approved = await approve(fixture, request.requestId, {
@@ -577,7 +581,11 @@ const CONTROL_TEXT = [
   "\u001b[31m",
   "a\nb",
   "\u0000",
+  "\r",
   "\u0085",
+  "\u2028",
+  "\u061c",
+  "\u{e0041}",
   "\u009b",
   "\u202e",
   "\u2066",
