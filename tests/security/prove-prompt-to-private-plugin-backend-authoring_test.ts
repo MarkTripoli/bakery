@@ -188,3 +188,72 @@ Deno.test("more than three attempts is refused before anything runs", () =>
     await response.body?.cancel();
     assertEquals(await count(fixture, "plugin_authoring_runs"), runs);
   }));
+
+function postWithKey(
+  fixture: Parameters<Parameters<typeof withAuthoringFixture>[1]>[0]["fixture"],
+  key: string | null,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  return Promise.resolve(fixture.app.fetch(
+    new Request(`${fixture.config.publicBaseUrl}/v1/plugin-authoring-runs`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: fixture.config.publicBaseUrl,
+        "Bakery-Organization-Id": fixture.organizationId,
+        Cookie: fixture.adminCookie,
+        ...(key === null ? {} : { "Idempotency-Key": key }),
+      },
+      body: JSON.stringify(body),
+    }),
+  ));
+}
+
+Deno.test("a retried POST returns the same run and never pays for a second one", () => {
+  const generator = scriptedGenerator([counterPackage()], 0.01);
+  const preview = previewRunner(localDenoRuntime());
+  return withAuthoringFixture({ generator, preview }, async ({ fixture }) => {
+    const body = {
+      request: "Count how many times the job ran.",
+      authorizedCapabilities: ["state.read", "state.write"],
+      budgetUsd: "1",
+      maxAttempts: 1,
+    };
+    const runs = await count(fixture, "plugin_authoring_runs");
+    const key = crypto.randomUUID();
+    const first = await postWithKey(fixture, key, body);
+    assertEquals(first.status, 201, await first.clone().text());
+    const run = await first.json();
+    // Same key, same body (keys in another order): the same run, again.
+    const retried = await postWithKey(fixture, key, {
+      maxAttempts: 1,
+      budgetUsd: "1",
+      authorizedCapabilities: ["state.read", "state.write"],
+      request: "Count how many times the job ran.",
+    });
+    assertEquals(retried.status, 201, await retried.clone().text());
+    const again = await retried.json();
+    assertEquals(again.id, run.id);
+    assertEquals(again.spentUsd, "0.01");
+    assertEquals(await count(fixture, "plugin_authoring_runs"), runs + 1);
+    assertEquals(generator.inputs.length, 1);
+    assertEquals(preview.results.length, 1);
+
+    // Same key, another body: the generic replay's mismatch, nothing started.
+    const changed = await postWithKey(fixture, key, {
+      ...body,
+      budgetUsd: "2",
+    });
+    assertEquals(changed.status, 422);
+    assertEquals(
+      (await changed.json()).code,
+      "IDEMPOTENCY_PAYLOAD_MISMATCH",
+    );
+    // No key at all is refused before anything runs.
+    const keyless = await postWithKey(fixture, null, body);
+    assertEquals(keyless.status, 428);
+    assertEquals((await keyless.json()).code, "PRECONDITION_REQUIRED");
+    assertEquals(await count(fixture, "plugin_authoring_runs"), runs + 1);
+    assertEquals(generator.inputs.length, 1);
+  });
+});

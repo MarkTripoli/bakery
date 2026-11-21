@@ -65,8 +65,10 @@ function assertRestored(
   after: Record<string, unknown>[],
 ) {
   assertEquals(content(after), content(before));
-  // The cas versions move forward on a restore (#34): a writer that read the
-  // state before the failed revision cannot write over the restored rows.
+  // Byte-identical in content, not in counters, on purpose: a restore moves
+  // every cas version forward (#34's stale-writer guard), so a writer that read
+  // the state before the failed revision cannot write over the restored rows.
+  // Putting the old counters back would reopen that hole.
   for (const [i, row] of after.entries()) {
     assert(Number(row.cas_version) > Number(before[i].cas_version));
   }
@@ -89,7 +91,7 @@ for (
     ],
   ] as const
 ) {
-  Deno.test(`AC3: ${name} is rolled back to the prior version and state`, () => {
+  Deno.test(`AC3: ${name} is rolled back to the prior version and state content, with CAS counters advanced`, () => {
     const generator = scriptedGenerator([counterPackage(), revision]);
     const preview = previewRunner(localDenoRuntime());
     return withAuthoringFixture({ generator, preview }, async ({ fixture }) => {

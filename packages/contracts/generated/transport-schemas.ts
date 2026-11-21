@@ -14529,7 +14529,8 @@ const transportSchemas = {
         }
       ],
       "rules": [
-        "maxAttempts is 1 to 3. The checks run in the same order on every attempt: file_tree, manifest, authority, isolation, typecheck, build, then a private preview. Without a configured generator and preview runtime the request is DEPENDENCY_UNAVAILABLE rather than a pretend success."
+        "maxAttempts is 1 to 3. The checks run in the same order on every attempt: file_tree, manifest, authority, isolation, typecheck, build, then a private preview. Without a configured generator and preview runtime the request is DEPENDENCY_UNAVAILABLE rather than a pretend success.",
+        "Idempotency-Key is required (PRECONDITION_REQUIRED without it). A repeat with the same key and the same body answers with the run the key started instead of starting and paying for another; the same key with another body is IDEMPOTENCY_PAYLOAD_MISMATCH, and a repeat while that run is still working is IDEMPOTENCY_IN_FLIGHT."
       ],
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
     }

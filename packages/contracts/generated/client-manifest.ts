@@ -11521,7 +11521,9 @@ export const clientManifest = {
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED",
-        "DEPENDENCY_UNAVAILABLE"
+        "DEPENDENCY_UNAVAILABLE",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_IN_FLIGHT"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true

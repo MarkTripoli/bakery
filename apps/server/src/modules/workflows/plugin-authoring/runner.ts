@@ -136,6 +136,10 @@ export type AuthoringTransaction = <T>(
 ) => Promise<T>;
 
 export type PluginAuthoringRequest = Readonly<{
+  /** The caller's Idempotency-Key; a retry with it returns the same run. */
+  idempotencyKey: string;
+  /** Digest of the request body the key was first sent with. */
+  bodyDigest: string;
   request: string;
   authorizedCapabilities: readonly PluginInstallCapability[];
   budgetUsd: number;
@@ -557,12 +561,44 @@ export async function runPluginAuthoring(
       request.installId,
       bundles,
     );
+    // A retry of the same request answers with its run, as the generic
+    // command replay would: the same body gets the run, another body is a
+    // payload mismatch, and a run still working is in flight. The key is
+    // locked first so two concurrent retries cannot both start a run.
+    await transaction.query(
+      `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+      [`plugin-authoring:${organizationId}:${principalId}:${request.idempotencyKey}`],
+    );
+    const replay = await transaction.query<
+      { id: string; request_body_digest: string; status: string }
+    >(
+      `select id, request_body_digest, status
+         from bakery.plugin_authoring_runs
+        where organization_id = $1 and actor_principal_id = $2
+          and idempotency_key = $3`,
+      [organizationId, principalId, request.idempotencyKey],
+    );
+    const earlier = replay.rows[0];
+    if (earlier !== undefined) {
+      if (earlier.request_body_digest !== request.bodyDigest) {
+        throw new StandardError({ code: "IDEMPOTENCY_PAYLOAD_MISMATCH" });
+      }
+      if (
+        earlier.status === "running" &&
+        !await settleInterruptedRun(context, earlier.id, deps.staleRunAfterMs)
+      ) {
+        throw new StandardError({ code: "IDEMPOTENCY_IN_FLIGHT" });
+      }
+      return { kind: "replayed", runId: earlier.id } as const;
+    }
     const created = await transaction.query<{ id: string }>(
       `insert into bakery.plugin_authoring_runs
          (organization_id, actor_principal_id, status, request_text,
           request_digest, authorized_capabilities, budget_usd, max_attempts,
-          kit_digest, sdk_version, model_id, base_plugin_install_id)
-       values ($1, $2, 'running', $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)
+          kit_digest, sdk_version, model_id, base_plugin_install_id,
+          idempotency_key, request_body_digest)
+       values ($1, $2, 'running', $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11,
+               $12, $13)
        returning id`,
       [
         organizationId,
@@ -576,10 +612,18 @@ export async function runPluginAuthoring(
         sdkVersionText(),
         generator.modelId,
         base?.id ?? null,
+        request.idempotencyKey,
+        request.bodyDigest,
       ],
     );
-    return { runId: created.rows[0].id, base, organizationId };
+    return {
+      kind: "created",
+      runId: created.rows[0].id,
+      base,
+      organizationId,
+    } as const;
   });
+  if (started.kind === "replayed") return started.runId;
   const { runId, base, organizationId } = started;
   await boundary("run_created");
 

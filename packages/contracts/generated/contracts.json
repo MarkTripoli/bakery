@@ -12853,7 +12853,9 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED",
-        "DEPENDENCY_UNAVAILABLE"
+        "DEPENDENCY_UNAVAILABLE",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_IN_FLIGHT"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -273128,7 +273130,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:3783b298b009fd58404d8a3cdcf1720dfab29f83cab04c6c5882719fb6af6fc5",
+  "compatibilityDigest": "sha256:e0c3ac7170905c8bc0b9159d9ea6d3d93dbe73168fce9d3a05860ed5e7a79b06",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

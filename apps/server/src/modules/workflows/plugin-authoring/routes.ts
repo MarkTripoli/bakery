@@ -17,6 +17,7 @@ import {
 } from "@bakery/contracts/contracts";
 import {
   createApiRouter,
+  parseIdempotencyKey,
   problemResponse,
   StandardError,
 } from "@bakery/contracts/http";
@@ -129,7 +130,13 @@ export function createPluginAuthoringRoutes(
       } catch {
         throw new StandardError({ code: "MALFORMED_REQUEST" });
       }
+      // Required, as on every command: a retried POST must find its run
+      // rather than start and pay for a second one.
+      const idempotencyKey = parseIdempotencyKey(
+        context.req.header("idempotency-key"),
+      );
       const input = contractSchemas.PluginAuthoringRunCreate.parse(body);
+      const bodyDigest = await sha256Hex(canonicalJson(input));
       const base: ActionContext = {
         request: context.req.raw,
         params: {},
@@ -146,6 +153,8 @@ export function createPluginAuthoringRoutes(
           return await work(authorized);
         }) as T;
       const runId = await runPluginAuthoring(tx, options, {
+        idempotencyKey,
+        bodyDigest,
         request: input.request,
         authorizedCapabilities: input
           .authorizedCapabilities as PluginInstallCapability[],
@@ -174,4 +183,26 @@ export function createPluginAuthoringRoutes(
     }),
   );
   return app;
+}
+
+/** JSON with object keys sorted, so two spellings of one body digest alike. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    return `{${
+      Object.keys(value).sort().map((key) =>
+        `${JSON.stringify(key)}:${
+          canonicalJson((value as Record<string, unknown>)[key])
+        }`
+      ).join(",")
+    }}`;
+  }
+  return JSON.stringify(value);
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const bytes = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)),
+  );
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }

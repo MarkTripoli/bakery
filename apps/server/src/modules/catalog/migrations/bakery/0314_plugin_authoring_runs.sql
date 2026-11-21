@@ -39,6 +39,10 @@ create table bakery.plugin_authoring_runs (
   pending_plugin_install_id uuid,
   pending_first_install boolean,
   pending_state_digest text,
+  -- The caller's Idempotency-Key and the digest of the body it came with: a
+  -- retried POST answers with this run instead of starting a second paid one.
+  idempotency_key text not null,
+  request_body_digest text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   finished_at timestamptz,
@@ -65,7 +69,9 @@ create table bakery.plugin_authoring_runs (
     references bakery.plugin_installs (organization_id, id)
     on delete set null (base_plugin_install_id),
   constraint plugin_authoring_runs_organization_id_unique
-    unique (organization_id, id)
+    unique (organization_id, id),
+  constraint plugin_authoring_runs_idempotency_unique
+    unique (organization_id, actor_principal_id, idempotency_key)
 );
 
 create index plugin_authoring_runs_actor_idx
