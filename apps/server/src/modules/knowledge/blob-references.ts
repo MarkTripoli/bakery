@@ -88,6 +88,19 @@ export const blobReferenceKinds: readonly BlobReferenceKind[] = [
     liveCondition: "false",
   },
   {
+    // A queued probe is not a reader either: it asks a question about bytes that
+    // some other row already holds, and a sweep that takes them first makes the
+    // request answer "gone" instead of measuring them. Like a probe row, it does
+    // not keep the bytes alive by itself -- the version it names does -- so the
+    // entry is here to answer the rail, not to pin anything.
+    kind: "probe-request",
+    table: "probe_requests",
+    constraint: "probe_requests_blob_fk",
+    names: "blob",
+    column: "blob_id",
+    liveCondition: "false",
+  },
+  {
     // An upload in flight holds the bytes it is about to assemble and verify.
     // It knows the digest it was promised, never a blob row.
     kind: "upload-session-pending",

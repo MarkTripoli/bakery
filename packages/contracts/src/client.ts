@@ -34,7 +34,18 @@ export class ApiProblemError extends Error {
   }
 }
 
-export type ApiTransportErrorKind = "network" | "aborted" | "protocol";
+export type ApiTransportErrorKind =
+  | "network"
+  | "aborted"
+  | "protocol"
+  /**
+   * The bytes that arrived do not hash to the digest the record claims for them.
+   *
+   * Its own kind because it is the one transport failure a screen can explain to a
+   * person: something is wrong with the file, not with the connection, and Bakery
+   * must show the mismatch state rather than a generic error (#437).
+   */
+  | "digest-mismatch";
 
 export class ApiTransportError extends Error {
   override readonly name = "ApiTransportError";
