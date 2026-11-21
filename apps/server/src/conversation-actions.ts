@@ -114,6 +114,9 @@ export type ConversationActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.ConversationAccessRevoke>,
   ) => Promise<z.output<typeof contractSchemas.ConversationAccessGrant>>;
+  accessSharers: (
+    context: ActionContext,
+  ) => Promise<z.output<typeof contractSchemas.ConversationSharers>>;
 };
 
 export function createConversationActionRegistry(
@@ -185,6 +188,15 @@ export function createConversationActionRegistry(
     output: contractSchemas["Page<ConversationAccessGrant>"],
     policy: queryPolicy,
     handler: handlers.accessList,
+  });
+  registry.register({
+    name: ConversationImplementedAction.ConversationAccessSharers,
+    method: HttpMethod.Get,
+    path: "/v1/conversations/:id/access/sharers",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.ConversationSharers,
+    policy: queryPolicy,
+    handler: handlers.accessSharers,
   });
   registry.register({
     name: ConversationImplementedAction.ConversationAccessRevoke,
