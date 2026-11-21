@@ -172,6 +172,9 @@ function fakeServer(options: { digest?: string; problem?: number } = {}) {
           workItemTitle: null,
           sessionId: null,
           agentName: null,
+          attemptId: null,
+          actingForPrincipalId: null,
+          actingForName: null,
         });
         return Promise.resolve(json({
           items: [version(PLAN_V1, 1, false), version(PLAN_V2, 2, true)],
@@ -264,6 +267,13 @@ function fakeServer(options: { digest?: string; problem?: number } = {}) {
             versionId: PLAN_V2,
             producerId: null,
             producerKind: null,
+            producerStepId: null,
+            producerRunId: null,
+            producerAttemptId: null,
+            producerSessionId: null,
+            producerAgentName: null,
+            producerActingForId: null,
+            producerActingForName: null,
             producerName: null,
             producerTaskId: null,
             producerTaskTitle: null,

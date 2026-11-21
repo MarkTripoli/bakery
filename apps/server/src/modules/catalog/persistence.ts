@@ -830,6 +830,15 @@ export function createCatalogHandlers(
       return checkSkillDraft(context);
     },
 
+    checkSkillSourceUpdate(
+      _context: ActionContext,
+      _input: z.output<typeof contractSchemas.IdPath>,
+    ) {
+      return Promise.reject(
+        new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
+      );
+    },
+
     saveSkillDraftFile(context: ActionContext, input: SkillDraftFileSaveInput) {
       return saveSkillDraftFile(context, input);
     },
