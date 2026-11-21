@@ -207,19 +207,21 @@ type WaitingRow = {
   kind: string;
   task_id: string;
   created_at: Date;
+  cursor_created_at: string;
   audience: { type: string; principalIds?: string[] };
 };
 
-/** How many open items to look through for one the viewer may see. */
-const WAITING_CANDIDATES = 50;
+/** How many open items are read at a time while looking for one the viewer may see. */
+const WAITING_PAGE = 50;
 
 /**
  * What the issue being worked on is waiting for a person to do: its task's oldest
  * open question or approval that the viewer may see, read now. An item private to
  * named people does not exist for anyone else, exactly as it does in
- * `questions.get` and `approvals.get`, so the oldest one the viewer may see wins.
- * Null when no issue is being worked on, nothing is open, or the viewer may see
- * none of it. The question's text is not read here; the task page shows it.
+ * `questions.get` and `approvals.get`, so the oldest one the viewer may see wins,
+ * however many older private ones come before it. Null when no issue is being
+ * worked on, nothing is open, or the viewer may see none of it. The question's
+ * text is not read here; the task page shows it.
  */
 async function readWaitingOn(
   transaction: PgTransactionClient,
@@ -227,40 +229,62 @@ async function readWaitingOn(
   batchId: string,
   viewerPrincipalId: string,
 ) {
-  const found = await transaction.query<WaitingRow>(
-    `select question.id, question.kind, question.task_id, question.created_at,
-            question.audience
-       from bakery.batch_issues as issue
-       join bakery.ticket_requests as request
-         on request.organization_id = issue.organization_id
-        and request.id = issue.ticket_request_id
-       join bakery.workflow_runs as run
-         on run.organization_id = request.organization_id
-        and run.id = request.workflow_run_id
-       join bakery.questions as question
-         on question.organization_id = run.organization_id
-        and question.task_id = run.task_id
-      where issue.organization_id = $1 and issue.batch_id = $2
-        and issue.state = 'started' and question.status = 'open'
-        and (question.run_id is null or question.run_id = run.id)
-      order by question.created_at, question.id
-      limit $3`,
-    [organizationId, batchId, WAITING_CANDIDATES],
-  );
   let row: WaitingRow | undefined;
-  for (const candidate of found.rows) {
-    if (
-      await mayActOnQuestion(
-        transaction,
+  // Keyset on (created_at, id), oldest first, until one is visible or none are left.
+  let after: { createdAt: string; id: string } | null = null;
+  while (row === undefined) {
+    const found: { rows: WaitingRow[] } = await transaction.query<WaitingRow>(
+      `select question.id, question.kind, question.task_id, question.created_at,
+              to_char(question.created_at at time zone 'UTC',
+                      'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at,
+              question.audience
+         from bakery.batch_issues as issue
+         join bakery.ticket_requests as request
+           on request.organization_id = issue.organization_id
+          and request.id = issue.ticket_request_id
+         join bakery.workflow_runs as run
+           on run.organization_id = request.organization_id
+          and run.id = request.workflow_run_id
+         join bakery.questions as question
+           on question.organization_id = run.organization_id
+          and question.task_id = run.task_id
+        where issue.organization_id = $1 and issue.batch_id = $2
+          and issue.state = 'started' and question.status = 'open'
+          and (question.run_id is null or question.run_id = run.id)
+          and ($4::timestamptz is null
+               or (question.created_at, question.id) > ($4, $5::uuid))
+        order by question.created_at, question.id
+        limit $3`,
+      [
         organizationId,
-        viewerPrincipalId,
-        candidate,
-        candidate.kind === "approval" ? "approve" : "answer",
-      )
+        batchId,
+        WAITING_PAGE,
+        after?.createdAt ?? null,
+        after?.id ?? null,
+      ],
+    );
+    for (const candidate of found.rows) {
+      if (
+        await mayActOnQuestion(
+          transaction,
+          organizationId,
+          viewerPrincipalId,
+          candidate,
+          candidate.kind === "approval" ? "approve" : "answer",
+        )
+      ) {
+        row = candidate;
+        break;
+      }
+    }
+    const last = found.rows.at(-1);
+    if (
+      row !== undefined || last === undefined ||
+      found.rows.length < WAITING_PAGE
     ) {
-      row = candidate;
       break;
     }
+    after = { createdAt: last.cursor_created_at, id: last.id };
   }
   if (!row) return null;
   const named = row.audience.type === "principals"

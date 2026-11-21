@@ -1385,3 +1385,42 @@ Deno.test("batches: the batch waits for the oldest open question of this issue's
       );
     }
   }));
+
+Deno.test("batches: an item the viewer may see is found behind more than a page of older private ones", () =>
+  withBatches(async (fx) => {
+    const { batchId, runId, taskId } = await startedIssue(fx);
+    const outsider = crypto.randomUUID();
+    const someoneElse = JSON.stringify({
+      type: "principals",
+      principalIds: [crypto.randomUUID()],
+    });
+    try {
+      // 55 older questions private to someone else: more than one page of candidates.
+      for (let index = 0; index < 55; index++) {
+        await openQuestion(fx, taskId, runId, {
+          created_at: new Date(Date.now() - (200 - index) * 60_000)
+            .toISOString(),
+          audience: someoneElse,
+        });
+      }
+      const visible = await openQuestion(fx, taskId, runId, {
+        created_at: hoursAgo(1),
+      });
+      assertEquals(
+        (await getBatchAs(fx, batchId, outsider)).waitingOn?.questionId,
+        visible,
+        "the 56th item is found, not hidden behind the first 50",
+      );
+      // And a viewer who may see none of them is told nothing.
+      await fx.owner.query(
+        `update bakery.questions set status = 'answered' where id = $1`,
+        [visible],
+      );
+      assertEquals((await getBatchAs(fx, batchId, outsider)).waitingOn, null);
+    } finally {
+      await fx.owner.query(
+        `delete from bakery.questions where organization_id = $1 and prompt = $2`,
+        [fx.organizationId, PROMPT_TEXT],
+      );
+    }
+  }));
