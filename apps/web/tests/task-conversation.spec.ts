@@ -3110,6 +3110,29 @@ for (const count of [3, 6]) {
   });
 }
 
+test("while the access is being given and the message sent, the offer cannot be changed", async ({ page }) => {
+  const state = world();
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  state.sendReply = async (route) => {
+    await gate;
+    await route.fulfill({ status: 201, json: message(41, "user", "Hi") });
+  };
+  await open(page, state);
+  const box = messageBox(page);
+  await box.fill("Hi @sa");
+  await page.getByRole("option", { name: "Sam Patel, no access yet" }).click();
+  await page.getByRole("button", { name: "Give access and send", exact: true })
+    .click();
+  // The block is read-only: "Don't mention" would rewrite a draft already sent.
+  await expect(page.getByRole("button", { name: "Don't mention Sam Patel" }))
+    .toBeDisabled();
+  release();
+  await expect.poll(() => state.sent.length).toBe(1);
+});
+
 test("not mentioning someone keeps the name as words and drops the chip and the offer", async ({ page }) => {
   await open(page);
   const box = messageBox(page);

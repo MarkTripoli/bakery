@@ -324,6 +324,8 @@ export function useMentionField(
               count: offering.length,
               name: offering[0].name,
             })}
+            // While the send that gives the access is under way, the offer is read-only.
+            state={disabled ? "busy" : "default"}
           />
         )
         : null}
