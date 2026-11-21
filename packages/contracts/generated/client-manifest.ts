@@ -107343,6 +107343,11 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "The dataset measured, for linking to it."
         },
+        "datasetName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The dataset's name, so a list can show it without a second read."
+        },
         "datasetDigest": {
           "type": "string",
           "maxLength": 65536,
@@ -107386,6 +107391,46 @@ export const clientManifest = {
             }
           ],
           "description": "What is measured, as pinned at admission."
+        },
+        "candidateDefinition": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "definitionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The agent or workflow definition the pin names, for linking to it."
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Its current name; null when this organization cannot resolve it."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationPinDefinition.name may be null in this transport value."
+                }
+              },
+              "required": [
+                "definitionId",
+                "name"
+              ],
+              "additionalProperties": false,
+              "description": "The definition the candidate pin names and its current name, for display; null when the pin names no definition."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.candidateDefinition may be null in this transport value."
         },
         "baseline": {
           "anyOf": [
@@ -107434,6 +107479,46 @@ export const clientManifest = {
             }
           ],
           "description": "EvaluationBatch.baseline may be null in this transport value."
+        },
+        "baselineDefinition": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "definitionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The agent or workflow definition the pin names, for linking to it."
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Its current name; null when this organization cannot resolve it."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EvaluationPinDefinition.name may be null in this transport value."
+                }
+              },
+              "required": [
+                "definitionId",
+                "name"
+              ],
+              "additionalProperties": false,
+              "description": "The definition the baseline pin names and its current name, for display; null without a baseline or when the pin names no definition."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.baselineDefinition may be null in this transport value."
         },
         "scorers": {
           "type": "array",
@@ -107647,6 +107732,21 @@ export const clientManifest = {
           ],
           "description": "EvaluationBatch.canceledAt may be null in this transport value."
         },
+        "canceledBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The person who stopped it; null while it has not been canceled."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EvaluationBatch.canceledBy may be null in this transport value."
+        },
         "completedAt": {
           "anyOf": [
             {
@@ -107684,9 +107784,12 @@ export const clientManifest = {
       "required": [
         "id",
         "datasetId",
+        "datasetName",
         "datasetDigest",
         "candidate",
+        "candidateDefinition",
         "baseline",
+        "baselineDefinition",
         "scorers",
         "state",
         "requiredCount",
@@ -107695,6 +107798,7 @@ export const clientManifest = {
         "gate",
         "hiddenCount",
         "canceledAt",
+        "canceledBy",
         "completedAt",
         "createdAt",
         "updatedAt",
@@ -107949,6 +108053,11 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "The dataset measured, for linking to it."
               },
+              "datasetName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The dataset's name, so a list can show it without a second read."
+              },
               "datasetDigest": {
                 "type": "string",
                 "maxLength": 65536,
@@ -107992,6 +108101,46 @@ export const clientManifest = {
                   }
                 ],
                 "description": "What is measured, as pinned at admission."
+              },
+              "candidateDefinition": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "definitionId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The agent or workflow definition the pin names, for linking to it."
+                      },
+                      "name": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Its current name; null when this organization cannot resolve it."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationPinDefinition.name may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "definitionId",
+                      "name"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The definition the candidate pin names and its current name, for display; null when the pin names no definition."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.candidateDefinition may be null in this transport value."
               },
               "baseline": {
                 "anyOf": [
@@ -108040,6 +108189,46 @@ export const clientManifest = {
                   }
                 ],
                 "description": "EvaluationBatch.baseline may be null in this transport value."
+              },
+              "baselineDefinition": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "definitionId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The agent or workflow definition the pin names, for linking to it."
+                      },
+                      "name": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Its current name; null when this organization cannot resolve it."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "EvaluationPinDefinition.name may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "definitionId",
+                      "name"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The definition the baseline pin names and its current name, for display; null without a baseline or when the pin names no definition."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.baselineDefinition may be null in this transport value."
               },
               "scorers": {
                 "type": "array",
@@ -108253,6 +108442,21 @@ export const clientManifest = {
                 ],
                 "description": "EvaluationBatch.canceledAt may be null in this transport value."
               },
+              "canceledBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The person who stopped it; null while it has not been canceled."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "EvaluationBatch.canceledBy may be null in this transport value."
+              },
               "completedAt": {
                 "anyOf": [
                   {
@@ -108290,9 +108494,12 @@ export const clientManifest = {
             "required": [
               "id",
               "datasetId",
+              "datasetName",
               "datasetDigest",
               "candidate",
+              "candidateDefinition",
               "baseline",
+              "baselineDefinition",
               "scorers",
               "state",
               "requiredCount",
@@ -108301,6 +108508,7 @@ export const clientManifest = {
               "gate",
               "hiddenCount",
               "canceledAt",
+              "canceledBy",
               "completedAt",
               "createdAt",
               "updatedAt",
@@ -108623,6 +108831,11 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "The case, for linking to it."
               },
+              "caseName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The case's name, so a list can show it without a second read."
+              },
               "caseRevision": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -108724,6 +108937,7 @@ export const clientManifest = {
               "batchId",
               "role",
               "caseId",
+              "caseName",
               "caseRevision",
               "scorerId",
               "scorerRevision",
