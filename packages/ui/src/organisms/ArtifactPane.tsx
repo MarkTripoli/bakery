@@ -9,9 +9,12 @@ import {
 import { Combobox } from "../molecules/Combobox.tsx";
 import { Disclosure } from "../molecules/Disclosure.tsx";
 import { InlineNotice } from "../molecules/InlineNotice.tsx";
-import { ArtifactViewerWithinRegion } from "./ArtifactViewer.tsx";
+import { artifactViewerRegion } from "./ArtifactViewer.tsx";
 import { SessionPane } from "./SessionPane.tsx";
 import "../collaboration.css";
+
+// A capitalised name, so the provider reads as JSX.
+const PreviewRegion = artifactViewerRegion;
 
 export type ArtifactPaneState =
   | "ready"
@@ -205,9 +208,9 @@ export function ArtifactPane(
               role="region"
               tabIndex={0}
             >
-              <ArtifactViewerWithinRegion.Provider value>
+              <PreviewRegion.Provider value>
                 {preview}
-              </ArtifactViewerWithinRegion.Provider>
+              </PreviewRegion.Provider>
             </div>
           )
           : null}

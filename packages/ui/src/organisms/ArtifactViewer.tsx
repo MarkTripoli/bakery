@@ -47,7 +47,7 @@ export type ArtifactViewerContent =
  * artifact pane). A viewer there is a labelled group, not a second landmark with
  * the same name, so a person moving by landmarks meets one "Preview", not two.
  */
-export const ArtifactViewerWithinRegion = createContext(false);
+export const artifactViewerRegion = createContext(false);
 
 export type ArtifactViewerProps = {
   readonly label: ReactNode;
@@ -222,7 +222,7 @@ export function ArtifactViewer(
   }: ArtifactViewerProps,
 ) {
   const titleId = useId();
-  const withinRegion = useContext(ArtifactViewerWithinRegion);
+  const withinRegion = useContext(artifactViewerRegion);
   return createElement(
     withinRegion ? "div" : "section",
     {
