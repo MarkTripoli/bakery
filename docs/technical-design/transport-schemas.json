@@ -7542,7 +7542,7 @@
           "bounds": {
             "maxBytes": 65536
           },
-          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options and plan approval; automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot."
+          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options, plan approval and the completion policy (task, merged or deployed_healthy; merged when omitted); automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot."
         }
       ],
       "rules": [
@@ -7565,7 +7565,7 @@
           "bounds": {
             "maxBytes": 65536
           },
-          "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot."
+          "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval, completion policy); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot."
         }
       ],
       "rules": [
@@ -7582,7 +7582,7 @@
           "bounds": {
             "maxBytes": 65536
           },
-          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated."
+          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy, completion policy included (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated."
         },
         {
           "name": "filters",
@@ -13443,6 +13443,26 @@
         "Refusals the app can tell apart carry a STATE_CONFLICT reason: desktop_sign_in_expired, desktop_sign_in_used, desktop_sign_in_cancelled, desktop_sign_in_pending or desktop_sign_in_mismatch. An unknown request is RESOURCE_NOT_FOUND."
       ],
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+    },
+    "DesktopHandoffCreate": {
+      "fields": [
+        {
+          "name": "returnTo",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "description": "Same-origin path the desktop window opens once the browser session is set, such as /projects; it starts with a single slash and never names another origin or the handoff page itself."
+        }
+      ],
+      "rules": [
+        "Only the desktop app's own sign-in (a bkd_ bearer credential) may ask; a browser cookie session is AUTH_FORBIDDEN and an access token is refused before the handler.",
+        "The code lives 30 seconds and is spent on the first visit of the handoff page, whatever the outcome; a second visit ends the browser session the first one opened.",
+        "A returnTo that is not a same-origin path is UNPROCESSABLE with reason desktop_handoff_return_to_invalid."
+      ],
+      "description": "Asks for a one-use code the desktop app opens in its own window as GET /api/desktop/handoff?code=<code>, so the server's web pages load with an ordinary browser session for the same person instead of the bearer credential."
     },
     "RouteContinuationAdmit": {
       "fields": [
@@ -34394,6 +34414,21 @@
         "credential": "Bearer credential starting with bkd_, sent as `Authorization: Bearer <credential>` to the page API and live updates. Returned only here; Bakery cannot show it again.",
         "sessionId": "UUID of the sign-in session it opened; the person sees it as the Bakery app in Active sessions and can revoke it there.",
         "expiresAt": "UTC instant the sign-in ends unless use renews it, as a browser sign-in renews."
+      }
+    },
+    "DesktopHandoff": {
+      "fields": [
+        "code",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "code": "secretString",
+        "expiresAt": "timestamp"
+      },
+      "description": "A one-use code for the desktop window's browser session, returned once.",
+      "fieldDescriptions": {
+        "code": "43-character code the app puts in GET /api/desktop/handoff?code=<code> in its own window at once. Only its SHA-256 digest is stored; it opens one browser session and nothing else.",
+        "expiresAt": "UTC instant, 30 seconds after issue, after which the handoff page refuses the code and sends the window to sign-in."
       }
     },
     "WorkflowStepSkill": {
