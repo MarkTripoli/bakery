@@ -101,6 +101,9 @@ export async function openBackupSettingsFixture(
     await fixture.pgDatabase.query(
       "delete from bakery.backup_offsite_settings",
     );
+    await fixture.pgDatabase.query(
+      "delete from bakery.backup_point_in_time_settings",
+    );
     const secrets = (await fixture.pgDatabase.query<{ id: string }>(
       `select id from bakery.secrets
         where organization_id is null and provider = 's3-backup'`,

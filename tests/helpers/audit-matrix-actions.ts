@@ -35,6 +35,7 @@ export const AUDIT_MATRIX_ACTIONS = [
   "backups.start",
   "backupRunnerCredential.issue",
   "backupSchedule.put",
+  "backupPointInTime.put",
   "backupOffsite.put",
   "backupOffsite.verify",
   "telemetryDestinations.create",

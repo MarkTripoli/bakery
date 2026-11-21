@@ -723,6 +723,8 @@ export const BackupImplementedAction = Object.freeze(
     BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
     BackupScheduleGet: "backupSchedule.get",
     BackupSchedulePut: "backupSchedule.put",
+    BackupPointInTimeGet: "backupPointInTime.get",
+    BackupPointInTimePut: "backupPointInTime.put",
     BackupOffsiteGet: "backupOffsite.get",
     BackupOffsitePut: "backupOffsite.put",
     BackupOffsiteVerify: "backupOffsite.verify",

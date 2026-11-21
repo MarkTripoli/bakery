@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a90e69c734392ec761caf3fd8805c1c6355444c2"
+    "713010516a4dcd2dc62d744d5fa5fc8f4b860ad1"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:b0253a3aff00da400668344c5c722ef264a95cac2480a9daefb10d4a985f76e0",
-  "reason": "#46 slice C line-count rebind by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main a90e69c734392ec761caf3fd8805c1c6355444c2: merged pull requests carry lineCount evidence for development metrics, re-bound after merging main. Main's own approval is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:8462e2462e984e24350e71a64dfb71f50ac634629d7e87332dd584e209e50501",
+  "reason": "#80 point-in-time P1 by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 713010516a4dcd2dc62d744d5fa5fc8f4b860ad1: backupPointInTime.get/put, the runner's WAL report, and BackupRunnerSettings gains a required pointInTimeEnabled the runner and server ship together. Main's own approval is kept unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "a90e69c734392ec761caf3fd8805c1c6355444c2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b0253a3aff00da400668344c5c722ef264a95cac2480a9daefb10d4a985f76e0",
+      "reason": "#46 slice C line-count rebind by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main a90e69c734392ec761caf3fd8805c1c6355444c2: merged pull requests carry lineCount evidence for development metrics, re-bound after merging main. Main's own approval is kept unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

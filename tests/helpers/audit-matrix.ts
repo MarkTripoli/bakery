@@ -994,6 +994,27 @@ export async function runAuditMatrix(
       }),
     },
     {
+      operation: "backupPointInTime.put",
+      failure: () =>
+        call(f, "PUT", "/v1/installation/backup-point-in-time", developer, {
+          body: { enabled: true },
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "PUT",
+          "/v1/installation/backup-point-in-time",
+          f.adminCookie,
+          {
+            body: { enabled: true },
+            headers: { "Idempotency-Key": key() },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
       // Saves first so the test below has a destination to send to.
       operation: "backupOffsite.put",
       failure: () =>
