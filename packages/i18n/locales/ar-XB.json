@@ -5903,10 +5903,8 @@
   "mentions.share.line": "⟪{names} can. Ask one of them here, or send without the mention.⟫",
   "mentions.share.lineNone": "⟪No one in {organization} can give access to this conversation. Remove the mention to send.⟫",
   "mentions.share.loading": "⟪Finding who can give access…⟫",
-  "mentions.share.failed": "⟪We could not find who can give access. Remove the mention to send.⟫",
   "mentions.share.ask": "⟪Ask {name}⟫",
   "mentions.share.askLine": "⟪{sharer} can you give {names} access to this?⟫",
-  "mentions.share.reason": "⟪Ask {name} or remove the mention to send.⟫",
   "mentions.share.reasonNone": "⟪Remove the mention to send.⟫",
   "mentions.sent.line": "⟪Sent. {names} can now read and reply in this conversation.⟫",
   "mentions.sent.undo": "⟪Undo access⟫",
@@ -5914,5 +5912,7 @@
   "mentions.sent.undoFailed": "⟪Access was not removed. Nothing changed. Try again.⟫",
   "mentions.failed.line": "⟪Not sent, and no access was given. Something went wrong on our side.⟫",
   "mentions.failed.detail": "⟪Your message is still here. {names} still can't see this conversation.⟫",
-  "mentions.failed.retry": "⟪Try again: give access and send⟫"
+  "mentions.failed.retry": "⟪Try again: give access and send⟫",
+  "mentions.share.failed": "⟪We could not find who can give access. Try again, or remove the mention to send.⟫",
+  "mentions.share.reason": "⟪{count, plural, one {Ask {first} or remove the mention to send.} other {Ask {first} or {second}, or remove the mention to send.}}⟫"
 }

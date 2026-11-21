@@ -3033,7 +3033,11 @@ test("when the server says the writer may not share after all, nothing is sent a
   await expect(box).toHaveValue("Hi @Sam Patel ");
   await expect(page.getByRole("button", { name: "Send", exact: true }))
     .toBeDisabled();
-  await expect(page.getByText("Ask Dana Lee or remove the mention to send."))
+  await expect(
+    page.getByText(
+      "Ask Dana Lee or Omar Haddad, or remove the mention to send.",
+    ),
+  )
     .toBeVisible();
   await page.mouse.move(700, 100);
   await still(page, "mentions-share-lost");
@@ -3257,6 +3261,8 @@ test("a person the writer may not give access to can be chosen: the block names 
   await expect(
     page.getByText("Someone else has to give access. You will see who."),
   ).toBeVisible();
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-picker-ask");
   await page.getByRole("option", { name: "Samir Okafor, no access yet" })
     .click();
   await expect(box).toHaveValue("Hi @Samir Okafor ");
@@ -3273,7 +3279,9 @@ test("a person the writer may not give access to can be chosen: the block names 
   ).toBeVisible();
   const send = page.getByRole("button", { name: "Send", exact: true });
   await expect(send).toBeDisabled();
-  const reason = page.getByText("Ask Dana Lee or remove the mention to send.");
+  const reason = page.getByText(
+    "Ask Dana Lee or Omar Haddad, or remove the mention to send.",
+  );
   await expect(reason).toBeVisible();
   // The reason is a line of its own: the footnote text after it starts below it.
   const below = await reason.evaluate((element) => {
@@ -3328,20 +3336,91 @@ test("when no one can be asked, the block says so and Send stays off", async ({ 
   await expect(page.getByRole("button", { name: /^Ask / })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Send", exact: true }))
     .toBeDisabled();
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-nobody");
 });
 
-test("when the read of who can be asked fails, the block says so and Send stays off", async ({ page }) => {
-  await open(page, askWorld({ sharersStatus: 503 }));
+test("when the read of who can be asked fails, the block says so, can read again, and Send stays off", async ({ page }) => {
+  const state = askWorld({ sharersStatus: 503 });
+  await open(page, state);
   await messageBox(page).fill("@sam");
   await page.getByRole("option", { name: "Samir Okafor, no access yet" })
     .click();
   await expect(
     page.getByText(
-      "We could not find who can give access. Remove the mention to send.",
+      "We could not find who can give access. Try again, or remove the mention to send.",
     ),
   ).toBeVisible();
+  const send = page.getByRole("button", { name: "Send", exact: true });
+  await expect(send).toBeDisabled();
+  // The reason under Send stays while the read has failed.
+  await expect(page.getByText("Remove the mention to send.", { exact: true }))
+    .toBeVisible();
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-sharers-failed");
+  // It is not a dead end: Try again reads once more.
+  state.sharersStatus = 200;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(
+    page.getByText(
+      "Dana Lee or Omar Haddad can. Ask one of them here, or send without the mention.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ask Dana Lee" }))
+    .toBeVisible();
+  await expect(send).toBeDisabled();
+});
+
+test("the way out of the block: Don't mention keeps the name as words; several people say how to leave someone out", async ({ page }) => {
+  await open(page, askWorld());
+  const box = messageBox(page);
+  await box.fill("Hi @sam");
+  await page.getByRole("option", { name: "Samir Okafor, no access yet" })
+    .click();
+  // After the Ask buttons, as in the offer.
+  const ask = await page.getByRole("button", { name: "Ask Omar Haddad" })
+    .boundingBox();
+  const decline = page.getByRole("button", {
+    name: "Don't mention Samir Okafor",
+  });
+  const declineBox = await decline.boundingBox();
+  if (ask === null || declineBox === null) throw new Error("no boxes");
+  expect(declineBox.y).toBeGreaterThanOrEqual(ask.y + ask.height - 1);
+  await decline.click();
+  await expect(box).toHaveValue("Hi Samir Okafor ");
+  await expect(page.getByText("Samir Okafor · no access yet")).toHaveCount(0);
+  await expect(page.getByText(/you can't give access to it/)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Send", exact: true }))
-    .toBeDisabled();
+    .toBeEnabled();
+});
+
+test("several people the writer may not share with: one caption, no second Don't mention", async ({ page }) => {
+  const second = {
+    principalId: "00000000-0000-4000-8000-0000000000a4",
+    displayName: "Lee Wu",
+    hasAccess: false,
+    gainsAccessOnSend: false,
+  };
+  const state = askWorld();
+  state.candidates.push(second);
+  await open(page, state);
+  const box = messageBox(page);
+  for (const name of ["Samir Okafor", "Lee Wu"]) {
+    await box.press("End");
+    await box.pressSequentially(`@${name.slice(0, 3)}`);
+    await page.getByRole("option", { name: `${name}, no access yet` })
+      .click();
+  }
+  await expect(
+    page.getByText(
+      "2 people can't see this conversation, and you can't give access to them.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByText("To leave someone out, remove their name above."),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Don't mention / }))
+    .toHaveCount(0);
 });
 
 test("after a send that gave access: the line, Undo access, and what happened", async ({ page }) => {
@@ -3356,6 +3435,9 @@ test("after a send that gave access: the line, Undo access, and what happened", 
     "Sent. Sam Patel can now read and reply in this conversation.",
   );
   await expect(line).toBeVisible();
+  // Good news is not warning-coloured.
+  const block = page.locator('[data-ui-component="accessOffer"]');
+  await expect(block).toHaveAttribute("data-tone", "success");
   await page.mouse.move(700, 100);
   await still(page, "mentions-sent");
   // The undo fails first: the line stays, with what happened.
@@ -3365,12 +3447,17 @@ test("after a send that gave access: the line, Undo access, and what happened", 
     page.getByText("Access was not removed. Nothing changed. Try again."),
   ).toBeVisible();
   await expect(line).toBeVisible();
+  // A failed undo keeps the warning colour.
+  await expect(block).toHaveAttribute("data-tone", "warning");
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-undo-failed");
   state.revokeStatus = 200;
   await page.getByRole("button", { name: "Undo access" }).click();
   const undone = page.getByText(
     "Access removed. Sam Patel can no longer open this conversation. Your message stays.",
   );
   await expect(undone).toBeVisible();
+  await expect(block).toHaveAttribute("data-tone", "success");
   expect(state.revokes.at(-1)).toEqual({ principalId: SAM, ifMatch: '"v4"' });
   await page.mouse.move(700, 100);
   await still(page, "mentions-undone");
@@ -3413,6 +3500,22 @@ test("when the server fails while giving access, nothing is lost and the button 
     ),
   ).toBeVisible();
   await expect(box).toHaveValue("Hi @Sam Patel ");
+  if ((page.viewportSize()?.width ?? 1440) >= 744) {
+    // The long retry button does not squeeze the help: it keeps two lines and
+    // the button drops to its own line, as on the phone.
+    const hint = page.locator(".ui-message-composer__hint");
+    const lines = await hint.evaluate((element) =>
+      element.getBoundingClientRect().height /
+      parseFloat(getComputedStyle(element).lineHeight)
+    );
+    expect(lines).toBeLessThanOrEqual(2.1);
+    const hintBox = await hint.boundingBox();
+    const retry = await page.getByRole("button", {
+      name: "Try again: give access and send",
+    }).boundingBox();
+    if (hintBox === null || retry === null) throw new Error("no boxes");
+    expect(retry.y).toBeGreaterThanOrEqual(hintBox.y + hintBox.height - 1);
+  }
   await page.mouse.move(700, 100);
   await still(page, "mentions-failed");
   await page.getByRole("button", {

@@ -34,6 +34,8 @@ export type AccessOfferProps =
     control?: ReactNode;
     /** `busy` while the send that gives the access is under way: the block is read-only. */
     state?: "default" | "busy";
+    /** `success` for good news (sent, undoing, undone); `warning` for a question or a problem. */
+    tone?: "warning" | "success";
   };
 
 /**
@@ -53,6 +55,7 @@ export function AccessOffer(
     detail,
     question,
     state = "default",
+    tone = "warning",
     ...props
   }: AccessOfferProps,
 ) {
@@ -63,6 +66,7 @@ export function AccessOffer(
       {...props}
       aria-busy={state === "busy" || undefined}
       data-state={state}
+      data-tone={tone}
       data-ui-component="accessOffer"
       data-variant="default"
     >

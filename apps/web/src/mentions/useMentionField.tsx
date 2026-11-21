@@ -451,12 +451,30 @@ export function useMentionField(
         {blocking.length > 0
           ? (
             <UI.AccessOffer
-              actions={sharers.map((sharer) => ({
-                label: translate("mentions.share.ask", {
-                  name: sharer.displayName,
-                }),
-                onClick: () => ask(sharer),
-              }))}
+              actions={sharersRead.isError
+                // A read that failed is not a dead end: it can be asked again.
+                ? [{
+                  label: translate("core.actions.retry"),
+                  onClick: () => void sharersRead.refetch(),
+                }]
+                : sharers.map((sharer) => ({
+                  label: translate("mentions.share.ask", {
+                    name: sharer.displayName,
+                  }),
+                  onClick: () => ask(sharer),
+                }))}
+              // The way out is here too, after the buttons, as in the offer.
+              caption={blocking.length > 1
+                ? translate("mentions.offer.leaveOut")
+                : undefined}
+              decline={blocking.length === 1
+                ? {
+                  label: translate("mentions.offer.decline", {
+                    name: blocking[0].name,
+                  }),
+                  onDecline: () => removeMention(blocking[0], true),
+                }
+                : undefined}
               detail={sharersRead.isError
                 ? translate("mentions.share.failed")
                 : sharersRead.isPending
@@ -485,6 +503,7 @@ export function useMentionField(
           ? sent.state === "undone"
             ? (
               <UI.AccessOffer
+                tone="success"
                 question={translate("mentions.sent.undone", {
                   names: joined(sent.people.map((person) => person.name)),
                 })}
@@ -503,6 +522,8 @@ export function useMentionField(
                   names: joined(sent.people.map((person) => person.name)),
                 })}
                 state={sent.state === "undoing" ? "busy" : "default"}
+                // Good news is not warning-coloured; a failed undo keeps the warning.
+                tone={sent.state === "failed" ? "warning" : "success"}
               />
             )
           : null}
@@ -584,10 +605,11 @@ export function useMentionField(
     refused: refusals.length > 0,
     notice,
     blocked: blocking.length > 0,
-    sendReason: blocking.length === 0
-      ? null
-      : sharers.length > 0
-      ? translate("mentions.share.reason", { name: sharers[0].displayName })
+    sendReason: blocking.length === 0 ? null : sharers.length > 0
+      ? translate(
+        "mentions.share.reason",
+        nameParts(sharers.map((sharer) => sharer.displayName)),
+      )
       : translate("mentions.share.reasonNone"),
     failed: offering.length === 0 ? null : {
       line: translate("mentions.failed.line"),
