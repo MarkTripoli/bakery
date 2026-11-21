@@ -31,12 +31,12 @@ function running(
   };
 }
 
-/** One merged issue, then #204 being worked on. */
+/** One merged issue (#190, closed on GitHub), then #204 being worked on. */
 const AT_WORK: BatchSeed = {
   maxIssues: 5,
   issuesDone: 1,
   issues: [
-    { position: 1, number: 201, state: "merged" },
+    { position: 1, number: 190, state: "merged" },
     { position: 2, number: 204, state: "started" },
   ],
 };
@@ -60,9 +60,9 @@ for (
         /A batch is running: 1 of 5 merged, working on #204\./,
       );
       await chooseFilter(page, "All open");
-      // The one being worked on and the one it merged; no other row.
+      // The one being worked on wears it; no other open issue does.
       await expect(row(page, 204)).toContainText("In the batch");
-      await expect(row(page, 201)).toContainText("In the batch");
+      await expect(row(page, 201)).not.toContainText("In the batch");
       await expect(row(page, 202)).not.toContainText("In the batch");
       await expect(row(page, 203)).not.toContainText("In the batch");
       // The row's own status is still there beside it, and the title link names both.
@@ -79,6 +79,9 @@ for (
       ).toBeVisible();
       await page.mouse.move(700, 700);
       await shot(page, "issues-batch-running");
+      // The issue it merged, now closed, is marked too.
+      await chooseFilter(page, "Closed");
+      await expect(row(page, 190)).toContainText("In the batch");
     });
 
     test("a batch that waits for a person says for what, on the issue it is on", async ({ page }) => {
@@ -107,7 +110,7 @@ for (
         batches: [running({
           maxIssues: 5,
           issuesDone: 1,
-          issues: [{ position: 1, number: 201, state: "merged" }],
+          issues: [{ position: 1, number: 190, state: "merged" }],
         })],
       });
       await page.goto("/issues");
