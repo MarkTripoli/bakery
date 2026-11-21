@@ -110266,6 +110266,21 @@ export const clientManifest = {
             "blocksNewAttempts": {
               "type": "boolean",
               "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
+            },
+            "oldestUnknownAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "EvaluationBudget.oldestUnknownAt may be null in this transport value."
             }
           },
           "required": [
@@ -110274,7 +110289,8 @@ export const clientManifest = {
             "estimatedUsd",
             "unknownCount",
             "status",
-            "blocksNewAttempts"
+            "blocksNewAttempts",
+            "oldestUnknownAt"
           ],
           "additionalProperties": false,
           "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."
@@ -111272,6 +111288,21 @@ export const clientManifest = {
                   "blocksNewAttempts": {
                     "type": "boolean",
                     "description": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
+                  },
+                  "oldestUnknownAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "EvaluationBudget.oldestUnknownAt may be null in this transport value."
                   }
                 },
                 "required": [
@@ -111280,7 +111311,8 @@ export const clientManifest = {
                   "estimatedUsd",
                   "unknownCount",
                   "status",
-                  "blocksNewAttempts"
+                  "blocksNewAttempts",
+                  "oldestUnknownAt"
                 ],
                 "additionalProperties": false,
                 "description": "What the batch's model scorers cost against its budget limit, read from the usage ledger. Deterministic checks cost nothing and are not in it."

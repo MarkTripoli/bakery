@@ -35602,7 +35602,8 @@
         "estimatedUsd",
         "unknownCount",
         "status",
-        "blocksNewAttempts"
+        "blocksNewAttempts",
+        "oldestUnknownAt"
       ],
       "fieldTypes": {
         "limitUsd": "decimal|null",
@@ -35610,10 +35611,12 @@
         "estimatedUsd": "decimal",
         "unknownCount": "integer",
         "status": "enum(none|within|exhausted|unsettled)",
-        "blocksNewAttempts": "boolean"
+        "blocksNewAttempts": "boolean",
+        "oldestUnknownAt": "timestamp|null"
       },
       "nullableFields": [
-        "limitUsd"
+        "limitUsd",
+        "oldestUnknownAt"
       ],
       "description": "The model-evaluation budget of a batch, kept apart from any run's budget: its limit, what was settled and how many model attempts cost an unknown amount.",
       "fieldDescriptions": {
@@ -35622,7 +35625,8 @@
         "estimatedUsd": "The part of settledUsd that Bakery estimated rather than the provider reported, in USD: an estimate is not a bill.",
         "unknownCount": "Model attempts whose cost is not known: a provider failure, a timeout or a missing receipt.",
         "status": "none without a limit; exhausted when settled cost has reached the limit; unsettled while any cost is unknown, because the batch cannot then show it stayed within the limit; within otherwise. No new model attempt starts unless it is none or within.",
-        "blocksNewAttempts": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet."
+        "blocksNewAttempts": "True when no new model attempt will start, because the status is exhausted or unsettled; false for none and within. Results that did not run for this reason are still missing, with the reason Not run yet.",
+        "oldestUnknownAt": "When the earliest still-unknown cost was recorded; null when none is unknown. The usage ledger checks every minute for the provider's own costed receipt and settles an unknown cost only if one arrives; with none it stays unknown and its hold stays reserved. Bakery does not record when it last checked, so this is how long the cost has been unknown."
       }
     },
     "EvaluationAttemptUsage": {

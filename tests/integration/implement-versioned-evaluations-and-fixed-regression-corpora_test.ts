@@ -407,6 +407,7 @@ Deno.test("AC3: a model attempt that ends with no ledger receipt is an unknown c
       unknownCount: 0,
       status: "within",
       blocksNewAttempts: false,
+      oldestUnknownAt: null,
     });
     const rows = await results(fixture, batch.id);
     const model = rows.filter((r) => r.scorerId === w.rubric.id);
@@ -432,13 +433,16 @@ Deno.test("AC3: a model attempt that ends with no ledger receipt is an unknown c
     read = await ok(
       await call(fixture, "GET", "/v1/evaluation-batches/" + batch.id),
     );
-    assertEquals(read.budget, {
+    const unsettled = read.budget as Json;
+    assertEquals(typeof unsettled.oldestUnknownAt, "string");
+    assertEquals({ ...unsettled, oldestUnknownAt: null }, {
       limitUsd: "0.100000",
       settledUsd: "0.000000",
       estimatedUsd: "0.000000",
       unknownCount: 1,
       status: "unsettled",
       blocksNewAttempts: true,
+      oldestUnknownAt: null,
     });
     const attempts = await ok(
       await call(

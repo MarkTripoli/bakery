@@ -711,10 +711,12 @@ async function viewOf(
       measurement: UsageMeasurement | null;
       n: string;
       cost: string | null;
+      since: string;
     }
   >(
     `select d.evaluator_type, u.measurement, count(*)::text as n,
-            sum(u.cost_usd)::text as cost
+            sum(u.cost_usd)::text as cost,
+            to_char(min(a.created_at) at time zone 'UTC', ${TS}) as since
        from bakery.evaluation_attempts a
        join bakery.evaluation_results r
          on r.organization_id = a.organization_id and r.id = a.result_id
@@ -740,6 +742,7 @@ async function viewOf(
         ...group,
         count: Number(g.n),
         costUsd: group.costUsd,
+        since: g.since,
       });
     }
   }

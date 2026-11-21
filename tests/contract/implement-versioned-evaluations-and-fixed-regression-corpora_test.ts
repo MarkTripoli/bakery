@@ -63,6 +63,7 @@ const batch = {
     unknownCount: 1,
     status: "unsettled",
     blocksNewAttempts: true,
+    oldestUnknownAt: AT,
   },
   gate: {
     decision: "cannot_be_judged",
@@ -128,6 +129,7 @@ Deno.test("the budget status is one of four, and no limit is a null limit", () =
       unknownCount: 0,
       status,
       blocksNewAttempts: status === "exhausted" || status === "unsettled",
+      oldestUnknownAt: null,
     };
     assertEquals(
       contractSchemas.EvaluationBatch.safeParse({ ...batch, budget }).success,

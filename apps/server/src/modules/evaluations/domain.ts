@@ -554,6 +554,8 @@ export type UsageGroup = Readonly<{
   measurement: UsageMeasurement;
   count: number;
   costUsd: string | null;
+  /** When the earliest of these attempts was recorded, as an ISO timestamp. */
+  since?: string | null;
 }>;
 
 export type BudgetStatus = "none" | "within" | "exhausted" | "unsettled";
@@ -569,6 +571,8 @@ export type BudgetReport = Readonly<{
   status: BudgetStatus;
   /** True when no new model attempt will start: exhausted or unsettled. */
   blocksNewAttempts: boolean;
+  /** When the earliest still-unknown cost was recorded; null when none is unknown. */
+  oldestUnknownAt: string | null;
 }>;
 
 const MICRO = 1_000_000;
@@ -605,9 +609,15 @@ export function budgetReport(
   let settled = 0;
   let estimated = 0;
   let unknown = 0;
+  let oldestUnknownAt: string | null = null;
   for (const g of groups) {
     if (g.measurement === "unknown") {
       unknown += g.count;
+      if (
+        g.since != null &&
+        (oldestUnknownAt === null ||
+          new Date(g.since).getTime() < new Date(oldestUnknownAt).getTime())
+      ) oldestUnknownAt = g.since;
       continue;
     }
     const cost = toMicroUsd(g.costUsd) ?? 0;
@@ -629,6 +639,7 @@ export function budgetReport(
     unknownCount: unknown,
     status,
     blocksNewAttempts: status === "exhausted" || status === "unsettled",
+    oldestUnknownAt,
   };
 }
 

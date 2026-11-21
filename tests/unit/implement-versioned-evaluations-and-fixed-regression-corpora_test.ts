@@ -255,6 +255,7 @@ Deno.test("AC3: unknown cost is not zero: it counts on its own and keeps the bat
     unknownCount: 0,
     status: "none",
     blocksNewAttempts: false,
+    oldestUnknownAt: null,
   });
   const within = budgetReport("1", [
     { measurement: "reported", count: 2, costUsd: "0.300000" },
@@ -406,5 +407,35 @@ Deno.test("an estimate is shown apart from a bill, and the report says whether n
   assertEquals(
     held(null, [{ measurement: "unknown", count: 1, costUsd: null }]),
     false,
+  );
+});
+
+Deno.test("an unknown cost says since when it has been unknown: the earliest, and null when none is", () => {
+  const report = budgetReport("1", [
+    {
+      measurement: "unknown",
+      count: 1,
+      costUsd: null,
+      since: "2026-11-21T10:42:00.000Z",
+    },
+    {
+      measurement: "unknown",
+      count: 2,
+      costUsd: null,
+      since: "2026-11-21T09:15:00.000Z",
+    },
+    {
+      measurement: "reported",
+      count: 1,
+      costUsd: "0.1",
+      since: "2026-11-21T08:00:00.000Z",
+    },
+  ]);
+  assertEquals(report.oldestUnknownAt, "2026-11-21T09:15:00.000Z");
+  assertEquals(report.unknownCount, 3);
+  assertEquals(
+    budgetReport("1", [{ measurement: "reported", count: 1, costUsd: "0.1" }])
+      .oldestUnknownAt,
+    null,
   );
 });

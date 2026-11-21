@@ -625,6 +625,7 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
       unknownCount: 0,
       status: "within",
       blocksNewAttempts: false,
+      oldestUnknownAt: null,
     });
     const batchBudget = async () =>
       (await ok(
@@ -782,6 +783,7 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
       unknownCount: 0,
       status: "within",
       blocksNewAttempts: false,
+      oldestUnknownAt: null,
     });
 
     // (b) A timed-out call: unknown usage under the attempt-named call id,
@@ -825,12 +827,18 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
     assertEquals(await attemptUsage(rows[1].id), [
       { measurement: "unknown", costUsd: null },
     ]);
-    assertEquals(await batchBudget(), {
+    const unsettled = await batchBudget() as Json;
+    assert(
+      typeof unsettled.oldestUnknownAt === "string",
+      "it says since when the cost has been unknown",
+    );
+    assertEquals({ ...unsettled, oldestUnknownAt: null }, {
       limitUsd: "0.100000",
       settledUsd: "0.030000",
       estimatedUsd: "0.000000",
       unknownCount: 1,
       status: "unsettled",
       blocksNewAttempts: true,
+      oldestUnknownAt: null,
     });
   }));
