@@ -1,6 +1,6 @@
 # Stills for the Slack app section (#415)
 
-Head: `3e1efa5d4` — the merged head the stills ship with; taken at `f19532ec`.
+Head: `3c85daf6a` — the merged head the stills ship with; taken at `3c85daf6a`.
 
 Twenty-four stills: six states, two themes, two viewports. Each is the
 Slack section of `/settings/installation/integrations`, clipped with padding
@@ -16,6 +16,9 @@ The six states:
   recognise the client ID.
 - **replace-form**: Replace details pressed, both ids filled in, the secrets
   empty with the day they were saved beside them.
+
+Each address row carries its own line saying where in Slack it is pasted, and a
+sign-in row Slack refused carries an alert glyph beside its title.
 - **remove-dialog**: Remove pressed, the confirmation open.
 - **removed**: removed, the banner above the empty form.
 
