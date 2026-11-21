@@ -1355,6 +1355,7 @@ export type ContractOutputName =
   | "EvaluationGateBlocker"
   | "EvaluationMeasure"
   | "EvaluationMeasureSide"
+  | "EvaluationPinDefinition"
   | "EvaluationResult"
   | "EvaluationRun"
   | "EvaluationScorerPin"
