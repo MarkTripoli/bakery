@@ -72,6 +72,7 @@ const batch = (overrides: Record<string, unknown> = {}): BatchResponse =>
     issuesDone: 0,
     elapsedSeconds: 0,
     spentUsd: "0",
+    waitingOn: null,
     issues: [],
     createdAt: "2026-11-20T09:12:00Z",
     updatedAt: "2026-11-20T09:12:00Z",

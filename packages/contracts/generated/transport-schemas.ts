@@ -13643,6 +13643,20 @@ const transportSchemas = {
       ],
       "description": "The schedule an administrator sets for automatic backups: on or off, how often, at what UTC time and how many days a finished backup is kept."
     },
+    "BackupPointInTimePut": {
+      "fields": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": true,
+          "description": "Turn Restore to any minute on or off. Off stops archiving and forgets the reported window; backups taken by the schedule are not affected."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session and permission backup:manage; access tokens are refused. Idempotency-Key is required. When settings exist a strong If-Match with their version is required (428 when missing, 412 when stale); when none exist If-Match must be absent."
+      ],
+      "description": "Turns Restore to any minute on or off for the installation."
+    },
     "BackupOffsitePut": {
       "fields": [
         {
@@ -14419,6 +14433,36 @@ const transportSchemas = {
         "rpoSeconds is present exactly when cutoffAt is."
       ],
       "description": "The runner reports one restore drill: a backup set restored into an isolated, throwaway database and checked there, with the backup age (RPO) and the time the restore took (RTO). The report holds names, counts and numbers only: never a path, a key or a row of restored data."
+    },
+    "BackupWalReport": {
+      "fields": [
+        {
+          "name": "latestArchivedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Time of the newest write-ahead log segment the runner has copied off-site; at most five minutes ahead of the server clock."
+        },
+        {
+          "name": "earliestBaseBackupAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Start time of the oldest base backup the runner still keeps; not after latestArchivedAt."
+        },
+        {
+          "name": "latestSegment",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "File name of that newest segment (24 hex characters, or a timeline history file), shown to the operator."
+        }
+      ],
+      "rules": [
+        "Only the host runner credential; never a session or access token. Ignored while Restore to any minute is off. The newest bound never moves backwards, so a late report cannot shrink the window."
+      ],
+      "description": "The host runner's report of the restorable window it holds off-site."
     }
   },
   "projections": {
@@ -33576,6 +33620,7 @@ const transportSchemas = {
         "elapsedSeconds",
         "spentUsd",
         "issues",
+        "waitingOn",
         "createdAt",
         "updatedAt",
         "version"
@@ -33586,7 +33631,8 @@ const transportSchemas = {
         "pausedAt",
         "finishReason",
         "finishedAt",
-        "stoppedBy"
+        "stoppedBy",
+        "waitingOn"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -33609,6 +33655,7 @@ const transportSchemas = {
         "elapsedSeconds": "integer",
         "spentUsd": "decimal",
         "issues": "BatchIssue[]",
+        "waitingOn": "BatchWaitingOn",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
@@ -33635,10 +33682,58 @@ const transportSchemas = {
         "elapsedSeconds": "Seconds since startedAt (to finishedAt once ended), against maxHours.",
         "spentUsd": "Spend so far across the batch's issues, against maxSpendUsd.",
         "issues": "The issues it considered, in order.",
+        "waitingOn": "Set while the issue being worked on has an open question or approval a person must answer: what it is and since when; null otherwise. Read live, so it clears when the answer comes.",
         "createdAt": "UTC timestamp when the batch was created.",
         "updatedAt": "UTC timestamp of the last change.",
         "version": "Optimistic-concurrency version."
       }
+    },
+    "BatchWaitingPerson": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        }
+      },
+      "fieldDescriptions": {
+        "principalId": "A person the question or approval was put to.",
+        "displayName": "Their current display name; never an email address."
+      },
+      "description": "One person a waiting question or approval was put to by name."
+    },
+    "BatchWaitingOn": {
+      "fields": [
+        "kind",
+        "questionId",
+        "taskId",
+        "since",
+        "askedOf"
+      ],
+      "fieldTypes": {
+        "kind": "enum(question|approval)",
+        "questionId": "uuid",
+        "taskId": "uuid",
+        "since": "timestamp",
+        "askedOf": "BatchWaitingPerson[]"
+      },
+      "fieldDescriptions": {
+        "kind": "question when the work asked something, approval when it needs a yes before it goes on.",
+        "questionId": "The open question or approval; answer it through the questions actions.",
+        "taskId": "The task of the issue being worked on, where the person answers.",
+        "since": "UTC timestamp when it was put.",
+        "askedOf": "Up to three people it was put to by name; empty when it was put to the task's participants."
+      },
+      "rules": [
+        "Read live from the issue's task each time the batch is read, so it is gone once the question is answered, withdrawn or expired. The question's own text is not returned: the task page carries it."
+      ],
+      "description": "What the issue being worked on is waiting for a person to do: an open question or approval on its task, since when, and who it was put to."
     },
     "Page<Batch>": {
       "pageOf": "Batch",
@@ -34775,6 +34870,39 @@ const transportSchemas = {
         "version": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
       }
     },
+    "BackupPointInTime": {
+      "fields": [
+        "enabled",
+        "earliestRestorableAt",
+        "latestRestorableAt",
+        "reportedAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "enabled": "boolean",
+        "earliestRestorableAt": "timestamp|null",
+        "latestRestorableAt": "timestamp|null",
+        "reportedAt": "timestamp|null",
+        "updatedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "earliestRestorableAt",
+        "latestRestorableAt",
+        "reportedAt",
+        "updatedAt"
+      ],
+      "description": "Restore to any minute as an installation administrator sees it: the switch, and the window of minutes a restore can return to, from what the host runner holds off-site.",
+      "fieldDescriptions": {
+        "enabled": "Whether Postgres write-ahead log is archived continuously so a restore can return to any minute.",
+        "earliestRestorableAt": "Start of the oldest kept base backup: the earliest minute a restore can return to. Null when off or not reported yet.",
+        "latestRestorableAt": "Time of the newest write-ahead log segment copied off-site: the latest minute a restore can return to. Null when off or not reported yet.",
+        "reportedAt": "When the host runner last reported the window, or null before its first report.",
+        "updatedAt": "When the switch last changed, or null before any save.",
+        "version": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+      }
+    },
     "BackupOffsite": {
       "fields": [
         "configured",
@@ -34856,7 +34984,8 @@ const transportSchemas = {
         "offsiteAccessKeyId",
         "offsiteSecretAccessKey",
         "offsiteRefusal",
-        "offsiteVersion"
+        "offsiteVersion",
+        "pointInTimeEnabled"
       ],
       "fieldTypes": {
         "scheduleEnabled": "boolean",
@@ -34872,7 +35001,8 @@ const transportSchemas = {
         "offsiteAccessKeyId": "secretString|null",
         "offsiteSecretAccessKey": "secretString|null",
         "offsiteRefusal": "enum(destination_private_address|destination_unresolvable|destination_invalid)|null",
-        "offsiteVersion": "integer"
+        "offsiteVersion": "integer",
+        "pointInTimeEnabled": "boolean"
       },
       "nullableFields": [
         "offsiteEndpoint",
@@ -34902,7 +35032,8 @@ const transportSchemas = {
         "offsiteAccessKeyId": "Access key id, shown only to the runner, or null when none is saved or the credentials were withheld (see offsiteRefusal).",
         "offsiteSecretAccessKey": "Secret access key, shown only to the runner and never stored by it, or null when none is saved or the credentials were withheld (see offsiteRefusal).",
         "offsiteRefusal": "Why the credentials were withheld for a saved destination: destination_private_address when its host now resolves to a private, loopback, link-local, metadata or other refused address, destination_unresolvable when its name cannot be resolved, destination_invalid when the saved destination is not a valid one. Null when the credentials were released or no destination is saved. The runner must not upload while this is set.",
-        "offsiteVersion": "Destination settings revision, 0 before any save."
+        "offsiteVersion": "Destination settings revision, 0 before any save.",
+        "pointInTimeEnabled": "Whether Restore to any minute is on: the runner takes base backups and copies archived write-ahead log off-site only while it is."
       }
     },
     "PluginStateItem": {

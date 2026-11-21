@@ -8792,6 +8792,61 @@ export const clientManifest = {
     {
       "group": "Installation administration",
       "method": "GET",
+      "path": "/v1/installation/backup-point-in-time",
+      "action": "backupPointInTime.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "BackupPointInTime",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/installation/backup-point-in-time",
+      "action": "backupPointInTime.put",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "BackupPointInTimePut",
+      "output": "BackupPointInTime",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once settings exist",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
       "path": "/v1/installation/backup-offsite",
       "action": "backupOffsite.get",
       "access": "Installation administrator",
@@ -18962,6 +19017,8 @@ export const clientManifest = {
             "backupRunnerCredential.issue",
             "backupSchedule.get",
             "backupSchedule.put",
+            "backupPointInTime.get",
+            "backupPointInTime.put",
             "backupOffsite.get",
             "backupOffsite.put",
             "backupOffsite.verify",
@@ -31249,6 +31306,21 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The schedule an administrator sets for automatic backups: on or off, how often, at what UTC time and how many days a finished backup is kept."
+    },
+    "BackupPointInTimePut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Turn Restore to any minute on or off. Off stops archiving and forgets the reported window; backups taken by the schedule are not affected."
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false,
+      "description": "Turns Restore to any minute on or off for the installation."
     },
     "BackupOffsitePut": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46475,6 +46547,8 @@ export const clientManifest = {
                   "backupRunnerCredential.issue",
                   "backupSchedule.get",
                   "backupSchedule.put",
+                  "backupPointInTime.get",
+                  "backupPointInTime.put",
                   "backupOffsite.get",
                   "backupOffsite.put",
                   "backupOffsite.verify",
@@ -66961,6 +67035,8 @@ export const clientManifest = {
             "backupRunnerCredential.issue",
             "backupSchedule.get",
             "backupSchedule.put",
+            "backupPointInTime.get",
+            "backupPointInTime.put",
             "backupOffsite.get",
             "backupOffsite.put",
             "backupOffsite.verify",
@@ -102708,6 +102784,81 @@ export const clientManifest = {
           },
           "description": "The issues it considered, in order."
         },
+        "waitingOn": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "question",
+                    "approval"
+                  ],
+                  "description": "question when the work asked something, approval when it needs a yes before it goes on."
+                },
+                "questionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The open question or approval; answer it through the questions actions."
+                },
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The task of the issue being worked on, where the person answers."
+                },
+                "since": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when it was put."
+                },
+                "askedOf": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "principalId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "A person the question or approval was put to."
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "description": "Their current display name; never an email address. BatchWaitingPerson.displayName must contain at most 200 characters."
+                      }
+                    },
+                    "required": [
+                      "principalId",
+                      "displayName"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Up to three people it was put to by name; empty when it was put to the task's participants. Each array item follows this format."
+                  },
+                  "description": "Up to three people it was put to by name; empty when it was put to the task's participants."
+                }
+              },
+              "required": [
+                "kind",
+                "questionId",
+                "taskId",
+                "since",
+                "askedOf"
+              ],
+              "additionalProperties": false,
+              "description": "Set while the issue being worked on has an open question or approval a person must answer: what it is and since when; null otherwise. Read live, so it clears when the answer comes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.waitingOn may be null in the safe projection."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -102748,6 +102899,7 @@ export const clientManifest = {
         "elapsedSeconds",
         "spentUsd",
         "issues",
+        "waitingOn",
         "createdAt",
         "updatedAt",
         "version"
@@ -103090,6 +103242,81 @@ export const clientManifest = {
                 },
                 "description": "The issues it considered, in order."
               },
+              "waitingOn": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "question",
+                          "approval"
+                        ],
+                        "description": "question when the work asked something, approval when it needs a yes before it goes on."
+                      },
+                      "questionId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The open question or approval; answer it through the questions actions."
+                      },
+                      "taskId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The task of the issue being worked on, where the person answers."
+                      },
+                      "since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp when it was put."
+                      },
+                      "askedOf": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "principalId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "description": "A person the question or approval was put to."
+                            },
+                            "displayName": {
+                              "type": "string",
+                              "maxLength": 200,
+                              "description": "Their current display name; never an email address. BatchWaitingPerson.displayName must contain at most 200 characters."
+                            }
+                          },
+                          "required": [
+                            "principalId",
+                            "displayName"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Up to three people it was put to by name; empty when it was put to the task's participants. Each array item follows this format."
+                        },
+                        "description": "Up to three people it was put to by name; empty when it was put to the task's participants."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "questionId",
+                      "taskId",
+                      "since",
+                      "askedOf"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Set while the issue being worked on has an open question or approval a person must answer: what it is and since when; null otherwise. Read live, so it clears when the answer comes."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.waitingOn may be null in the safe projection."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -103130,6 +103357,7 @@ export const clientManifest = {
               "elapsedSeconds",
               "spentUsd",
               "issues",
+              "waitingOn",
               "createdAt",
               "updatedAt",
               "version"
@@ -107525,6 +107753,92 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "The automatic backup schedule as an installation administrator sees it. Before any save it reads as off with a daily 03:00 UTC default and a 30 day keep."
     },
+    "BackupPointInTime": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether Postgres write-ahead log is archived continuously so a restore can return to any minute."
+        },
+        "earliestRestorableAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "Start of the oldest kept base backup: the earliest minute a restore can return to. Null when off or not reported yet."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupPointInTime.earliestRestorableAt may be null in this transport value."
+        },
+        "latestRestorableAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "Time of the newest write-ahead log segment copied off-site: the latest minute a restore can return to. Null when off or not reported yet."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupPointInTime.latestRestorableAt may be null in this transport value."
+        },
+        "reportedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the host runner last reported the window, or null before its first report."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupPointInTime.reportedAt may be null in this transport value."
+        },
+        "updatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the switch last changed, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupPointInTime.updatedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+        }
+      },
+      "required": [
+        "enabled",
+        "earliestRestorableAt",
+        "latestRestorableAt",
+        "reportedAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Restore to any minute as an installation administrator sees it: the switch, and the window of minutes a restore can return to, from what the host runner holds off-site."
+    },
     "BackupOffsite": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -107847,6 +108161,10 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Destination settings revision, 0 before any save."
+        },
+        "pointInTimeEnabled": {
+          "type": "boolean",
+          "description": "Whether Restore to any minute is on: the runner takes base backups and copies archived write-ahead log off-site only while it is."
         }
       },
       "required": [
@@ -107863,7 +108181,8 @@ export const clientManifest = {
         "offsiteAccessKeyId",
         "offsiteSecretAccessKey",
         "offsiteRefusal",
-        "offsiteVersion"
+        "offsiteVersion",
+        "pointInTimeEnabled"
       ],
       "additionalProperties": false,
       "description": "What the host backup runner needs to do its work: the schedule and the off-site destination including its decrypted credential pair. This is the one route that returns the credentials, and only to the runner credential, never to a user session. It carries no backup key material: the operator keeps the age keys on the host. Every read that releases the credentials, or refuses to, is audited. The destination's host is resolved again on each read, so a name re-pointed at a private address is not released."
