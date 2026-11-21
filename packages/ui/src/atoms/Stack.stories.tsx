@@ -33,11 +33,21 @@ const TightStory: StoryObj = {
   ),
 };
 
+const ComfortableStory: StoryObj = {
+  render: () => (
+    <Stack gap="comfortable">
+      <Text>First block, 12px above the next</Text>
+      <Text>Second block</Text>
+    </Stack>
+  ),
+};
+
 export const Contract: StoryObj = {
   render: (args, context) => (
     <>
       {BaseContract.render?.(args, context)}
       {TightStory.render?.(args, context)}
+      {ComfortableStory.render?.(args, context)}
     </>
   ),
 };
