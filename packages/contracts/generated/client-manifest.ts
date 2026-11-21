@@ -5531,6 +5531,24 @@ export const clientManifest = {
     },
     {
       "group": "Worker protocol",
+      "method": "GET",
+      "path": "/v1/worker/link.tgz",
+      "action": "worker.linkPackage",
+      "access": "Public",
+      "permission": null,
+      "input": "Empty",
+      "output": "WorkerLinkPackageBytes",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; public, cacheable (max-age 300) with an ETag; If-None-Match answers 304",
+      "errors": [
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Worker protocol",
       "method": "POST",
       "path": "/v1/worker/link-code-inspection",
       "action": "worker.inspectLinkCode",
@@ -19015,6 +19033,7 @@ export const clientManifest = {
             "workerEnrollments.cancel",
             "workerEnrollments.replace",
             "worker.inspectEnrollment",
+            "worker.linkPackage",
             "worker.inspectLinkCode",
             "worker.createLinkRequest",
             "worker.pollLinkRequest",
@@ -47001,6 +47020,7 @@ export const clientManifest = {
                   "workerEnrollments.cancel",
                   "workerEnrollments.replace",
                   "worker.inspectEnrollment",
+                  "worker.linkPackage",
                   "worker.inspectLinkCode",
                   "worker.createLinkRequest",
                   "worker.pollLinkRequest",
@@ -67528,6 +67548,7 @@ export const clientManifest = {
             "workerEnrollments.cancel",
             "workerEnrollments.replace",
             "worker.inspectEnrollment",
+            "worker.linkPackage",
             "worker.inspectLinkCode",
             "worker.createLinkRequest",
             "worker.pollLinkRequest",
@@ -73015,7 +73036,7 @@ export const clientManifest = {
         "command": {
           "type": "string",
           "maxLength": 65536,
-          "description": "The whole one-line command an Admin pastes on the machine, with --server set to this Bakery and --code set to linkCode."
+          "description": "The whole one-line command an Admin pastes on the machine: npx -y <origin>/v1/worker/link.tgz link --server <origin> --code <linkCode>. Until an npm scope is chosen the link command is served from this Bakery's own origin as an npm tarball."
         }
       },
       "required": [
@@ -115034,6 +115055,12 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "A machine waiting to be linked, as an Admin sees it: only what the machine said about itself, and the decision once made. Never the device secret or any hash."
+    },
+    "WorkerLinkPackageBytes": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes.",
+      "type": "string",
+      "format": "binary"
     }
   }
 } as const;

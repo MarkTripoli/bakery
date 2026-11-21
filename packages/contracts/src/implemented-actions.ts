@@ -146,6 +146,7 @@ export const MachineImplementedAction = Object.freeze(
     WorkerReportInventory: "worker.reportInventory",
     WorkerComponentsList: "workerComponents.list",
     WorkersRepairEnrollment: "workers.repairEnrollment",
+    WorkerLinkPackage: "worker.linkPackage",
     WorkerInspectLinkCode: "worker.inspectLinkCode",
     WorkerCreateLinkRequest: "worker.createLinkRequest",
     WorkerPollLinkRequest: "worker.pollLinkRequest",

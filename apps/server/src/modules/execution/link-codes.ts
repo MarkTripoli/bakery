@@ -85,13 +85,14 @@ export function isHostname(value: string): boolean {
 }
 
 /**
- * The one line an Admin pastes on the machine. Until the npm scope has an
- * owner (#70), the command names the package the owner chose; the server
- * origin and the code are the only parts that change.
+ * The one line an Admin pastes on the machine. Until the owner picks an npm
+ * scope (#70), npx installs the `link` command from this Bakery's own
+ * origin (`GET /v1/worker/link.tgz`); the origin and the code are the only
+ * parts that change.
  */
 export function linkCommand(publicBaseUrl: string, linkCode: string): string {
   const origin = new URL(publicBaseUrl).origin;
-  return `npx @bakery/worker link --server ${origin} --code ${linkCode}`;
+  return `npx -y ${origin}/v1/worker/link.tgz link --server ${origin} --code ${linkCode}`;
 }
 
 /**

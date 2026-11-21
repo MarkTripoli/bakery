@@ -136,11 +136,10 @@ Deno.test("a link code in the command adds one machine and mints its own credent
     await clearLinkRateLimits(fixture);
     const enrollment = await enrollForLink(fixture);
     assertMatch(enrollment.linkCode, CODE);
+    const origin = new URL(fixture.config.publicBaseUrl).origin;
     assertEquals(
       enrollment.command,
-      `npx @bakery/worker link --server ${
-        new URL(fixture.config.publicBaseUrl).origin
-      } --code ${enrollment.linkCode}`,
+      `npx -y ${origin}/v1/worker/link.tgz link --server ${origin} --code ${enrollment.linkCode}`,
     );
     const stored = await fixture.pgDatabase.query<
       { link_code_hash: string; name: string | null; os: string | null }
@@ -417,4 +416,58 @@ Deno.test("set up again returns the same one command for the machine", () =>
     );
     assertEquals(again.status, 200, await again.clone().text());
     assertEquals((await again.json()).status, "updated");
+  }));
+
+Deno.test("the Bakery origin serves the link command as an npm tarball", () =>
+  withWorkerFixture(async (fixture) => {
+    const response = await fixture.app.fetch(
+      new Request(`${authTestOrigin}/v1/worker/link.tgz`),
+    );
+    assertEquals(response.status, 200);
+    assertEquals(response.headers.get("content-type"), "application/gzip");
+    assertEquals(response.headers.get("cache-control"), "public, max-age=300");
+    const etag = response.headers.get("etag");
+    assert(etag);
+    const gzipped = new Uint8Array(await response.arrayBuffer());
+    const tar = new Uint8Array(
+      await new Response(
+        new Blob([gzipped]).stream().pipeThrough(
+          new DecompressionStream("gzip"),
+        ),
+      ).arrayBuffer(),
+    );
+    const files = new Map<string, { mode: number; text: string }>();
+    for (let at = 0; at + 512 <= tar.byteLength;) {
+      const header = tar.subarray(at, at + 512);
+      if (header.every((byte) => byte === 0)) break;
+      const field = (start: number, length: number) =>
+        new TextDecoder().decode(header.subarray(start, start + length))
+          .replace(/\0.*$/s, "");
+      const size = parseInt(field(124, 12), 8);
+      files.set(field(0, 100), {
+        mode: parseInt(field(100, 8), 8),
+        text: new TextDecoder().decode(
+          tar.subarray(at + 512, at + 512 + size),
+        ),
+      });
+      at += 512 + Math.ceil(size / 512) * 512;
+    }
+    assertEquals([...files.keys()], [
+      "package/package.json",
+      "package/bin/bakery-worker.mjs",
+    ]);
+    const manifest = JSON.parse(files.get("package/package.json")!.text);
+    assertEquals(manifest.name, "@bakery/worker");
+    assertEquals(manifest.bin, { "bakery-worker": "bin/bakery-worker.mjs" });
+    assertEquals(manifest.type, "module");
+    const bin = files.get("package/bin/bakery-worker.mjs")!;
+    assert(bin.text.startsWith("#!/usr/bin/env node\n"));
+    assertEquals(bin.mode, 0o755);
+    // The same build serves the same bytes; a matching ETag answers 304.
+    const again = await fixture.app.fetch(
+      new Request(`${authTestOrigin}/v1/worker/link.tgz`, {
+        headers: { "if-none-match": etag },
+      }),
+    );
+    assertEquals(again.status, 304);
   }));

@@ -52,6 +52,7 @@ import {
   inspectLinkCode,
   pollLinkRequest,
 } from "./link.ts";
+import { workerLinkTarballRoute } from "./worker-link-package.ts";
 import { renewLease, resultRoute } from "./results.ts";
 import { repositoryInspectionSourceRoute } from "../projects/inspection-source.ts";
 import {
@@ -251,6 +252,7 @@ export function createExecutionRoutes(
     "/v1/worker/enrollment-inspection",
     routeHandler(options, (context) => inspectEnrollment(context, options)),
   );
+  app.get("/v1/worker/link.tgz", (context) => workerLinkTarballRoute(context));
   app.post(
     "/v1/worker/link-code-inspection",
     routeHandler(options, (context) => inspectLinkCode(context, options)),

@@ -5539,6 +5539,22 @@
     },
     {
       "group": "Worker protocol",
+      "method": "GET",
+      "path": "/v1/worker/link.tgz",
+      "action": "worker.linkPackage",
+      "access": "Public",
+      "permission": null,
+      "input": "Empty",
+      "output": "WorkerLinkPackageBytes",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read; public, cacheable (max-age 300) with an ETag; If-None-Match answers 304",
+      "errors": [
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Worker protocol",
       "method": "POST",
       "path": "/v1/worker/link-code-inspection",
       "action": "worker.inspectLinkCode",

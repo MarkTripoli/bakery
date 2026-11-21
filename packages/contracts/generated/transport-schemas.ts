@@ -25364,7 +25364,7 @@ const transportSchemas = {
         "enrollmentToken": "One-time token used to enroll the worker.",
         "expiresAt": "UTC timestamp when the record expires.",
         "linkCode": "Ten-minute, one-use link code (XXXX-XXXX) for the same enrollment; it may appear in a command because it expires with the enrollment, works once, only adds one machine to this organization within the settings above, and is useless once the machine registers. Persisted only as a hash.",
-        "command": "The whole one-line command an Admin pastes on the machine, with --server set to this Bakery and --code set to linkCode."
+        "command": "The whole one-line command an Admin pastes on the machine: npx -y <origin>/v1/worker/link.tgz link --server <origin> --code <linkCode>. Until an npm scope is chosen the link command is served from this Bakery's own origin as an npm tarball."
       }
     },
     "DispatchBlocker": {
@@ -36789,6 +36789,10 @@ const transportSchemas = {
         "enrollmentId": "Enrollment the approval created, or null; its status is watched through workerEnrollments.get.",
         "workerHostId": "Machine registered from the approval, or null until it registers."
       }
+    },
+    "WorkerLinkPackageBytes": {
+      "body": "bytes",
+      "description": "The npm tarball (application/gzip) of the one-paste link command, served by the Bakery origin until an npm scope is chosen: a package.json with one bin and the worker bootstrap bundled into one ES module for Node. Holds code only, never a link code or credential; the same commit serves the same bytes."
     }
   },
   "pageEnvelope": {

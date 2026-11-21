@@ -50,7 +50,7 @@ A link code is eight characters from an alphabet with no 0/O, 1/I or L, shown as
 **With the code in the command.** `workers.enroll` (and `workers.repairEnrollment` for **Set up again**) returns `linkCode` and `command`, the whole line to paste:
 
 ```text
-npx @bakery/worker link --server https://bakery.example --code K7QM-2XPD
+npx -y https://bakery.example/v1/worker/link.tgz link --server https://bakery.example --code K7QM-2XPD
 ```
 
 The name may be left empty (the machine's host name is used) and the system and processor may be left to the machine. The terminal calls `worker.inspectLinkCode` with the code and what the machine is, prints the organization, name, slots, coding agent and system, and asks one yes or no. An unsupported system stops there and does not use the code up. On yes it installs the worker, records the link (the code goes into the owner-only code file the worker reads, never the binding), adds and starts the service. The worker then registers with `linkCode` in place of `enrollmentToken`; registration checks the code's hash, expiry and one use, the reported system against the supported list, and the slot and capability ceiling, and consumes the row atomically. Inspection, issue and consumption are audited.
@@ -59,7 +59,7 @@ The name may be left empty (the machine's host name is used) and the system and 
 
 Supported systems come from the installer's proven list (`apps/server/src/modules/execution/link-codes.ts`, the same list as the web's systems table): Linux on arm64 today.
 
-**Serving the CLI.** The npm scope has no confirmed owner, so `@bakery/worker` is not published and `npx` cannot fetch it yet; the command text names the package the owner chose. The bootstrap's release origin and trust root are also not set (`packages/worker-bootstrap/src/release-config.ts`, B00.04), so `link` on a real machine uses a worker already installed in its root and prints the service steps rather than running them. Serving the entry from the Bakery origin is open owner work.
+**Serving the CLI.** The npm scope has no confirmed owner, so until the owner picks one the Bakery origin serves the command itself: `GET /v1/worker/link.tgz` (public, `Cache-Control: public, max-age=300`, ETag) answers an npm tarball holding a `package.json` with one `bin` and the bootstrap bundled into one ES module that runs under Node 22+ (`npx` takes a tarball URL). The bundle is committed at `packages/worker-bootstrap/generated/link-bundle.ts` (`pnpm worker-link:generate`, built by `deno bundle`; a unit test fails when it is older than the bootstrap source), and the server packs it with fixed times, owners and modes, so one commit always serves the same bytes. The tarball holds code only, never a code or credential. The bootstrap's release origin and trust root are still not set (`packages/worker-bootstrap/src/release-config.ts`, B00.04), so `link` on a real machine uses a worker already installed in its root and prints the service steps rather than running them.
 
 ## One-command installation with npx
 

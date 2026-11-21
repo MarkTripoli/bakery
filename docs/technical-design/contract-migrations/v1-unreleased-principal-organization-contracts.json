@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a39f583d3bed3d07e0cf05ada3bd8105866bfaad"
+    "931df69723f15304dce34cf1521d7555e75e8c22"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:5d4890e46040d50528362281365631b3238573ddff1a6a9f0ffa700353f6a6d3",
-  "reason": "#70 one-paste link by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main a39f583d3bed3d07e0cf05ada3bd8105866bfaad: link codes and link requests on worker enrollment. Main's own approval is kept unchanged first below.",
+  "targetCompatibilityDigest": "sha256:fe08a78d6a08621cb2bd2347a27c7b32fb6503c3d4455b3eb586f2c8e47d8bb1",
+  "reason": "#70 one-paste link by dev-server on 2026-11-21 under the owner's standing breaking-change authorization (2026-10-09), main 931df69723f15304dce34cf1521d7555e75e8c22: link codes and link requests on worker enrollment. Main's own approval is kept unchanged first below.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
