@@ -212,6 +212,21 @@ export async function commitGlobalSkillInstall(options: {
       "select 1 from bakery.skills where organization_id = $1 and id = $2",
       [preparation.organizationId, install.identity.skillId],
     );
+    // The preflight's slug check ran before the files were stored. Someone may
+    // have created an organization skill with this slug since, so it is asked
+    // again here, under the lock: the organization's own skill is kept and
+    // Bakery's is not installed over it.
+    const slugTaken = await transaction.query(
+      `select 1 from bakery.skills
+        where organization_id = $1 and scope <> 'personal'
+          and slug = $2 and id <> $3`,
+      [
+        preparation.organizationId,
+        install.identity.slug,
+        install.identity.skillId,
+      ],
+    );
+    if (slugTaken.rows.length > 0) continue;
     if (install.isNew && present.rows.length === 0) {
       await insertGlobalSkillIdentity(
         transaction,

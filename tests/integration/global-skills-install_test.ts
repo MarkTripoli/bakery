@@ -5,7 +5,15 @@ import {
   bundledSkills,
   bundledSkillUpload,
 } from "../../apps/server/src/modules/catalog/bundled-skills/index.ts";
-import { globalSkillId } from "../../apps/server/src/modules/catalog/global-skills.ts";
+import {
+  commitGlobalSkillInstall,
+  globalSkillId,
+  type GlobalSkillInstallPreparation,
+  prepareGlobalSkillInstall,
+  storeGlobalSkillInstall,
+} from "../../apps/server/src/modules/catalog/global-skills.ts";
+import { SkillFileStore } from "../../apps/server/src/modules/catalog/storage.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { validateLocalSkillVersion } from "../../apps/server/src/modules/catalog/validation.ts";
 
 type Page = { items: { id: string; slug: string; scope: string }[] };
@@ -167,5 +175,57 @@ Deno.test("without a skill file store nothing is installed and the list still wo
     assertEquals((await response.json() as Page).items, []);
   } finally {
     await f.close();
+  }
+});
+
+Deno.test("a skill that takes the slug between the passes is kept, and the list still works", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-74-global-race-" });
+  const f = await openPersonalSkillFixture({ skillFileRoot: root });
+  try {
+    const database = f.fixture.pgDatabase;
+    class PreflightRollback extends Error {}
+    let preparation: GlobalSkillInstallPreparation | undefined;
+    try {
+      await withPgTransaction(database, async (transaction) => {
+        preparation = await prepareGlobalSkillInstall({
+          transaction,
+          organizationId: f.organizationId,
+        });
+        throw new PreflightRollback();
+      });
+    } catch (error) {
+      if (!(error instanceof PreflightRollback)) throw error;
+    }
+    assert(preparation !== undefined && preparation.installs.length === 1);
+    const proofs = await storeGlobalSkillInstall(
+      preparation,
+      new SkillFileStore(root),
+    );
+    // An administrator takes the slug after the preflight, before the commit.
+    const created = await f.post(f.ownerCookie, "/v1/skills", {
+      slug: "bakery-authoring",
+      name: "Ours",
+    }, "ours-race");
+    assertEquals(created.status, 201, await created.clone().text());
+    await withPgTransaction(
+      database,
+      (transaction) =>
+        commitGlobalSkillInstall({
+          transaction,
+          preparation: preparation!,
+          proofs,
+          requestId: crypto.randomUUID(),
+          traceId: crypto.randomUUID(),
+        }),
+    );
+    const response = await caller(f)("GET", "/v1/skills");
+    assertEquals(response.status, 200, await response.clone().text());
+    assertEquals(
+      (await response.json() as Page).items.map((s) => [s.slug, s.scope]),
+      [["bakery-authoring", "organization"]],
+    );
+  } finally {
+    await f.close();
+    await Deno.remove(root, { recursive: true });
   }
 });
