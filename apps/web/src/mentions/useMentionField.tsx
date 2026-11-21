@@ -45,9 +45,7 @@ export type MentionField = {
     readonly onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
     readonly onKeyUp: () => void;
     readonly onClick: () => void;
-    readonly role: "combobox";
     readonly "aria-autocomplete": "list";
-    readonly "aria-expanded": boolean;
     readonly "aria-controls": string | undefined;
     readonly "aria-activedescendant": string | undefined;
   };
@@ -120,6 +118,14 @@ export function useMentionField(
     mentions,
   );
   useEffect(() => setActive(0), [text, candidates.length === 0]);
+  // Everyone on the pages read so far may already be chosen: read on, so the
+  // picker never says "no one" while more people are waiting.
+  const nothingLeft = candidates.length === 0;
+  useEffect(() => {
+    if (open && nothingLeft && read.hasNextPage && !read.isFetchingNextPage) {
+      void read.fetchNextPage();
+    }
+  }, [open, nothingLeft, read.hasNextPage, read.isFetchingNextPage]);
 
   const full = mentions.length >= MAX_MENTIONS;
   const rows = candidates.map((candidate) => {
@@ -191,14 +197,14 @@ export function useMentionField(
     )
     : read.isError
     ? translate("mentions.failed")
-    : candidates.length === 0 && !read.isPending
+    : candidates.length === 0 && !read.isPending && !read.hasNextPage
     ? translate("mentions.empty", { organization: organizationName })
     : null;
   const pickerState = full
     ? "limit" as const
     : read.isError
     ? "error" as const
-    : read.isPending
+    : read.isPending || (candidates.length === 0 && read.hasNextPage)
     ? "loading" as const
     : candidates.length === 0
     ? "empty" as const
@@ -360,9 +366,7 @@ export function useMentionField(
       },
       onKeyUp: () => setCaret(ref.current?.selectionStart ?? value.length),
       onClick: () => setCaret(ref.current?.selectionStart ?? value.length),
-      role: "combobox",
       "aria-autocomplete": "list",
-      "aria-expanded": showing,
       "aria-controls": showing ? listId : undefined,
       "aria-activedescendant": showing && activeId !== null
         ? UI.mentionOptionId(listId, activeId)

@@ -838,17 +838,21 @@ export function TaskConversation(
               onSend={() => void send()}
               onRetry={() => void send()}
             />
-            {canShare && (added.data?.length ?? 0) > 0
+            {canShare
               ? (
                 <>
-                  <UI.Button
-                    onClick={() => setAddedOpen(true)}
-                    variant="text"
-                  >
-                    {t("mentions.added.link", {
-                      count: added.data?.length ?? 0,
-                    })}
-                  </UI.Button>
+                  {(added.data?.length ?? 0) > 0 || addedOpen
+                    ? (
+                      <UI.Button
+                        onClick={() => setAddedOpen(true)}
+                        variant="text"
+                      >
+                        {t("mentions.added.link", {
+                          count: added.data?.length ?? 0,
+                        })}
+                      </UI.Button>
+                    )
+                    : null}
                   <PeopleAddedDialog
                     conversationId={conversationId}
                     onOpenChange={setAddedOpen}

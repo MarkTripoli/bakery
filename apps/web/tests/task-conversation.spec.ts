@@ -251,6 +251,24 @@ type World = {
   answerReply?: (route: Route) => Promise<void> | void;
   sendReply?: (route: Route, attempt: number) => Promise<void> | void;
   capabilities: { action: string; canRequest: boolean; reason: string }[];
+  /** The people the mention picker offers, as the server reads them. */
+  candidates: {
+    principalId: string;
+    displayName: string;
+    hasAccess: boolean;
+    gainsAccessOnSend: boolean;
+  }[];
+  /** Reading the candidates answers this status. */
+  candidatesStatus: number;
+  /** The reader may share the conversation (the People added link). */
+  canShare: boolean;
+  /** People a mention opened the conversation to. */
+  grants: Record<string, unknown>[];
+  /** Taking a grant back answers this status (412 is the version conflict). */
+  revokeStatus: number;
+  revokes: { principalId: string; ifMatch: string | undefined }[];
+  /** The search texts the picker asked for. */
+  searches: string[];
 };
 
 function world(overrides: Partial<World> = {}): World {
@@ -288,6 +306,32 @@ function world(overrides: Partial<World> = {}): World {
       canRequest: action === "cancel",
       reason: action === "cancel" ? "allowed" : "unsupported",
     })),
+    candidates: [
+      {
+        principalId: "00000000-0000-4000-8000-0000000000a1",
+        displayName: "Ana Ruiz",
+        hasAccess: true,
+        gainsAccessOnSend: false,
+      },
+      {
+        principalId: "00000000-0000-4000-8000-0000000000a2",
+        displayName: "Sam Patel",
+        hasAccess: false,
+        gainsAccessOnSend: true,
+      },
+      {
+        principalId: "00000000-0000-4000-8000-0000000000a3",
+        displayName: "Samir Okafor",
+        hasAccess: false,
+        gainsAccessOnSend: false,
+      },
+    ],
+    candidatesStatus: 200,
+    canShare: false,
+    grants: [],
+    revokeStatus: 200,
+    revokes: [],
+    searches: [],
     ...overrides,
   };
 }
@@ -295,6 +339,79 @@ function world(overrides: Partial<World> = {}): World {
 const page_ = <T>(items: T[]) => ({ items, nextCursor: null });
 
 async function mockWorld(page: Page, state: World) {
+  await page.route(
+    `**/v1/organizations/${organizationId}/effective-access`,
+    (route) =>
+      route.fulfill({
+        json: {
+          organizationId,
+          role: "developer",
+          capabilities: state.canShare ? ["conversation:share"] : [],
+        },
+      }),
+  );
+  await page.route(
+    (url) =>
+      url.pathname === `/v1/conversations/${conversationId}/mention-candidates`,
+    (route) => {
+      const url = new URL(route.request().url());
+      const text = (url.searchParams.get("query") ?? "").toLowerCase();
+      state.searches.push(text);
+      if (state.candidatesStatus !== 200) {
+        return route.fulfill({
+          status: state.candidatesStatus,
+          contentType: "application/problem+json",
+          json: problem(state.candidatesStatus, "UNAVAILABLE", true),
+        });
+      }
+      const found = state.candidates.filter((entry) =>
+        entry.displayName.toLowerCase().includes(text)
+      );
+      const limit = Number(url.searchParams.get("limit") ?? 10);
+      const from = Number(url.searchParams.get("cursor") ?? 0);
+      const next = from + limit;
+      return route.fulfill({
+        json: {
+          items: found.slice(from, next),
+          nextCursor: next < found.length ? String(next) : null,
+        },
+      });
+    },
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/conversations/${conversationId}/access`,
+    (route) => route.fulfill({ json: page_(state.grants) }),
+  );
+  await page.route(
+    (url) =>
+      /^\/v1\/conversations\/[^/]+\/access\/[^/]+\/revoke$/.test(url.pathname),
+    (route) => {
+      const request = route.request();
+      const principal = new URL(request.url()).pathname.split("/")[5];
+      state.revokes.push({
+        principalId: principal,
+        ifMatch: request.headers()["if-match"],
+      });
+      if (state.revokeStatus !== 200) {
+        return route.fulfill({
+          status: state.revokeStatus,
+          contentType: "application/problem+json",
+          json: problem(
+            state.revokeStatus,
+            state.revokeStatus === 412 ? "PRECONDITION_FAILED" : "UNAVAILABLE",
+            false,
+          ),
+        });
+      }
+      const grant = state.grants.find((entry) =>
+        entry.principalId === principal
+      );
+      state.grants = state.grants.filter((entry) =>
+        entry.principalId !== principal
+      );
+      return route.fulfill({ json: { ...grant, revokedAt: stamp(59) } });
+    },
+  );
   await page.route(`**/v1/tasks/${taskId}`, (route) => {
     const request = route.request();
     if (request.method() === "PATCH") {
@@ -2694,4 +2811,312 @@ test("a blocked run whose reason the page does not know says it does not know", 
   await expect(
     page.getByText("This run is waiting for another task to finish."),
   ).toHaveCount(0);
+});
+
+/** Mentions in the task composer and the people they added (#73, UX revision 2). */
+const ANA = "00000000-0000-4000-8000-0000000000a1";
+const SAM = "00000000-0000-4000-8000-0000000000a2";
+const messageBox = (page: Page) =>
+  page.getByRole("textbox", { name: "Message this task" });
+const refusal = (issues: { index: number; code: string }[]) => ({
+  ...problem(422, "UNPROCESSABLE"),
+  issues: issues.map(({ index, code }) => ({
+    path: `/mentions/${index}`,
+    code,
+    message: code.replaceAll("_", " "),
+  })),
+});
+
+test("typing @ opens the people you can mention: quiet rows, one badge, one muted row", async ({ page }) => {
+  const state = await open(page);
+  await messageBox(page).fill("@");
+  const list = page.getByRole("listbox", { name: "People you can mention" });
+  await expect(list).toBeVisible();
+  await expect(list.getByRole("option", { name: "Ana Ruiz", exact: true }))
+    .toBeVisible();
+  await expect(
+    list.getByRole("option", { name: "Sam Patel, gets access on send" }),
+  ).toBeVisible();
+  await expect(list.getByText("Gets access on send")).toBeVisible();
+  const blocked = list.getByRole("option", {
+    name: "Samir Okafor, you can't add them here",
+  });
+  await expect(blocked).toHaveAttribute("aria-disabled", "true");
+  await expect(
+    page.getByText(
+      "A person who gets access can read and reply in this conversation only.",
+    ),
+  ).toBeVisible();
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-picker");
+  await messageBox(page).fill("Hi @sa");
+  await expect.poll(() => state.searches).toContain("sa");
+  await expect(list.getByRole("option", { name: "Ana Ruiz", exact: true }))
+    .toHaveCount(0);
+});
+
+test("choosing a person writes @Name, shows who will be notified and what Send gives, and sends mentions", async ({ page }) => {
+  const state = await open(page);
+  await messageBox(page).fill("Hi @sa");
+  await page.getByRole("option", { name: "Sam Patel, gets access on send" })
+    .click();
+  await expect(messageBox(page)).toHaveValue("Hi @Sam Patel ");
+  await expect(page.getByText("Sam Patel · gets access")).toBeVisible();
+  await expect(
+    page.getByText(
+      "Sending gives Sam Patel access to read and reply in this conversation, and nothing else.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-ready");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => state.sent.length).toBe(1);
+  expect(state.sent[0].body).toMatchObject({
+    body: "Hi @Sam Patel",
+    mentions: [SAM],
+  });
+});
+
+test("the keys: arrows move, Enter chooses, Escape closes and keeps the text, a muted row cannot be chosen", async ({ page }) => {
+  await open(page);
+  const box = messageBox(page);
+  await box.fill("@");
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await box.press("ArrowDown");
+  await box.press("Enter");
+  await expect(box).toHaveValue("@Sam Patel ");
+  await box.press("End");
+  await box.pressSequentially("@");
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await box.press("Escape");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(box).toHaveValue("@Sam Patel @");
+  // A muted row: arrow to it and press Enter; nothing is chosen.
+  await box.fill("@");
+  await box.press("ArrowDown");
+  await box.press("ArrowDown");
+  await box.press("Enter");
+  await expect(box).toHaveValue("@");
+  await expect(page.getByRole("button", { name: /Remove mention of/ }))
+    .toHaveCount(0);
+});
+
+test("editing the inserted name drops its chip; the chip's button takes the @ name off; a typed @name mentions nobody", async ({ page }) => {
+  const state = await open(page);
+  const box = messageBox(page);
+  await box.fill("Hi @an");
+  await page.getByRole("option", { name: "Ana Ruiz", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Remove mention of Ana Ruiz" }),
+  ).toBeVisible();
+  await box.fill("Hi @Ana Rui");
+  await expect(
+    page.getByRole("button", { name: "Remove mention of Ana Ruiz" }),
+  ).toHaveCount(0);
+  await box.fill("Hi @an");
+  await page.getByRole("option", { name: "Ana Ruiz", exact: true }).click();
+  await page.getByRole("button", { name: "Remove mention of Ana Ruiz" })
+    .click();
+  await expect(box).not.toHaveValue(/@Ana Ruiz/);
+  // A name typed by hand is just text.
+  await box.fill("Thanks @Ana Ruiz");
+  await expect(page.getByText("Will be notified")).toHaveCount(0);
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => state.sent.length).toBe(1);
+  expect(state.sent[0].body).not.toHaveProperty("mentions");
+});
+
+test("a refused mention writes nothing: the draft stays, the name turns red, Send waits until it is removed", async ({ page }) => {
+  const state = world();
+  state.sendReply = (route) =>
+    route.fulfill({
+      status: 422,
+      contentType: "application/problem+json",
+      json: refusal([{ index: 0, code: "mention_share_forbidden" }]),
+    });
+  await open(page, state);
+  const box = messageBox(page);
+  await box.fill("Hi @sa");
+  await page.getByRole("option", { name: "Sam Patel, gets access on send" })
+    .click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const alert = page.getByRole("alert").filter({ hasText: "Not sent." });
+  await expect(alert).toHaveText(
+    "Not sent. You can't give Sam Patel access to this conversation. Remove the mention, or ask someone who can share it.",
+  );
+  await expect(box).toHaveValue("Hi @Sam Patel ");
+  await expect(page.getByRole("button", { name: "Send", exact: true }))
+    .toBeDisabled();
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-refused");
+  await page.getByRole("button", { name: "Remove mention of Sam Patel" })
+    .click();
+  await expect(page.getByRole("button", { name: "Send", exact: true }))
+    .toBeEnabled();
+});
+
+test("the other refusals use their own sentence, and several are counted", async ({ page }) => {
+  const state = world();
+  state.sendReply = (route) =>
+    route.fulfill({
+      status: 422,
+      contentType: "application/problem+json",
+      json: refusal([{ index: 0, code: "mention_not_member" }]),
+    });
+  await open(page, state);
+  const box = messageBox(page);
+  await box.fill("@sa");
+  await page.getByRole("option", { name: "Sam Patel, gets access on send" })
+    .click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Not sent." }))
+    .toHaveText(
+      "Not sent. Sam Patel is no longer a member of Fixture Org. Remove the mention.",
+    );
+  state.sendReply = (route) =>
+    route.fulfill({
+      status: 422,
+      contentType: "application/problem+json",
+      json: refusal([
+        { index: 0, code: "mention_not_member" },
+        { index: 1, code: "mention_share_forbidden" },
+      ]),
+    });
+  await box.press("End");
+  await box.pressSequentially("@an");
+  await page.getByRole("option", { name: "Ana Ruiz", exact: true }).click();
+  await page.getByRole("button", { name: "Remove mention of Sam Patel" })
+    .click();
+  await box.press("End");
+  await box.pressSequentially("@sa");
+  await page.getByRole("option", { name: "Sam Patel, gets access on send" })
+    .click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Not sent." }))
+    .toHaveText(
+      "Not sent. 2 people can't be mentioned. Remove the red names to send.",
+    );
+});
+
+test("no one found, a failed read with Try again, and the limit of 20 people", async ({ page }) => {
+  const state = await open(page);
+  const box = messageBox(page);
+  await box.fill("@zzz");
+  await expect(page.getByText("No one found in Fixture Org.")).toBeVisible();
+  state.candidatesStatus = 503;
+  await box.fill("@sa");
+  await expect(page.getByText("People could not be loaded.")).toBeVisible();
+  state.candidatesStatus = 200;
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("option", { name: /Sam Patel/ })).toBeVisible();
+  // Twenty people in one message is the most there can be.
+  state.candidates = Array.from({ length: 22 }, (_, index) => ({
+    principalId: `00000000-0000-4000-8000-00000000b${
+      String(index).padStart(3, "0")
+    }`,
+    displayName: `Person ${String(index + 1).padStart(2, "0")}`,
+    hasAccess: true,
+    gainsAccessOnSend: false,
+  }));
+  await box.fill("@");
+  for (let index = 0; index < 20; index += 1) {
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await box.press("Enter");
+    await box.press("End");
+    await box.pressSequentially("@");
+  }
+  await expect(
+    page.getByText("You can mention up to 20 people in one message."),
+  ).toBeVisible();
+});
+
+test("people a mention added: the link, the list, and taking access back after asking", async ({ page }) => {
+  const state = world({
+    canShare: true,
+    grants: [{
+      id: "00000000-0000-4000-8000-0000000000c1",
+      conversationId,
+      principalId: SAM,
+      displayName: "Sam Patel",
+      grantedById: ANA,
+      grantedByName: "Ana Ruiz",
+      sourceMessageId: "00000000-0000-4000-8000-000000000101",
+      grantedAt: stamp(5),
+      revokedAt: null,
+      version: 4,
+    }],
+  });
+  await open(page, state);
+  await page.getByRole("button", { name: "1 person was added by a mention" })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "People added to this conversation",
+  });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByText(
+      "They were mentioned here. They can read and reply in this conversation only.",
+    ),
+  ).toBeVisible();
+  await expect(dialog.getByText("Sam Patel", { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/Mentioned by Ana Ruiz on /)).toBeVisible();
+  await page.mouse.move(700, 100);
+  await still(page, "mentions-added");
+  await dialog.getByRole("button", { name: "Remove access for Sam Patel" })
+    .click();
+  const confirm = page.getByRole("alertdialog");
+  await expect(
+    confirm.getByText("Remove Sam Patel's access to this conversation?"),
+  )
+    .toBeVisible();
+  await expect(
+    confirm.getByText(
+      "Sam Patel will no longer be able to read or reply here. Their messages stay.",
+    ),
+  ).toBeVisible();
+  await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await confirm.getByRole("button", { name: "Remove access" }).click();
+  await expect.poll(() => state.revokes.length).toBe(1);
+  expect(state.revokes[0]).toEqual({ principalId: SAM, ifMatch: '"v4"' });
+  await expect(page.getByText("Removed Sam Patel's access.")).toBeVisible();
+  await expect(dialog.getByText("No one was added by a mention."))
+    .toBeVisible();
+});
+
+test("a change to someone's access is said plainly, and the link is for people who may share", async ({ page }) => {
+  const grant = {
+    id: "00000000-0000-4000-8000-0000000000c1",
+    conversationId,
+    principalId: SAM,
+    displayName: "Sam Patel",
+    grantedById: ANA,
+    grantedByName: "Ana Ruiz",
+    sourceMessageId: null,
+    grantedAt: stamp(5),
+    revokedAt: null,
+    version: 4,
+  };
+  const state = world({ canShare: true, grants: [grant], revokeStatus: 412 });
+  await open(page, state);
+  await page.getByRole("button", { name: "1 person was added by a mention" })
+    .click();
+  await page.getByRole("button", { name: "Remove access for Sam Patel" })
+    .click();
+  await page.getByRole("alertdialog").getByRole("button", {
+    name: "Remove access",
+  }).click();
+  await expect(
+    page.getByText(
+      "Sam Patel's access changed just now. The list is up to date.",
+    ),
+  ).toBeVisible();
+  const reader = await page.context().newPage();
+  await mockAuthenticatedSession(reader);
+  await mockWorld(reader, world({ canShare: false, grants: [grant] }));
+  await reader.goto(`/tasks/${taskId}`);
+  await expect(conversation(reader)).toBeVisible();
+  await expect(reader.getByRole("button", { name: /added by a mention/ }))
+    .toHaveCount(0);
+  await reader.close();
 });
