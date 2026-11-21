@@ -50,7 +50,11 @@ set_dir=${1:?completed backup directory required}
 identity=${2:?operator age identity file required}
 flag=${3:-}
 typed=${4:-}
-[[ -d "$set_dir" && -f "$identity" && "$flag" == --confirm ]] || exit 64
+usage="usage: restore.sh <completed backup directory> <age identity file> --confirm <set name>"
+if [[ ! -d "$set_dir" || ! -f "$identity" || "$flag" != --confirm ]]; then
+  echo "$usage" >&2
+  exit 64
+fi
 umask 077
 
 set_name=$(basename "$set_dir")

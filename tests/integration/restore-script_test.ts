@@ -19,6 +19,10 @@ type Sandbox = {
   run: (
     ...args: string[]
   ) => Promise<{ code: number; stderr: string; stdout: string }>;
+  runEnv: (
+    env: Record<string, string | undefined>,
+    ...args: string[]
+  ) => Promise<{ code: number; stderr: string; stdout: string }>;
   state: string;
 };
 
@@ -135,6 +139,37 @@ async function withSandbox(
     const identity = join(dir, "identity.txt");
     await Deno.writeTextFile(identity, "AGE-SECRET-KEY-FAKE\n");
 
+    const runEnv = async (
+      overrides: Record<string, string | undefined>,
+      ...args: string[]
+    ) => {
+      const output = await new Deno.Command("bash", {
+        args: [join(REPO, "scripts/deploy/restore.sh"), ...args],
+        clearEnv: true,
+        env: {
+          PATH: `${bin}:/usr/bin:/bin`,
+          HOME: dir,
+          TMPDIR: dir,
+          ...Object.fromEntries(
+            Object.entries({
+              BAKERY_BACKUP_SANDBOX: dir,
+              BAKERY_ENV: "test",
+              ...overrides,
+            }).filter((entry): entry is [string, string] =>
+              entry[1] !== undefined
+            ),
+          ),
+        },
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      return {
+        code: output.code,
+        stdout: new TextDecoder().decode(output.stdout),
+        stderr: new TextDecoder().decode(output.stderr),
+      };
+    };
+
     await body({
       dir,
       set,
@@ -146,26 +181,8 @@ async function withSandbox(
           return [];
         }
       },
-      run: async (...args) => {
-        const output = await new Deno.Command("bash", {
-          args: [join(REPO, "scripts/deploy/restore.sh"), ...args],
-          clearEnv: true,
-          env: {
-            PATH: `${bin}:/usr/bin:/bin`,
-            HOME: dir,
-            TMPDIR: dir,
-            BAKERY_BACKUP_SANDBOX: dir,
-            BAKERY_ENV: "test",
-          },
-          stdout: "piped",
-          stderr: "piped",
-        }).output();
-        return {
-          code: output.code,
-          stdout: new TextDecoder().decode(output.stdout),
-          stderr: new TextDecoder().decode(output.stderr),
-        };
-      },
+      run: (...args) => runEnv({}, ...args),
+      runEnv,
     });
   } finally {
     await Deno.remove(dir, { recursive: true });
@@ -183,6 +200,39 @@ Deno.test("without the set's own name typed, nothing runs and nothing changes", 
     const typed = await s.run(s.set, identityOf(s.dir), "--confirm", "nope");
     assertEquals(typed.code, 65);
     assert(typed.stderr.includes("RESTORE_CONFIRMATION_REQUIRED"));
+    assertEquals(await s.calls(), []);
+    assertEquals(
+      await Deno.readTextFile(join(s.state, "skills/old.txt")),
+      "old skills",
+    );
+  });
+});
+
+Deno.test("a missing --confirm prints the usage line and changes nothing", async () => {
+  await withSandbox({}, async (s) => {
+    const result = await s.run(s.set, identityOf(s.dir));
+    assertEquals(result.code, 64);
+    assert(result.stderr.includes("--confirm <set name>"), result.stderr);
+    assertEquals(await s.calls(), []);
+  });
+});
+
+Deno.test("the sandbox root is refused outside BAKERY_ENV=test before anything runs", async () => {
+  await withSandbox({}, async (s) => {
+    for (const env of [undefined, "production"]) {
+      const result = await s.runEnv(
+        { BAKERY_ENV: env },
+        s.set,
+        identityOf(s.dir),
+        "--confirm",
+        SET_NAME,
+      );
+      assertEquals(result.code, 64);
+      assert(
+        result.stderr.includes("only honoured when BAKERY_ENV=test"),
+        result.stderr,
+      );
+    }
     assertEquals(await s.calls(), []);
     assertEquals(
       await Deno.readTextFile(join(s.state, "skills/old.txt")),
