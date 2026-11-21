@@ -12538,7 +12538,7 @@
     {
       "id": "template.formWithSummary",
       "name": "FormWithSummary",
-      "description": "Places a form beside a plain summary of what it will do, with the buttons under the form, and stacks them on a narrow screen.",
+      "description": "Places a form beside a plain summary of what it will do, with optional buttons under the form, and stacks them on a narrow screen.",
       "level": "template",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Templates/FormWithSummary",
@@ -12568,7 +12568,7 @@
       "a11y": {
         "accessibleName": "none",
         "keyboard": [],
-        "notes": "A form column and a 300px summary column from 1280px; below that the summary sits between the form and its buttons, and on a phone the buttons stack with the main step first. The summary is a complementary region."
+        "notes": "A form column and a 300px summary column from 1280px; below that the summary sits between the form and its buttons, and on a phone the buttons stack with the main step first. The summary is a complementary region. Without buttons there is no buttons row and no rule under the form."
       },
       "tokens": [
         "--space-6"
@@ -24677,5 +24677,5 @@
       ]
     }
   ],
-  "revision": "13e9717e15423d443b1ac023e3c8d841d39ed98905381c43b154aa68c19552a2"
+  "revision": "2c334d3ae821aa15e1a78eeae9c926171cb97baf26d5bf4142955b5396df6abf"
 }

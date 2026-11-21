@@ -47,6 +47,7 @@ import type {
   FileSearchInput,
   FileSearchPage,
   InstallationCapabilities,
+  InstallationRestore,
   InstallationSettings,
   InstallationStatus,
   IntegrationAppRegistration,
@@ -1943,6 +1944,54 @@ export function usageSummaryQueryOptions(
     queryKey: protectedQueryKey(scope, "usage.list", { ...query }),
     queryFn: async ({ signal }) =>
       unwrap(await client.usage.list({ query, signal })),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * Whether a restore holds the installation right now (#64 E4), read from the
+ * public installation status so every signed-in person, not only an
+ * administrator, can see the banner before their first refused action. It
+ * reads again every minute and when the window is focused again, so the banner
+ * leaves soon after an administrator finishes the restore.
+ */
+export function installationHeldQueryOptions(
+  client: Pick<BakeryApiClient, "installationStatus">,
+) {
+  return queryOptions<boolean, ApiFailure>({
+    queryKey: ["installation", "restoreHeld"],
+    queryFn: async ({ signal }) =>
+      unwrap(await client.installationStatus(signal)).restoreHeld,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/**
+ * The restore that holds the installation, or null when none does. "No restore
+ * is held" is the normal answer of a running installation (RESTORE_NOT_HELD),
+ * not a failure: the banner and the Restore item show only while this is a
+ * record.
+ */
+export function installationRestoreQueryOptions(
+  client: Pick<BakeryApiClient, "installationRestore">,
+  scope: ApiScope,
+  enabled = true,
+) {
+  return queryOptions<InstallationRestore | null, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "installationRestore.get", {}),
+    enabled,
+    queryFn: async ({ signal }) => {
+      const read = await client.installationRestore.get(signal);
+      if (read.ok) return read.data;
+      if (
+        read.error.kind === "problem" &&
+        read.error.problem.code === "RESTORE_NOT_HELD"
+      ) return null;
+      throw read.error;
+    },
     retry: retryNetworkOnce,
   });
 }

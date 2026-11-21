@@ -6,7 +6,13 @@ export type StackProps =
   & SemanticNativeProps<HTMLAttributes<HTMLDivElement>>
   & {
     children: ReactNode;
-    gap?: "none" | "tight" | "compact" | "standard" | "spacious";
+    gap?:
+      | "none"
+      | "tight"
+      | "compact"
+      | "comfortable"
+      | "standard"
+      | "spacious";
     /**
      * `indent` sets the whole stack one step in from its start edge, so lines
      * that belong to the line above sit under it and wrap there too.

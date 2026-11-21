@@ -130,6 +130,10 @@
 .ui-inline--compact {
   gap: var(--space-2);
 }
+/* 12px: the blocks of one open step, between compact (8px) and standard (16px). */
+.ui-stack--comfortable {
+  gap: var(--space-3);
+}
 .ui-stack--indent {
   padding-inline-start: var(--space-4);
 }
